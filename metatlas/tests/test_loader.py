@@ -17,13 +17,14 @@ def test_loader():
 
     if not os.path.exists(path):
         # NOTE the stream=True parameter
-        print('Downloading: %s' % url, file=sys.stderr)
+        print('Downloading: %s\n' % url, file=sys.stderr)
         r = requests.get(url, stream=True)
         with open(path, 'wb') as f:
             for chunk in r.iter_content(chunk_size=1024):
                 if chunk:  # filter out keep-alive new chunks
                     f.write(chunk)
                     f.flush()
+        print('Download complete\n', file=sys.stderr)
 
     mzml_to_hdf(path)
 
