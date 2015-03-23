@@ -35,9 +35,9 @@ def test_loader():
 
     assert table.nrows == 933367
     assert list(table[0]) == (59.0, 0.03933333232998848, 9, 0.0, 1,
-                              0.0, 0.0, 0.0)
+                              0.0, 0.0, 0.0), list(table[0])
     assert list(table[-1]) == (1666.0, 19.266700744628906, 225, 0.0, 1,
-                               0.0, 0.0, 0.0)
+                               0.0, 0.0, 0.0), list(table[-1])
     ms_1 = [y['scan_time'] for y in table.where('(ms_level==1)')]
     assert len(ms_1) == 5082
 
