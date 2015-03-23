@@ -71,7 +71,7 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
                     precursor_intensity = 0.0
                 precursor_MZ = spectrum['selected ion m/z'][0]
 
-            table.append([((int(mz), float(scan_time), float(i),
+            table.append([((float(mz), float(scan_time), float(i),
                             int(polarity), int(ms_level),
                             float(precursor_MZ), float(precursor_intensity),
                             float(collision_energy)))])
