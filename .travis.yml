@@ -33,7 +33,6 @@ script:
     else
       nosetests --exe -v metatlas;
     fi
-  - make docs
 
 after_success:
     - coveralls

@@ -25,7 +25,7 @@ def test_loader():
                     f.write(chunk)
                     f.flush()
 
-    mzml_to_hdf('test.mzML')
+    mzml_to_hdf(path)
 
     fid = tables.open_file('test.h5')
     table = fid.root.spectra
