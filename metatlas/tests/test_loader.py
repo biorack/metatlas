@@ -28,7 +28,9 @@ def test_loader():
 
     mzml_to_hdf(path)
 
-    fid = tables.open_file('test.h5')
+    out_file = path.replace('.mzML', '.h5')
+
+    fid = tables.open_file(out_file)
     table = fid.root.spectra
 
     assert table.nrows == 933367
@@ -39,5 +41,5 @@ def test_loader():
     ms_1 = [y['scan_time'] for y in table.where('(ms_level==1)')]
     assert len(ms_1) == 5082
 
-    os.chmod('test.h5', 777)
-    os.remove('test.h5')
+    os.chmod(out_file, 777)
+    os.remove(out_file)
