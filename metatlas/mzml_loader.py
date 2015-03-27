@@ -24,7 +24,9 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     if not out_file_name:
         out_file_name = in_file_name.replace('.mzML', '.h5')
 
-    out_file = tables.open_file(out_file_name, "w")
+    FILTERS = tables.Filters(complib='lzo', complevel=1)
+    out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
+
     table = out_file.create_table('/', 'spectra', description=Spectrum)
     if DEBUG:
         print("STATUS: Converting %s to %s (mzML to HDF)" %
@@ -93,19 +95,14 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description="Load mzml files to HDF")
-    parser.add_argument("-o", "--output", nargs=1, type=str,
+    parser.add_argument("-o", "--output", type=str,
                         help="Output file name", required=False)
-    parser.add_argument("-i", "--input", type=str, nargs=1,
+    parser.add_argument("-i", "--input", type=str,
                         help="Input mzML file", required=True)
     parser.add_argument("-d", "--debug", help="Sets debug mode",
                         action="store_true")
 
     args = parser.parse_args()
-    kwargs = {}
-    if args.output:
-        kwargs['output_name'] = args.output[0]
-    if args.input:
-        kwargs['input_name'] = args.array[0]
 
     # Toggles debug mode base on --debug flag
     DEBUG = args.debug
