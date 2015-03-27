@@ -34,10 +34,10 @@ def test_loader():
     table = fid.root.spectra
 
     assert table.nrows == 933367
-    assert table[0][0] == 59.0
-    assert table[-1][-1] == 0.0
-    ms_1 = [y['scan_time'] for y in table.where('(ms_level==1)')]
-    assert len(ms_1) == 5082
+    assert table[0][0] == 59.0, table[0][0]
+    assert table[-1][-1] == 0.0, table[-1][-1]
+    scan_time = [y['scan_time'] for y in table.where('(ms_level==1)')]
+    assert len(scan_time) == 5082, len(scan_time)
 
     os.chmod(out_file, 777)
     os.remove(out_file)
