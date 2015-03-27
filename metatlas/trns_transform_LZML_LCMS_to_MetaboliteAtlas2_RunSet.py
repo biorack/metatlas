@@ -10,7 +10,10 @@ import hashlib
 import simplejson
 
 # KBase imports
-import biokbase.Transform.script_utils as script_utils
+try:
+    import biokbase.Transform.script_utils as script_utils
+except ImportError:
+    script_utils = None
 
 if sys.version.startswith('3'):
     unicode = str
