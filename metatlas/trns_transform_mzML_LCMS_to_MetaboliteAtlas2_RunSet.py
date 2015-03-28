@@ -31,7 +31,7 @@ def transform(shock_service_url=None, handle_service_url=None,
               input_mapping=None, fasta_reference_only=False,
               level=logging.INFO, logger=None):
     """
-    Converts lzML file to MetaboliteAtlas2_RunSet json string.
+    Converts mzML file to MetaboliteAtlas2_RunSet json string.
 
     Parameters
     ----------
@@ -64,17 +64,17 @@ def transform(shock_service_url=None, handle_service_url=None,
     if logger is None:
         logger = script_utils.stderrlogger(__file__)
 
-    logger.info("Starting conversion of lzML to MetaboliteAtlas2.RunSet")
+    logger.info("Starting conversion of mzML to MetaboliteAtlas2.RunSet")
     token = os.environ.get('KB_AUTH_TOKEN')
 
     if input_mapping is None:
-        logger.info("Scanning for lzML files.")
+        logger.info("Scanning for mzML files.")
 
-        valid_extensions = [".lzML"]
+        valid_extensions = [".mzML"]
 
         files = os.listdir(input_directory)
         mzml_files = [x for x in files
-                      if os.path.splitext(x)[-1] in valid_extensions]
+                             if os.path.splitext(x)[-1] in valid_extensions]
 
         assert len(mzml_files) != 0
 
