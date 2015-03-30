@@ -90,6 +90,8 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     if DEBUG:
         print("STATUS: Finished mzML to HDF conversion")
 
+    return out_file
+
 
 if __name__ == '__main__':
     import argparse
