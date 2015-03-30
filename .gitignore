@@ -55,3 +55,4 @@ target/
 
 *.mzML
 *.h5
+*.DS_Store
