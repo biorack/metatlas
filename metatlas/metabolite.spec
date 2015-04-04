@@ -21,33 +21,49 @@ module MetaboliteAtlas2 {
         string name;
         string formula;
         string adducts;
-        string mz;
-        string mz_threshold;
-        string rt_min;
-        string rt_max;
-        string rt_peak;
-        string neutral_mass;
+        float mz;
+        float mz_threshold;
+        float rt_min;
+        float rt_max;
+        float rt_peak;
+        float neutral_mass;
         string pubchem_id;
-        string dict_id;
-    } Compound;
-
-
-    typedef list<Compound> CompoundList;
+    } MACompound;
 
     typedef structure {
         string name;
-        CompoundList compounds;
+        list<MACompound> compounds;
         string sample;
         string method;
-    } MetAtlasDictionary;
+    } MADictionary;
 
 
     /* @id handle */
     typedef string Run_data_ref;
 
+    /*
+    @optional atlases polarity group inclusion_order normalization_factor retention_correction
+    */
     typedef structure {
+           string name;
+           list<MADictionary> atlases;
+           string polarity;
+           string group;
+           string inclusion_order;
+           string normalization_factor;
+           string retention_correction;
+           Run_data_ref run_file_id;
+       } MAFileInfo;
+
+
+   typedef structure {
         string name;
-        Run_data_ref data;
-    } MetAtlasFileInfo;
+        string description;
+        string reconstitution_method;
+        string quenching_method;
+        string extraction_method;
+        string chromatography_method;
+        list<MADictionary> atlas_ids;
+    } MAExperiment;
 
 };
