@@ -1,10 +1,10 @@
 {
-    "script_name": "trns_transform_mzML_LCMS_to_MetaboliteAtlas2_Run.py",
+    "script_name": "trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo.py",
     "script_type": "upload",
     "external_type": "mzML.LCMS",
-    "kbase_type": "MetaboliteAtlas2.Run",
-    "user_description": "Converts mzML file to MetaboliteAtlas2_Run json string.",
-    "developer_description": "Converts mzML file to MetaboliteAtlas2_Run json string.",
+    "kbase_type": "MetaboliteAtlas2.MAFileInfo",
+    "user_description": "Converts mzML file to MetaboliteAtlas2_MAFileInfo json string.",
+    "developer_description": "Converts mzML file to MetaboliteAtlas2_MAFileInfo json string.",
     "url_mapping": ["mzML.LCMS"],
     "handler_options":
     {
@@ -34,7 +34,7 @@
             "name": "output_file_name",
             "type": "string",
             "required": true,
-            "help": "If not supplied, will default the base input_file_name with '_run.json' appended to the end."
+            "help": "If not supplied, will default the base input_file_name with '_MAFileInfo.json' appended to the end."
         },
     ],
     "user_option_groups": []

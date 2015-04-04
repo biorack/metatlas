@@ -33,10 +33,12 @@ if sys.version.startswith('3'):
 def transform(shock_service_url=None, handle_service_url=None,
               output_file_name=None, input_directory=None,
               working_directory=None, shock_id=None, handle_id=None,
-              input_mapping=None,
+              input_mapping=None, name=None, polarity='', atlases=None,
+              group='', inclusion_order='', normalization_factor='',
+              retention_correction='',
               level=logging.INFO, logger=None):
     """
-    Converts mzML file to MetaboliteAtlas2_RunSet json string.
+    Converts mzML file to MetaboliteAtlas2_MAFileInfo json string.
 
     Parameters
     ----------
@@ -58,6 +60,11 @@ def transform(shock_service_url=None, handle_service_url=None,
                        If you don't get this you need to scan the input
                        directory and look for your files.
         level: Logging level, defaults to logging.INFO.
+        name: Name of the file, optional.  Defaults to the file name.
+        polarity: Run polarity.
+        group: Run group.
+        inclusion_order: Run inclusion_order.
+        retention_correction: Run retention_correction.
 
     Returns:
         JSON files on disk that can be saved as a KBase workspace objects.
@@ -101,14 +108,13 @@ def transform(shock_service_url=None, handle_service_url=None,
                 shock_service_url, hdf_file, token=token)
 
         run_info = dict()
-        run_info['name'] = fname.replace('.mzML', '')
-        run_info['polarity'] = 0
-        run_info['group'] = ''
-        run_info['inclusion_order'] = ''
-        run_info['normalization_factor'] = ''
-        run_info['retention_correction'] = ''
-        run_info['creator'] = ''
-        run_info['creation_date'] = datetime.datetime.utcnow()
+        run_info['name'] = name or fname.replace('.mzML', '')
+        run_info['atlases'] = atlases or []
+        run_info['polarity'] = polarity
+        run_info['group'] = group
+        run_info['inclusion_order'] = inclusion_order
+        run_info['normalization_factor'] = normalization_factor
+        run_info['retention_correction'] = retention_correction
         run_info["data"] = shock_info["id"]
 
         output_file_name = fname.replace('.mzML', '_finfo')
@@ -163,6 +169,27 @@ if __name__ == "__main__":
                         help=script_details["Args"]["input_mapping"],
                         action='store', type=unicode, nargs='?', default=None,
                         required=False)
+
+    # custom arguments specific to this uploader
+    parser.add_argument('--polarity',
+                        help=script_details["Args"]["polarity"],
+                        action='store', type=str, default='', required=False)
+    parser.add_argument('--group',
+                        help=script_details["Args"]["group"],
+                        action='store', type=str, default='', required=False)
+    parser.add_argument('--inclusion_order',
+                        help=script_details["Args"]["inclusion_order"],
+                        action='store', type=str, default='', required=False)
+    parser.add_argument('--retention_correction',
+                        help=script_details["Args"]["retention_correction"],
+                        action='store', type=str, default='', required=False)
+    parser.add_argument('--atlases',
+                        help=script_details["Args"]["group"],
+                        action='store', type=str, nargs='?', default=None,
+                        required=False)
+    parser.add_argument('--name',
+                        help=script_details["Args"]["name"],
+                        action='store', type=str, default='', required=False)
 
     args, unknown = parser.parse_known_args()
 
