@@ -65,6 +65,7 @@ def transform(shock_service_url=None, handle_service_url=None,
         group: Run group.
         inclusion_order: Run inclusion_order.
         retention_correction: Run retention_correction.
+        normalization_factor: Run normalization factor.
 
     Returns:
         JSON files on disk that can be saved as a KBase workspace objects.
@@ -184,11 +185,14 @@ if __name__ == "__main__":
                         help=script_details["Args"]["retention_correction"],
                         action='store', type=str, default='', required=False)
     parser.add_argument('--atlases',
-                        help=script_details["Args"]["group"],
+                        help=script_details["Args"]["atlases"],
                         action='store', type=str, nargs='?', default=None,
                         required=False)
     parser.add_argument('--name',
                         help=script_details["Args"]["name"],
+                        action='store', type=str, default='', required=False)
+    parser.add_argument('--normalization_factor',
+                        help=script_details["Args"]["normalization_factor"],
                         action='store', type=str, default='', required=False)
 
     args, unknown = parser.parse_known_args()

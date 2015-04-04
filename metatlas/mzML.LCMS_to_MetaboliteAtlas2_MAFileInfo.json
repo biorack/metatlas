@@ -24,6 +24,12 @@
             "handle_id",
             "output_file_name",
             "input_mapping",
+            "name",
+            "polarity",
+            "group",
+            "inclusion_order",
+            "retention_correction",
+            "normalization_factor",
         ],
         "custom_options": [],
 	"input_mapping": {"mzML.LCMS":"input_directory"}
@@ -36,6 +42,43 @@
             "required": true,
             "help": "If not supplied, will default the base input_file_name with '_MAFileInfo.json' appended to the end."
         },
+        {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "help": "If not supplied, will default to the mzML file name."
+        },
+        {
+            "name": "polarity",
+            "type": "string",
+            "required": false,
+            "help": "Run polarity"
+        },
+        {
+            "name": "group",
+            "type": "string",
+            "required": false,
+            "help": "Run group"
+        },
+        {
+            "name": "inclusion_order",
+            "type": "string",
+            "required": false,
+            "help": "Run inclusion order"
+        },
+        {
+            "name": "retention_correction",
+            "type": "string",
+            "required": false,
+            "help": "Run retention correction."
+        },
+        {
+            "name": "normalization_factor",
+            "type": "string",
+            "required": false,
+            "help": "Run normalization factor"
+        },
+
     ],
     "user_option_groups": []
 }
