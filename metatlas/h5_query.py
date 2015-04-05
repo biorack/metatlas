@@ -4,9 +4,13 @@ Module used to define H5 queries.
 import io
 
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 try:
     from StringIO import StringIO
@@ -31,6 +35,8 @@ def plot(self, np_arr, image_type="png", **kwargs):
     out : io.BytesIO
         Image in the format of image_type.
     """
+    if plt is None:
+        raise ValueError('Please install matplotlib')
     plt.plot(np_arr[:, 0], np_arr[:, 1])
     buf = io.BytesIO()
     plt.savefig(buf, format=image_type)
@@ -40,6 +46,8 @@ def plot(self, np_arr, image_type="png", **kwargs):
 
 
 def plot_log(self, np_arr, image_type, **kwargs):
+    if plt is None:
+        raise ValueError('Please install matplotlib')
     plt.imshow(np.log10(np_arr+1))
     buf = io.BytesIO()
     plt.savefig(buf, format=image_type)
@@ -50,7 +58,7 @@ def plot_log(self, np_arr, image_type, **kwargs):
 
 def get_XICof(h5file, min_mz, max_mz, level, polarity):
     """
-    Get XICof data
+    Get XICof data - RT vs. cumulative sum of intensities.
 
     Parameters
     ----------
@@ -85,27 +93,31 @@ def get_XICof(h5file, min_mz, max_mz, level, polarity):
                 'P': P}
 
     # Calculates nsteps
+    # create a new value sumI that is the sum of I in the dataset along the RT # dimension
     aggr1 = "aggregate(%s, sum(I) as sumI, D_RT)" % btw
-    count = "count(%s)" % aggr1
-    res_count = sdb._execute_query(count, response=True, n=0)
-    nsteps = (eval(res_count)[0])
 
     # Get values as [RT, I]
     redim_arr = "<D_RT: int64, sumI: double NULL DEFAULT null> [x=0:*,2000000,0]"
     redim = "redimension(%s, %s)" % (aggr1, redim_arr)
+
+    # create a new column called RT based on D_RT column
     app = "apply(%s, RT, double(D_RT/1000000.0))" % redim
+
+    # Select the desired columns from the array
     proj = "project(%s, RT, sumI)" % app
     querystr = proj
 
     res = sdb._execute_query(querystr, response=True, n=0, fmt="csv")
     c = StringIO(res)
+
+    # the final array is RT vs. cumulative sum of Intensities
     nparr = np.loadtxt(c, delimiter=",", skiprows=1)
     return nparr
 
 
 def get_XICof_mf(h5file, min_mz, max_mz, min_rt, max_rt, level, polarity):
     """
-    Get XICof_mf data
+    Get XICof data across multiple files.
 
     Parameters
     ----------
@@ -194,16 +206,16 @@ def get_XICof_mf(h5file, min_mz, max_mz, min_rt, max_rt, level, polarity):
 
 def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, level, polarity):
     """
-    Get HeatMapRTMZ data
+    Get a HeatMap RT vs. MZ.
 
     Parameters
     ----------
     h5file : table file handle
         Handle to an open tables file.
     mz_steps : int
-        Sample rate in m/z
+        Sample rate in m/z.
     rt_steps : int
-        Sample rate in retention time
+        Sample rate in retention time.
     level : int
         Level.
     polarity: int
@@ -304,5 +316,7 @@ def get_IvsMZinRTRange(h5file, min_rt, max_rt, level, polarity):
     # Execute the query
     res=sdb._execute_query(querystr,response=True, n=0, fmt="csv")
     c = StringIO(res)
+
+    # get Mz vs cumulative I across an RT boundary
     nparr = np.loadtxt(c, delimiter=",", skiprows=1)
     return nparr
