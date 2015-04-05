@@ -2,6 +2,8 @@ import pymzml
 import os
 import pwd
 import datetime
+import sys
+import requests
 import tables
 
 DEBUG = False
@@ -86,11 +88,31 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     out_file.set_node_attr('/', "uploaded_by",
                            pwd.getpwuid(os.getuid())[0])
     out_file.close()
-    os.chmod(out_file_name, 770)
     if DEBUG:
         print("STATUS: Finished mzML to HDF conversion")
 
     return out_file
+
+
+def get_test_data():
+    dname = os.path.dirname(__file__)
+    path = os.path.join(dname, 'test.mzML')
+
+    url = ("https://drive.google.com/uc?"
+           "export=download&id=0B2pT935MmTv2TlZxcTBkdGczWHM")
+
+    if not os.path.exists(path):
+        # NOTE the stream=True parameter
+        print('Downloading: %s\n' % url, file=sys.stderr)
+        r = requests.get(url, stream=True)
+        with open(path, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:  # filter out keep-alive new chunks
+                    f.write(chunk)
+                    f.flush()
+        print('Download complete\n', file=sys.stderr)
+
+    return path
 
 
 if __name__ == '__main__':

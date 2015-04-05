@@ -80,7 +80,7 @@ def transform(shock_service_url=None, handle_service_url=None,
     logger.info("Starting conversion of mzML to MetaboliteAtlas2.RunSet")
     token = os.environ.get('KB_AUTH_TOKEN')
 
-    if not os.path.isdir(args.working_directory):
+    if not working_directory or not os.path.isdir(working_directory):
         raise Exception("The working directory {0} is not a valid directory!"
                         .format(working_directory))
 
@@ -90,23 +90,24 @@ def transform(shock_service_url=None, handle_service_url=None,
 
     files = os.listdir(input_directory)
     mzml_files = [x for x in files
-                         if os.path.splitext(x)[-1] in valid_extensions]
+                             if os.path.splitext(x)[-1] in valid_extensions]
 
     assert len(mzml_files) != 0
 
     logger.info("Found {0} files".format(len(mzml_files)))
 
-    for fname in files:
+    for fname in mzml_files:
         path = os.path.join(input_directory, fname)
 
         if not os.path.isfile(path):
             raise Exception("The input file name {0} is not a file!"
                             .format(path))
 
-        hdf_file = mzml_loader(path)
+        hdf_file = mzml_loader.mzml_to_hdf(path)
 
-        shock_info = script_utils.upload_file_to_shock(logger,
-                shock_service_url, hdf_file, token=token)
+        if shock_service_url:
+            shock_info = script_utils.upload_file_to_shock(logger,
+                    shock_service_url, hdf_file, token=token)
 
         run_info = dict()
         run_info['name'] = name or fname.replace('.mzML', '')
@@ -116,9 +117,13 @@ def transform(shock_service_url=None, handle_service_url=None,
         run_info['inclusion_order'] = inclusion_order
         run_info['normalization_factor'] = normalization_factor
         run_info['retention_correction'] = retention_correction
-        run_info["data"] = shock_info["id"]
 
-        output_file_name = fname.replace('.mzML', '_finfo')
+        if shock_service_url:
+            run_info["run_file_id"] = shock_info["id"]
+        else:
+            run_info['run_file_id'] = 'dummy_shock_id'
+
+        output_file_name = fname.replace('.mzML', '_finfo.json')
 
         # This generates the json for the object
         objectString = simplejson.dumps(run_info, sort_keys=True, indent=4)
