@@ -6,10 +6,9 @@ from metatlas.mzml_loader import mzml_to_hdf, get_test_data
 
 def test_loader():
     path = get_test_data()
+    out_file = 'test_loader.h5'
 
-    mzml_to_hdf(path)
-
-    out_file = path.replace('.mzML', '.h5')
+    mzml_to_hdf(path, out_file_name=out_file)
 
     fid = tables.open_file(out_file)
     table = fid.root.spectra
