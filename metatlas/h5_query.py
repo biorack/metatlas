@@ -206,7 +206,7 @@ def get_XICof_mf(h5file, min_mz, max_mz, min_rt, max_rt, level, polarity):
 
 def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, level, polarity):
     """
-    Get a HeatMap RT vs. MZ.
+    Get a HeatMap of RT vs MZ.
 
     Parameters
     ----------
@@ -265,7 +265,7 @@ def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, level, polarity):
 
 def get_IvsMZinRTRange(h5file, min_rt, max_rt, level, polarity):
     """
-    Get IvsMZinRTRange data
+    Get cumulative I vs MZ in RT Range.
 
     Parameters
     ----------
