@@ -53,4 +53,6 @@ docs/_build/
 # PyBuilder
 target/
 
-metatlas/tests/*.mzML
+*.mzML
+*.h5
+*.DS_Store

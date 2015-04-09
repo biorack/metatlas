@@ -27,9 +27,8 @@ except ImportError:
     from distutils.core import setup
 
 
-with open('metatlas/__init__.py', 'rb') as fid:
+with open('metatlas/__init__.py') as fid:
     for line in fid:
-        line = line.decode('utf-8')
         if line.startswith('__version__'):
             version = line.strip().split()[-1][1:-1]
             break
@@ -50,7 +49,7 @@ if __name__ == "__main__":
         description=DESCRIPTION,
         long_description=LONG_DESCRIPTION,
         classifiers=list(filter(None, CLASSIFIERS.split('\n'))),
-        install_requires=['pymzml'],
+        install_requires=['pymzml', 'simplejson'],
         requires=REQUIRES
      )
 

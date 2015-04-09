@@ -1,7 +1,10 @@
+from __future__ import print_function
 import pymzml
 import os
 import pwd
 import datetime
+import sys
+import requests
 import tables
 
 DEBUG = False
@@ -24,7 +27,9 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     if not out_file_name:
         out_file_name = in_file_name.replace('.mzML', '.h5')
 
-    out_file = tables.open_file(out_file_name, "w")
+    FILTERS = tables.Filters(complib='lzo', complevel=1)
+    out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
+
     table = out_file.create_table('/', 'spectra', description=Spectrum)
     if DEBUG:
         print("STATUS: Converting %s to %s (mzML to HDF)" %
@@ -84,28 +89,45 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     out_file.set_node_attr('/', "uploaded_by",
                            pwd.getpwuid(os.getuid())[0])
     out_file.close()
-    os.chmod(out_file_name, 770)
     if DEBUG:
         print("STATUS: Finished mzML to HDF conversion")
+
+    return out_file
+
+
+def get_test_data():
+    dname = os.path.dirname(__file__)
+    path = os.path.join(dname, 'test.mzML')
+
+    url = ("https://drive.google.com/uc?"
+           "export=download&id=0B2pT935MmTv2TlZxcTBkdGczWHM")
+
+    if not os.path.exists(path):
+        # NOTE the stream=True parameter
+        print('Downloading: %s\n' % url, file=sys.stderr)
+        r = requests.get(url, stream=True)
+        with open(path, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:  # filter out keep-alive new chunks
+                    f.write(chunk)
+                    f.flush()
+        print('Download complete\n', file=sys.stderr)
+
+    return path
 
 
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description="Load mzml files to HDF")
-    parser.add_argument("-o", "--output", nargs=1, type=str,
+    parser.add_argument("-o", "--output", type=str,
                         help="Output file name", required=False)
-    parser.add_argument("-i", "--input", type=str, nargs=1,
+    parser.add_argument("-i", "--input", type=str,
                         help="Input mzML file", required=True)
     parser.add_argument("-d", "--debug", help="Sets debug mode",
                         action="store_true")
 
     args = parser.parse_args()
-    kwargs = {}
-    if args.output:
-        kwargs['output_name'] = args.output[0]
-    if args.input:
-        kwargs['input_name'] = args.array[0]
 
     # Toggles debug mode base on --debug flag
     DEBUG = args.debug
