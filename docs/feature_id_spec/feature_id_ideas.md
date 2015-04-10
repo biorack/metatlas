@@ -21,7 +21,8 @@ Within the XREF service IDs within metatlas will be
 <li>Isotopologues and Isotopomers.  This is essential and can be handled adhoc at the present time.</li>
 </ol>
 
-<ol>A layer that unwraps the xref service to link out will use the following IDs
+A layer that unwraps the xref service to link out will use the following IDs
+<ol>
 <li>neutral mass with uncertainty</li>
 <li>neutral chemical formula (one or more formulae with boolean logic)</li>
 <li>chemical structure (one of more neutral structures with boolean logic)</li>
