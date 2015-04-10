@@ -8,3 +8,20 @@ Identification of metabolites in untargeted LC/MS and MS/MS experiments is anala
 In an LC/MS experiment, there are observations which can be assigned to a specific chemical entitiy with very high confidence. For these cases, an investigator might specify a precise chemical structure they believe to have detected.  There is no more accurate way to specify an observed metabolite than a complete structural description (as a SMILES or InChi string) that contains the charged form of the detected molecule.  These structures can be matched to chemical databases unambiguously and are the unique description of a compound.  In comparison, there are often times when only partial knowedge about the identity is known.  Difficulty often is due to isomers (chemicals with the same chemical formula but different structure). Many sugars exist with the forumula C6H12O6, but knowing if its glucose or galactose might require extensive investigation. Consequently, an investigator might choose to identify a feature resembling glucose as "A Hexose" to constrain the specification appropriately.  
 
 What is needed is a label-xref service.  There are millions of known metabolite structures.  Tens of thousands of these are captured by biochemical databases.  Exact XREF with boolean logic to specifically show which chemical structures comprise a assertion is the only way to precisely capture the meaning of the assertion. 
+
+The XREF table would have name, structure, and comment as fields
+
+Users can label the peaks they are annotating with free text descriptions.  This description must correspond to an entry in the XREF table as column "name".  
+
+Within the XREF service IDs within metatlas will be
+1) m/z with uncertainty
+2) chemical formula & adduct (one or more formulae with boolean logic). formulae are given as neutral formula with adduct (ie: proton, sodium, etc) as two terms
+3) chemical structure & adduct (one of more structures with boolean logic)
+4) Isotopologues and Isotopomers.  This is essential and can be handled adhoc at the present time.
+
+A layer that unwraps the xref service to link out will use the following IDs
+1) neutral mass with uncertainty
+2) neutral chemical formula (one or more formulae with boolean logic)
+3) chemical structure (one of more neutral structures with boolean logic)
+
+Given that these molecules are detected in a mass spectrometer, they will be seen as ions. Consideration of how to maintain the detected ion and also handling the neutral form for identification. The same consieration must be given to isotopologues and isotopomers.
