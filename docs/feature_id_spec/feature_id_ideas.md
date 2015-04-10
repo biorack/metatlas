@@ -14,14 +14,17 @@ The XREF table would have name, structure, and comment as fields
 Users can label the peaks they are annotating with free text descriptions.  This description must correspond to an entry in the XREF table as column "name".  
 
 Within the XREF service IDs within metatlas will be
-1) m/z with uncertainty
-2) chemical formula & adduct (one or more formulae with boolean logic). formulae are given as neutral formula with adduct (ie: proton, sodium, etc) as two terms
-3) chemical structure & adduct (one of more structures with boolean logic)
-4) Isotopologues and Isotopomers.  This is essential and can be handled adhoc at the present time.
+<ol>
+<li>m/z with uncertainty</li>
+<li>chemical formula & adduct (one or more formulae with boolean logic). formulae are given as neutral formula with adduct (ie: proton, sodium, etc) as two terms</li>
+<li>chemical structure & adduct (one of more structures with boolean logic)</li>
+<li>Isotopologues and Isotopomers.  This is essential and can be handled adhoc at the present time.</li>
+</ol>
 
-A layer that unwraps the xref service to link out will use the following IDs
-1) neutral mass with uncertainty
-2) neutral chemical formula (one or more formulae with boolean logic)
-3) chemical structure (one of more neutral structures with boolean logic)
+<ol>A layer that unwraps the xref service to link out will use the following IDs
+<li>neutral mass with uncertainty</li>
+<li>neutral chemical formula (one or more formulae with boolean logic)</li>
+<li>chemical structure (one of more neutral structures with boolean logic)</li>
+</ol>
 
 Given that these molecules are detected in a mass spectrometer, they will be seen as ions. Consideration of how to maintain the detected ion and also handling the neutral form for identification. The same consieration must be given to isotopologues and isotopomers.
