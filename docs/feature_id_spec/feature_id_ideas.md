@@ -29,3 +29,7 @@ A layer that unwraps the xref service to link out will use the following IDs
 </ol>
 
 Given that these molecules are detected in a mass spectrometer, they will be seen as ions. Consideration of how to maintain the detected ion and also handling the neutral form for identification. The same consieration must be given to isotopologues and isotopomers.
+
+This is cool: its an ontology file for chemical information.
+http://semanticscience.org/ontology/cheminf.owl
+
