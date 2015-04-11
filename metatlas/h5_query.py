@@ -228,9 +228,9 @@ def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, ms_level, polarity):
             print('.', end='')
             sys.stdout.flush()
 
-    return dict(data=arr, rt_step=rvals.max() / rt_steps,
-                mz_step=mvals.max() / mz_steps,
-                name=name)
+    rt_step = (rvals[-1]- rvals[0]) / rt_steps
+    mz_step = (mvals.max() - mvals.min()) / mz_steps
+    return dict(data=arr, rt_step=rt_step, mz_step=mz_step, name=name)
 
 
 def get_IvsMZinRTRange(h5file, min_rt, max_rt, ms_level, polarity,
