@@ -11,14 +11,14 @@ DEBUG = False
 
 
 class Spectrum(tables.IsDescription):
-    mz = tables.Float32Col()
-    scan_time = tables.Float32Col()
-    i = tables.Float32Col()
-    polarity = tables.UInt8Col()
-    ms_level = tables.UInt8Col()
-    precursor_MZ = tables.Float32Col()
-    precursor_intensity = tables.Float32Col()
-    collision_energy = tables.Float32Col()
+    mz = tables.Float32Col(pos=0)
+    scan_time = tables.Float32Col(pos=1)
+    i = tables.Float32Col(pos=2)
+    polarity = tables.UInt8Col(pos=3)
+    ms_level = tables.UInt8Col(pos=4)
+    precursor_MZ = tables.Float32Col(pos=5)
+    precursor_intensity = tables.Float32Col(pos=6)
+    collision_energy = tables.Float32Col(pos=7)
 
 
 def mzml_to_hdf(in_file_name, out_file_name=None):
@@ -33,7 +33,7 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     table = out_file.create_table('/', 'spectra', description=Spectrum)
     if DEBUG:
         print("STATUS: Converting %s to %s (mzML to HDF)" %
-              (in_file_name, out_file_name))
+              (in_file_name, out_file_name), end='')
 
     # Extra accessions for pymzml to read
     extraAccessions = [
@@ -47,8 +47,6 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
 
     mzml_reader = pymzml.run.Reader(in_file_name,
                                     extraAccessions=extraAccessions)
-
-    iteration = 0
 
     for spectrum in mzml_reader:
         try:
@@ -80,14 +78,17 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
                             int(polarity), int(ms_level),
                             float(precursor_MZ), float(precursor_intensity),
                             float(collision_energy)))])
-            if not (iteration % 1024):
-                table.flush()
+        table.flush()
+        if DEBUG:
+            sys.stdout.write('.')
+            sys.stdout.flush()
 
-    if DEBUG:
-        print('Saving file')
     out_file.set_node_attr('/', "upload_date", datetime.datetime.utcnow())
     out_file.set_node_attr('/', "uploaded_by",
                            pwd.getpwuid(os.getuid())[0])
+
+    if DEBUG:
+        print('\nSaving file')
     out_file.close()
     if DEBUG:
         print("STATUS: Finished mzML to HDF conversion")
