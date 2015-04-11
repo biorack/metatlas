@@ -1,6 +1,7 @@
 """
 Module used to define H5 queries.
 """
+from __future__ import print_function
 import io
 
 import sys
