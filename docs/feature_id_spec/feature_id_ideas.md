@@ -32,4 +32,10 @@ Given that these molecules are detected in a mass spectrometer, they will be see
 
 This is cool: its an ontology file for chemical information.
 http://semanticscience.org/ontology/cheminf.owl
+Here is the hub that has all their ontologies:
+https://code.google.com/p/semanticscience/
 
+Its worth noting that the EC IDs used to build knowledge about enzyme function is a generica and ambiguos way to capture the compounds that participate in many reactions:
+ftp://ftp.expasy.org/databases/enzyme/enzyme.dat
+
+Things like, an alcohol, are listed under the enzyme name, alcohol dehydrogenase.  This likely didn't happen overnight.
