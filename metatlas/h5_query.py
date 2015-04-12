@@ -7,6 +7,7 @@ import io
 import sys
 import tables
 import numpy as np
+from skimage.transform import resize
 
 try:
     #import matplotlib
@@ -61,13 +62,13 @@ def plot_heatmap(data, vmin, vmax, hmin, hmax, image_type='png', **kwargs):
     data : dict
         Dictionary returned by get_HeatMapRTMZ.
     vmin : int
-        Minimum index along the rt axis.
-    vmax : int
-        Maximum index along the rt axis.
-    hmin : int
         Minimum index along the mz axis.
-    hmax : int
+    vmax : int
         Maximum index along the mz axis.
+    hmin : int
+        Minimum index along the rt axis.
+    hmax : int
+        Maximum index along the rt axis.
     image_type : str
         Format of image to be returned.
     **kwargs
@@ -83,19 +84,20 @@ def plot_heatmap(data, vmin, vmax, hmin, hmax, image_type='png', **kwargs):
 
     kwargs.setdefault('interpolation', 'nearest')
     kwargs.setdefault('aspect', 'auto')
-    kwargs.setdefault('cmap', 'cubehelix')
+    kwargs.setdefault('cmap', 'YlGnBu_r')
 
     arr = data['data'][vmin: vmax, hmin: hmax]
-    hmin *= data['mz_step']
-    hmax *= data['mz_step']
-    vmin *= data['rt_step']
-    vmax *= data['rt_step']
+    hmin *= data['rt_step']
+    hmax *= data['rt_step']
+    vmin *= data['mz_step']
+    vmax *= data['mz_step']
 
-    kwargs['extent'] = [hmin, hmax, vmin, vmax]
-    plt.imshow(np.log10(arr + 1), **kwargs)
-    plt.ylabel('Time (min)')
-    plt.xlabel('M/Z')
+    kwargs['extent'] = [hmin, hmax, vmax, vmin]
+    plt.imshow(arr, **kwargs)
+    plt.xlabel('Time (min)')
+    plt.ylabel('M/Z')
     plt.title('HeatMap for %s' % data['name'])
+    plt.colorbar()
 
     buf = io.BytesIO()
     plt.savefig(buf, format=image_type)
@@ -171,12 +173,13 @@ def get_XICof(h5file, min_mz, max_mz, ms_level, polarity):
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz)
 
-    jumps = np.nonzero(np.diff(data['rt']) > 0)[0]
+    jumps = np.nonzero(np.diff(data['rt']))[0]
     jumps = np.hstack((0, jumps, data['rt'].size - 1))
 
     isum = np.cumsum(data['i'])
 
     ivals = np.diff(np.take(isum, jumps))
+    ivals[0] += data['i'][0]
     rvals = np.take(data['rt'], jumps)[1:]
 
     return rvals, ivals
@@ -207,27 +210,40 @@ def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, ms_level, polarity):
     rvals = data['rt']
     name = data['name']
 
-    minds = np.linspace(0, mvals.size - 1, mz_steps + 1).astype(int)
-    rinds = np.linspace(0, rvals.size - 1, rt_steps + 1).astype(int)
+    minds = np.linspace(0, mvals.size - 1, mz_steps * 10 + 1).astype(int)
+    rinds = np.nonzero(np.diff(data['rt']))[0]
+    rinds = np.hstack((0, rinds, data['rt'].size - 1))
 
     morder = np.argsort(mvals)
 
     print('Building array', end='')
     sys.stdout.flush()
-    arr = np.zeros((mz_steps, rt_steps))
-    for ir in range(rt_steps):
+    arr = np.zeros((rinds.size, minds.size))
+    
+    for ir in range(rinds.size - 1):
         # get the intensities in this rt bin
         row = ivals[rinds[ir]: rinds[ir + 1]]
         # get the mz indices for this rt bin
         mrow = morder[rinds[ir]: rinds[ir + 1]]
+        
         # sum the intensities within each mz bin
-        for im in range(rt_steps):
+        for im in range(mz_steps * 10 - 1):
             vals = row[(mrow > minds[im]) & (mrow < minds[im + 1])]
             arr[ir, im] = np.sum(vals)
 
         if not (ir % int(rt_steps / 10)):
             print('.', end='')
             sys.stdout.flush()
+
+    # rescale and resize
+    arr = np.log10(arr + 1)
+    arr /= arr.max()
+    plt.imshow(arr[::10, ::10], cmap='YlGnBu_r')
+    arr = resize(arr, (rt_steps, mz_steps)).T
+
+    plt.figure()
+    plt.imshow(arr, cmap='YlGnBu_r')
+    plt.show()
 
     rt_step = (rvals[-1]- rvals[0]) / rt_steps
     mz_step = (mvals.max() - mvals.min()) / mz_steps
@@ -276,16 +292,16 @@ def get_IvsMZinRTRange(h5file, min_rt, max_rt, ms_level, polarity,
 
 if __name__ == '__main__':
     fid = tables.open_file('140808_1_RCH2_neg.h5')
-    x, y = get_XICof(fid, 1, 1000, 1, 0)
-    np.save('xicof_new.npy', np.vstack((x, y)).T)
+    #x, y = get_XICof(fid, 1, 1000, 1, 0)
+    #np.save('xicof_new.npy', np.vstack((x, y)).T)
     #x, y = get_IvsMZinRTRange(fid, 1, 5, 1, 0)
     #np.save('ivsmz_new.npy', np.vstack((x, y)).T)
 
     #plot(x, y, 'Sum(I)', 'M/Z', 'Spectragram of %s' % fid.name)
 
-    #data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
-    #img = plot_heatmap(data, 0, 450, 280, 890)
-    #np.save('heatmap_new.npy', (data['data'][0:450,280:890]+1)**0.1)
+    data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
+    img = plot_heatmap(data, 0, 450, 280, 890)
+    np.save('heatmap_new.npy', data['data'][0:450,280:890])
 
-    #with open('test.png', 'wb') as fid:
-    #    fid.write(img.read())
+    with open('test.png', 'wb') as fid:
+        fid.write(img.read())
