@@ -70,8 +70,6 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
                 collision_energy = spectrum['collision energy'][1]
                 if 'peak intensity' in spectrum.keys():
                     precursor_intensity = spectrum['peak intensity'][1]
-                else:
-                    precursor_intensity = 0.0
                 precursor_MZ = spectrum['selected ion m/z'][0]
 
             table.append([((float(mz), float(scan_time), float(i),

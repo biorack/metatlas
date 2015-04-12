@@ -9,8 +9,8 @@ import tables
 import numpy as np
 
 try:
-    import matplotlib
-    matplotlib.use('Agg')
+    #import matplotlib
+    #matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 except ImportError:
     plt = None
@@ -146,7 +146,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     return dict(i=i, rt=rt, mz=mz, name=h5file.filename.replace('.h5', ''))
 
 
-def get_XICof(h5file, min_mz, max_mz, ms_level, polarity, nsteps=2000):
+def get_XICof(h5file, min_mz, max_mz, ms_level, polarity):
     """
     Get XICof data - RT vs. cumulative sum of intensities (Chromatagram)
 
@@ -162,23 +162,24 @@ def get_XICof(h5file, min_mz, max_mz, ms_level, polarity, nsteps=2000):
         MS Level.
     polarity: int
         Plus proton (1) or Minus proton (0).
-    nsteps : int
-        Desired number of steps in the output array.
 
+    Returns
+    -------
+    out : tuple of arrays
+        (rvals, ivals) arrays in the desired range.
     """
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz)
 
-    rvals = data['rt']
-    ivals = data['i']
+    jumps = np.nonzero(np.diff(data['rt']) > 0)[0]
+    jumps = np.hstack((0, jumps, data['rt'].size - 1))
 
-    jumps = np.linspace(0, rvals.size - 1, nsteps + 1).astype(int)
-    isum = np.cumsum(ivals)
+    isum = np.cumsum(data['i'])
 
-    ivals = np.diff(isum[jumps])
-    rvals = rvals[jumps][:-1]
+    ivals = np.diff(np.take(isum, jumps))
+    rvals = np.take(data['rt'], jumps)[1:]
 
-    return (rvals, ivals)
+    return rvals, ivals
 
 
 def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, ms_level, polarity):
@@ -275,10 +276,10 @@ def get_IvsMZinRTRange(h5file, min_rt, max_rt, ms_level, polarity,
 
 if __name__ == '__main__':
     fid = tables.open_file('140808_1_RCH2_neg.h5')
-    #x, y = get_XICof(fid, 1, 1000, 1, 0)
-    #np.save('xicof_new.npy', np.hstack((x, y)))
-    x, y = get_IvsMZinRTRange(fid, 1, 5, 1, 0)
-    np.save('ivsmz_new.npy', np.hstack((x, y)))
+    x, y = get_XICof(fid, 1, 1000, 1, 0)
+    np.save('xicof_new.npy', np.vstack((x, y)).T)
+    #x, y = get_IvsMZinRTRange(fid, 1, 5, 1, 0)
+    #np.save('ivsmz_new.npy', np.vstack((x, y)).T)
 
     #plot(x, y, 'Sum(I)', 'M/Z', 'Spectragram of %s' % fid.name)
 
