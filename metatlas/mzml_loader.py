@@ -61,17 +61,21 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
         except KeyError:
             continue
 
+        # These parameters are constant for each "scan"
+        precursor_MZ = 0.0
+        precursor_intensity = 0.0
+        collision_energy = 0.0
+        if ms_level == 2:
+            collision_energy = spectrum['collision energy'][1]
+            if 'peak intensity' in spectrum.keys():
+                precursor_intensity = spectrum['peak intensity'][1]
+            precursor_MZ = spectrum['selected ion m/z'][0]
+
+        # scan_time is also constant for each "scan"
+
         for mz, i in spectrum.peaks:
-            precursor_MZ = 0.0
-            precursor_intensity = 0.0
-            collision_energy = 0.0
-
-            if ms_level == 2:
-                collision_energy = spectrum['collision energy'][1]
-                if 'peak intensity' in spectrum.keys():
-                    precursor_intensity = spectrum['peak intensity'][1]
-                precursor_MZ = spectrum['selected ion m/z'][0]
-
+            # this should be changed to append numpy arrays instead of values
+            # take the append out of the [mz, intensity] loop
             table.append([((float(mz), float(scan_time), float(i),
                             int(polarity), int(ms_level),
                             float(precursor_MZ), float(precursor_intensity),

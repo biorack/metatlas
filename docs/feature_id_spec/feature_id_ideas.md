@@ -37,5 +37,11 @@ https://code.google.com/p/semanticscience/
 
 Its worth noting that the EC IDs used to build knowledge about enzyme function is a generica and ambiguos way to capture the compounds that participate in many reactions:
 ftp://ftp.expasy.org/databases/enzyme/enzyme.dat
-
 Things like, an alcohol, are listed under the enzyme name, alcohol dehydrogenase.  This likely didn't happen overnight.
+
+Some vaguely useful things here:
+http://www.semantic-science.org/
+
+Maybe useful talking to this guy:
+http://dumontierlab.com/
+
