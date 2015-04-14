@@ -126,12 +126,8 @@ def get_data(h5file, ms_level, polarity, **kwargs):
         Also returns the 'name' of the file.
     """
     query = '(ms_level == %s) & (polarity == %s)' % (ms_level, polarity)
-    if 'min_rt' in kwargs:
-        query += ' & (scan_time > %s)' % kwargs['min_rt']
-    if 'max_rt' in kwargs:
-        query += ' & (scan_time < %s)' % kwargs['max_rt']
 
-    for name in ['precursor_MZ', 'precursor_intensity',
+    for name in ['rt', 'mz', 'precursor_MZ', 'precursor_intensity',
                  'collision_energy']:
         if 'min_%s' % name in kwargs:
             query += ' & (%s > %s)' % (name, kwargs['min_%s' % name])
@@ -141,25 +137,9 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     print('Querying: %s' % query)
 
     table = h5file.root.spectra
-    ind = np.array([x['index'] for x in table.where(query)])
-
-    rt = np.concatenate(h5file.root.rt[ind])
-    mz = np.concatenate(h5file.root.mz[ind])
-    i = np.concatenate(h5file.root.i[ind])
-
-    if 'mz_min' in kwargs and 'mz_max' in kwargs:
-        mask = (mz > kwargs['mz_min']) & (mz < kwargs['mz_max'])
-    elif 'mz_min' in kwargs:
-        mask = (mz > kwargs['mz_min'])
-    elif 'mz_max' in kwargs:
-        mask = (mz < kwargs['mz_max'])
-    else:
-        mask is None
-
-    if mask is not None:
-        rt = np.take(rt, mask)
-        mz = np.take(mz, mask)
-        i = np.take(i, mask)
+    i = np.array([x['i'] for x in table.where(query)])
+    rt = np.array([x['rt'] for x in table.where(query)])
+    mz = np.array([x['mz'] for x in table.where(query)])
 
     return dict(i=i, rt=rt, mz=mz, name=h5file.filename.replace('.h5', ''))
 
@@ -235,13 +215,13 @@ def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, ms_level, polarity):
     print('Building array', end='')
     sys.stdout.flush()
     arr = np.zeros((rinds.size, minds.size))
-    
+
     for ir in range(rinds.size - 1):
         # get the intensities in this rt bin
         row = ivals[rinds[ir]: rinds[ir + 1]]
         # get the mz indices for this rt bin
         mrow = morder[rinds[ir]: rinds[ir + 1]]
-        
+
         # sum the intensities within each mz bin
         for im in range(mz_steps * 10 - 1):
             vals = row[(mrow > minds[im]) & (mrow < minds[im + 1])]
@@ -261,7 +241,7 @@ def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, ms_level, polarity):
     plt.imshow(arr, cmap='YlGnBu_r')
     plt.show()
 
-    rt_step = (rvals[-1]- rvals[0]) / rt_steps
+    rt_step = (rvals[-1] - rvals[0]) / rt_steps
     mz_step = (mvals.max() - mvals.min()) / mz_steps
     return dict(data=arr, rt_step=rt_step, mz_step=mz_step, name=name)
 
