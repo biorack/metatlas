@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from metatlas.mzml_loader import mzml_to_hdf, get_test_data
-from metatlas.h5_query import get_XICof, get_data
+from metatlas.h5_query import get_XIC, get_data
 
 
 def rmse(target, predictions):
