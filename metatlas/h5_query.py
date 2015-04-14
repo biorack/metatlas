@@ -7,11 +7,11 @@ import io
 import sys
 import tables
 import numpy as np
-from skimage.transform import resize
+#from skimage.transform import resize
 
 try:
-    #import matplotlib
-    #matplotlib.use('Agg')
+    import matplotlib
+    matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 except ImportError:
     plt = None
