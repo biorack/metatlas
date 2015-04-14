@@ -131,7 +131,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     if 'max_rt' in kwargs:
         query += ' & (scan_time < %s)' % kwargs['max_rt']
 
-    for name in ['mz', 'precursor_MZ', 'precursor_intensity',
+    for name in ['precursor_MZ', 'precursor_intensity',
                  'collision_energy']:
         if 'min_%s' % name in kwargs:
             query += ' & (%s > %s)' % (name, kwargs['min_%s' % name])
@@ -141,16 +141,32 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     print('Querying: %s' % query)
 
     table = h5file.root.spectra
-    i = np.array([x['i'] for x in table.where(query)])
-    rt = np.array([x['scan_time'] for x in table.where(query)])
-    mz = np.array([x['mz'] for x in table.where(query)])
+    ind = np.array([x['index'] for x in table.where(query)])
+
+    rt = np.concatenate(h5file.root.rt[ind])
+    mz = np.concatenate(h5file.root.mz[ind])
+    i = np.concatenate(h5file.root.i[ind])
+
+    if 'mz_min' in kwargs and 'mz_max' in kwargs:
+        mask = (mz > kwargs['mz_min']) & (mz < kwargs['mz_max'])
+    elif 'mz_min' in kwargs:
+        mask = (mz > kwargs['mz_min'])
+    elif 'mz_max' in kwargs:
+        mask = (mz < kwargs['mz_max'])
+    else:
+        mask is None
+
+    if mask is not None:
+        rt = np.take(rt, mask)
+        mz = np.take(mz, mask)
+        i = np.take(i, mask)
 
     return dict(i=i, rt=rt, mz=mz, name=h5file.filename.replace('.h5', ''))
 
 
-def get_XICof(h5file, min_mz, max_mz, ms_level, polarity):
+def get_XIC(h5file, min_mz, max_mz, ms_level, polarity):
     """
-    Get XICof data - RT vs. cumulative sum of intensities (Chromatagram)
+    Get Extracted-ion chromatogram (XIC) data - RT vs. cum sum of intensities
 
     Parameters
     ----------
@@ -250,7 +266,7 @@ def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, ms_level, polarity):
     return dict(data=arr, rt_step=rt_step, mz_step=mz_step, name=name)
 
 
-def get_IvsMZinRTRange(h5file, min_rt, max_rt, ms_level, polarity,
+def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
                        nsteps=2000):
     """
     Get cumulative I vs MZ in RT Range (Spectragram)
@@ -291,17 +307,19 @@ def get_IvsMZinRTRange(h5file, min_rt, max_rt, ms_level, polarity,
 
 
 if __name__ == '__main__':
-    fid = tables.open_file('140808_1_RCH2_neg.h5')
-    #x, y = get_XICof(fid, 1, 1000, 1, 0)
-    #np.save('xicof_new.npy', np.vstack((x, y)).T)
+    fid = tables.open_file('test.h5')
+    x, y = get_XIC(fid, 1, 1000, 1, 0)
+    np.save('xicof_new.npy', np.vstack((x, y)).T)
     #x, y = get_IvsMZinRTRange(fid, 1, 5, 1, 0)
     #np.save('ivsmz_new.npy', np.vstack((x, y)).T)
 
+    plt.plot(x, y)
+    plt.show()
     #plot(x, y, 'Sum(I)', 'M/Z', 'Spectragram of %s' % fid.name)
 
-    data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
-    img = plot_heatmap(data, 0, 450, 280, 890)
-    np.save('heatmap_new.npy', data['data'][0:450,280:890])
+    #data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
+    #img = plot_heatmap(data, 0, 450, 280, 890)
+    #np.save('heatmap_new.npy', data['data'][0:450,280:890])
 
     with open('test.png', 'wb') as fid:
         fid.write(img.read())
