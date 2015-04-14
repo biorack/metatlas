@@ -12,7 +12,7 @@ DEBUG = False
 
 class Spectrum(tables.IsDescription):
     mz = tables.Float32Col(pos=0)
-    scan_time = tables.Float32Col(pos=1)
+    rt = tables.Float32Col(pos=1)
     i = tables.Float32Col(pos=2)
     polarity = tables.UInt8Col(pos=3)
     ms_level = tables.UInt8Col(pos=4)
@@ -48,36 +48,38 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     mzml_reader = pymzml.run.Reader(in_file_name,
                                     extraAccessions=extraAccessions)
 
-    for spectrum in mzml_reader:
+    for (ind, spectrum) in enumerate(mzml_reader):
         try:
             polarity = 1 if 'positive scan' in spectrum.keys() else 0
-            ms_level = spectrum['ms level']
+            ms_level = int(spectrum['ms level'])
             # check if scan start time exists. some thermo spectra
             #  are missing this value
             if 'scan start time' in spectrum.keys():
-                scan_time = spectrum['scan start time'][0]
+                rt = float(spectrum['scan start time'][0])
             else:
-                scan_time = spectrum['MS:1000016'][0]
-        except KeyError:
+                rt = float(spectrum['MS:1000016'][0])
+        except (KeyError, TypeError):
             continue
 
+        precursor_MZ = 0.0
+        precursor_intensity = 0.0
+        collision_energy = 0.0
+
+        if ms_level == 2:
+            collision_energy = spectrum['collision energy'][1]
+            if 'peak intensity' in spectrum.keys():
+                precursor_intensity = spectrum['peak intensity'][1]
+            precursor_MZ = spectrum['selected ion m/z'][0]
+
+        mylist = []
         for mz, i in spectrum.peaks:
-            precursor_MZ = 0.0
-            precursor_intensity = 0.0
-            collision_energy = 0.0
-
-            if ms_level == 2:
-                collision_energy = spectrum['collision energy'][1]
-                if 'peak intensity' in spectrum.keys():
-                    precursor_intensity = spectrum['peak intensity'][1]
-                precursor_MZ = spectrum['selected ion m/z'][0]
-
-            table.append([((float(mz), float(scan_time), float(i),
-                            int(polarity), int(ms_level),
-                            float(precursor_MZ), float(precursor_intensity),
-                            float(collision_energy)))])
+            mylist.append((mz, rt, i, polarity, ms_level,
+                           precursor_MZ, precursor_intensity,
+                           collision_energy))
+        table.append(mylist)
         table.flush()
-        if DEBUG:
+
+        if DEBUG and not (ind % 100):
             sys.stdout.write('.')
             sys.stdout.flush()
 
