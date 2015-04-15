@@ -11,7 +11,7 @@ import numpy as np
 
 try:
     import matplotlib
-    matplotlib.use('Agg')
+    #matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 except ImportError:
     plt = None
@@ -144,7 +144,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     return dict(i=i, rt=rt, mz=mz, name=h5file.filename.replace('.h5', ''))
 
 
-def get_XIC(h5file, min_mz, max_mz, ms_level, polarity):
+def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None):
     """
     Get Extracted-ion chromatogram (XIC) data - RT vs. cum sum of intensities
 
@@ -160,6 +160,9 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity):
         MS Level.
     polarity: int
         Plus proton (1) or Minus proton (0).
+    bins : int or array-like, optional.
+        Desired bins to use for the histogram.  By default, aggregates by
+        retention time.
 
     Returns
     -------
@@ -169,19 +172,26 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity):
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz)
 
-    jumps = np.nonzero(np.diff(data['rt']))[0]
-    jumps = np.hstack((0, jumps, data['rt'].size - 1))
+    if bins:
+        i, rt = np.histogram(data['rt'], bins=bins, weights=data['i'])
+        # center the bins
+        rt = (rt[:-1] + rt[1:]) / 2
 
-    isum = np.cumsum(data['i'])
+    else:
+        # combine the data within each retention time step
+        jumps = np.nonzero(np.diff(data['rt']))[0]
+        jumps = np.hstack((0, jumps, data['rt'].size - 1))
 
-    ivals = np.diff(np.take(isum, jumps))
-    ivals[0] += data['i'][0]
-    rvals = np.take(data['rt'], jumps)[1:]
+        isum = np.cumsum(data['i'])
 
-    return rvals, ivals
+        i = np.diff(np.take(isum, jumps))
+        i[0] += data['i'][0]
+        rt = np.take(data['rt'], jumps)[1:]
+
+    return rt, i
 
 
-def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, ms_level, polarity):
+def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity):
     """
     Get a HeatMap of RT vs MZ.
 
@@ -189,10 +199,10 @@ def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, ms_level, polarity):
     ----------
     h5file : table file handle
         Handle to an open tables file.
-    mz_steps : int
-        Sample rate in m/z.
-    rt_steps : int
-        Sample rate in retention time.
+    mz_steps : int or array-like
+        Bins to use for the mz axis.
+    rt_steps : int or array-like
+        Bins to use for the rt axis.
     ms_level : int
         MS Level.
     polarity: int
@@ -201,53 +211,19 @@ def get_HeatMapRTMZ(h5file, mz_steps, rt_steps, ms_level, polarity):
     """
     data = get_data(h5file, ms_level, polarity)
 
-    mvals = data['mz']
-    ivals = data['i']
-    rvals = data['rt']
-    name = data['name']
+    arr, mz_bins, rt_bins = np.histogram2d(data['mz'], data['rt'],
+                                           weights=data['i'],
+                                           bins=(mz_bins, rt_bins))
 
-    minds = np.linspace(0, mvals.size - 1, mz_steps * 10 + 1).astype(int)
-    rinds = np.nonzero(np.diff(data['rt']))[0]
-    rinds = np.hstack((0, rinds, data['rt'].size - 1))
+    # center the bins
+    mz_bins = (mz_bins[:-1] + mz_bins[1:]) / 2
+    rt_bins = (rt_bins[:-1] + rt_bins[1:]) / 2
 
-    morder = np.argsort(mvals)
-
-    print('Building array', end='')
-    sys.stdout.flush()
-    arr = np.zeros((rinds.size, minds.size))
-
-    for ir in range(rinds.size - 1):
-        # get the intensities in this rt bin
-        row = ivals[rinds[ir]: rinds[ir + 1]]
-        # get the mz indices for this rt bin
-        mrow = morder[rinds[ir]: rinds[ir + 1]]
-
-        # sum the intensities within each mz bin
-        for im in range(mz_steps * 10 - 1):
-            vals = row[(mrow > minds[im]) & (mrow < minds[im + 1])]
-            arr[ir, im] = np.sum(vals)
-
-        if not (ir % int(rt_steps / 10)):
-            print('.', end='')
-            sys.stdout.flush()
-
-    # rescale and resize
-    arr = np.log10(arr + 1)
-    arr /= arr.max()
-    plt.imshow(arr[::10, ::10], cmap='YlGnBu_r')
-    arr = resize(arr, (rt_steps, mz_steps)).T
-
-    plt.figure()
-    plt.imshow(arr, cmap='YlGnBu_r')
-    plt.show()
-
-    rt_step = (rvals[-1] - rvals[0]) / rt_steps
-    mz_step = (mvals.max() - mvals.min()) / mz_steps
-    return dict(data=arr, rt_step=rt_step, mz_step=mz_step, name=name)
+    return dict(arr=arr, rt_bins=rt_bins, mz_bins=mz_bins, name=data['name'])
 
 
 def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
-                       nsteps=2000):
+                       bins=2000):
     """
     Get cumulative I vs MZ in RT Range (Spectragram)
 
@@ -263,43 +239,37 @@ def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
         MS Level.
     polarity: int
         Plus proton (1) or Minus proton (0).
-    nsteps : int
-        Desired number of steps in the output array.
+    bins : int or array-like
+        Desired bins for the histogram.
 
     """
     data = get_data(h5file, ms_level, polarity, min_rt=min_rt,
                     max_rt=max_rt)
 
-    mvals = data['mz']
-    ivals = data['i']
+    i, mz = np.histogram(data['mz'], bins=bins, weights=data['i'])
+    # center the bins
+    mz = (mz[:-1] + mz[1:]) / 2
 
-    order = np.argsort(mvals)
-    ivals = np.take(ivals, order)
-    mvals = np.take(mvals, order)
-
-    jumps = np.linspace(0, mvals.size - 1, nsteps + 1).astype(int)
-    isum = np.cumsum(ivals)
-
-    ivals = np.diff(isum[jumps])
-    mvals = mvals[jumps][:-1]
-
-    return (mvals, ivals)
+    return (mz, i)
 
 
 if __name__ == '__main__':
     fid = tables.open_file('test.h5')
-    x, y = get_XIC(fid, 1, 1000, 1, 0)
-    np.save('xicof_new.npy', np.vstack((x, y)).T)
-    #x, y = get_IvsMZinRTRange(fid, 1, 5, 1, 0)
+    #x, y = get_XIC(fid, 1, 1000, 1, 0)
+    #np.save('xicof_new.npy', np.vstack((x, y)).T)
+    #x, y = get_spectragram(fid, 1, 5, 1, 0)
     #np.save('ivsmz_new.npy', np.vstack((x, y)).T)
 
-    plt.plot(x, y)
-    plt.show()
+    #plt.plot(x, y)
+    #plt.show()
     #plot(x, y, 'Sum(I)', 'M/Z', 'Spectragram of %s' % fid.name)
 
-    #data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
+    data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
+    data = (data['data'] + 1) ** 0.1
+    plt.imshow(data)
+    plt.show()
     #img = plot_heatmap(data, 0, 450, 280, 890)
     #np.save('heatmap_new.npy', data['data'][0:450,280:890])
 
-    with open('test.png', 'wb') as fid:
-        fid.write(img.read())
+    #with open('test.png', 'wb') as fid:
+    #    fid.write(img.read())
