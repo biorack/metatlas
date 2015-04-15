@@ -132,7 +132,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
         if 'min_%s' % name in kwargs:
             query += ' & (%s >= %s)' % (name, kwargs['min_%s' % name])
         if 'max_%s' % name in kwargs:
-            query += ' & (%s < %s)' % (name, kwargs['max_%s' % name])
+            query += ' & (%s <= %s)' % (name, kwargs['max_%s' % name])
 
     print('Querying: %s' % query)
 
