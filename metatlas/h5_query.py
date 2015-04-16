@@ -146,7 +146,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     return dict(i=i, rt=rt, mz=mz, name=h5file.filename.replace('.h5', ''))
 
 
-def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None):
+def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     """
     Get Extracted-ion chromatogram (XIC) data - RT vs. cum sum of intensities
 
@@ -165,6 +165,9 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None):
     bins : int or array-like, optional.
         Desired bins to use for the histogram.  By default, aggregates by
         retention time.
+    **kwargs
+        Optional search modifiers.  (e.g. precursor_MZ=1,
+            min_collision_energy=4)
 
     Returns
     -------
@@ -172,7 +175,7 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None):
         (rvals, ivals) arrays in the desired range.
     """
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
-                    max_mz=max_mz)
+                    max_mz=max_mz, **kwargs)
 
     if bins:
         i, rt = np.histogram(data['rt'], bins=bins, weights=data['i'])
@@ -225,7 +228,7 @@ def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity):
 
 
 def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
-                       bins=2000):
+                    bins=2000, **kwargs):
     """
     Get cumulative I vs MZ in RT Range (Spectragram)
 
@@ -243,10 +246,13 @@ def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
         Plus proton (1) or Minus proton (0).
     bins : int or array-like
         Desired bins for the histogram.
+    **kwargs
+        Optional search modifiers.  (e.g. precursor_MZ=1,
+            min_collision_energy=4)
 
     """
     data = get_data(h5file, ms_level, polarity, min_rt=min_rt,
-                    max_rt=max_rt)
+                    max_rt=max_rt, **kwargs)
 
     i, mz = np.histogram(data['mz'], bins=bins, weights=data['i'])
     # center the bins
