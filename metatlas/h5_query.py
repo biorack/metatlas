@@ -130,9 +130,9 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     for name in ['rt', 'mz', 'precursor_MZ', 'precursor_intensity',
                  'collision_energy']:
         if 'min_%s' % name in kwargs:
-            query += ' & (%s > %s)' % (name, kwargs['min_%s' % name])
+            query += ' & (%s >= %s)' % (name, kwargs['min_%s' % name])
         if 'max_%s' % name in kwargs:
-            query += ' & (%s < %s)' % (name, kwargs['max_%s' % name])
+            query += ' & (%s <= %s)' % (name, kwargs['max_%s' % name])
         if name in kwargs:
             query += ' & (%s == %s)' % (name, kwargs[name])
 
