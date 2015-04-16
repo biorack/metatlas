@@ -46,8 +46,6 @@ def plot_spectrogram(x, y, title='Spectrogram for Sample', **kwargs):
         Y values.
     title : str, optional
         Title of plot.
-    image_type : str, optional
-        Format of image to be returned.
     **kwargs
         Keyword arguments for ``plt.plot``.
     """
@@ -73,17 +71,8 @@ def plot_heatmap(arr, rt_bins, mz_bins, title='HeatMap for Sample', **kwargs):
     title : str, optional
         Title of plot.
     **kwargs
-        Keyword arguments for ``plt.imshow``.  Can also specify the "name" of
-        the sample for the title.
-
-    Returns
-    -------
-    out : io.BytesIO
-        Image in the format of image_type.
+        Keyword arguments for ``plt.imshow``.
     """
-    if plt is None:
-        raise ValueError('Please install matplotlib')
-
     kwargs.setdefault('interpolation', 'nearest')
     kwargs.setdefault('aspect', 'auto')
     kwargs.setdefault('cmap', 'YlGnBu_r')
