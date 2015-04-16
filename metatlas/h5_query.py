@@ -258,7 +258,7 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
 if __name__ == '__main__':  # pragma: no cover
     import sys
 
-    fid = tables.open_file('test.h5')
+    fid = tables.open_file('021715_QC_6_neg.h5')
 
     if len(sys.argv) < 2 or sys.argv[1] == 'xic':
         x, y = get_XIC(fid, 1, 1000, 1, 0)

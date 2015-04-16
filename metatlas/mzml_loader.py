@@ -100,8 +100,9 @@ def get_test_data():
     dname = os.path.dirname(__file__)
     path = os.path.join(dname, 'test.mzML')
 
+    # SargossoDepth/021715_QC_6_neg.mzML
     url = ("https://drive.google.com/uc?"
-           "export=download&id=0B2pT935MmTv2TlZxcTBkdGczWHM")
+           "export=download&id=0B2pT935MmTv2WDMtSGhvNmxkU2M")
 
     if not os.path.exists(path):
         # NOTE the stream=True parameter
