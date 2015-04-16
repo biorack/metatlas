@@ -2,7 +2,6 @@
 Module used to define H5 queries.
 """
 from __future__ import print_function
-import io
 
 import tables
 import numpy as np
@@ -14,10 +13,30 @@ except ImportError:
     plt = None
 
 
-def plot(x, y, xlabel, ylabel, title='', image_type="png", **kwargs):
+def plot_xic(x, y, title='XIC for Sample', **kwargs):
     """
-    Plots the given numpy array in pyplot (in the given format) and
-    returns the image
+    Plots an XIC.
+
+    Parameters
+    ----------
+    x : array-like
+        X values.
+    y : array-like
+        Y values.
+    title : str, optional
+        Title of plot.
+    **kwargs
+        Keyword arguments for ``plt.plot``.
+    """
+    plt.plot(x, y / y.max() * 100, **kwargs)
+    plt.xlabel('Time (min)')
+    plt.ylabel('Intensity (%)')
+    plt.title(title)
+
+
+def plot_spectrogram(x, y, title='Spectrogram for Sample', **kwargs):
+    """
+    Plots a spectrogram.
 
     Parameters
     ----------
@@ -31,48 +50,28 @@ def plot(x, y, xlabel, ylabel, title='', image_type="png", **kwargs):
         Format of image to be returned.
     **kwargs
         Keyword arguments for ``plt.plot``.
-
-    Returns
-    -------
-    out : io.BytesIO
-        Image in the format of image_type.
     """
-    if plt is None:
-        raise ValueError('Please install matplotlib')
-
-    plt.plot(x, y, **kwargs)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
+    plt.plot(x, y / y.max() * 100, **kwargs)
+    plt.xlabel('Mass (m/z)')
+    plt.ylabel('Intensity (%)')
     plt.title(title)
-    buf = io.BytesIO()
-    plt.savefig(buf, format=image_type)
-    buf.seek(0)
-    plt.close()
-    return buf
 
 
-def plot_heatmap(data, vmin, vmax, hmin, hmax, title='HeatMap for Sample',
-                 image_type='png', **kwargs):
+def plot_heatmap(arr, rt_bins, mz_bins, title='HeatMap for Sample', **kwargs):
     """
     Plots the given numpy array in pyplot on a log scale (in the given format)
     and returns the image.
 
     Parameters
     ----------
-    data : dict
-        Dictionary returned by get_HeatMapRTMZ.
-    vmin : int
-        Minimum index along the mz axis.
-    vmax : int
-        Maximum index along the mz axis.
-    hmin : int
-        Minimum index along the rt axis.
-    hmax : int
-        Maximum index along the rt axis.
+    arr : array
+        Array returned by get_HeatMapRTMZ (typically a slice).
+    rt_bins : array-like
+        Selected bins on the rt axis (typically a slice).
+    mz_bins : array-like
+        Selected bins on the mz axis (typically a slice).
     title : str, optional
         Title of plot.
-    image_type : str, optional
-        Format of image to be returned.
     **kwargs
         Keyword arguments for ``plt.imshow``.  Can also specify the "name" of
         the sample for the title.
@@ -89,30 +88,18 @@ def plot_heatmap(data, vmin, vmax, hmin, hmax, title='HeatMap for Sample',
     kwargs.setdefault('aspect', 'auto')
     kwargs.setdefault('cmap', 'YlGnBu_r')
 
-    arr = data['data'][vmin: vmax, hmin: hmax]
-    hmin *= data['rt_step']
-    hmax *= data['rt_step']
-    vmin *= data['mz_step']
-    vmax *= data['mz_step']
-
-    kwargs['extent'] = [hmin, hmax, vmax, vmin]
+    kwargs['extent'] = [rt_bins[0], rt_bins[-1], mz_bins[0], mz_bins[-1]]
 
     plt.imshow(arr, **kwargs)
     plt.xlabel('Time (min)')
-    plt.ylabel('M/Z')
+    plt.ylabel('Mass (m/z)')
     plt.title(title)
     plt.colorbar()
-
-    buf = io.BytesIO()
-    plt.savefig(buf, format=image_type)
-    buf.seek(0)
-    plt.close()
-    return buf
 
 
 def get_data(h5file, ms_level, polarity, **kwargs):
     """
-    Get data from an h5file meeting given criteria.
+    Get raw data from an h5file meeting given criteria.
 
     Parameters
     ----------
@@ -175,7 +162,8 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     Returns
     -------
     out : tuple of arrays
-        (rt_vals, i_vals) arrays in the desired range.
+        (rt_vals, i_vals) arrays in the desired range.  The intensities are
+        scaled to [0, 100].
     """
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz, **kwargs)
@@ -196,7 +184,7 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
         i[0] += data['i'][0]
         rt = np.take(data['rt'], jumps)[1:]
 
-    return rt, i
+    return rt, i / i.max() * 100
 
 
 def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
@@ -222,13 +210,15 @@ def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
     Returns
     -------
     out : dict
-        Dictionary containing: 'arr', 'rt_bins', 'mz_bins'
+        Dictionary containing: 'arr', 'rt_bins', 'mz_bins'.  We return a log
+        scaled output array.
     """
     data = get_data(h5file, ms_level, polarity, **kwargs)
 
     arr, mz_bins, rt_bins = np.histogram2d(data['mz'], data['rt'],
                                            weights=data['i'],
                                            bins=(mz_bins, rt_bins))
+    arr = np.log10(arr + 1)
 
     # center the bins
     mz_bins = (mz_bins[:-1] + mz_bins[1:]) / 2
@@ -237,10 +227,10 @@ def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
     return dict(arr=arr, rt_bins=rt_bins, mz_bins=mz_bins)
 
 
-def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
+def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
                     bins=2000, **kwargs):
     """
-    Get cumulative I vs MZ in RT Range (Spectragram)
+    Get cumulative I vs MZ in RT Range (spectrogram)
 
     Parameters
     ----------
@@ -263,7 +253,8 @@ def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
     Returns
     -------
     out : tuple of arrays
-        (mz_vals, i_vals) arrays in the desired range.
+        (mz_vals, i_vals) arrays in the desired range.  The intensities are
+        scaled to [0, 100].
     """
     data = get_data(h5file, ms_level, polarity, min_rt=min_rt,
                     max_rt=max_rt, **kwargs)
@@ -272,7 +263,7 @@ def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
     # center the bins
     mz = (mz[:-1] + mz[1:]) / 2
 
-    return (mz, i)
+    return mz, i / i.max() * 100
 
 
 if __name__ == '__main__':  # pragma: no cover
@@ -283,17 +274,16 @@ if __name__ == '__main__':  # pragma: no cover
     if len(sys.argv) < 2 or sys.argv[1] == 'xic':
         x, y = get_XIC(fid, 1, 1000, 1, 0)
         np.save('xicof_new.npy', np.vstack((x, y)).T)
-        plt.plot(x, y)
+        plot_xic(x, y)
 
     elif sys.argv[1] == 'ivsmz':
-        x, y = get_spectragram(fid, 1, 5, 1, 0)
+        x, y = get_spectrogram(fid, 1, 5, 1, 0)
         np.save('ivsmz_new.npy', np.vstack((x, y)).T)
-        plt.plot(x, y)
+        plot_spectrogram(x, y)
 
     else:
         data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
-        data = (data['data'] + 1) ** 0.1
         np.save('heatmap_new.py', data)
-        plt.imshow(data)
+        plot_heatmap(data['arr'], data['rt_bins'], data['mz_bins'])
 
     plt.show()
