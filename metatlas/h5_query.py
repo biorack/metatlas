@@ -28,7 +28,9 @@ def plot(x, y, xlabel, ylabel, title='', image_type="png", **kwargs):
         X values.
     y : array-like
         Y values.
-    image_type : str
+    title : str, optional
+        Title of plot.
+    image_type : str, optional
         Format of image to be returned.
     **kwargs
         Keyword arguments for ``plt.plot``.
@@ -52,7 +54,8 @@ def plot(x, y, xlabel, ylabel, title='', image_type="png", **kwargs):
     return buf
 
 
-def plot_heatmap(data, vmin, vmax, hmin, hmax, image_type='png', **kwargs):
+def plot_heatmap(data, vmin, vmax, hmin, hmax, title='HeatMap for Sample',
+                 image_type='png', **kwargs):
     """
     Plots the given numpy array in pyplot on a log scale (in the given format)
     and returns the image.
@@ -69,10 +72,13 @@ def plot_heatmap(data, vmin, vmax, hmin, hmax, image_type='png', **kwargs):
         Minimum index along the rt axis.
     hmax : int
         Maximum index along the rt axis.
-    image_type : str
+    title : str, optional
+        Title of plot.
+    image_type : str, optional
         Format of image to be returned.
     **kwargs
-        Keyword arguments for ``plt.imshow``.
+        Keyword arguments for ``plt.imshow``.  Can also specify the "name" of
+        the sample for the title.
 
     Returns
     -------
@@ -93,10 +99,11 @@ def plot_heatmap(data, vmin, vmax, hmin, hmax, image_type='png', **kwargs):
     vmax *= data['mz_step']
 
     kwargs['extent'] = [hmin, hmax, vmax, vmin]
+
     plt.imshow(arr, **kwargs)
     plt.xlabel('Time (min)')
     plt.ylabel('M/Z')
-    plt.title('HeatMap for %s' % data['name'])
+    plt.title(title)
     plt.colorbar()
 
     buf = io.BytesIO()
@@ -123,7 +130,6 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     -------
     out : dictionary
         Dictionary with arrays for 'i', 'mz', and 'rt' values meeting criteria.
-        Also returns the 'name' of the file.
     """
     query = '(ms_level == %s) & (polarity == %s)' % (ms_level, polarity)
 
@@ -143,7 +149,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     rt = np.array([x['rt'] for x in table.where(query)])
     mz = np.array([x['mz'] for x in table.where(query)])
 
-    return dict(i=i, rt=rt, mz=mz, name=h5file.filename.replace('.h5', ''))
+    return dict(i=i, rt=rt, mz=mz)
 
 
 def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
@@ -219,7 +225,7 @@ def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
     Returns
     -------
     out : dict
-        Dictionary containing: 'arr', 'rt_bins', 'mz_bins', 'name'.
+        Dictionary containing: 'arr', 'rt_bins', 'mz_bins'
     """
     data = get_data(h5file, ms_level, polarity, **kwargs)
 
@@ -231,7 +237,7 @@ def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
     mz_bins = (mz_bins[:-1] + mz_bins[1:]) / 2
     rt_bins = (rt_bins[:-1] + rt_bins[1:]) / 2
 
-    return dict(arr=arr, rt_bins=rt_bins, mz_bins=mz_bins, name=data['name'])
+    return dict(arr=arr, rt_bins=rt_bins, mz_bins=mz_bins)
 
 
 def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
