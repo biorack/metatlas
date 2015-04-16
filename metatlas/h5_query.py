@@ -172,7 +172,7 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     Returns
     -------
     out : tuple of arrays
-        (rvals, ivals) arrays in the desired range.
+        (rt_vals, i_vals) arrays in the desired range.
     """
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz, **kwargs)
@@ -196,7 +196,7 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     return rt, i
 
 
-def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity):
+def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
     """
     Get a HeatMap of RT vs MZ.
 
@@ -212,9 +212,16 @@ def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity):
         MS Level.
     polarity: int
         Plus proton (1) or Minus proton (0).
+    **kwargs
+        Optional search modifiers.  (e.g. precursor_MZ=1,
+            min_collision_energy=4)
 
+    Returns
+    -------
+    out : dict
+        Dictionary containing: 'arr', 'rt_bins', 'mz_bins', 'name'.
     """
-    data = get_data(h5file, ms_level, polarity)
+    data = get_data(h5file, ms_level, polarity, **kwargs)
 
     arr, mz_bins, rt_bins = np.histogram2d(data['mz'], data['rt'],
                                            weights=data['i'],
@@ -250,6 +257,10 @@ def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
         Optional search modifiers.  (e.g. precursor_MZ=1,
             min_collision_energy=4)
 
+    Returns
+    -------
+    out : tuple of arrays
+        (mz_vals, i_vals) arrays in the desired range.
     """
     data = get_data(h5file, ms_level, polarity, min_rt=min_rt,
                     max_rt=max_rt, **kwargs)
