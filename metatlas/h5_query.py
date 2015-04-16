@@ -4,15 +4,12 @@ Module used to define H5 queries.
 from __future__ import print_function
 import io
 
-import sys
 import tables
 import numpy as np
-#from skimage.transform import resize
 
 try:
-    import matplotlib
-    #matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    plt.ioff()
 except ImportError:
     plt = None
 
@@ -278,24 +275,25 @@ def get_spectragram(h5file, min_rt, max_rt, ms_level, polarity,
     return (mz, i)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
+    import sys
+
     fid = tables.open_file('test.h5')
-    #x, y = get_XIC(fid, 1, 1000, 1, 0)
-    #np.save('xicof_new.npy', np.vstack((x, y)).T)
-    #x, y = get_spectragram(fid, 1, 5, 1, 0)
-    #np.save('ivsmz_new.npy', np.vstack((x, y)).T)
 
-    #plt.plot(x, y)
-    #plt.show()
-    #plot(x, y, 'Sum(I)', 'M/Z', 'Spectragram of %s' % fid.name)
+    if len(sys.argv) < 2 or sys.argv[1] == 'xic':
+        x, y = get_XIC(fid, 1, 1000, 1, 0)
+        np.save('xicof_new.npy', np.vstack((x, y)).T)
+        plt.plot(x, y)
 
-    #data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
-    #data = (data['data'] + 1) ** 0.1
-    #plt.imshow(data)
-    #plt.show()
-    
-    #img = plot_heatmap(data, 0, 450, 280, 890)
-    #np.save('heatmap_new.npy', data['data'][0:450,280:890])
+    elif sys.argv[1] == 'ivsmz':
+        x, y = get_spectragram(fid, 1, 5, 1, 0)
+        np.save('ivsmz_new.npy', np.vstack((x, y)).T)
+        plt.plot(x, y)
 
-    #with open('test.png', 'wb') as fid:
-    #    fid.write(img.read())
+    else:
+        data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
+        data = (data['data'] + 1) ** 0.1
+        np.save('heatmap_new.py', data)
+        plt.imshow(data)
+
+    plt.show()
