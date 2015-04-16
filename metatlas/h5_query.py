@@ -117,7 +117,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     polarity : int
         Plus proton (1) or Minus proton (0).
     **kwargs
-        Optional search modifiers.  (e.g. min_r=0, max_mz=100)
+        Optional search modifiers.  (e.g. min_r=0, max_mz=100, precursor_MZ=1)
 
     Returns
     -------
@@ -133,6 +133,8 @@ def get_data(h5file, ms_level, polarity, **kwargs):
             query += ' & (%s > %s)' % (name, kwargs['min_%s' % name])
         if 'max_%s' % name in kwargs:
             query += ' & (%s < %s)' % (name, kwargs['max_%s' % name])
+        if name in kwargs:
+            query += ' & (%s == %s)' % (name, kwargs[name])
 
     print('Querying: %s' % query)
 
@@ -264,10 +266,11 @@ if __name__ == '__main__':
     #plt.show()
     #plot(x, y, 'Sum(I)', 'M/Z', 'Spectragram of %s' % fid.name)
 
-    data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
-    data = (data['data'] + 1) ** 0.1
-    plt.imshow(data)
-    plt.show()
+    #data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
+    #data = (data['data'] + 1) ** 0.1
+    #plt.imshow(data)
+    #plt.show()
+    
     #img = plot_heatmap(data, 0, 450, 280, 890)
     #np.save('heatmap_new.npy', data['data'][0:450,280:890])
 
