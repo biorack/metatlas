@@ -210,13 +210,15 @@ def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
     arr, mz_bins, rt_bins = np.histogram2d(data['mz'], data['rt'],
                                            weights=data['i'],
                                            bins=(mz_bins, rt_bins))
-    #arr = np.log10(arr + 1)
-
     # center the bins
     mz_bins = (mz_bins[:-1] + mz_bins[1:]) / 2
     rt_bins = (rt_bins[:-1] + rt_bins[1:]) / 2
 
-    return dict(arr=arr, rt_bins=rt_bins, mz_bins=mz_bins)
+    mz_centroid = (np.sum(np.multiply(np.sum(arr, axis=1), mz_bins))
+                   / np.sum(arr))
+
+    return dict(arr=arr, rt_bins=rt_bins, mz_bins=mz_bins,
+                mz_centroid=mz_centroid)
 
 
 def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
