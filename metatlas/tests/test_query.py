@@ -1,5 +1,7 @@
 from __future__ import print_function
 import os
+import matplotlib
+matplotlib.use('Agg')
 
 import numpy as np
 import tables
@@ -63,4 +65,4 @@ def test_get_data():
     data = get_data(fid, 1, 0, min_rt=5, min_mz=100, precursor_MZ=0)
     assert np.allclose(data['i'].mean(), 7825.55387233)
     assert np.allclose(data['mz'][0], 100.979026794)
-    assert np.allclose(data['rt'][-1], 5.00666666031), data['rt'][-1]
+    assert np.allclose(data['rt'][0], 5.00666666031)
