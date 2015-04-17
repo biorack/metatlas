@@ -6,7 +6,7 @@ import tables
 
 from metatlas.mzml_loader import mzml_to_hdf, get_test_data
 from metatlas.h5_query import (
-    get_XIC, get_data, get_spectrogram, get_HeatMapRTMZ, 
+    get_XIC, get_data, get_spectrogram, get_HeatMapRTMZ,
     plot_heatmap, plot_spectrogram, plot_xic)
 
 fid = None
@@ -64,4 +64,3 @@ def test_get_data():
     assert np.allclose(data['i'].mean(), 7825.55387233)
     assert np.allclose(data['mz'][0], 100.979026794)
     assert np.allclose(data['rt'][-1], 5.00666666031), data['rt'][-1]
-
