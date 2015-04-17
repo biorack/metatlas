@@ -210,7 +210,7 @@ def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
     arr, mz_bins, rt_bins = np.histogram2d(data['mz'], data['rt'],
                                            weights=data['i'],
                                            bins=(mz_bins, rt_bins))
-    arr = np.log10(arr + 1)
+    #arr = np.log10(arr + 1)
 
     # center the bins
     mz_bins = (mz_bins[:-1] + mz_bins[1:]) / 2
