@@ -1,7 +1,5 @@
 from __future__ import print_function
 import os
-import matplotlib
-matplotlib.use('Agg')
 
 import numpy as np
 import tables
