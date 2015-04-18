@@ -40,8 +40,7 @@ def transform(shock_service_url=None, handle_service_url=None,
     """
     Converts mzML file to MetaboliteAtlas2_MAFileInfo json string.
 
-    Parameters
-    ----------
+    Args:
         shock_service_url: A url for the KBase SHOCK service.
         handle_service_url: A url for the KBase Handle Service.
         output_file_name: A file name where the output JSON string should be
@@ -49,7 +48,7 @@ def transform(shock_service_url=None, handle_service_url=None,
                           If the output file name is not specified the name
                           will default
                           to the name of the input file appended with
-                           '_finfo
+                           '_finfo'.
         input_directory: The directory where files will be read from.
         working_directory: The directory the resulting json file will be
                            written to.
@@ -60,6 +59,7 @@ def transform(shock_service_url=None, handle_service_url=None,
                        If you don't get this you need to scan the input
                        directory and look for your files.
         level: Logging level, defaults to logging.INFO.
+        atlases: List of MetaboliteAtlas atlas IDs.
         name: Name of the file, optional.  Defaults to the file name.
         polarity: Run polarity.
         group: Run group.
@@ -70,7 +70,7 @@ def transform(shock_service_url=None, handle_service_url=None,
     Returns:
         JSON files on disk that can be saved as a KBase workspace objects.
 
-    Author:
+    Authors:
         Steven Silvester
     """
 
@@ -135,8 +135,7 @@ def transform(shock_service_url=None, handle_service_url=None,
     logger.info("Conversion completed.")
 
 
-# called only if script is run from command line
-if __name__ == "__main__":  # pragma: no cover
+def main():
     script_details = script_utils.parse_docs(transform.__doc__)
 
     import argparse
@@ -219,4 +218,7 @@ if __name__ == "__main__":  # pragma: no cover
         logger.exception(e)
         sys.exit(1)
 
-    sys.exit(0)
+
+# called only if script is run from command line
+if __name__ == "__main__":  # pragma: no cover
+    main()
