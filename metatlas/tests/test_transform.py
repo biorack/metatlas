@@ -47,7 +47,8 @@ def test_transform_main():
     path = prep()
     sys.argv = ['transform', '--shock_service_url', '',
                 '--input_directory', os.path.dirname(path),
-                '--working_directory', os.path.dirname(path)]
+                '--working_directory', os.path.dirname(path),
+                '--debug']
 
     main()
     check_dir(path)
