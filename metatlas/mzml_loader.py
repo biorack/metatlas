@@ -118,7 +118,7 @@ def get_test_data():
     return path
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma : no cover
     import argparse
 
     parser = argparse.ArgumentParser(description="Load mzml files to HDF")

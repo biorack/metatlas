@@ -136,7 +136,7 @@ def transform(shock_service_url=None, handle_service_url=None,
 
 
 # called only if script is run from command line
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     script_details = script_utils.parse_docs(transform.__doc__)
 
     import argparse
