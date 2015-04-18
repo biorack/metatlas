@@ -61,31 +61,3 @@ def parse_docs(docstring=None):
     script_details["Args"] = dict(zip([x.replace(":","") for x in argument_keys], reversed(argument_values)))
 
     return script_details
-
-
-
-def upload_file_to_shock(logger = stderrlogger(__file__),
-                         shock_service_url = None,
-                         filePath = None,
-                         ssl_verify = True,
-                         token = None):
-    """
-    Use HTTP multi-part POST to save a file to a SHOCK instance.
-    """
-
-    if token is None:
-        raise Exception("Authentication token required!")
-
-    #build the header
-    header = dict()
-    header["Authorization"] = "Oauth {0}".format(token)
-
-    if filePath is None:
-        raise Exception("No file given for upload to SHOCK!")
-
-    dataFile = open(os.path.abspath(filePath), 'r')
-    m = MultipartEncoder(fields={'upload': (os.path.split(filePath)[-1], dataFile)})
-    header['Content-Type'] = m.content_type
-
-    logger.info("Sending {0} to {1}".format(filePath,shock_service_url))
-
