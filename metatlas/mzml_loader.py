@@ -21,7 +21,7 @@ class Spectrum(tables.IsDescription):
     collision_energy = tables.Float32Col(pos=7)
 
 
-def mzml_to_hdf(in_file_name, out_file_name=None):
+def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     """Converts in_file (mzml) to binary and stores it in out_file
     """
     if not out_file_name:
@@ -31,7 +31,9 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
 
     table = out_file.create_table('/', 'spectra', description=Spectrum)
-    if DEBUG:
+
+    debug = debug or DEBUG
+    if debug:
         print("STATUS: Converting %s to %s (mzML to HDF)" %
               (in_file_name, out_file_name), end='')
 
@@ -79,7 +81,7 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
         table.append(mylist)
         table.flush()
 
-        if DEBUG and not (ind % 100):
+        if debug and not (ind % 100):
             sys.stdout.write('.')
             sys.stdout.flush()
 
@@ -87,10 +89,10 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     out_file.set_node_attr('/', "uploaded_by",
                            pwd.getpwuid(os.getuid())[0])
 
-    if DEBUG:
+    if debug:
         print('\nSaving file')
     out_file.close()
-    if DEBUG:
+    if debug:
         print("STATUS: Finished mzML to HDF conversion")
 
     return out_file
@@ -118,7 +120,7 @@ def get_test_data():
     return path
 
 
-if __name__ == '__main__':  # pragma : no cover
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Load mzml files to HDF")
@@ -131,7 +133,8 @@ if __name__ == '__main__':  # pragma : no cover
 
     args = parser.parse_args()
 
-    # Toggles debug mode base on --debug flag
-    DEBUG = args.debug
+    mzml_to_hdf(args.input, args.output, args.debug)
 
-    mzml_to_hdf(args.input, args.output)
+
+if __name__ == '__main__':  # pragma : no cover
+    main()
