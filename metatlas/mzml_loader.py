@@ -76,12 +76,11 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
             except (KeyError, TypeError):
                 continue
 
-        mylist = []
-        for mz, i in spectrum.peaks:
-            mylist.append((mz, rt, i, polarity, ms_level,
-                           precursor_MZ, precursor_intensity,
-                           collision_energy))
-        table.append(mylist)
+        rows = [(mz, rt, i, polarity, ms_level,
+                 precursor_MZ, precursor_intensity, collision_energy)
+                for (mz, i) in spectrum.peaks]
+
+        table.append(rows)
         table.flush()
 
         if debug and not (ind % 100):
