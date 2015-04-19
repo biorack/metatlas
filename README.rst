@@ -23,7 +23,7 @@ Installation
 
 .. code-block:: bash
 
-    $ pip install metabolite_atlas
+    $ pip install metatlas
 
 
 Documentation
