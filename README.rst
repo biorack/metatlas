@@ -15,7 +15,7 @@ Features
     - Chromatogram data
     - HeatMap of Retention Time vs (m/z)
     - Generic query for (rt, mz, i) data
-    - Custom plotters for XIC, Chromatogram, and Heatmap
+- Custom plotters for XIC, Chromatogram, and Heatmap
 
 
 Installation
