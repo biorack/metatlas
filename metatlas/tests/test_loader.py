@@ -22,10 +22,12 @@ def test_loader():
     scan_time = [y['rt'] for y in table.where('(ms_level==1)')]
     assert len(scan_time) == 933367
 
+    table.close()
+
 
 def test_loader_main():
     path = get_test_data()
-    out_file = 'test_loader_main.h5'
+    out_file = 'test_loader.h5'
 
     sys.argv = ['dummy', '--input', path,
                 '--output', out_file,
@@ -40,3 +42,5 @@ def test_loader_main():
     assert table[-1][0] == 1666.9520263671875
     scan_time = [y['rt'] for y in table.where('(ms_level==1)')]
     assert len(scan_time) == 933367
+
+    table.close()
