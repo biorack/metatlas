@@ -145,8 +145,8 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     polarity: int
         Plus proton (1) or Minus proton (0).
     bins : int or array-like, optional.
-        Desired bins to use for the histogram.  By default, aggregates by
-        retention time.
+        Desired bins to use for the histogram, defaults to unique retention
+        times.
     **kwargs
         Optional search modifiers.  (e.g. precursor_MZ=1,
             min_collision_energy=4)
