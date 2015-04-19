@@ -160,21 +160,11 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz, **kwargs)
 
-    if bins:
-        i, rt = np.histogram(data['rt'], bins=bins, weights=data['i'])
-        # center the bins
-        rt = (rt[:-1] + rt[1:]) / 2
+    bins = bins or np.unique(data['rt'])
 
-    else:
-        # combine the data within each retention time step
-        jumps = np.nonzero(np.diff(data['rt']))[0]
-        jumps = np.hstack((0, jumps, data['rt'].size - 1))
-
-        isum = np.cumsum(data['i'])
-
-        i = np.diff(np.take(isum, jumps))
-        i[0] += data['i'][0]
-        rt = np.take(data['rt'], jumps)[1:]
+    i, rt = np.histogram(data['rt'], bins=bins, weights=data['i'])
+    # center the bins
+    rt = (rt[:-1] + rt[1:]) / 2
 
     return rt, i / i.max() * 100
 
