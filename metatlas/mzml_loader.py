@@ -97,7 +97,7 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     if debug:
         print("STATUS: Finished mzML to HDF conversion")
 
-    return out_file
+    return out_file_name
 
 
 def get_test_data():
