@@ -12,7 +12,7 @@ Features
 - Parse LCMS mzML files to Pytables (HDF)
 - Query and plot LCMS data
     - Extracted-ion chromatogram (XIC) data
-    - Chromatogram data
+    - Spectrogram data
     - HeatMap of Retention Time vs (m/z)
     - Generic query for (rt, mz, i) data
 - Custom plotters for XIC, Chromatogram, and Heatmap
