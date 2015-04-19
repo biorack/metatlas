@@ -55,14 +55,9 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
 
     for (ind, spectrum) in enumerate(mzml_reader):
         try:
-            polarity = 1 if 'positive scan' in spectrum.keys() else 0
-            ms_level = int(spectrum['ms level'])
-            # check if scan start time exists. some thermo spectra
-            #  are missing this value
-            if 'scan start time' in spectrum.keys():
-                rt = float(spectrum['scan start time'][0])
-            else:
-                rt = float(spectrum['MS:1000016'][0])
+            polarity = 'positive scan' in spectrum or 'MS:1000130' in spectrum
+            ms_level = spectrum['ms level']
+            rt = spectrum.get('scan start time', spectrum['MS:1000016'])[0]
         except (KeyError, TypeError):
             continue
 
@@ -71,10 +66,15 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         collision_energy = 0.0
 
         if ms_level == 2:
-            collision_energy = spectrum['collision energy'][1]
-            if 'peak intensity' in spectrum.keys():
-                precursor_intensity = spectrum['peak intensity'][1]
-            precursor_MZ = spectrum['selected ion m/z'][0]
+            try:
+                collision_energy = spectrum.get('collision energy',
+                                                spectrum['MS:1000045'])[1]
+                precursor_intensity = spectrum.get('peak intensity',
+                                                   spectrum['MS:1000042'])[1]
+                precursor_MZ = spectrum.get('selected ion m/z',
+                                            spectrum['MS:1000744'])[0]
+            except (KeyError, TypeError):
+                continue
 
         mylist = []
         for mz, i in spectrum.peaks:
