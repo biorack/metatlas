@@ -1,11 +1,14 @@
 from __future__ import print_function
-import pymzml
+
+import argparse
 import os
 import pwd
 import datetime
 import sys
+
 import requests
 import tables
+import pymzml
 
 DEBUG = False
 
@@ -121,8 +124,6 @@ def get_test_data():
 
 
 def main():
-    import argparse
-
     parser = argparse.ArgumentParser(description="Load mzml files to HDF")
     parser.add_argument("-o", "--output", type=str,
                         help="Output file name", required=False)

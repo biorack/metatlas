@@ -1,8 +1,11 @@
 from __future__ import print_function
 import os
+import sys
+
 import simplejson
 
-from metatlas.trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo import transform, main
+from metatlas.trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo \
+    import transform, main
 from metatlas.mzml_loader import get_test_data
 
 
@@ -43,7 +46,6 @@ def check_dir(path, **setup):
 
 
 def test_transform_main():
-    import sys
     path = prep()
     sys.argv = ['transform', '--shock_service_url', '',
                 '--input_directory', os.path.dirname(path),
