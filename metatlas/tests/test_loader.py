@@ -25,7 +25,7 @@ def test_loader():
 
 def test_loader_main():
     path = get_test_data()
-    out_file = 'test_loader.h5'
+    out_file = 'test_loader_main.h5'
 
     sys.argv = ['dummy', '--input', path,
                 '--output', out_file,
