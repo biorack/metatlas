@@ -1,7 +1,10 @@
 from __future__ import print_function
+
+import sys
+
 import tables
 
-from metatlas.mzml_loader import mzml_to_hdf, get_test_data
+from metatlas.mzml_loader import mzml_to_hdf, get_test_data, main
 
 
 def test_loader():
@@ -10,6 +13,10 @@ def test_loader():
 
     mzml_to_hdf(path, out_file_name=out_file)
 
+    check_file(out_file)
+
+
+def check_file(out_file):
     fid = tables.open_file(out_file)
     table = fid.root.spectra
 
@@ -18,3 +25,14 @@ def test_loader():
     assert table[-1][0] == 1666.9520263671875
     scan_time = [y['rt'] for y in table.where('(ms_level==1)')]
     assert len(scan_time) == 933367
+
+
+def test_loader_main():
+    path = get_test_data()
+    out_file = 'test_loader_main.h5'
+
+    sys.argv = ['dummy', '--input', path,
+                '--output', out_file,
+                '--debug']
+    main()
+    check_file(out_file)

@@ -9,8 +9,13 @@ Metabolomics is the comprehensive profiling of the small molecule composition of
 
 Features
 --------
-- Coming soon!
-
+- Parse LCMS mzML files to Pytables (HDF)
+- Query and plot LCMS data
+    - Extracted-ion chromatogram (XIC) data
+    - Spectrogram data
+    - HeatMap of Retention Time vs (m/z)
+    - Generic query for (rt, mz, i) data
+- Custom plotters for XIC, Chromatogram, and Heatmap
 
 
 Installation
@@ -18,17 +23,21 @@ Installation
 
 .. code-block:: bash
 
-    $ pip install metabolite_atlas
+    $ pip install metatlas
 
 
 Documentation
 -------------
 
-Documentation is available online_.
+Documentation is available online_ (coming soon).
+
+See example notebook_.
 
 For version information, see the Revision History_.
 
 
 .. _online: http://metabolite-atlas.github.io/metatlas/
+
+.. _notebook: http://nbviewer.ipython.org/github/metabolite-atlas/metatlas/blob/master/docs/example_notebooks/data_access_examples.ipynb
 
 .. _History: https://github.com/metabolite-atlas/metatlas/blob/master/HISTORY.rst

@@ -1,11 +1,14 @@
 from __future__ import print_function
-import pymzml
+
+import argparse
 import os
 import pwd
 import datetime
 import sys
+
 import requests
 import tables
+import pymzml
 
 DEBUG = False
 
@@ -21,7 +24,7 @@ class Spectrum(tables.IsDescription):
     collision_energy = tables.Float32Col(pos=7)
 
 
-def mzml_to_hdf(in_file_name, out_file_name=None):
+def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     """Converts in_file (mzml) to binary and stores it in out_file
     """
     if not out_file_name:
@@ -31,7 +34,9 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
 
     table = out_file.create_table('/', 'spectra', description=Spectrum)
-    if DEBUG:
+
+    debug = debug or DEBUG
+    if debug:
         print("STATUS: Converting %s to %s (mzML to HDF)" %
               (in_file_name, out_file_name), end='')
 
@@ -50,14 +55,9 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
 
     for (ind, spectrum) in enumerate(mzml_reader):
         try:
-            polarity = 1 if 'positive scan' in spectrum.keys() else 0
-            ms_level = int(spectrum['ms level'])
-            # check if scan start time exists. some thermo spectra
-            #  are missing this value
-            if 'scan start time' in spectrum.keys():
-                rt = float(spectrum['scan start time'][0])
-            else:
-                rt = float(spectrum['MS:1000016'][0])
+            polarity = 'positive scan' in spectrum or 'MS:1000130' in spectrum
+            ms_level = spectrum['ms level']
+            rt = spectrum.get('scan start time', spectrum['MS:1000016'])[0]
         except (KeyError, TypeError):
             continue
 
@@ -66,20 +66,24 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
         collision_energy = 0.0
 
         if ms_level == 2:
-            collision_energy = spectrum['collision energy'][1]
-            if 'peak intensity' in spectrum.keys():
-                precursor_intensity = spectrum['peak intensity'][1]
-            precursor_MZ = spectrum['selected ion m/z'][0]
+            try:
+                collision_energy = spectrum.get('collision energy',
+                                                spectrum['MS:1000045'])[1]
+                precursor_intensity = spectrum.get('peak intensity',
+                                                   spectrum['MS:1000042'])[1]
+                precursor_MZ = spectrum.get('selected ion m/z',
+                                            spectrum['MS:1000744'])[0]
+            except (KeyError, TypeError):
+                continue
 
-        mylist = []
-        for mz, i in spectrum.peaks:
-            mylist.append((mz, rt, i, polarity, ms_level,
-                           precursor_MZ, precursor_intensity,
-                           collision_energy))
-        table.append(mylist)
+        rows = [(mz, rt, i, polarity, ms_level,
+                 precursor_MZ, precursor_intensity, collision_energy)
+                for (mz, i) in spectrum.peaks]
+
+        table.append(rows)
         table.flush()
 
-        if DEBUG and not (ind % 100):
+        if debug and not (ind % 100):
             sys.stdout.write('.')
             sys.stdout.flush()
 
@@ -87,13 +91,13 @@ def mzml_to_hdf(in_file_name, out_file_name=None):
     out_file.set_node_attr('/', "uploaded_by",
                            pwd.getpwuid(os.getuid())[0])
 
-    if DEBUG:
+    if debug:
         print('\nSaving file')
     out_file.close()
-    if DEBUG:
+    if debug:
         print("STATUS: Finished mzML to HDF conversion")
 
-    return out_file
+    return out_file_name
 
 
 def get_test_data():
@@ -118,9 +122,7 @@ def get_test_data():
     return path
 
 
-if __name__ == '__main__':
-    import argparse
-
+def main():
     parser = argparse.ArgumentParser(description="Load mzml files to HDF")
     parser.add_argument("-o", "--output", type=str,
                         help="Output file name", required=False)
@@ -131,7 +133,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # Toggles debug mode base on --debug flag
-    DEBUG = args.debug
+    mzml_to_hdf(args.input, args.output, args.debug)
 
-    mzml_to_hdf(args.input, args.output)
+
+if __name__ == '__main__':  # pragma : no cover
+    main()

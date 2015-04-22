@@ -44,6 +44,7 @@ def parse_docs(docstring=None):
         remainder, script_details[k] = remainder.split(k+":",1)
         script_details[k] = script_details[k].strip()
 
+
     script_details["Description"] = remainder
 
     # special treatment for Args since we want a dict, split on :, then cleanup whitespace
@@ -54,38 +55,10 @@ def parse_docs(docstring=None):
     remainder = script_details["Args"]
     argument_values = list()
     for k in reversed(argument_keys):
-        remainder, value = remainder.split(k)
+        remainder, _, value = remainder.rpartition(k)
         argument_values.append(" ".join([x.strip() for x in value.split("\n")]))
 
     # create the dict using they keys without :, then get the values in the correct order
     script_details["Args"] = dict(zip([x.replace(":","") for x in argument_keys], reversed(argument_values)))
 
     return script_details
-
-
-
-def upload_file_to_shock(logger = stderrlogger(__file__),
-                         shock_service_url = None,
-                         filePath = None,
-                         ssl_verify = True,
-                         token = None):
-    """
-    Use HTTP multi-part POST to save a file to a SHOCK instance.
-    """
-
-    if token is None:
-        raise Exception("Authentication token required!")
-
-    #build the header
-    header = dict()
-    header["Authorization"] = "Oauth {0}".format(token)
-
-    if filePath is None:
-        raise Exception("No file given for upload to SHOCK!")
-
-    dataFile = open(os.path.abspath(filePath), 'r')
-    m = MultipartEncoder(fields={'upload': (os.path.split(filePath)[-1], dataFile)})
-    header['Content-Type'] = m.content_type
-
-    logger.info("Sending {0} to {1}".format(filePath,shock_service_url))
-
