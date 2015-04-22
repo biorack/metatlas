@@ -30,8 +30,17 @@ A layer that unwraps the xref service to link out will use the following IDs
 
 Given that these molecules are detected in a mass spectrometer, they will be seen as ions. Consideration of how to maintain the detected ion and also handling the neutral form for identification. The same consieration must be given to isotopologues and isotopomers.
 
-This is cool: its an ontology file for chemical information.
+This is the best example of an ontology file for chemical information.
 http://semanticscience.org/ontology/cheminf.owl
+
+Adding a few terms specific to electrospray-ionization and liquid chromatography should enable us to relate features to one another.  These terms would include:
+<li>
+	<ul>Ion Cluster</ul>
+	<ul>Adduct</ul>
+	<ul>Degradation Product</ul>
+	<ul>Pure spectra member</ul>
+</li>
+
 Here is the hub that has all their ontologies:
 https://code.google.com/p/semanticscience/
 
