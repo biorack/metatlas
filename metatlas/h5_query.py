@@ -122,6 +122,9 @@ def get_data(h5file, ms_level, polarity, **kwargs):
 
     table = h5file.root.spectra
     i = np.array([x['i'] for x in table.where(query)])
+    if not i.size:
+        raise ValueError('No data found matching criteria')
+
     rt = np.array([x['rt'] for x in table.where(query)])
     mz = np.array([x['mz'] for x in table.where(query)])
 
@@ -250,13 +253,18 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
     return mz, i / i.max() * 100
 
 
+def get_stats(h5file):
+    # TODO: get statistics about an h5 file
+    pass
+
+
 if __name__ == '__main__':  # pragma: no cover
     import sys
 
-    fid = tables.open_file('021715_QC_6_neg.h5')
+    fid = tables.open_file('Agilent_MS1_64bit_encoded.h5.xml')
 
     if len(sys.argv) < 2 or sys.argv[1] == 'xic':
-        x, y = get_XIC(fid, 1, 1000, 1, 0)
+        x, y = get_XIC(fid, 1, 1000, 1, 1)
         np.save('xicof_new.npy', np.vstack((x, y)).T)
         plot_xic(x, y)
 
