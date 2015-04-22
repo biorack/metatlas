@@ -34,12 +34,12 @@ This is the best example of an ontology file for chemical information.
 http://semanticscience.org/ontology/cheminf.owl
 
 Adding a few terms specific to electrospray-ionization and liquid chromatography should enable us to relate features to one another.  These terms would include:
-<li>
-	<ul>Ion Cluster</ul>
-	<ul>Adduct</ul>
-	<ul>Degradation Product</ul>
-	<ul>Pure spectra member</ul>
-</li>
+<ul>
+	<li>Ion Cluster</li>
+	<li>Adduct</li>
+	<li>Degradation Product</li>
+	<li>Pure spectra member</li>
+</ul>
 
 Here is the hub that has all their ontologies:
 https://code.google.com/p/semanticscience/
