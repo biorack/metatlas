@@ -8,6 +8,7 @@ import sys
 
 import requests
 import tables
+import numpy as np
 import pymzml
 
 DEBUG = False
@@ -22,6 +23,41 @@ class Spectrum(tables.IsDescription):
     precursor_MZ = tables.Float32Col(pos=5)
     precursor_intensity = tables.Float32Col(pos=6)
     collision_energy = tables.Float32Col(pos=7)
+
+
+def read_spectrum(spectrum):
+    """Read a single spectrum
+
+    Parameters
+    ----------
+    spectrum : mzML spectrum
+        The mzML spectrum to parse.
+
+    Returns
+    -------
+    out : list of tuples
+        List of values associated with each peak in the spectrum.
+    """
+    polarity = 'positive scan' in spectrum or 'MS:1000130' in spectrum
+    ms_level = spectrum['ms level']
+    rt = spectrum.get('scan start time', spectrum['MS:1000016'])[0]
+
+    precursor_MZ = 0.0
+    precursor_intensity = 0.0
+    collision_energy = 0.0
+
+    if ms_level == 2:
+        collision_energy = spectrum.get('collision energy',
+                                        spectrum['MS:1000045'])[1]
+        if 'peak intensity' in spectrum or 'MS:1000042' in spectrum:
+            precursor_intensity = spectrum.get('peak intensity',
+                                               spectrum['MS:1000042'])[1]
+        precursor_MZ = spectrum.get('selected ion m/z',
+                                        spectrum['MS:1000744'])[0]
+
+    return [(mz, rt, i, polarity, ms_level,
+             precursor_MZ, precursor_intensity, collision_energy)
+            for (mz, i) in spectrum.peaks]
 
 
 def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
@@ -50,35 +86,20 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         ('MS:1000045', ['name', 'value']),  # collision energy
     ]
 
-    mzml_reader = pymzml.run.Reader(in_file_name,
-                                    extraAccessions=extraAccessions)
+    try:
+        mzml_reader = pymzml.run.Reader(in_file_name,
+                                        extraAccessions=extraAccessions)
+    except Exception:
+        raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
 
     for (ind, spectrum) in enumerate(mzml_reader):
         try:
-            polarity = 'positive scan' in spectrum or 'MS:1000130' in spectrum
-            ms_level = spectrum['ms level']
-            rt = spectrum.get('scan start time', spectrum['MS:1000016'])[0]
+            rows = read_spectrum(spectrum)
         except (KeyError, TypeError):
             continue
-
-        precursor_MZ = 0.0
-        precursor_intensity = 0.0
-        collision_energy = 0.0
-
-        if ms_level == 2:
-            try:
-                collision_energy = spectrum.get('collision energy',
-                                                spectrum['MS:1000045'])[1]
-                precursor_intensity = spectrum.get('peak intensity',
-                                                   spectrum['MS:1000042'])[1]
-                precursor_MZ = spectrum.get('selected ion m/z',
-                                            spectrum['MS:1000744'])[0]
-            except (KeyError, TypeError):
-                continue
-
-        rows = [(mz, rt, i, polarity, ms_level,
-                 precursor_MZ, precursor_intensity, collision_energy)
-                for (mz, i) in spectrum.peaks]
+        except Exception as e:
+            print(e.message)
+            continue
 
         table.append(rows)
         table.flush()
@@ -104,9 +125,14 @@ def get_test_data():
     dname = os.path.dirname(__file__)
     path = os.path.join(dname, 'test.mzML')
 
-    # SargossoDepth/021715_QC_6_neg.mzML
-    url = ("https://drive.google.com/uc?"
-           "export=download&id=0B2pT935MmTv2WDMtSGhvNmxkU2M")
+    # TODO: add tests for these other files
+    url = ("https://www.dropbox.com/s/3w83p0gjpnghqzs/QExactive_FastPolaritySwitching_Mixture_of_32_and_64_bit.mzML.xml?dl=1")
+
+    url = ("https://www.dropbox.com/s/wzq7ykc436cj4ic/QExactive_Targeted_MSMS_Pos.mzML.xml?dl=1")
+
+    url = ("https://www.dropbox.com/s/59ypkfhjgvzplm4/QExactive_Wrong_FileFormat.mzXML.xml?dl=1")
+
+    url = ("https://www.dropbox.com/s/j54q5amle7nyl5h/021715_QC_6_neg.mzML?dl=1")
 
     if not os.path.exists(path):
         # NOTE the stream=True parameter
@@ -117,7 +143,10 @@ def get_test_data():
                 if chunk:  # filter out keep-alive new chunks
                     f.write(chunk)
                     f.flush()
+
         print('Download complete\n', file=sys.stderr)
+    else:
+        print("File already exists: %s" % path)
 
     return path
 
@@ -138,3 +167,4 @@ def main():
 
 if __name__ == '__main__':  # pragma : no cover
     main()
+    #get_test_data()
