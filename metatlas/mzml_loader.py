@@ -132,6 +132,8 @@ def get_test_data():
 
     url = ("https://www.dropbox.com/s/59ypkfhjgvzplm4/QExactive_Wrong_FileFormat.mzXML.xml?dl=1")
 
+    url = ("https://www.dropbox.com/s/lfm3tgajw26mos2/Agilent_MS1_64bit_encoded.mzML.xml?dl=1")
+
     url = ("https://www.dropbox.com/s/j54q5amle7nyl5h/021715_QC_6_neg.mzML?dl=1")
 
     if not os.path.exists(path):
