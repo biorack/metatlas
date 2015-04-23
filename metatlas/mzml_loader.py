@@ -6,9 +6,7 @@ import pwd
 import datetime
 import sys
 
-import requests
 import tables
-import numpy as np
 import pymzml
 
 DEBUG = False
@@ -137,16 +135,7 @@ def get_test_data():
         if not os.path.exists(path):
             # NOTE the stream=True parameter
             print('Downloading: %s\n' % url, file=sys.stderr)
-            r = requests.get(url, stream=True, timeout=3600)
-            if not r.ok:
-                raise ValueError('Not a good response')
-            print('Downloading: %s bytes\n' % r.headers.get('content-length'),
-                  file=sys.stderr)
-            with open(path, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=1024):
-                    if chunk:  # filter out keep-alive new chunks
-                        f.write(chunk)
-                        f.flush()
+            os.system('wget %s %s' % (url, path))
             print('Download complete: %s bytes\n' % os.stat(path).st_size,
                   file=sys.stderr)
         else:
