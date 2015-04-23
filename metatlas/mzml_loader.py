@@ -140,6 +140,8 @@ def get_test_data():
             r = requests.get(url, stream=True, timeout=3600)
             if not r.ok:
                 raise ValueError('Not a good response')
+            print('Downloading: %s bytes\n' % r.headers.get('content-length'),
+                  file=sys.stderr)
             with open(path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=1024):
                     if chunk:  # filter out keep-alive new chunks
