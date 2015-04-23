@@ -124,10 +124,10 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
 def get_test_data():
     dname = os.path.dirname(__file__)
 
-    urls = dict(basic="http://www.dropbox.com/s/j54q5amle7nyl5h/021715_QC_6_neg.mzML?dl=1",
-               mix32_64="http://www.dropbox.com/s/3w83p0gjpnghqzs/QExactive_FastPolaritySwitching_Mixture_of_32_and_64_bit.mzML.xml?dl=1",
-               alt_pol="http://www.dropbox.com/s/wzq7ykc436cj4ic/QExactive_Targeted_MSMS_Pos.mzML.xml?dl=1",
-               wrong_fmt="http://www.dropbox.com/s/59ypkfhjgvzplm4/QExactive_Wrong_FileFormat.mzXML.xml?dl=1")
+    urls = dict(basic="https://www.dropbox.com/s/j54q5amle7nyl5h/021715_QC_6_neg.mzML?dl=1",
+               mix32_64="https://www.dropbox.com/s/3w83p0gjpnghqzs/QExactive_FastPolaritySwitching_Mixture_of_32_and_64_bit.mzML.xml?dl=1",
+               alt_pol="https://www.dropbox.com/s/wzq7ykc436cj4ic/QExactive_Targeted_MSMS_Pos.mzML.xml?dl=1",
+               wrong_fmt="https://www.dropbox.com/s/59ypkfhjgvzplm4/QExactive_Wrong_FileFormat.mzXML.xml?dl=1")
 
     paths = dict()
     for (name, url) in urls.items():
@@ -143,7 +143,8 @@ def get_test_data():
                     if chunk:  # filter out keep-alive new chunks
                         f.write(chunk)
                         f.flush()
-            print('Download complete\n', file=sys.stderr)
+            print('Download complete: %s bytes\n' % os.stat(path).st_size,
+                  file=sys.stderr)
         else:
             print("File already exists: %s" % path)
         paths[name] = path
