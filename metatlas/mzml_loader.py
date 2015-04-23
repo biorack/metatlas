@@ -137,9 +137,12 @@ def get_test_data():
         if not os.path.exists(path):
             # NOTE the stream=True parameter
             print('Downloading: %s\n' % url, file=sys.stderr)
-            r = requests.get(url)
+            r = requests.get(url, stream=True, timeout=3600)
             with open(path, 'wb') as f:
-                f.write(r.content())
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:  # filter out keep-alive new chunks
+                        f.write(chunk)
+                        f.flush()
             print('Download complete: %s bytes\n' % os.stat(path).st_size,
                   file=sys.stderr)
         else:
