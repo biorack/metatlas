@@ -123,34 +123,32 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
 
 def get_test_data():
     dname = os.path.dirname(__file__)
-    path = os.path.join(dname, 'test.mzML')
 
-    # TODO: add tests for these other files
-    url = ("https://www.dropbox.com/s/3w83p0gjpnghqzs/QExactive_FastPolaritySwitching_Mixture_of_32_and_64_bit.mzML.xml?dl=1")
+    urls = dict(basic="https://www.dropbox.com/s/j54q5amle7nyl5h/021715_QC_6_neg.mzML?dl=1",
+               mix32_64="https://www.dropbox.com/s/3w83p0gjpnghqzs/QExactive_FastPolaritySwitching_Mixture_of_32_and_64_bit.mzML.xml?dl=1",
+               alt_pol="https://www.dropbox.com/s/wzq7ykc436cj4ic/QExactive_Targeted_MSMS_Pos.mzML.xml?dl=1",
+               wrong_fmt="https://www.dropbox.com/s/59ypkfhjgvzplm4/QExactive_Wrong_FileFormat.mzXML.xml?dl=1")
 
-    url = ("https://www.dropbox.com/s/wzq7ykc436cj4ic/QExactive_Targeted_MSMS_Pos.mzML.xml?dl=1")
+    paths = dict()
+    for (name, url) in urls.items():
+        path = os.path.join(dname, 'test_%s.mzML' % name)
+        if name == 'wrong_fmt':
+            path = os.path.join(dname, 'test.mzXML')
+        if not os.path.exists(path):
+            # NOTE the stream=True parameter
+            print('Downloading: %s\n' % url, file=sys.stderr)
+            r = requests.get(url, stream=True)
+            with open(path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:  # filter out keep-alive new chunks
+                        f.write(chunk)
+                        f.flush()
+            print('Download complete\n', file=sys.stderr)
+        else:
+            print("File already exists: %s" % path)
+        paths[name] = path
 
-    url = ("https://www.dropbox.com/s/59ypkfhjgvzplm4/QExactive_Wrong_FileFormat.mzXML.xml?dl=1")
-
-    url = ("https://www.dropbox.com/s/lfm3tgajw26mos2/Agilent_MS1_64bit_encoded.mzML.xml?dl=1")
-
-    url = ("https://www.dropbox.com/s/j54q5amle7nyl5h/021715_QC_6_neg.mzML?dl=1")
-
-    if not os.path.exists(path):
-        # NOTE the stream=True parameter
-        print('Downloading: %s\n' % url, file=sys.stderr)
-        r = requests.get(url, stream=True)
-        with open(path, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:  # filter out keep-alive new chunks
-                    f.write(chunk)
-                    f.flush()
-
-        print('Download complete\n', file=sys.stderr)
-    else:
-        print("File already exists: %s" % path)
-
-    return path
+    return paths
 
 
 def main():
@@ -169,4 +167,3 @@ def main():
 
 if __name__ == '__main__':  # pragma : no cover
     main()
-    #get_test_data()

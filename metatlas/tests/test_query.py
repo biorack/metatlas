@@ -14,11 +14,15 @@ fid = None
 
 def setup():
     global fid
-    path = get_test_data()
-    out_file = 'test.h5'
+    paths = get_test_data()
+    out_file = 'test_query.h5'
 
-    mzml_to_hdf(path, out_file_name=out_file)
-    fid = tables.open_file('test.h5')
+    mzml_to_hdf(paths['basic'], out_file_name=out_file)
+    fid = tables.open_file('test_query.h5')
+
+
+def teardown():
+    fid.close()
 
 
 def rmse(targets, predictions):
