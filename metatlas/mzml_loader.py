@@ -135,7 +135,7 @@ def get_test_data():
         if not os.path.exists(path):
             # NOTE the stream=True parameter
             print('Downloading: %s\n' % url, file=sys.stderr)
-            os.system('wget %s %s' % (url, path))
+            os.system('wget %s -O %s' % (url, path))
             print('Download complete: %s bytes\n' % os.stat(path).st_size,
                   file=sys.stderr)
         else:
