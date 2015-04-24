@@ -12,15 +12,19 @@ import pymzml
 DEBUG = False
 
 
-class Spectrum(tables.IsDescription):
+class Ms1Data(tables.IsDescription):
     mz = tables.Float32Col(pos=0)
     rt = tables.Float32Col(pos=1)
     i = tables.Float32Col(pos=2)
-    polarity = tables.UInt8Col(pos=3)
-    ms_level = tables.UInt8Col(pos=4)
-    precursor_MZ = tables.Float32Col(pos=5)
-    precursor_intensity = tables.Float32Col(pos=6)
-    collision_energy = tables.Float32Col(pos=7)
+
+
+class Ms2Data(tables.IsDescription):
+    mz = tables.Float32Col(pos=0)
+    rt = tables.Float32Col(pos=1)
+    i = tables.Float32Col(pos=2)
+    precursor_MZ = tables.Float32Col(pos=3)
+    precursor_intensity = tables.Float32Col(pos=4)
+    collision_energy = tables.Float32Col(pos=5)
 
 
 def read_spectrum(spectrum):
@@ -53,9 +57,13 @@ def read_spectrum(spectrum):
         precursor_MZ = spectrum.get('selected ion m/z',
                                         spectrum['MS:1000744'])[0]
 
-    return [(mz, rt, i, polarity, ms_level,
-             precursor_MZ, precursor_intensity, collision_energy)
-            for (mz, i) in spectrum.peaks]
+        rows = [(mz, rt, i,
+                 precursor_MZ, precursor_intensity, collision_energy)
+                for (mz, i) in spectrum.peaks]
+    else:
+        rows = [(mz, rt, i) for (mz, i) in spectrum.peaks]
+
+    return ms_level, polarity, rows
 
 
 def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
@@ -67,8 +75,11 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     FILTERS = tables.Filters(complib='lzo', complevel=1)
     out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
 
-    table = out_file.create_table('/', 'spectra', description=Spectrum)
-
+    ms1_neg = out_file.create_table('/', 'ms1_neg', description=Ms1Data)
+    ms1_pos = out_file.create_table('/', 'ms1_pos', description=Ms1Data)
+    ms2_neg = out_file.create_table('/', 'ms2_neg', description=Ms2Data)
+    ms2_pos = out_file.create_table('/', 'ms2_pos', description=Ms2Data)
+    
     debug = debug or DEBUG
     if debug:
         print("STATUS: Converting %s to %s (mzML to HDF)" %
@@ -92,15 +103,25 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
 
     for (ind, spectrum) in enumerate(mzml_reader):
         try:
-            rows = read_spectrum(spectrum)
+            ms_level, polarity, rows = read_spectrum(spectrum)
         except (KeyError, TypeError):
             continue
         except Exception as e:
             print(e.message)
             continue
 
+        if ms_level == 1:
+            if not polarity:
+                table = ms1_neg
+            else:
+                table = ms1_pos
+        elif not polarity:
+            table = ms2_neg
+        else:
+            table = ms2_pos
+
         table.append(rows)
-        table.flush()
+        table.flush
 
         if debug and not (ind % 100):
             sys.stdout.write('.')
@@ -124,7 +145,7 @@ def get_test_data():
 
     urls = dict(basic="https://www.dropbox.com/s/j54q5amle7nyl5h/021715_QC_6_neg.mzML?dl=1",
                mix32_64="https://www.dropbox.com/s/3w83p0gjpnghqzs/QExactive_FastPolaritySwitching_Mixture_of_32_and_64_bit.mzML.xml?dl=1",
-               alt_pol="https://www.dropbox.com/s/wzq7ykc436cj4ic/QExactive_Targeted_MSMS_Pos.mzML.xml?dl=1",
+               ms_ms="https://www.dropbox.com/s/wzq7ykc436cj4ic/QExactive_Targeted_MSMS_Pos.mzML.xml?dl=1",
                wrong_fmt="https://www.dropbox.com/s/59ypkfhjgvzplm4/QExactive_Wrong_FileFormat.mzXML.xml?dl=1")
 
     paths = dict()

@@ -107,7 +107,20 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     out : dictionary
         Dictionary with arrays for 'i', 'mz', and 'rt' values meeting criteria.
     """
-    query = '(ms_level == %s) & (polarity == %s)' % (ms_level, polarity)
+    if ms_level == 1:
+        if not polarity:
+            table = h5file.root.ms1_neg
+        else:
+            table = h5file.root.ms1_pos
+    elif not polarity:
+        table = h5file.root.ms2_neg
+    else:
+        table = h5file.root.ms2_pos
+
+    if not table.nrows:
+        return ValueError('No data in chosen table: %s' % table._v_name)
+
+    query = ''
 
     for name in ['rt', 'mz', 'precursor_MZ', 'precursor_intensity',
                  'collision_energy']:
@@ -118,9 +131,14 @@ def get_data(h5file, ms_level, polarity, **kwargs):
         if name in kwargs:
             query += ' & (%s == %s)' % (name, kwargs[name])
 
-    print('Querying: %s' % query)
+    if not query:
+        data = table.read()
+        return dict(i=data['i'], rt=data['rt'], mz=data['mz'])
 
-    table = h5file.root.spectra
+    # chop of the initial ' & '
+    query = query[3:]
+    print('Querying: %s from %s' % (query, table._v_name))
+
     i = np.array([x['i'] for x in table.where(query)])
     if not i.size:
         raise ValueError('No data found matching criteria')
@@ -253,9 +271,18 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
     return mz, i / i.max() * 100
 
 
-def get_stats(h5file):
-    # TODO: get statistics about an h5 file
-    pass
+def get_info(h5file):
+    """Get info about an LCMS HDF file
+
+    Returns
+    -------
+    out : dict
+        Number of rows for all of the tables in the file.
+    """
+    return dict(ms1_neg=h5file.root.ms1_neg.nrows,
+                ms1_pos=h5file.root.ms1_pos.nrows,
+                ms2_neg=h5file.root.ms2_neg.nrows,
+                ms2_pos=h5file.root.ms2_pos.nrows)
 
 
 if __name__ == '__main__':  # pragma: no cover
