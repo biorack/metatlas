@@ -72,14 +72,14 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     if not out_file_name:
         out_file_name = in_file_name.replace('.mzML', '.h5')
 
-    FILTERS = tables.Filters(complib='lzo', complevel=1)
+    FILTERS = tables.Filters(complib='blosc', complevel=1)
     out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
 
     ms1_neg = out_file.create_table('/', 'ms1_neg', description=Ms1Data)
     ms1_pos = out_file.create_table('/', 'ms1_pos', description=Ms1Data)
     ms2_neg = out_file.create_table('/', 'ms2_neg', description=Ms2Data)
     ms2_pos = out_file.create_table('/', 'ms2_pos', description=Ms2Data)
-    
+
     debug = debug or DEBUG
     if debug:
         print("STATUS: Converting %s to %s (mzML to HDF)" %
