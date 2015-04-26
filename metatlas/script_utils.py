@@ -6,6 +6,10 @@ import logging
 import re
 import sys
 import time
+import requests
+import os
+import io
+from requests_toolbelt import MultipartEncoder
 
 
 def stderrlogger(name, level=logging.INFO):
@@ -62,3 +66,98 @@ def parse_docs(docstring=None):
     script_details["Args"] = dict(zip([x.replace(":","") for x in argument_keys], reversed(argument_values)))
 
     return script_details
+
+
+def upload_file_to_shock(logger = stderrlogger(__file__),
+                         shock_service_url = None,
+                         filePath = None,
+                         ssl_verify = True,
+                         token = None):
+    """
+    Use HTTP multi-part POST to save a file to a SHOCK instance.
+    """
+
+    if token is None:
+        raise Exception("Authentication token required!")
+    
+    #build the header
+    header = dict()
+    header["Authorization"] = "Oauth {0}".format(token)
+
+    if filePath is None:
+        raise Exception("No file given for upload to SHOCK!")
+
+    dataFile = open(os.path.abspath(filePath), 'rb')
+    m = MultipartEncoder(fields={'upload': (os.path.split(filePath)[-1], dataFile)})
+    header['Content-Type'] = m.content_type
+
+    logger.info("Sending {0} to {1}".format(filePath,shock_service_url))
+
+    try:
+        response = requests.post(shock_service_url + "/node", headers=header, data=m, allow_redirects=True, verify=ssl_verify)
+        dataFile.close()
+    except:
+        dataFile.close()
+        raise    
+
+    if not response.ok:
+        response.raise_for_status()
+
+    result = response.json()
+
+    if result['error']:     
+        raise Exception(result['error'][0])
+    else:
+        return result["data"]   
+
+
+def download_file_from_shock(logger = stderrlogger(__file__),
+                             shock_service_url = None,
+                             shock_id = None,
+                             filename = None,
+                             directory = None,
+                             token = None):
+    """
+    Given a SHOCK instance URL and a SHOCK node id, download the contents of that node
+    to a file on disk.
+    """
+
+    header = dict()
+    header["Authorization"] = "Oauth {0}".format(token)
+
+    logger.info("Downloading shock node {0}/node/{1}".format(shock_service_url,shock_id))
+
+    metadata_response = requests.get("{0}/node/{1}?verbosity=metadata".format(shock_service_url, shock_id), headers=header, stream=True, verify=True)
+    shock_metadata = metadata_response.json()['data']
+    shockFileName = shock_metadata['file']['name']
+    shockFileSize = shock_metadata['file']['size']
+    metadata_response.close()
+        
+    download_url = "{0}/node/{1}?download_raw".format(shock_service_url, shock_id)
+        
+    data = requests.get(download_url, headers=header, stream=True, verify=True)
+
+    if filename is not None:
+        shockFileName = filename
+
+    if directory is not None:
+        filePath = os.path.join(directory, shockFileName)
+    else:
+        filePath = shockFileName
+
+    chunkSize = shockFileSize/4
+    
+    maxChunkSize = 2**30
+    
+    if chunkSize > maxChunkSize:
+        chunkSize = maxChunkSize
+    
+    f = io.open(filePath, 'wb')
+    try:
+        for chunk in data.iter_content(chunkSize):
+            if chunk:                
+                f.write(chunk)
+                f.flush()            
+    finally:
+        data.close()
+        f.close()      

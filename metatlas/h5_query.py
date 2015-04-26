@@ -118,7 +118,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
         table = h5file.root.ms2_pos
 
     if not table.nrows:
-        return ValueError('No data in chosen table: %s' % table._v_name)
+        raise ValueError('No data in chosen table: %s' % table._v_name)
 
     query = ''
 
@@ -288,10 +288,10 @@ def get_info(h5file):
 if __name__ == '__main__':  # pragma: no cover
     import sys
 
-    fid = tables.open_file('Agilent_MS1_64bit_encoded.h5.xml')
+    fid = tables.open_file('test_shock.h5')
 
     if len(sys.argv) < 2 or sys.argv[1] == 'xic':
-        x, y = get_XIC(fid, 1, 1000, 1, 1)
+        x, y = get_XIC(fid, 1, 1000, 1, 0)
         np.save('xicof_new.npy', np.vstack((x, y)).T)
         plot_xic(x, y)
 
