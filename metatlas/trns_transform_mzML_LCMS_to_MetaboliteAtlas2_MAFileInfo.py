@@ -13,7 +13,7 @@ import simplejson
 try:
     import biokbase.Transform.script_utils as script_utils
 except ImportError:
-    from . import script_utils
+    from . import kbase_utils as script_utils
 
 # Metatlas Imports
 from metatlas import mzml_loader
