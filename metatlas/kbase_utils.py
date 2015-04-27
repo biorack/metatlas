@@ -160,4 +160,35 @@ def download_file_from_shock(logger = stderrlogger(__file__),
                 f.flush()            
     finally:
         data.close()
-        f.close()      
+        f.close()
+
+
+def upload_from_nersc(user, relative_path):
+    """Load a data file from NERSC to an H5 file
+
+    Parameters
+    ----------
+    user : str
+        NERSC user account
+    relative_path : str
+        Path to file from "/project/projectdirs/metatlas/original_data/<user>/"
+    """
+    import pexpect
+    from IPython.display import clear_output
+
+    cmd = 'scp -o StrictHostKeyChecking=no %s@edisongrid.nersc.gov:/project/projectdirs/metatlas/original_data/%s/%s . && echo "Download Complete"'
+    cmd = cmd % (user, user, relative_path)
+    print(cmd)
+    return
+    proc = pexpect.spawn(cmd)
+    proc.expect("assword:*")
+    if sys.version.startswith('3'):
+        passwd = input()
+    else:
+        passwd = raw_input()
+    clear_output()
+    proc.send(passwd)
+    proc.send('\r')
+    proc.expect('Download Complete')
+    proc.close()
+    return os.path.basename(relative_path)
