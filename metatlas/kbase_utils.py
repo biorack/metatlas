@@ -191,4 +191,4 @@ def upload_from_nersc(user, relative_path):
     proc.send('\r')
     proc.expect('Download Complete')
     proc.close()
-    return os.path.basename(relative_path)
+    return os.path.abspath(os.path.basename(relative_path))
