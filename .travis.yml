@@ -25,7 +25,7 @@ before_install:
   - conda info -a
   - travis_retry conda create -n test $PYTHON pip nose pytables matplotlib
   - source activate test
-  - travis_retry pip install coveralls
+  - travis_retry pip install coveralls requests_toolbelt
 
 install:
   - export PYTHONWARNINGS=all

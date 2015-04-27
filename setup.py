@@ -49,7 +49,7 @@ if __name__ == "__main__":
         description=DESCRIPTION,
         long_description=LONG_DESCRIPTION,
         classifiers=list(filter(None, CLASSIFIERS.split('\n'))),
-        install_requires=['pymzml', 'simplejson', 'requests_toolbelt'],
+        install_requires=['pymzml', 'simplejson'],
         requires=REQUIRES
      )
 
