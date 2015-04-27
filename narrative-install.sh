@@ -5,6 +5,7 @@ set -x
 conda create -y -n kbase python=2.7 scipy pytables matplotlib
 source activate kbase
 pip install -e .
+pip install pexpect
 
 git clone https://github.com/kbase/bootstrap ..
 pip install -r ../bootstrap/kb_python_runtime/python-pip-list-narrative
