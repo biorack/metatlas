@@ -77,6 +77,8 @@ def upload_file_to_shock(logger = stderrlogger(__file__),
     Use HTTP multi-part POST to save a file to a SHOCK instance.
     """
 
+    token = token or os.environ.get('KB_AUTH_TOKEN', None)
+
     if token is None:
         raise Exception("Authentication token required!")
     
@@ -111,6 +113,35 @@ def upload_file_to_shock(logger = stderrlogger(__file__),
         return result["data"]   
 
 
+def delete_file_from_shock(logger = stderrlogger(__file__),
+                             shock_service_url = None,
+                             shock_id = None,
+                             token = None):
+
+    token = token or os.environ.get('KB_AUTH_TOKEN', None)
+
+    if token is None:
+        raise Exception("Authentication token required!")
+    
+    #build the header
+    header = dict()
+    header["Authorization"] = "Oauth {0}".format(token)
+
+    logger.info("Deleting {0} from {1}".format(shock_id, shock_service_url))
+
+    response = requests.delete(shock_service_url + "/node/" + str(shock_id), headers=header, allow_redirects=True, verify=True)
+
+    if not response.ok:
+        response.raise_for_status()
+
+    result = response.json()
+
+    if result['error']:
+        raise Exception(result['error'][0])
+    else:
+        return result
+
+
 def download_file_from_shock(logger = stderrlogger(__file__),
                              shock_service_url = None,
                              shock_id = None,
@@ -121,6 +152,10 @@ def download_file_from_shock(logger = stderrlogger(__file__),
     Given a SHOCK instance URL and a SHOCK node id, download the contents of that node
     to a file on disk.
     """
+    token = token or os.environ.get('KB_AUTH_TOKEN', None)
+
+    if token is None:
+        raise Exception("Authentication token required!")
 
     header = dict()
     header["Authorization"] = "Oauth {0}".format(token)
