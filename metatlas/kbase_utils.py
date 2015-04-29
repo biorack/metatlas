@@ -227,3 +227,66 @@ def upload_from_nersc(user, relative_path):
     proc.expect('Download Complete')
     proc.close()
     return os.path.abspath(os.path.basename(relative_path))
+
+
+def _get_ws_id(ws):
+    """Get the current workspace id"""
+    wks = ws.list_workspaces({'excludeGlobal': 1})
+    return [wk[-1] for wk in wks
+            if wk[0] == os.environ['KB_WORKSPACE_ID']][0]
+
+
+def save_ws_object(obj):
+    """Save an object to the workspace
+
+    Parameters
+    ----------
+    obj : dict
+        Object with the fields: type, data, and name.
+        The type must be the full typespec
+        (e.g. 'MetaboliteAtlas.Compound-0.3')
+
+    Returns
+    -------
+    id : str
+        Object workspace id
+    """
+    from biokbase.workspace.client import Workspace
+    ws = Workspace()
+    obj.setdefault('hidden', 0)
+    save_objects_params = {'id': _get_ws_id(ws), 'objects': [obj]}
+    return ws.save_objects(save_objects_params)[0][-2]
+
+
+def _make_object_identity(ws, obj, ver=None):
+    ''' Make an object identity structure.
+        @param workspace Name or number of workspace containing object
+        @param object Name or number of object
+        @param ver Optional version number of object
+        @returns ObjectIdentity structure for workspace APIs
+    '''
+    objectIdentity = dict()
+    objectIdentity['wsid'] = _get_ws_id(ws)
+    objectIdentity['name'] = obj
+    if ver is not None:
+        objectIdentity['ver'] = ver
+    return objectIdentity
+
+
+def get_ws_object_by_name(name):
+    """Retrieve an object id by name
+
+    Parameters
+    ----------
+    name : str
+        Name of the workspace object
+
+    Returns
+    -------
+    id : str
+        Object workspace id
+    """
+    from biokbase.workspace.client import Workspace
+    ws = Workspace()
+    ident = _make_object_identity(ws, name)
+    return ws.get_object_info([ident], 0)[-2]
