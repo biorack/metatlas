@@ -102,10 +102,6 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
                                         extraAccessions=extraAccessions)
     except Exception:
         raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
-
-    from PyQt4.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
-    import ipdb; ipdb.set_trace()
-    pass
     
     for (ind, spectrum) in enumerate(mzml_reader):
         try:
