@@ -42,7 +42,9 @@ def read_spectrum(spectrum):
     """
     polarity = 'positive scan' in spectrum or 'MS:1000130' in spectrum
     ms_level = spectrum['ms level']
-    rt = spectrum.get('scan start time', spectrum['MS:1000016'])[0]
+    rt, units = spectrum['MS:1000016']
+    if units != 'minute':
+        rt /= 60
 
     precursor_MZ = 0.0
     precursor_intensity = 0.0
@@ -101,6 +103,10 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     except Exception:
         raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
 
+    from PyQt4.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
+    import ipdb; ipdb.set_trace()
+    pass
+    
     for (ind, spectrum) in enumerate(mzml_reader):
         try:
             ms_level, polarity, rows = read_spectrum(spectrum)
