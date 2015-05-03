@@ -4,7 +4,6 @@
 import os
 import sys
 import logging
-import datetime
 
 # 3rd party imports
 import simplejson
@@ -77,7 +76,7 @@ def transform(shock_service_url=None, handle_service_url=None,
     if logger is None:
         logger = script_utils.stderrlogger(__file__)
 
-    logger.info("Starting conversion of mzML to MetaboliteAtlas2.RunSet")
+    logger.info("Starting conversion of mzML to MetaboliteAtlas2.MAFileInfo")
     token = os.environ.get('KB_AUTH_TOKEN')
 
     if not working_directory or not os.path.isdir(working_directory):
