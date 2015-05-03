@@ -139,14 +139,12 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     query = query[3:]
     print('Querying: %s from %s' % (query, table._v_name))
 
-    i = np.array([x['i'] for x in table.where(query)])
-    if not i.size:
+    data = table.read_where(query)
+
+    if not data.size:
         raise ValueError('No data found matching criteria')
 
-    rt = np.array([x['rt'] for x in table.where(query)])
-    mz = np.array([x['mz'] for x in table.where(query)])
-
-    return dict(i=i, rt=rt, mz=mz)
+    return dict(i=data['i'], rt=data['rt'], mz=data['mz'])
 
 
 def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
