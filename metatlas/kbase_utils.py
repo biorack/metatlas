@@ -14,8 +14,8 @@ from requests_toolbelt import MultipartEncoder
 
 def stderrlogger(name, level=logging.INFO):
     """
-    Return a standard python logger with a stderr handler attached and using a prefix
-    format that will make logging consistent between scripts.
+    Return a standard python logger with a stderr handler attached and using a
+    prefix format that will make logging consistent between scripts.
     """
 
     logger = logging.getLogger(name)
@@ -24,7 +24,8 @@ def stderrlogger(name, level=logging.INFO):
     # send messages to sys.stderr
     streamHandler = logging.StreamHandler(sys.stderr)
 
-    formatter = logging.Formatter("%(asctime)s - %(filename)s - %(lineno)d - %(levelname)s - %(message)s")
+    formatter = logging.Formatter(
+        "%(asctime)s - %(filename)s - %(lineno)d - %(levelname)s - %(message)s")
     formatter.converter = time.gmtime
     streamHandler.setFormatter(formatter)
 
@@ -35,44 +36,51 @@ def stderrlogger(name, level=logging.INFO):
 
 def parse_docs(docstring=None):
     """
-    Parses the docstring of a function and returns a dictionary of the elements.
+    Parses the docstring of a function and returns a dictionary of the
+    elements.
     """
 
     # TODO, revisit this, probably can use other ways of doing this
     script_details = dict()
 
-    keys = ["Authors","Returns","Args"]
+    keys = ["Authors", "Returns", "Args"]
 
     remainder = docstring[:]
     for k in keys:
-        remainder, script_details[k] = remainder.split(k+":",1)
+        remainder, script_details[k] = remainder.split(k + ":", 1)
         script_details[k] = script_details[k].strip()
-
 
     script_details["Description"] = remainder
 
-    # special treatment for Args since we want a dict, split on :, then cleanup whitespace
+    # special treatment for Args since we want a dict, split on :, then
+    # cleanup whitespace
     # keep the : in the keys to do clean splits when getting the values
-    argument_keys = [x.strip() for x in re.findall(".*:",script_details["Args"])]
+    argument_keys = [x.strip() for x in re.findall(".*:",
+                                                   script_details["Args"])]
 
-    # split on the string in reverse by the keys, then wash out the extra whitespace
+    # split on the string in reverse by the keys, then wash out the extra
+    # whitespace
     remainder = script_details["Args"]
     argument_values = list()
     for k in reversed(argument_keys):
         remainder, _, value = remainder.rpartition(k)
-        argument_values.append(" ".join([x.strip() for x in value.split("\n")]))
+        argument_values.append(" ".join([x.strip()
+                                         for x in value.split("\n")]))
 
-    # create the dict using they keys without :, then get the values in the correct order
-    script_details["Args"] = dict(zip([x.replace(":","") for x in argument_keys], reversed(argument_values)))
+    # create the dict using they keys without :, then get the values in the
+    # correct order
+    script_details["Args"] = dict(zip([x.replace(":", "")
+                                       for x in argument_keys],
+                                      reversed(argument_values)))
 
     return script_details
 
 
-def upload_file_to_shock(logger = stderrlogger(__file__),
-                         shock_service_url = None,
-                         filePath = None,
-                         ssl_verify = True,
-                         token = None):
+def upload_file_to_shock(logger=stderrlogger(__file__),
+                         shock_service_url=None,
+                         filePath=None,
+                         ssl_verify=True,
+                         token=None):
     """
     Use HTTP multi-part POST to save a file to a SHOCK instance.
     """
@@ -81,8 +89,8 @@ def upload_file_to_shock(logger = stderrlogger(__file__),
 
     if token is None:
         raise Exception("Authentication token required!")
-    
-    #build the header
+
+    # build the header
     header = dict()
     header["Authorization"] = "Oauth {0}".format(token)
 
@@ -90,46 +98,51 @@ def upload_file_to_shock(logger = stderrlogger(__file__),
         raise Exception("No file given for upload to SHOCK!")
 
     dataFile = open(os.path.abspath(filePath), 'rb')
-    m = MultipartEncoder(fields={'upload': (os.path.split(filePath)[-1], dataFile)})
+    m = MultipartEncoder(fields={'upload': (os.path.split(filePath)[-1],
+                                            dataFile)})
     header['Content-Type'] = m.content_type
 
-    logger.info("Sending {0} to {1}".format(filePath,shock_service_url))
+    logger.info("Sending {0} to {1}".format(filePath, shock_service_url))
 
     try:
-        response = requests.post(shock_service_url + "/node", headers=header, data=m, allow_redirects=True, verify=ssl_verify)
+        response = requests.post(shock_service_url + "/node", headers=header,
+                                 data=m, allow_redirects=True,
+                                 verify=ssl_verify)
         dataFile.close()
     except:
         dataFile.close()
-        raise    
+        raise
 
     if not response.ok:
         response.raise_for_status()
 
     result = response.json()
 
-    if result['error']:     
+    if result['error']:
         raise Exception(result['error'][0])
     else:
-        return result["data"]   
+        return result["data"]
 
 
-def delete_file_from_shock(logger = stderrlogger(__file__),
-                             shock_service_url = None,
-                             shock_id = None,
-                             token = None):
+def delete_file_from_shock(logger=stderrlogger(__file__),
+                           shock_service_url=None,
+                           shock_id=None,
+                           token=None):
 
     token = token or os.environ.get('KB_AUTH_TOKEN', None)
 
     if token is None:
         raise Exception("Authentication token required!")
-    
-    #build the header
+
+    # build the header
     header = dict()
     header["Authorization"] = "Oauth {0}".format(token)
 
     logger.info("Deleting {0} from {1}".format(shock_id, shock_service_url))
 
-    response = requests.delete(shock_service_url + "/node/" + str(shock_id), headers=header, allow_redirects=True, verify=True)
+    response = requests.delete(shock_service_url + "/node/" + str(shock_id),
+                               headers=header, allow_redirects=True,
+                               verify=True)
 
     if not response.ok:
         response.raise_for_status()
@@ -142,15 +155,15 @@ def delete_file_from_shock(logger = stderrlogger(__file__),
         return result
 
 
-def download_file_from_shock(logger = stderrlogger(__file__),
-                             shock_service_url = None,
-                             shock_id = None,
-                             filename = None,
-                             directory = None,
-                             token = None):
+def download_file_from_shock(logger=stderrlogger(__file__),
+                             shock_service_url=None,
+                             shock_id=None,
+                             filename=None,
+                             directory=None,
+                             token=None):
     """
-    Given a SHOCK instance URL and a SHOCK node id, download the contents of that node
-    to a file on disk.
+    Given a SHOCK instance URL and a SHOCK node id, download the contents of
+    that node to a file on disk.
     """
     token = token or os.environ.get('KB_AUTH_TOKEN', None)
 
@@ -160,16 +173,20 @@ def download_file_from_shock(logger = stderrlogger(__file__),
     header = dict()
     header["Authorization"] = "Oauth {0}".format(token)
 
-    logger.info("Downloading shock node {0}/node/{1}".format(shock_service_url,shock_id))
+    logger.info(
+        "Downloading shock node {0}/node/{1}".format(shock_service_url,
+                                                     shock_id))
 
-    metadata_response = requests.get("{0}/node/{1}?verbosity=metadata".format(shock_service_url, shock_id), headers=header, stream=True, verify=True)
+    metadata_response = requests.get("{0}/node/{1}?verbosity=metadata".format(
+        shock_service_url, shock_id), headers=header, stream=True, verify=True)
     shock_metadata = metadata_response.json()['data']
     shockFileName = shock_metadata['file']['name']
     shockFileSize = shock_metadata['file']['size']
     metadata_response.close()
-        
-    download_url = "{0}/node/{1}?download_raw".format(shock_service_url, shock_id)
-        
+
+    download_url = "{0}/node/{1}?download_raw".format(
+        shock_service_url, shock_id)
+
     data = requests.get(download_url, headers=header, stream=True, verify=True)
 
     if filename is not None:
@@ -180,19 +197,19 @@ def download_file_from_shock(logger = stderrlogger(__file__),
     else:
         filePath = shockFileName
 
-    chunkSize = shockFileSize/4
-    
+    chunkSize = shockFileSize / 4
+
     maxChunkSize = 2**30
-    
+
     if chunkSize > maxChunkSize:
         chunkSize = maxChunkSize
-    
+
     f = io.open(filePath, 'wb')
     try:
         for chunk in data.iter_content(chunkSize):
-            if chunk:                
+            if chunk:
                 f.write(chunk)
-                f.flush()            
+                f.flush()
     finally:
         data.close()
         f.close()
@@ -211,8 +228,11 @@ def upload_from_nersc(user, relative_path):
     import pexpect
     from IPython.display import clear_output
 
-    cmd = 'scp -o StrictHostKeyChecking=no %s@edisongrid.nersc.gov:/project/projectdirs/metatlas/original_data/%s/%s . && echo "Download Complete"'
-    cmd = cmd % (user, user, relative_path)
+    cmd = 'scp -o StrictHostKeyChecking=no '
+    path = "/project/projectdirs/metatlas/original_data/%s/%s"
+    path = path % (user, relative_path)
+    cmd += '%s@edisongrid.nersc.gov:%s . && echo "Download Complete"'
+    cmd = cmd % (user, path)
     print(cmd)
     return
     proc = pexpect.spawn(cmd)
@@ -252,7 +272,7 @@ def save_ws_object(obj):
         Object workspace id
     """
     from biokbase.workspace.client import Workspace
-    ws = Workspace()
+    ws = Workspace('https://ci.kbase.us/services/ws/')
     obj.setdefault('hidden', 0)
     save_objects_params = {'id': _get_ws_id(ws), 'objects': [obj]}
     return ws.save_objects(save_objects_params)[0][-2]
@@ -287,6 +307,6 @@ def get_ws_object_by_name(name):
         Object workspace id
     """
     from biokbase.workspace.client import Workspace
-    ws = Workspace()
+    ws = Workspace('https://ci.kbase.us/services/ws/')
     ident = _make_object_identity(ws, name)
     return ws.get_object_info([ident], 0)[-2]

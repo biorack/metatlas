@@ -12,11 +12,15 @@ pip install -r ../bootstrap/kb_python_runtime/python-pip-list-narrative
 
 git clone https://github.com/kbase/narrative ..
 cd ../narrative
+
 git submodule init
 git submodule update
 pip install -r src/requirements.txt 
 cd src
 python setup.py install
+
+# point to the CI workspace
+sed -i '' 's:kbase.us/services/ws:ci.kbase.us/services/ws:' config.json
 
 cd ../ipython
 python setup.py install
