@@ -6,10 +6,20 @@ import logging
 import re
 import sys
 import time
-import requests
 import os
 import io
+import shutil
+import glob
+import simplejson as json
+import tempfile
+
+import requests
 from requests_toolbelt import MultipartEncoder
+import tables
+
+
+SHOCK_URL = 'https://kbase.us/services/shock-api'
+WS_URL = 'https://ci.kbase.us/services/ws/'
 
 
 def stderrlogger(name, level=logging.INFO):
@@ -125,7 +135,7 @@ def upload_file_to_shock(logger=stderrlogger(__file__),
 
 
 def delete_file_from_shock(logger=stderrlogger(__file__),
-                           shock_service_url=None,
+                           shock_service_url=SHOCK_URL,
                            shock_id=None,
                            token=None):
 
@@ -156,7 +166,7 @@ def delete_file_from_shock(logger=stderrlogger(__file__),
 
 
 def download_file_from_shock(logger=stderrlogger(__file__),
-                             shock_service_url=None,
+                             shock_service_url=SHOCK_URL,
                              shock_id=None,
                              filename=None,
                              directory=None,
@@ -272,7 +282,7 @@ def save_ws_object(obj):
         Object workspace id
     """
     from biokbase.workspace.client import Workspace
-    ws = Workspace('https://ci.kbase.us/services/ws/')
+    ws = Workspace(WS_URL)
     obj.setdefault('hidden', 0)
     save_objects_params = {'id': _get_ws_id(ws), 'objects': [obj]}
     return ws.save_objects(save_objects_params)[0][-2]
@@ -293,7 +303,7 @@ def _make_object_identity(ws, obj, ver=None):
     return objectIdentity
 
 
-def get_ws_object_by_name(name):
+def get_ws_object_info_by_name(name):
     """Retrieve an object id by name
 
     Parameters
@@ -307,6 +317,59 @@ def get_ws_object_by_name(name):
         Object workspace id
     """
     from biokbase.workspace.client import Workspace
-    ws = Workspace('https://ci.kbase.us/services/ws/')
+    ws = Workspace(WS_URL)
     ident = _make_object_identity(ws, name)
-    return ws.get_object_info([ident], 0)[-2]
+    return ws.get_object_info([ident], 0)[0]
+
+
+def get_ws_object(name):
+    from biokbase.workspace.client import Workspace
+    ws = Workspace(WS_URL)
+    return ws.get_object(_make_object_identity(ws, name))
+
+
+def create_ma_fileinfo(input_file, name='', polarity='',
+                       atlases=None, group='', inclusion_order='',
+                       normalization_factor='', retention_correction=''):
+    # avoid circular import
+    from .trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo import \
+        transform
+
+    tempdir = tempfile.mkdtemp()
+    # create the file in a directory
+    shutil.copy2(input_file, tempdir)
+    # pass the directory to transform
+    transform(input_directory=tempdir,
+              shock_service_url=SHOCK_URL,
+              working_directory=tempdir,
+              name=name, polarity=polarity, atlases=atlases,
+              group=group, inclusion_order=inclusion_order,
+              normalization_factor=normalization_factor,
+              retention_correction=retention_correction)
+    # get the resulting json
+    output_file = glob.glob('%s/*.json' % tempdir)[0]
+    with open(output_file) as fid:
+        data = json.load(fid)
+
+    shutil.rmtree(tempdir)
+
+    # create the workspace object in the current workspace
+    dict_save_params = {'type': 'MetaboliteAtlas2.MAFileInfo-0.1',
+                        'data': data, 'name': data['name'], 'hidden': 0}
+    return dict_save_params
+    #save_ws_object(dict_save_params)
+
+    # return the name of the workspace object
+    return data['name']
+
+
+def get_hdf_from_ws_object(name):
+    ws_obj = get_ws_object_by_name(name)
+    return ws_obj
+    # find the shock handle - run_file_id
+    # get the name
+    path = name + '.h5'
+    download_file_from_shock(shock_id=shock_id, filename=path)
+
+    return tables.open_file(path)
+
