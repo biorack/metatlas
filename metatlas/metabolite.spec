@@ -30,9 +30,12 @@ module MetaboliteAtlas2 {
         string pubchem_id;
     } MACompound;
 
+    /* @id ws MetaboliteAtlas2.MACompound */
+    typedef string MACompound_ref;
+
     typedef structure {
         string name;
-        list<MACompound> compounds;
+        list<MACompound_ref> compounds;
         string sample;
         string method;
     } MADictionary;
@@ -41,12 +44,15 @@ module MetaboliteAtlas2 {
     /* @id handle */
     typedef string Run_data_ref;
 
+    /* @id ws MetaboliteAtlas2.MADictionary */
+    typedef string MADictionary_ref;
+
     /*
     @optional atlases polarity group inclusion_order normalization_factor retention_correction
     */
     typedef structure {
            string name;
-           list<MADictionary> atlases;
+           list<MADictionary_ref> atlases;
            string polarity;
            string group;
            string inclusion_order;
@@ -63,7 +69,7 @@ module MetaboliteAtlas2 {
         string quenching_method;
         string extraction_method;
         string chromatography_method;
-        list<MADictionary> atlas_ids;
+        list<MADictionary_ref> atlas_ids;
     } MAExperiment;
 
 };
