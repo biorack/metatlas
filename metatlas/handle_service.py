@@ -70,8 +70,8 @@ def _read_rcfile(file=os.environ['HOME'] + '/.authrc'):  # @ReservedAssignment
                 authdata = {x: rawdata.get(x) for x in (
                     'user_id', 'token', 'client_secret', 'keyfile',
                     'keyfile_passphrase', 'password')}
-        except Exception, e:
-            print "Error while reading authrc file %s: %s" % (file, e)
+        except Exception as e:
+            print("Error while reading authrc file %s: %s" % (file, e))
     return authdata
 
 
@@ -90,8 +90,8 @@ def _read_inifile(file=os.environ.get(  # @ReservedAssignment
                         else None for x in
                            ('user_id', 'token', 'client_secret',
                             'keyfile', 'keyfile_passphrase', 'password')}
-        except Exception, e:
-            print "Error while reading INI file %s: %s" % (file, e)
+        except Exception as e:
+            print("Error while reading INI file %s: %s" % (file, e))
     return authdata
 
 
