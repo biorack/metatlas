@@ -20,6 +20,7 @@ import tables
 
 SHOCK_URL = 'https://kbase.us/services/shock-api'
 WS_URL = 'https://ci.kbase.us/services/ws/'
+HANDLE_URL = 'https://kbase.us/services/handle_service'
 
 
 def stderrlogger(name, level=logging.INFO):
@@ -87,7 +88,7 @@ def parse_docs(docstring=None):
 
 
 def upload_file_to_shock(logger=stderrlogger(__file__),
-                         shock_service_url=None,
+                         shock_service_url=SHOCK_URL,
                          filePath=None,
                          ssl_verify=True,
                          token=None):
@@ -225,6 +226,105 @@ def download_file_from_shock(logger=stderrlogger(__file__),
         f.close()
 
 
+def getHandles(logger=stderrlogger(__file__),
+               shock_service_url=SHOCK_URL,
+               handle_service_url=HANDLE_URL,
+               shock_ids=None,
+               handle_ids=None,
+               token=None):
+    """
+    Retrieve KBase handles for a list of shock ids or a list of handle ids.
+    """
+    from .handle_service import AbstractHandle as HandleService
+
+    token = token or os.environ.get('KB_AUTH_TOKEN', None)
+    if token is None:
+        raise Exception("Authentication token required!")
+
+    hs = HandleService(url=handle_service_url, token=token)
+
+    handles = list()
+    if shock_ids is not None:
+        header = dict()
+        header["Authorization"] = "Oauth {0}".format(token)
+
+        for sid in shock_ids:
+            info = None
+
+            try:
+                logger.info(
+                    "Found shock id {0}, retrieving information about the data.".format(sid))
+
+                response = requests.get(
+                    "{0}/node/{1}".format(shock_service_url, sid), headers=header, verify=True)
+                info = response.json()["data"]
+            except:
+                logger.error("There was an error retrieving information about the shock node id {0} from url {1}".format(
+                    sid, shock_service_url))
+
+            try:
+                logger.info("Retrieving a handle id for the data.")
+                handle = hs.persist_handle({"id": sid,
+                                            "type": "shock",
+                                            "url": shock_service_url,
+                                            "file_name": info["file"]["name"],
+                                            "remote_md5": info["file"]["checksum"]["md5"]})
+                handles.append(handle)
+            except:
+                try:
+                    handle_id = hs.ids_to_handles([sid])[0]["hid"]
+                    single_handle = hs.hids_to_handles([handle_id])
+
+                    assert len(single_handle) != 0
+
+                    if info is not None:
+                        single_handle[0]["file_name"] = info["file"]["name"]
+                        single_handle[0]["remote_md5"] = info[
+                            "file"]["checksum"]["md5"]
+                        logger.debug(single_handle)
+
+                    handles.append(single_handle[0])
+                except:
+                    logger.error(
+                        "The input shock node id {} is already registered or could not be registered".format(sid))
+
+                    hs = HandleService(url=handle_service_url, token=token)
+                    all_handles = hs.list_handles()
+
+                    for x in all_handles:
+                        if x[0] == sid:
+                            logger.info("FOUND shock id as existing handle")
+                            logger.info(x)
+                            break
+                    else:
+                        logger.info(
+                            "Unable to find a handle containing shock id")
+
+                        logger.info(
+                            "Trying again to get a handle id for the data.")
+                        handle_id = hs.persist_handle({"id": sid,
+                                                       "type": "shock",
+                                                       "url": shock_service_url,
+                                                       "file_name": info["file"]["name"],
+                                                       "remote_md5": info["file"]["checksum"]["md5"]})
+                        handles.append(handle_id)
+
+                    raise
+    elif handle_ids is not None:
+        for hid in handle_ids:
+            try:
+                single_handle = hs.hids_to_handles([hid])
+
+                assert len(single_handle) != 0
+
+                handles.append(single_handle[0])
+            except:
+                logger.error("Invalid handle id {0}".format(hid))
+                raise
+
+    return handles
+
+
 def upload_from_nersc(user, relative_path):
     """Load a data file from NERSC to an H5 file
 
@@ -357,7 +457,7 @@ def create_ma_fileinfo(input_file, name='', polarity='',
     dict_save_params = {'type': 'MetaboliteAtlas2.MAFileInfo-0.1',
                         'data': data, 'name': data['name'], 'hidden': 0}
     return dict_save_params
-    #save_ws_object(dict_save_params)
+    # save_ws_object(dict_save_params)
 
     # return the name of the workspace object
     return data['name']
@@ -372,4 +472,3 @@ def get_hdf_from_ws_object(name):
     download_file_from_shock(shock_id=shock_id, filename=path)
 
     return tables.open_file(path)
-
