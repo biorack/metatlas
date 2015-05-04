@@ -17,14 +17,18 @@ except ImportError:
     sys.path.append('simplejson-2.3.3')
     import simplejson as json
 
-import urllib2
-import httplib
-import urlparse
+try:
+    import urllib2
+    from urllib2 import URLError, HTTPError
+    import httplib
+    import urlparse
+    import httplib2
+    from ConfigParser import ConfigParser
+except ImportError:
+    pass  # python 3
+
 import random
 import base64
-import httplib2
-from urllib2 import URLError, HTTPError
-from ConfigParser import ConfigParser
 import os
 
 _CT = 'content-type'
