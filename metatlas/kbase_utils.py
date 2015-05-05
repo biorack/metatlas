@@ -396,7 +396,7 @@ def _make_object_identity(ws, obj, ver=None):
         @returns ObjectIdentity structure for workspace APIs
     '''
     objectIdentity = dict()
-    objectIdentity['wsid'] = _get_ws_id(ws)
+    objectIdentity['id'] = _get_ws_id(ws)
     objectIdentity['name'] = obj
     if ver is not None:
         objectIdentity['ver'] = ver
@@ -425,7 +425,9 @@ def get_ws_object_info_by_name(name):
 def get_ws_object(name):
     from biokbase.workspace.client import Workspace
     ws = Workspace(WS_URL)
-    return ws.get_object(_make_object_identity(ws, name))
+    ident = _make_object_identity(ws, name)
+    print(ident)
+    return ws.get_object(ident)
 
 
 def create_ma_fileinfo(input_file, name='', polarity='',
@@ -461,6 +463,25 @@ def create_ma_fileinfo(input_file, name='', polarity='',
 
     # return the name of the workspace object
     return data['name']
+
+
+def get_object_uid(name):
+    WS_URL = 'https://ci.kbase.us/services/ws/'
+    from biokbase.workspace.client import Workspace
+    ws = Workspace(WS_URL)
+    info = ws.get_objects([dict(workspace=os.environ['KB_WORKSPACE_ID'], name=name)])[0]['info']
+    return '%s/%s/%s' % (info[6], info[0], info[4])
+
+
+def create_atlas(name, compounds, sample, method):
+    from metatlas.kbase_utils import save_ws_object
+    compounds = [get_object_uid(c) for c in compounds]
+    dictData = dict(name=name, compounds=compounds, sample=sample,
+                    method=method)
+    dict_save_params = dict(type='MetaboliteAtlas2.MADictionary-2.0', 
+                            data=dictData, name=name, hidden=0)
+    save_ws_object(dict_save_params)
+    return name, get_object_uid(name)
 
 
 def get_hdf_from_ws_object(name):
