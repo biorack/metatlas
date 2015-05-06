@@ -8,10 +8,6 @@ import sys
 import time
 import os
 import io
-import shutil
-import glob
-import simplejson as json
-import tempfile
 
 import requests
 from requests_toolbelt import MultipartEncoder
@@ -325,40 +321,6 @@ def getHandles(logger=stderrlogger(__file__),
     return handles
 
 
-def upload_from_nersc(user, relative_path):
-    """Load a data file from NERSC to an H5 file
-
-    Parameters
-    ----------
-    user : str
-        NERSC user account
-    relative_path : str
-        Path to file from "/project/projectdirs/metatlas/original_data/<user>/"
-    """
-    import pexpect
-    from IPython.display import clear_output
-
-    cmd = 'scp -o StrictHostKeyChecking=no '
-    path = "/project/projectdirs/metatlas/original_data/%s/%s"
-    path = path % (user, relative_path)
-    cmd += '%s@edisongrid.nersc.gov:%s . && echo "Download Complete"'
-    cmd = cmd % (user, path)
-    print(cmd)
-    return
-    proc = pexpect.spawn(cmd)
-    proc.expect("assword:*")
-    if sys.version.startswith('3'):
-        passwd = input()
-    else:
-        passwd = raw_input()
-    clear_output()
-    proc.send(passwd)
-    proc.send('\r')
-    proc.expect('Download Complete')
-    proc.close()
-    return os.path.abspath(os.path.basename(relative_path))
-
-
 def _get_ws_id(ws):
     """Get the current workspace id"""
     wks = ws.list_workspaces({'excludeGlobal': 1})
@@ -430,58 +392,12 @@ def get_ws_object(name):
     return ws.get_object(ident)
 
 
-def create_ma_fileinfo(input_file, name='', polarity='',
-                       atlases=None, group='', inclusion_order='',
-                       normalization_factor='', retention_correction=''):
-    # avoid circular import
-    from .trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo import \
-        transform
-
-    tempdir = tempfile.mkdtemp()
-    # create the file in a directory
-    shutil.copy2(input_file, tempdir)
-    # pass the directory to transform
-    transform(input_directory=tempdir,
-              shock_service_url=SHOCK_URL,
-              working_directory=tempdir,
-              name=name, polarity=polarity, atlases=atlases,
-              group=group, inclusion_order=inclusion_order,
-              normalization_factor=normalization_factor,
-              retention_correction=retention_correction)
-    # get the resulting json
-    output_file = glob.glob('%s/*.json' % tempdir)[0]
-    with open(output_file) as fid:
-        data = json.load(fid)
-
-    shutil.rmtree(tempdir)
-
-    # create the workspace object in the current workspace
-    dict_save_params = {'type': 'MetaboliteAtlas2.MAFileInfo-0.1',
-                        'data': data, 'name': data['name'], 'hidden': 0}
-    return dict_save_params
-    # save_ws_object(dict_save_params)
-
-    # return the name of the workspace object
-    return data['name']
-
-
 def get_object_uid(name):
     WS_URL = 'https://ci.kbase.us/services/ws/'
     from biokbase.workspace.client import Workspace
     ws = Workspace(WS_URL)
     info = ws.get_objects([dict(workspace=os.environ['KB_WORKSPACE_ID'], name=name)])[0]['info']
     return '%s/%s/%s' % (info[6], info[0], info[4])
-
-
-def create_atlas(name, compounds, sample, method):
-    from metatlas.kbase_utils import save_ws_object
-    compounds = [get_object_uid(c) for c in compounds]
-    dictData = dict(name=name, compounds=compounds, sample=sample,
-                    method=method)
-    dict_save_params = dict(type='MetaboliteAtlas2.MADictionary-2.0', 
-                            data=dictData, name=name, hidden=0)
-    save_ws_object(dict_save_params)
-    return name, get_object_uid(name)
 
 
 def get_hdf_from_ws_object(name):
