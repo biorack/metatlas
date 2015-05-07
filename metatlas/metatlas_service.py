@@ -45,7 +45,7 @@ def create_compound(name, formula, adducts, mz, mz_threshold, rt_min,
                     rt_max=rt_max, rt_peak=rt_peak,
                     neutral_mass=neutral_mass, pubchem_id=pubchem_id)
     dict_save_params = dict(type='MetaboliteAtlas2.MACompound-0.1',
-                            data=dictData, name='test_dict2', hidden=0)
+                            data=dictData, name=name, hidden=0)
     save_ws_object(dict_save_params)
     return name, get_object_uid(name)
 
@@ -111,7 +111,7 @@ def create_experiment(name, description, reconstitution_method,
                     quenching_method=quenching_method,
                     extraction_method=extraction_method,
                     chromatography_method=chromatography_method,
-                    atlases=atlases)
+                    atlas_ids=atlases)
     dict_save_params = dict(type='MetaboliteAtlas2.MAExperiment-2.0',
                             data=dictData, name=name, hidden=0)
     save_ws_object(dict_save_params)
