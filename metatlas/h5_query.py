@@ -13,7 +13,7 @@ except ImportError:
     plt = None
 
 
-def plot_xic(x, y, title='XIC for Sample', **kwargs):
+def plot_XIC(x, y, title='XIC for Sample', **kwargs):
     """
     Plots an XIC.
 
@@ -135,7 +135,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
         data = table.read()
         return dict(i=data['i'], rt=data['rt'], mz=data['mz'])
 
-    # chop of the initial ' & '
+    # chop off the initial ' & '
     query = query[3:]
     print('Querying: %s from %s' % (query, table._v_name))
 
@@ -188,7 +188,7 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     return rt, i / i.max() * 100
 
 
-def get_HeatMapRTMZ(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
+def get_heatmap(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
     """
     Get a HeatMap of RT vs MZ.
 
@@ -291,7 +291,7 @@ if __name__ == '__main__':  # pragma: no cover
     if len(sys.argv) < 2 or sys.argv[1] == 'xic':
         x, y = get_XIC(fid, 1, 1000, 1, 0)
         np.save('xicof_new.npy', np.vstack((x, y)).T)
-        plot_xic(x, y)
+        plot_XIC(x, y)
 
     elif sys.argv[1] == 'ivsmz':
         x, y = get_spectrogram(fid, 1, 5, 1, 0)
@@ -299,7 +299,7 @@ if __name__ == '__main__':  # pragma: no cover
         plot_spectrogram(x, y)
 
     else:
-        data = get_HeatMapRTMZ(fid, 1000, 1000, 1, 0)
+        data = get_heatmap(fid, 1000, 1000, 1, 0)
         np.save('heatmap_new.py', data)
         plot_heatmap(data['arr'], data['rt_bins'], data['mz_bins'])
 
