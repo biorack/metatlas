@@ -21,10 +21,29 @@ Programming Language :: Python :: 3.4
 Topic :: Scientific/Engineering
 Topic :: Software Development
 """
+import imp
+import shutil
+from distutils.command.install import install
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
+
+
+class custom_install(install):
+
+    def run(self):
+        install.run(self)
+        # patch pymzml to use new obo file
+        dirname = imp.find_module('pymzml')[1]
+        shutil.copy('psi-ms-1.2.0.obo', '%s/obo' % dirname)
+        with open('%s/obo.py' % dirname, 'r') as fid:
+            lines = fid.readlines()
+        with open('%s/obo.py' % dirname, 'w') as fid:
+            for line in lines:
+                if "version='1.1.0'" in line:
+                    line = line.replace('1.1.0', '1.2.0')
+            fid.write(line)
 
 
 with open('metatlas/__init__.py') as fid:
@@ -50,8 +69,6 @@ if __name__ == "__main__":
         long_description=LONG_DESCRIPTION,
         classifiers=list(filter(None, CLASSIFIERS.split('\n'))),
         install_requires=['pymzml', 'simplejson'],
-        requires=REQUIRES
+        requires=REQUIRES,
+        cmdclass={'install': custom_install},
      )
-
-    import os
-    os.system('cd install; bash install.sh')
