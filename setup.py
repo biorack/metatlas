@@ -40,7 +40,7 @@ class custom_install(install):
             for line in lines:
                 if "version='1.1.0'" in line:
                     line = line.replace('1.1.0', '1.2.0')
-            fid.write(line)
+                fid.write(line)
 
 
 with open('metatlas/__init__.py') as fid:
