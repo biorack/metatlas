@@ -24,7 +24,7 @@ Topic :: Software Development
 import imp
 import shutil
 from setuptools import setup
-from setuptools.command.install import install
+from distutils.command.install import install
 
 
 class custom_install(install):
