@@ -8,7 +8,6 @@ MAINTAINER_EMAIL = 'steven.silvester@ieee.org'
 URL = 'http://github.com/metabolite-atlas/metatlas'
 LICENSE = 'MIT'
 REQUIRES = ["numpy", "pytables", "pymzml", "simplejson"]
-PACKAGE_DATA = {DISTNAME: ['install/*.*']}
 CLASSIFIERS = """\
 Development Status :: 2 - Pre-Alpha
 Intended Audience :: Developers
@@ -23,8 +22,8 @@ Topic :: Software Development
 """
 import imp
 import shutil
-from setuptools import setup
-from distutils.command.install import install
+from setuptools import setup, find_packages
+from setuptools.command.install import install
 
 
 class custom_install(install):
@@ -57,7 +56,6 @@ if __name__ == "__main__":
         version=version,
         maintainer=MAINTAINER,
         maintainer_email=MAINTAINER_EMAIL,
-        package_data=PACKAGE_DATA,
         url=URL,
         download_url=URL,
         license=LICENSE,
@@ -65,6 +63,9 @@ if __name__ == "__main__":
         description=DESCRIPTION,
         long_description=LONG_DESCRIPTION,
         classifiers=list(filter(None, CLASSIFIERS.split('\n'))),
+        packages=find_packages(exclude=['doc']),
+        include_package_data=True,
+        zip_safe=False,  # the package can run out of an .egg file
         install_requires=['pymzml', 'simplejson'],
         requires=REQUIRES,
         cmdclass={'install': custom_install},
