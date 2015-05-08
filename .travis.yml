@@ -29,7 +29,7 @@ before_install:
 
 install:
   - export PYTHONWARNINGS=all
-  - python setup.py install
+  - pip install -e .
 
 script:
     # run coverage on py3.4, regular on others
