@@ -23,12 +23,8 @@ Topic :: Software Development
 """
 import imp
 import shutil
-try:
-    from setuptools import setup
-    from setuptools.command.install import install
-except ImportError:
-    from distutils.core import setup
-    from distutils.command.install import install
+from setuptools import setup
+from setuptools.command.install import install
 
 
 class custom_install(install):
