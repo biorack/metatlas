@@ -23,11 +23,12 @@ Topic :: Software Development
 """
 import imp
 import shutil
-from distutils.command.install import install
 try:
     from setuptools import setup
+    from setuptools.command.install import install
 except ImportError:
     from distutils.core import setup
+    from distutils.command.install import install
 
 
 class custom_install(install):
