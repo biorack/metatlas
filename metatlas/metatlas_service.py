@@ -5,7 +5,8 @@ import glob
 import simplejson as json
 import tempfile
 
-from .kbase_utils import get_object_uid, SHOCK_URL, save_ws_object
+from .kbase_utils import (
+    get_object_uid, SHOCK_URL, save_ws_object, getHandles)
 from .trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo import \
     transform
 
@@ -165,8 +166,11 @@ def create_fileinfo(input_file, name='', polarity='',
 
     shutil.rmtree(tempdir)
 
+    data['run_file_id'] = getHandles(shock_ids=[data['run_file_id']])[0]
+
     data['atlases'] = [get_object_uid(a) for a in data['atlases']]
-    dict_save_params = dict(type='MetaboliteAtlas2.MAFileInfo-0.2',
+    print(data)
+    dict_save_params = dict(type='MetaboliteAtlas2.MAFileInfo-2.0',
                             data=data, name=data['name'], hidden=0)
     save_ws_object(dict_save_params)
 

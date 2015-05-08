@@ -14,9 +14,9 @@ from requests_toolbelt import MultipartEncoder
 import tables
 
 
-SHOCK_URL = 'https://kbase.us/services/shock-api'
+SHOCK_URL = 'https://ci.kbase.us/services/shock-api'
 WS_URL = 'https://ci.kbase.us/services/ws/'
-HANDLE_URL = 'https://kbase.us/services/handle_service'
+HANDLE_URL = 'https://ci.kbase.us/services/handle_service'
 
 
 def stderrlogger(name, level=logging.INFO):

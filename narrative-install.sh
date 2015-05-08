@@ -19,8 +19,8 @@ pip install -r src/requirements.txt
 cd src
 python setup.py install
 
-# point to the CI workspace
-sed -i '' 's:kbase.us/services/ws:ci.kbase.us/services/ws:' config.json
+# point to the CI services
+sed -i '' 's:kbase.us/services/:ci.kbase.us/services/:' config.json
 
 cd ../ipython
 python setup.py install
