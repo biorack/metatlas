@@ -45,7 +45,7 @@ def create_compound(name, formula, adducts, mz, mz_threshold, rt_min,
                     mz_threshold=mz_threshold, rt_min=rt_min,
                     rt_max=rt_max, rt_peak=rt_peak,
                     neutral_mass=neutral_mass, pubchem_id=pubchem_id)
-    dict_save_params = dict(type='MetaboliteAtlas2.MACompound-0.1',
+    dict_save_params = dict(type='MetaboliteAtlas2.MACompound',
                             data=dictData, name=name, hidden=0)
     save_ws_object(dict_save_params)
     return name, get_object_uid(name)
@@ -73,7 +73,7 @@ def create_atlas(name, compounds, sample, method):
     compounds = [get_object_uid(c) for c in compounds]
     dictData = dict(name=name, compounds=compounds, sample=sample,
                     method=method)
-    dict_save_params = dict(type='MetaboliteAtlas2.MADictionary-2.0',
+    dict_save_params = dict(type='MetaboliteAtlas2.MADictionary',
                             data=dictData, name=name, hidden=0)
     save_ws_object(dict_save_params)
     return name, get_object_uid(name)
@@ -113,7 +113,7 @@ def create_experiment(name, description, reconstitution_method,
                     extraction_method=extraction_method,
                     chromatography_method=chromatography_method,
                     atlas_ids=atlases)
-    dict_save_params = dict(type='MetaboliteAtlas2.MAExperiment-2.0',
+    dict_save_params = dict(type='MetaboliteAtlas2.MAExperiment',
                             data=dictData, name=name, hidden=0)
     save_ws_object(dict_save_params)
     return name, get_object_uid(name)
@@ -170,7 +170,7 @@ def create_fileinfo(input_file, name=None, polarity=None,
 
     data['atlases'] = [get_object_uid(a) for a in data['atlases']]
     print(data)
-    dict_save_params = dict(type='MetaboliteAtlas2.MAFileInfo-3.0',
+    dict_save_params = dict(type='MetaboliteAtlas2.MAFileInfo',
                             data=data, name=data['name'], hidden=0)
     save_ws_object(dict_save_params)
 
