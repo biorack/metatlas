@@ -53,11 +53,11 @@ module MetaboliteAtlas2 {
     typedef structure {
            string name;
            list<MADictionary_ref> atlases;
-           string polarity;
+           int polarity;
            string group;
-           string inclusion_order;
-           string normalization_factor;
-           string retention_correction;
+           int inclusion_order;
+           float normalization_factor;
+           float retention_correction;
            Run_data_ref run_file_id;
        } MAFileInfo;
 

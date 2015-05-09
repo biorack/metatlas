@@ -119,9 +119,9 @@ def create_experiment(name, description, reconstitution_method,
     return name, get_object_uid(name)
 
 
-def create_fileinfo(input_file, name='', polarity='',
-                    atlases=None, group='', inclusion_order='',
-                    normalization_factor='', retention_correction=''):
+def create_fileinfo(input_file, name=None, polarity=None,
+                    atlases=None, group=None, inclusion_order=None,
+                    normalization_factor=None, retention_correction=None):
     """Create a MetAtlas FileInfo object.
 
     Parameters
@@ -132,15 +132,15 @@ def create_fileinfo(input_file, name='', polarity='',
         Name of the file object (defaults to root of file name).
     atlases : list of strings, optional
         Names of atlas dictionaries (kbase workspace names).
-    polarity : str, optional
+    polarity : int, optional
         Polarity of ions in file.
     group : str, optional
         Group.
-    inclusion_order : str, optional
+    inclusion_order : int, optional
         Inclusion order.
-    normalization_factor : str, optional
+    normalization_factor : float, optional
         Normalization factor.
-    retention_correction : str, optional
+    retention_correction : float, optional
         Retention correction factor
 
     Returns
@@ -170,7 +170,7 @@ def create_fileinfo(input_file, name='', polarity='',
 
     data['atlases'] = [get_object_uid(a) for a in data['atlases']]
     print(data)
-    dict_save_params = dict(type='MetaboliteAtlas2.MAFileInfo-2.0',
+    dict_save_params = dict(type='MetaboliteAtlas2.MAFileInfo-3.0',
                             data=data, name=data['name'], hidden=0)
     save_ws_object(dict_save_params)
 

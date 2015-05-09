@@ -32,9 +32,9 @@ if sys.version.startswith('3'):
 def transform(shock_service_url=None, handle_service_url=None,
               output_file_name=None, input_directory=None,
               working_directory=None, shock_id=None, handle_id=None,
-              input_mapping=None, name=None, polarity='', atlases=None,
-              group='', inclusion_order='', normalization_factor='',
-              retention_correction='',
+              input_mapping=None, name=None, polarity=None, atlases=None,
+              group=None, inclusion_order=None, normalization_factor=None,
+              retention_correction=None,
               level=logging.INFO, logger=None):
     """
     Converts mzML file to MetaboliteAtlas2_MAFileInfo json string.
@@ -111,11 +111,16 @@ def transform(shock_service_url=None, handle_service_url=None,
         run_info = dict()
         run_info['name'] = name or fname.replace('.mzML', '')
         run_info['atlases'] = atlases or []
-        run_info['polarity'] = polarity
-        run_info['group'] = group
-        run_info['inclusion_order'] = inclusion_order
-        run_info['normalization_factor'] = normalization_factor
-        run_info['retention_correction'] = retention_correction
+        if polarity is not None:
+            run_info['polarity'] = polarity
+        if group is not None:
+            run_info['group'] = group
+        if inclusion_order is not None:
+            run_info['inclusion_order'] = inclusion_order
+        if normalization_factor is not None:
+            run_info['normalization_factor'] = normalization_factor
+        if retention_correction is not None:
+            run_info['retention_correction'] = retention_correction
 
         if shock_service_url:
             run_info["run_file_id"] = shock_info["id"]
@@ -177,26 +182,26 @@ def main():
     # custom arguments specific to this uploader
     parser.add_argument('--polarity',
                         help=script_details["Args"]["polarity"],
-                        action='store', type=str, default='', required=False)
+                        action='store', type=int, required=False)
     parser.add_argument('--group',
                         help=script_details["Args"]["group"],
-                        action='store', type=str, default='', required=False)
+                        action='store', type=str, required=False)
     parser.add_argument('--inclusion_order',
                         help=script_details["Args"]["inclusion_order"],
-                        action='store', type=str, default='', required=False)
+                        action='store', type=int, required=False)
     parser.add_argument('--retention_correction',
                         help=script_details["Args"]["retention_correction"],
-                        action='store', type=str, default='', required=False)
+                        action='store', type=float, equired=False)
     parser.add_argument('--atlases',
                         help=script_details["Args"]["atlases"],
-                        action='store', type=str, nargs='?', default=None,
+                        action='store', type=str, nargs='?',
                         required=False)
     parser.add_argument('--name',
                         help=script_details["Args"]["name"],
-                        action='store', type=str, default='', required=False)
+                        action='store', type=str, equired=False)
     parser.add_argument('--normalization_factor',
                         help=script_details["Args"]["normalization_factor"],
-                        action='store', type=str, default='', required=False)
+                        action='store', type=float, required=False)
 
     args, unknown = parser.parse_known_args()
 
