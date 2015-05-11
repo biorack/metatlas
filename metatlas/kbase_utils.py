@@ -321,13 +321,6 @@ def getHandles(logger=stderrlogger(__file__),
     return handles
 
 
-def _get_ws_id(ws):
-    """Get the current workspace id"""
-    wks = ws.list_workspaces({'excludeGlobal': 1})
-    return [wk[-1] for wk in wks
-            if wk[0] == os.environ['KB_WORKSPACE_ID']][0]
-
-
 def save_ws_object(obj):
     """Save an object to the workspace
 
@@ -346,66 +339,33 @@ def save_ws_object(obj):
     from biokbase.workspace.client import Workspace
     ws = Workspace(WS_URL)
     obj.setdefault('hidden', 0)
-    save_objects_params = {'id': _get_ws_id(ws), 'objects': [obj]}
+    wks = ws.list_workspaces({'excludeGlobal': 1})
+    ws_id = [wk[-1] for wk in wks if wk[0] == os.environ['KB_WORKSPACE_ID']][0]
+    save_objects_params = {'id': ws_id, 'objects': [obj]}
     return ws.save_objects(save_objects_params)[0][-2]
-
-
-def _make_object_identity(ws, obj, ver=None):
-    ''' Make an object identity structure.
-        @param workspace Name or number of workspace containing object
-        @param object Name or number of object
-        @param ver Optional version number of object
-        @returns ObjectIdentity structure for workspace APIs
-    '''
-    objectIdentity = dict()
-    objectIdentity['id'] = _get_ws_id(ws)
-    objectIdentity['name'] = obj
-    if ver is not None:
-        objectIdentity['ver'] = ver
-    return objectIdentity
-
-
-def get_ws_object_info_by_name(name):
-    """Retrieve an object id by name
-
-    Parameters
-    ----------
-    name : str
-        Name of the workspace object
-
-    Returns
-    -------
-    id : str
-        Object workspace id
-    """
-    from biokbase.workspace.client import Workspace
-    ws = Workspace(WS_URL)
-    ident = _make_object_identity(ws, name)
-    return ws.get_object_info([ident], 0)[0]
-
-
-def get_ws_object(name):
-    from biokbase.workspace.client import Workspace
-    ws = Workspace(WS_URL)
-    ident = _make_object_identity(ws, name)
-    print(ident)
-    return ws.get_object(ident)
 
 
 def get_object_uid(name):
     WS_URL = 'https://ci.kbase.us/services/ws/'
     from biokbase.workspace.client import Workspace
     ws = Workspace(WS_URL)
-    info = ws.get_objects([dict(workspace=os.environ['KB_WORKSPACE_ID'], name=name)])[0]['info']
+    info = ws.get_objects([dict(workspace=os.environ['KB_WORKSPACE_ID'],
+                                name=name)])[0]['info']
     return '%s/%s/%s' % (info[6], info[0], info[4])
 
 
-def get_hdf_from_ws_object(name):
-    ws_obj = get_ws_object_by_name(name)
-    return ws_obj
-    # find the shock handle - run_file_id
-    # get the name
-    path = name + '.h5'
-    download_file_from_shock(shock_id=shock_id, filename=path)
+def get_object(name):
+    WS_URL = 'https://ci.kbase.us/services/ws/'
+    from biokbase.workspace.client import Workspace
+    ws = Workspace(WS_URL)
+    return ws.get_objects([dict(workspace=os.environ['KB_WORKSPACE_ID'],
+                                name=name)])[0]['data']
 
-    return tables.open_file(path)
+
+def get_object_from_ref(ref):
+    objid = int(ref.split('/')[1])
+    WS_URL = 'https://ci.kbase.us/services/ws/'
+    from biokbase.workspace.client import Workspace
+    ws = Workspace(WS_URL)
+    return ws.get_objects([dict(workspace=os.environ['KB_WORKSPACE_ID'],
+                                objid=objid)])[0]['data']

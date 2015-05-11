@@ -5,8 +5,12 @@ import glob
 import simplejson as json
 import tempfile
 
+import tables
+
 from .kbase_utils import (
-    get_object_uid, SHOCK_URL, save_ws_object, getHandles)
+    get_object_uid, SHOCK_URL, save_ws_object, getHandles, get_object,
+    get_object_from_ref, download_file_from_shock)
+
 from .trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo import \
     transform
 
@@ -196,7 +200,6 @@ def get_from_nersc(user, relative_path):
     cmd += '%s@edisongrid.nersc.gov:%s . && echo "Download Complete"'
     cmd = cmd % (user, path)
     print(cmd)
-    return
     proc = pexpect.spawn(cmd)
     proc.expect("assword:*")
     if sys.version.startswith('3'):
@@ -209,3 +212,39 @@ def get_from_nersc(user, relative_path):
     proc.expect('Download Complete')
     proc.close()
     return os.path.abspath(os.path.basename(relative_path))
+
+
+def get_compound(name):
+    """Get a workspace compound by name as a dictionary"""
+    return get_object(name)
+
+
+def get_atlas(name):
+    """Get a workspace atlas by name as a nested dictionary"""
+    obj = get_object(name)
+    obj['compounds'] = [get_object_from_ref(c) for c in obj['compounds']]
+    return obj
+
+
+def get_experiment(name):
+    """Get a workspace experiment by name as a nested dictionary"""
+    obj = get_object(name)
+    obj['atlas_ids'] = [get_object_from_ref(a) for a in obj['atlas_ids']]
+    for a in obj['atlas_ids']:
+        a['compounds'] = [get_object_from_ref(c) for c in a['compounds']]
+    return obj
+
+
+def get_finfo(name):
+    """Get a workspace fileinfo by name as a nested dictionary.
+
+    Contains a "fid", which is an open pytables object.
+    """
+    obj = get_object(name)
+    for a in obj['atlases']:
+        a['compounds'] = [get_object_from_ref(c) for c in a['compounds']]
+    shock_id = getHandles(handle_ids=[obj['run_file_id']])[0]['id']
+    filename = obj['name'] + '.h5'
+    download_file_from_shock(shock_id=shock_id, filename=filename)
+    obj['fid'] = tables.open_file(filename)
+    return obj
