@@ -102,8 +102,13 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
                                         extraAccessions=extraAccessions)
     except Exception:
         raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
-    
+
+    got_first = False
     for (ind, spectrum) in enumerate(mzml_reader):
+
+        if got_first and spectrum['id'] == 1:
+            # check for a repeat
+            break
         try:
             ms_level, polarity, rows = read_spectrum(spectrum)
         except (KeyError, TypeError):
@@ -111,6 +116,8 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         except Exception as e:
             print(e.message)
             continue
+
+        got_first = True
 
         if ms_level == 1:
             if not polarity:
