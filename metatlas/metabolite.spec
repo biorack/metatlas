@@ -51,7 +51,7 @@ module MetaboliteAtlas2 {
     @optional atlases polarity group inclusion_order normalization_factor retention_correction
     */
     typedef structure {
-           string name;
+           string mzml_file_name;
            list<MADictionary_ref> atlases;
            int polarity;
            string group;
