@@ -66,7 +66,7 @@ if __name__ == "__main__":
         packages=find_packages(exclude=['doc']),
         include_package_data=True,
         zip_safe=False,  # the package can run out of an .egg file
-        install_requires=['pymzml', 'simplejson'],
+        install_requires=['pymzml', 'simplejson', 'requests_toolbelt'],
         requires=REQUIRES,
         cmdclass={'install': custom_install},
      )

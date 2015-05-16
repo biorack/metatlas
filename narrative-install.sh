@@ -20,3 +20,6 @@ git submodule update
 
 export VIRTUAL_ENV="kbase"
 bash install.sh
+
+# point to the CI services      
+sed -i '' 's:kbase.us/services/:ci.kbase.us/services/:' src/config.json
