@@ -56,3 +56,7 @@ target/
 *.mzML
 *.h5
 *.DS_Store
+
+# kbase installation directories
+bootstrap/
+narrative/

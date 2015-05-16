@@ -1,17 +1,19 @@
 set -x
 
 # Install a local version of the Kbase narrative
-
+conda remove -n kbase --all -y
 conda create -y -n kbase python=2.7 scipy pytables matplotlib
 source activate kbase
 pip install -e .
 pip install pexpect
 
-git clone https://github.com/kbase/bootstrap ..
-pip install -r ../bootstrap/kb_python_runtime/python-pip-list-narrative
+rm -rf bootstrap
+git clone https://github.com/kbase/bootstrap bootstrap
+pip install -r bootstrap/kb_python_runtime/python-pip-list-narrative
 
-git clone https://github.com/kbase/narrative ..
-cd ../narrative
+rm -rf narrative
+git clone https://github.com/kbase/narrative narrative
+cd narrative
 
 git submodule init
 git submodule update
@@ -46,3 +48,4 @@ chmod 0755 $tgt
 echo "Putting new $tgt command under $d"
 /bin/mv $tgt $d
 echo "Done installing scripts"
+
