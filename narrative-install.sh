@@ -1,7 +1,5 @@
 set -x
 
-ipython_branch=1.x
-
 # Install a local version of the Kbase narrative
 conda remove -n kbase --all -y
 conda create -y -n kbase python=2.7 scipy pytables matplotlib readline
@@ -9,6 +7,7 @@ source activate kbase
 pip install -e .
 pip install pexpect
 
+# based on instructions in narrative/docs/developer.md
 rm -rf bootstrap
 git clone https://github.com/kbase/bootstrap bootstrap
 pip install -r bootstrap/kb_python_runtime/python-pip-list-narrative
