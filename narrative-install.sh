@@ -25,7 +25,7 @@ python setup.py install
 git submodule init
 git submodule update
 cd ../src
-pip install -r equirements.txt 
+pip install -r requirements.txt 
 python setup.py install
 
 # point to the CI services
