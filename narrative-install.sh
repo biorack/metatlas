@@ -1,8 +1,10 @@
 set -x
 
+ipython_branch=1.x
+
 # Install a local version of the Kbase narrative
 conda remove -n kbase --all -y
-conda create -y -n kbase python=2.7 scipy pytables matplotlib
+conda create -y -n kbase python=2.7 scipy pytables matplotlib readline
 source activate kbase
 pip install -e .
 pip install pexpect
@@ -15,15 +17,21 @@ rm -rf narrative
 git clone https://github.com/kbase/narrative narrative
 cd narrative
 
+# install ipython from a specific git branch
+git clone https://github.com/ipython/ipython.git -b ${ipython_branch}
+cd ipython 
+python setup.py install
+
 git submodule init
 git submodule update
-pip install -r src/requirements.txt 
-cd src
+cd ../src
+pip install -r equirements.txt 
 python setup.py install
 
 # point to the CI services
 sed -i '' 's:kbase.us/services/:ci.kbase.us/services/:' config.json
 
+# Install IPython again (!)
 cd ../ipython
 python setup.py install
 cd ..
