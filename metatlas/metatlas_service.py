@@ -123,7 +123,7 @@ def create_experiment(name, description, reconstitution_method,
     return name, get_object_uid(name)
 
 
-def create_fileinfo(input_file, name=None, polarity=None,
+def create_fileinfo(input_file, mzml_file_name=None, polarity=None,
                     atlases=None, group=None, inclusion_order=None,
                     normalization_factor=None, retention_correction=None):
     """Create a MetAtlas FileInfo object.
@@ -132,7 +132,7 @@ def create_fileinfo(input_file, name=None, polarity=None,
     ----------
     input_file : str
         Path to input_file.
-    name : str, optional
+    mzml_file_name : str, optional
         Name of the file object (defaults to root of file name).
     atlases : list of strings, optional
         Names of atlas dictionaries (kbase workspace names).
@@ -159,7 +159,8 @@ def create_fileinfo(input_file, name=None, polarity=None,
     transform(input_directory=tempdir,
               shock_service_url=SHOCK_URL,
               working_directory=tempdir,
-              name=name, polarity=polarity, atlases=atlases,
+              mzml_file_name=mzml_file_name, polarity=polarity,
+              atlases=atlases,
               group=group, inclusion_order=inclusion_order,
               normalization_factor=normalization_factor,
               retention_correction=retention_correction)
@@ -175,7 +176,7 @@ def create_fileinfo(input_file, name=None, polarity=None,
     data['atlases'] = [get_object_uid(a) for a in data['atlases']]
     print(data)
     dict_save_params = dict(type='MetaboliteAtlas2.MAFileInfo',
-                            data=data, name=data['name'], hidden=0)
+                            data=data, name=data['mzml_file_name'], hidden=0)
     save_ws_object(dict_save_params)
 
     return data['name'], get_object_uid(data['name'])
