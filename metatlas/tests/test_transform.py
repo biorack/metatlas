@@ -37,7 +37,8 @@ def check_dir(path, **setup):
         data = simplejson.load(fid)
 
     print(data)
-    assert data['name'] == os.path.basename(path).replace('.mzML',  '')
+    assert data['mzml_file_name'] == os.path.basename(path).replace('.mzML',
+                                                                    '')
     assert data['atlases'] == []
     assert data['run_file_id'] == 'dummy_shock_id'
 
