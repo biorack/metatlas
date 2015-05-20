@@ -32,9 +32,9 @@ if sys.version.startswith('3'):
 def transform(shock_service_url=None, handle_service_url=None,
               output_file_name=None, input_directory=None,
               working_directory=None, shock_id=None, handle_id=None,
-              input_mapping=None, name=None, polarity=None, atlases=None,
-              group=None, inclusion_order=None, normalization_factor=None,
-              retention_correction=None,
+              input_mapping=None, mzml_file_name=None, polarity=None,
+              atlases=None, group=None, inclusion_order=None,
+              normalization_factor=None, retention_correction=None,
               level=logging.INFO, logger=None):
     """
     Converts mzML file to MetaboliteAtlas2_MAFileInfo json string.
@@ -59,7 +59,7 @@ def transform(shock_service_url=None, handle_service_url=None,
                        directory and look for your files.
         level: Logging level, defaults to logging.INFO.
         atlases: List of MetaboliteAtlas atlas IDs.
-        name: Name of the file, optional.  Defaults to the file name.
+        mzml_file_name: Name of the file, optional.  Defaults to the file name.
         polarity: Run polarity.
         group: Run group.
         inclusion_order: Run inclusion_order.
@@ -109,7 +109,8 @@ def transform(shock_service_url=None, handle_service_url=None,
                     shock_service_url, hdf_file, token=token)
 
         run_info = dict()
-        run_info['name'] = name or fname.replace('.mzML', '')
+        run_info['mzml_file_name'] = (mzml_file_name or
+                                      fname.replace('.mzML', ''))
         run_info['atlases'] = atlases or []
         if polarity is not None:
             run_info['polarity'] = polarity
@@ -123,7 +124,9 @@ def transform(shock_service_url=None, handle_service_url=None,
             run_info['retention_correction'] = retention_correction
 
         if shock_service_url:
-            run_info["run_file_id"] = shock_info["id"]
+            handle_id = script_utils.getHandles(logger, shock_service_url,
+                    handle_service_url, [shock_info["id"]], token=token)[0]
+            run_info["run_file_id"] = handle_id
         else:
             run_info['run_file_id'] = 'dummy_shock_id'
 
@@ -191,14 +194,14 @@ def main():
                         action='store', type=int, required=False)
     parser.add_argument('--retention_correction',
                         help=script_details["Args"]["retention_correction"],
-                        action='store', type=float, equired=False)
+                        action='store', type=float, required=False)
     parser.add_argument('--atlases',
                         help=script_details["Args"]["atlases"],
                         action='store', type=str, nargs='?',
                         required=False)
-    parser.add_argument('--name',
-                        help=script_details["Args"]["name"],
-                        action='store', type=str, equired=False)
+    parser.add_argument('--mzml_file_name',
+                        help=script_details["Args"]["mzml_file_name"],
+                        action='store', type=str, required=False)
     parser.add_argument('--normalization_factor',
                         help=script_details["Args"]["normalization_factor"],
                         action='store', type=float, required=False)
@@ -217,6 +220,13 @@ def main():
                   shock_id=args.shock_id,
                   handle_id=args.handle_id,
                   input_mapping=args.input_mapping,
+                  mzml_file_name=args.mzml_file_name,
+                  polarity=args.polarity,
+                  atlases=args.atlases,
+                  group=args.group,
+                  inclusion_order=args.inclusion_order,
+                  normalization_factor=args.normalization_factor,
+                  retention_correction=args.retention_correction,
                   logger=logger)
     except Exception as e:
         logger.exception(e)
