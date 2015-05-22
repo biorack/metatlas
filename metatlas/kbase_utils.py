@@ -223,8 +223,8 @@ def download_file_from_shock(logger=stderrlogger(__file__),
 
 
 def getHandles(logger=stderrlogger(__file__),
-               shock_service_url=SHOCK_URL,
-               handle_service_url=HANDLE_URL,
+               shock_service_url=None,
+               handle_service_url=None,
                shock_ids=None,
                handle_ids=None,
                token=None):
@@ -237,6 +237,11 @@ def getHandles(logger=stderrlogger(__file__),
     if token is None:
         raise Exception("Authentication token required!")
 
+    shock_service_url = shock_service_url or SHOCK_URL
+    handle_service_url = handle_service_url or HANDLE_URL
+
+    logger.info('Connected to handle service on {}'.format(handle_service_url))
+    logger.info('Getting handles for {}'.format(shock_ids))
     hs = HandleService(url=handle_service_url, token=token)
 
     handles = list()

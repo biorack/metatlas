@@ -171,7 +171,7 @@ def create_fileinfo(input_file, mzml_file_name=None, polarity=None,
 
     shutil.rmtree(tempdir)
 
-    data['run_file_id'] = getHandles(shock_ids=[data['run_file_id']])[0]
+    data['run_file_id'] = data['run_file_id']
 
     data['atlases'] = [get_object_uid(a) for a in data['atlases']]
     print(data)
@@ -179,7 +179,7 @@ def create_fileinfo(input_file, mzml_file_name=None, polarity=None,
                             data=data, name=data['mzml_file_name'], hidden=0)
     save_ws_object(dict_save_params)
 
-    return data['name'], get_object_uid(data['name'])
+    return data['mzml_file_name'], get_object_uid(data['mzml_file_name'])
 
 
 def get_from_nersc(user, relative_path):
