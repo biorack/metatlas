@@ -144,6 +144,8 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     if not data.size:
         raise ValueError('No data found matching criteria')
 
+    print('Query complete')
+
     return dict(i=data['i'], rt=data['rt'], mz=data['mz'])
 
 
@@ -284,23 +286,36 @@ def get_info(h5file):
 
 
 if __name__ == '__main__':  # pragma: no cover
-    import sys
+    import argparse
+    import os
 
-    fid = tables.open_file('20150115_caj203_Ecoli_D2O_50min.h5')
+    desc = "Query and plot MZML data from HDF files"
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument("-x", "--xic", action="store_true",
+                        help="Get and plot XIC")
+    parser.add_argument("-s", "--spectrogram", action="store_true",
+                        help="Get and plot Spectrogram")
+    parser.add_argument("--heatmap", action="store_true",
+                        help="Get and plot Heatmap")
+    parser.add_argument('input_file', help="Input HDF file",
+                        action='store', required=True)
 
-    if len(sys.argv) < 2 or sys.argv[1] == 'xic':
+    args = parser.parse_args()
+
+    fname = args.input_file
+    fid = tables.open_file(fname)
+    basename = os.path.splitext(fname)[0]
+
+    if args.xic:
         x, y = get_XIC(fid, 0, 100000, 1, 0)
-        np.save('xicof_new.npy', np.vstack((x, y)).T)
-        plot_XIC(x, y)
+        plot_XIC(x, y, title=basename)
 
-    elif sys.argv[1] == 'ivsmz':
+    if args.spectrogram:
         x, y = get_spectrogram(fid, 1, 5, 1, 0)
-        np.save('ivsmz_new.npy', np.vstack((x, y)).T)
         plot_spectrogram(x, y)
 
-    else:
+    if args.heatmap:
         data = get_heatmap(fid, 1000, 1000, 1, 0)
-        np.save('heatmap_new.py', data)
         plot_heatmap(data['arr'], data['rt_bins'], data['mz_bins'])
 
     plt.show()
