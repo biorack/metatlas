@@ -60,3 +60,6 @@ target/
 # kbase installation directories
 bootstrap/
 narrative/
+
+
+kb_auth_do_not_commit.dat
