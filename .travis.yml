@@ -24,6 +24,10 @@ before_install:
 - travis_retry conda create -n test $PYTHON pip nose pytables matplotlib
 - source activate test
 - travis_retry pip install coveralls requests_toolbelt
+- sudo apt-add-repository "deb http://cran.stat.ucla.edu/bin/linux/ubuntu precise/"
+- sudo apt-get update
+- sudo apt-get install libnetcdf-dev r-base
+- R CMD BATCH xcms-install.R
 install:
 - export PYTHONWARNINGS=all
 - pip install -e .
