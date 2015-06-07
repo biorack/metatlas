@@ -23,10 +23,10 @@ before_install:
 - conda info -a
 - travis_retry conda create -n test $PYTHON pip nose pytables matplotlib
 - source activate test
-- travis_retry pip install coveralls requests_toolbelt
+- travis_retry pip install coveralls requests_toolbelt rpy2
 - sudo apt-add-repository "deb http://cran.stat.ucla.edu/bin/linux/ubuntu precise/"
 - sudo apt-get update
-- sudo apt-get install --force-yes libnetcdf-dev r-base
+- sudo apt-get install --force-yes libnetcdf-dev netcdf-bin r-base
 - sudo R CMD BATCH xcms-install.R; true
 - cat xcms-install.Rout
 install:
