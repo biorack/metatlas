@@ -1,7 +1,11 @@
 language: python
 env:
-- PYTHON="python=2.7"
-- PYTHON="python=3.4"
+  matrix:
+  - PYTHON="python=2.7"
+  - PYTHON="python=3.4"
+  global:
+  - secure: KZOjKbbw97URoNocAQ5eVwTdNdoY1wj8azrclILwdVIlWZPq3dPDdX7mEW+ckxDsKp0TtN3h8AX06MczKof/KktHRo075glftC4CYeCdNPAEJ7xiCys/3WtdNUVbpX1+uWaT9b9rGM9sKSICom5E5xxqjpJ4dHctyDPZ9XrPZww=
+  - secure: LmEr2zGO68woRZQh0rDSM0qnG+NbQ93n/3PBaV8m2U5zRYirzb9agbZQ5qG+ucpkfk6azs0ss71tZvv/rcV76/5iigjzIc25P9P19JixT1/YLvb6sanK/7+iHUpWj5ck83ISAhBFZMV6ew5BQN6REvrEo+Lvwe9pTonP7Ud8IwU=
 before_install:
 - openssl aes-256-cbc -K $encrypted_10f2d1413fc4_key -iv $encrypted_10f2d1413fc4_iv
   -in kb_auth_encrypted.dat -out kb_auth_do_not_commit.dat -d
