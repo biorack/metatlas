@@ -27,7 +27,8 @@ before_install:
 - sudo apt-add-repository "deb http://cran.stat.ucla.edu/bin/linux/ubuntu precise/"
 - sudo apt-get update
 - sudo apt-get install --force-yes libnetcdf-dev r-base
-- R CMD BATCH xcms-install.R
+- R CMD BATCH xcms-install.R; true
+- cat xcms-install.Rout
 install:
 - export PYTHONWARNINGS=all
 - pip install -e .
