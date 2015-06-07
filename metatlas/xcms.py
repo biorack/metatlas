@@ -19,8 +19,8 @@ def get_xmcs_set(files, *args, **kwargs):
         Specification search terms for file selection.
     **kwargs
         Keyword arguments to xcmsSet command, such as:
-        method='centWave' ppm=10, peakwidth=c(5,30), snthresh=6,
-        mzdiff=0.01,prefilter=c(3,100)
+        method='centWave' ppm=10, peakwidth=(5,30), snthresh=6,
+        mzdiff=0.01,prefilter=(3,100)
 
     Returns
     -----------
@@ -86,8 +86,8 @@ def run_xcms(files, *args):
         Specification search terms for file selection.
     **kwargs
         Keyword arguments to xcmsSet command, such as:
-        method='centWave' ppm=10, peakwidth=c(5,30), snthresh=6,
-        mzdiff=0.01,prefilter=c(3,100)
+        method='centWave' ppm=10, peakwidth=(5,30), snthresh=6,
+        mzdiff=0.01,prefilter=(3,100)
 
     Returns
     -----------
