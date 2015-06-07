@@ -26,8 +26,7 @@ before_install:
 - sudo apt-add-repository "deb http://cran.stat.ucla.edu/bin/linux/ubuntu precise/"
 - sudo apt-get update
 - sudo apt-get install --force-yes libnetcdf-dev netcdf-bin r-base
-- sudo R CMD BATCH xcms-install.R; true
-- cat xcms-install.Rout
+- sudo Rscript xcms-install.R
 - travis_retry pip install coveralls requests_toolbelt rpy2
 install:
 - export PYTHONWARNINGS=all
