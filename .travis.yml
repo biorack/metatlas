@@ -11,7 +11,7 @@ before_install:
   -in kb_auth_encrypted.dat -out kb_auth_do_not_commit.dat -d
 - sudo apt-add-repository "deb http://cran.stat.ucla.edu/bin/linux/ubuntu precise/"
 - sudo apt-get update
-- sudo apt-get install --force-yes libnetcdf-dev netcdf-bin
+- sudo apt-get install --force-yes libnetcdf-dev netcdf-bin r-base
 - sudo Rscript xcms-install.R
 - export KB_AUTH_TOKEN=`cat kb_auth_do_not_commit.dat`
 - export MPL_DIR=$HOME/.config/matplotlib
