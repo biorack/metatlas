@@ -7,7 +7,7 @@ MAINTAINER = 'Steven Silvester'
 MAINTAINER_EMAIL = 'steven.silvester@ieee.org'
 URL = 'http://github.com/metabolite-atlas/metatlas'
 LICENSE = 'MIT'
-REQUIRES = ["numpy", "pytables", "pymzml", "simplejson", "rpy2"]
+REQUIRES = ["numpy", "pytables", "pymzml", "simplejson", "rpy2", "pandas"]
 CLASSIFIERS = """\
 Development Status :: 2 - Pre-Alpha
 Intended Audience :: Developers
