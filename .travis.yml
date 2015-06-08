@@ -9,6 +9,10 @@ env:
 before_install:
 - openssl aes-256-cbc -K $encrypted_10f2d1413fc4_key -iv $encrypted_10f2d1413fc4_iv
   -in kb_auth_encrypted.dat -out kb_auth_do_not_commit.dat -d
+- sudo apt-add-repository "deb http://cran.stat.ucla.edu/bin/linux/ubuntu precise/"
+- sudo apt-get update
+- sudo apt-get install --force-yes libnetcdf-dev netcdf-bin
+- sudo Rscript xcms-install.R
 - export KB_AUTH_TOKEN=`cat kb_auth_do_not_commit.dat`
 - export MPL_DIR=$HOME/.config/matplotlib
 - mkdir -p $MPL_DIR
@@ -23,10 +27,6 @@ before_install:
 - conda info -a
 - travis_retry conda create -n test $PYTHON pip nose pytables matplotlib
 - source activate test
-- sudo apt-add-repository "deb http://cran.stat.ucla.edu/bin/linux/ubuntu precise/"
-- sudo apt-get update
-- sudo apt-get install --force-yes libnetcdf-dev netcdf-bin r-base
-- sudo Rscript xcms-install.R
 - travis_retry pip install coveralls requests_toolbelt rpy2
 install:
 - export PYTHONWARNINGS=all
