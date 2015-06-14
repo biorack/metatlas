@@ -26,9 +26,10 @@ before_install:
 - conda info -a
 - travis_retry conda create -n test $PYTHON pip nose pytables matplotlib pandas
 - source activate test
-- travis_retry pip install coveralls requests_toolbelt
-- travis_retry conda install -c asmeurer rpy2
+- travis_retry pip install coveralls requests_toolbelt rpy2
 - sudo Rscript xcms-install.R
+# prevent readline error
+- rm $HOME/miniconda/lib/libreadline.so.6
 install:
 - export PYTHONWARNINGS=all
 - pip install -e .
