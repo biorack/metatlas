@@ -54,6 +54,7 @@ docs/_build/
 target/
 
 *.mzML
+*.mzXML
 *.h5
 *.DS_Store
 
