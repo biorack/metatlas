@@ -6,7 +6,7 @@ from metatlas.mzml_loader import get_test_data
 
 def test_xcms():
     path = get_test_data()['basic']
-    xset = get_xmcs_set([path], 'neg')
+    xset = get_xmcs_set([path])
     xset = group(xset)
     df = peak_table(xset)
     assert 'mz' in df.columns

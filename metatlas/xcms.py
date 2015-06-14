@@ -123,7 +123,7 @@ def peak_table(xmcs_set, filebase='peakList'):
 
 
 if __name__ == '__main__':
-    xset = get_xmcs_set(['021715_QC_6_neg.mzML'], 'neg')
+    xset = get_xmcs_set(['test_basic.mzML'])
     xset = group(xset)
     df = peak_table(xset)
     print(df.head())
