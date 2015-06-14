@@ -1,8 +1,8 @@
 # Note: This is meant for Metabolite-Atlas developer use only
 .PHONY: all clean test cover release gh-pages docs
 
-export TEST_ARGS=--exe -v --with-doctest
 export NAME=metatlas
+export TEST_ARGS=--exe -v --with-doctest $NAME
 export GHP_MSG="Generated gh-pages for `git log master -1 --pretty=short --abbrev-commit`"
 export VERSION=`python -c "import $(NAME); print($(NAME).__version__)"`
 
