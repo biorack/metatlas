@@ -29,7 +29,7 @@ before_install:
 - travis_retry pip install coveralls requests_toolbelt rpy2
 - sudo Rscript xcms-install.R
 # prevent readline error
-- rm $HOME/miniconda/lib/libreadline.so.6
+- rm /home/travis/miniconda/envs/test/lib/libreadline.so.6
 install:
 - export PYTHONWARNINGS=all
 - pip install -e .
