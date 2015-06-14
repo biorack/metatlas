@@ -16,7 +16,7 @@ def get_xmcs_set(files, *args, **kwargs):
     files : list of strings
         mzML files for extraction.
     *args
-        Specification search terms for file selection.
+        Selection criteria for file names.
     **kwargs
         Keyword arguments to xcmsSet command, such as:
         method='centWave' ppm=10, peakwidth=(5,30), snthresh=6,
