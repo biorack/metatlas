@@ -1,4 +1,5 @@
 
+import os
 from rpy2 import robjects
 from rpy2.robjects import pandas2ri
 
@@ -8,15 +9,13 @@ library('xcms')
 pandas2ri.activate()
 
 
-def get_xmcs_set(files, *args, **kwargs):
+def get_xmcs_set(files, **kwargs):
     """Get an xmcs set for a group of files
 
     Parameters
     -----------------
     files : list of strings
         mzML files for extraction.
-    *args
-        Selection criteria for file names.
     **kwargs
         Keyword arguments to xcmsSet command, such as:
         method='centWave' ppm=10, peakwidth=(5,30), snthresh=6,
@@ -27,10 +26,11 @@ def get_xmcs_set(files, *args, **kwargs):
     out : xcmsSet
         R xcms set.
     """
-    grepl = robjects.r['grepl']
-    for arg in args:
-        hits = grepl(arg, files)
-        files = [f for (f, h) in zip(files, hits) if h]
+    if not files:
+        raise ValueError('Please specify at least one file')
+    if not os.path.exists(files[0]):
+        raise ValueError('File does not exist, you may need to add full path: '
+                         "%s" % files[0])
     paste = robjects.r['paste']
     files = paste('', files, sep='')
     xmcs_set = robjects.r['xcmsSet']
@@ -75,15 +75,13 @@ def ret_cor(xmcs_set, **kwargs):
     return retcor(xmcs_set, **kwargs)
 
 
-def run_xcms(files, *args):
+def run_xcms(files):
     """Convenience function to run xcms using default settings
 
     Parameters
     -----------------
     files : list of strings
         mzML files for extraction.
-    *args
-        Specification search terms for file selection.
     **kwargs
         Keyword arguments to xcmsSet command, such as:
         method='centWave' ppm=10, peakwidth=(5,30), snthresh=6,
@@ -94,7 +92,7 @@ def run_xcms(files, *args):
     out : dataFrame
         xcms peak dataFrame.
     """
-    xmcs_set = get_xmcs_set(files, *args)
+    xmcs_set = get_xmcs_set(files)
     xmcs_set = group(xmcs_set)
     xmcs_set = fill_peaks(xmcs_set)
     return peak_table(xmcs_set)
