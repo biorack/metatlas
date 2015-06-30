@@ -33,6 +33,10 @@ release: test gh-pages
 	git push origin --all
 	git push origin --tags
 
+
+deploy:
+	rsync -rv metatlas silvest@edisongrid.nersc.gov:/project/projectdirs/metatlas/python_pkgs/
+
 docs: clean
 	export SPHINXOPTS=-W
 	pip install sphinx-bootstrap-theme numpydoc sphinx ghp-import
