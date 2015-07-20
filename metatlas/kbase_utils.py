@@ -11,7 +11,6 @@ import io
 
 import requests
 from requests_toolbelt import MultipartEncoder
-import tables
 
 
 SHOCK_URL = 'https://ci.kbase.us/services/shock-api'

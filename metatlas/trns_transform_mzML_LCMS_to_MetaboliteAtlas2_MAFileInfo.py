@@ -89,7 +89,7 @@ def transform(shock_service_url=None, handle_service_url=None,
 
     files = os.listdir(input_directory)
     mzml_files = [x for x in files
-                             if os.path.splitext(x)[-1] in valid_extensions]
+                  if os.path.splitext(x)[-1] in valid_extensions]
 
     assert len(mzml_files) != 0
 
@@ -128,7 +128,7 @@ def transform(shock_service_url=None, handle_service_url=None,
                     handle_service_url, [shock_info["id"]], token=token)[0]
             run_info["run_file_id"] = handle_id
         else:
-            run_info['run_file_id'] = 'dummy_shock_id'
+            run_info['run_file_id'] = hdf_file
 
         output_file_name = fname.replace('.mzML', '_finfo.json')
 

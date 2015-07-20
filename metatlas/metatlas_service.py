@@ -1,5 +1,4 @@
 import os
-import sys
 import shutil
 import glob
 import simplejson as json
@@ -7,12 +6,17 @@ import tempfile
 
 import tables
 
-from .kbase_utils import (
-    get_object_uid, SHOCK_URL, save_ws_object, getHandles, get_object,
-    get_object_from_ref, download_file_from_shock)
-
 from .trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo import \
     transform
+
+if 'KB_NARRATIVE' in os.environ:
+    from .kbase_utils import (
+        get_object_uid, SHOCK_URL, save_ws_object, getHandles, get_object,
+        get_object_from_ref, download_file_from_shock)
+else:
+    from .nersc_utils import (
+        get_object_uid, SHOCK_URL, save_ws_object, get_object,
+        get_object_from_ref)
 
 
 def create_compound(name, formula, adducts, mz, mz_threshold, rt_min,
@@ -169,50 +173,22 @@ def create_fileinfo(input_file, mzml_file_name=None, polarity=None,
     with open(output_file) as fid:
         data = json.load(fid)
 
+    if not SHOCK_URL:
+        # move the HDF file to the input directory
+        input_dir = os.path.dirname(mzml_file_name)
+        shutil.copy2(data['run_file_id'], input_dir)
+        base = os.path.basename(data['run_file_id'])
+        data['run_file_id'] = os.path.join(input_dir, base)
+
     shutil.rmtree(tempdir)
 
-    data['run_file_id'] = data['run_file_id']
-
     data['atlases'] = [get_object_uid(a) for a in data['atlases']]
-    print(data)
+
     dict_save_params = dict(type='MetaboliteAtlas2.MAFileInfo',
                             data=data, name=data['mzml_file_name'], hidden=0)
     save_ws_object(dict_save_params)
 
     return data['mzml_file_name'], get_object_uid(data['mzml_file_name'])
-
-
-def get_from_nersc(user, relative_path):
-    """Load a data file from NERSC to an H5 file
-
-    Parameters
-    ----------
-    user : str
-        NERSC user account
-    relative_path : str
-        Path to file from "/project/projectdirs/metatlas/original_data/<user>/"
-    """
-    import pexpect
-    from IPython.display import clear_output
-
-    cmd = 'scp -o StrictHostKeyChecking=no '
-    path = "/project/projectdirs/metatlas/original_data/%s/%s"
-    path = path % (user, relative_path)
-    cmd += '%s@edisongrid.nersc.gov:%s . && echo "Download Complete"'
-    cmd = cmd % (user, path)
-    print(cmd)
-    proc = pexpect.spawn(cmd)
-    proc.expect("assword:*")
-    if sys.version.startswith('3'):
-        passwd = input()
-    else:
-        passwd = raw_input()
-    clear_output()
-    proc.send(passwd)
-    proc.send('\r')
-    proc.expect('Download Complete')
-    proc.close()
-    return os.path.abspath(os.path.basename(relative_path))
 
 
 def get_compound(name):
@@ -223,6 +199,7 @@ def get_compound(name):
 def get_atlas(name):
     """Get a workspace atlas by name as a nested dictionary"""
     obj = get_object(name)
+    print(obj['compounds'])
     obj['compounds'] = [get_object_from_ref(c) for c in obj['compounds']]
     return obj
 
@@ -244,8 +221,11 @@ def get_finfo(name):
     obj = get_object(name)
     for a in obj['atlases']:
         a['compounds'] = [get_object_from_ref(c) for c in a['compounds']]
-    shock_id = getHandles(handle_ids=[obj['run_file_id']])[0]['id']
-    filename = obj['name'] + '.h5'
-    download_file_from_shock(shock_id=shock_id, filename=filename)
+    if SHOCK_URL:
+        shock_id = getHandles(handle_ids=[obj['run_file_id']])[0]['id']
+        filename = obj['name'] + '.h5'
+        download_file_from_shock(shock_id=shock_id, filename=filename)
+    else:
+        filename = obj['run_file_id']
     obj['fid'] = tables.open_file(filename)
     return obj
