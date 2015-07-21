@@ -4,6 +4,9 @@ API Reference
 
 Metatlas
 ========
+
+.. module:: metatlas
+
 .. autofunction:: mzml_to_hdf
 
 .. autofunction:: get_data
@@ -29,7 +32,7 @@ Metatlas Objects
 
 .. autoclass:: Atlas
 
-.. autoclass:: FSpec
+.. autoclass:: FileSpec
 
 .. autoclass:: FInfo
 
