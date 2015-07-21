@@ -3,7 +3,7 @@ import dataset
 import pickle
 from .mzml_loader import mzml_to_hdf
 from IPython.utils.traitlets import (
-    HasTraits, CUnicode, CFloat, List, CInt, Bool)
+    HasTraits, CUnicode, CFloat, List, CInt, Bool, Instance)
 
 NERSC_WORKSPACE = '/project/projectdirs/metatlas/workspace'
 
@@ -55,7 +55,7 @@ class Atlas(HasTraits):
         Description of method.
     """
     name = CUnicode()
-    compounds = List(Compound)
+    compounds = List(Instance(Compound))
     sample = CUnicode()
     method = CUnicode()
 
@@ -124,13 +124,13 @@ class Experiment(HasTraits):
     quenching_method = CUnicode()
     extraction_method = CUnicode()
     chromatography_method = CUnicode()
-    atlases = List(Atlas)
-    finfos = List(FInfo)
+    atlases = List(Instance(Atlas))
+    finfos = List(Instance(FInfo))
     _shared = Bool()
 
     def save(self):
         """Save the experiment to the workspace"""
-        _Workspace.save(self)
+        _WORKSPACE.save(self)
 
     def share(self):
         """Share the experiment"""
@@ -170,7 +170,7 @@ def get_experiment(name, username=None):
     """
     if username:
         raise NotImplemented
-    return _Workspace.load(name)
+    return _WORKSPACE.load(name)
 
 
 class _Workspace(object):
@@ -184,14 +184,34 @@ class _Workspace(object):
         os.chmod(path, 0o775)
 
     def save(self, experiment):
-        data = pickle.dumps(experiment)
-        self.db[experiment['name']].insert(data)
+        top = pickle.dumps(experiment)
+        finfos = [pickle.dumps(f) for f in experiment.finfos]
+        finfos = pickle.dumps(finfos)
+        atlases = []
+        for atlas in experiment.atlases:
+            compounds = [pickle.dumps(c) for c in atlas.compounds]
+            atlases.append([pickle.dumps(atlas)] + compounds)
+        atlases = pickle.dumps(atlases)
+        self.db[experiment.name].insert(dict(top=top, finfos=finfos,
+                                             atlases=atlases))
 
     def load(self, name):
         objects = self.db[name].all()
         if objects:
             obj = list(objects)[-1]
-            return pickle.loads(obj)
+            experiment = pickle.loads(obj['top'])
+            finfos = pickle.loads(obj['finfos'])
+            for f in finfos:
+                finfo = pickle.loads(f)
+                experiment.finfos.append(finfo)
+            atlas_blobs = pickle.loads(obj['atlases'])
+            for blob in atlas_blobs:
+                atlas = pickle.loads(blob[0])
+                experiment.atlases.append(atlas)
+                for b in blob[1:]:
+                    compound = pickle.loads(b)
+                    atlas.compounds.append(compound)
+            return experiment
 
 
 # Singleton Workspace object
