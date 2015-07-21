@@ -4,7 +4,7 @@ import sys
 
 import simplejson
 
-from metatlas.trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo \
+from metatlas.kbase.trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo \
     import transform, main
 from metatlas.mzml_loader import get_test_data
 
