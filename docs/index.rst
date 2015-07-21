@@ -1,0 +1,34 @@
+
+.. include:: ../README.rst
+   :end-before:  Installation
+   
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+
+   source/installation
+   source/examples
+   source/api
+   source/info
+
+`API Reference <source/api.html>`_
+------------------------------------------------
+
+Documentation for the functions included in Metatlas.
+
+`Installation <source/installation.html>`_
+------------------------------------------------
+
+How to install Metatlas on Nersc.
+
+
+`Examples <source/examples.html>`_
+------------------------------------------------
+
+Introductory examples.
+
+
+`Information <source/info.html>`_
+-----------------------------------------
+
+Other information about Metatlas.
