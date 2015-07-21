@@ -34,7 +34,7 @@ Metatlas Objects
 
 .. autoclass:: FileSpec
 
-.. autoclass:: FInfo
+.. autoclass:: FileInfo
 
 .. autoclass:: Experiment
 

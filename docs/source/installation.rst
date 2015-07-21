@@ -20,6 +20,7 @@ You can press SHIFT+TAB to get documentation while accessing the functions, incl
 between arguments to the function.
 
 ::
+
     from metatlas import metatlas_objects
     e = metatlas_objects.Experiment(name='test6')
     c = metatlas_objects.Compound(name='hiya')
