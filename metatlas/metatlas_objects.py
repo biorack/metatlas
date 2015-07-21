@@ -81,7 +81,7 @@ class FileSpec(HasTraits):
     retention_correction = CFloat()
 
 
-class FInfo(FileSpec):
+class FileInfo(FileSpec):
 
     """
     mzml_file : str
@@ -125,7 +125,7 @@ class Experiment(HasTraits):
     extraction_method = CUnicode()
     chromatography_method = CUnicode()
     atlases = List(Instance(Atlas))
-    finfos = List(Instance(FInfo))
+    finfos = List(Instance(FileInfo))
     _shared = Bool()
 
     def save(self):
@@ -148,7 +148,7 @@ class Experiment(HasTraits):
         """
         state = filespec.__getstate__()
         for fname in files:
-            finfo = FInfo(mzml_file=fname, **state)
+            finfo = FileInfo(mzml_file=fname, **state)
             finfo.parse()
             self.finfos.append(finfo)
 
