@@ -88,7 +88,17 @@ class FileInfo(FileSpec):
         Path to input_file.
     hdf_file : str
         Name of the hdf_file.
-    """ + FileSpec.__doc__
+    polarity : int, optional
+        Polarity of ions in file.
+    group : str, optional
+        Group.
+    inclusion_order : int, optional
+        Inclusion order.
+    normalization_factor : float, optional
+        Normalization factor.
+    retention_correction : float, optional
+        Retention correction factor
+    """
 
     mzml_file = CUnicode()
     hdf_file = CUnicode()
