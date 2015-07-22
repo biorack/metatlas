@@ -14,9 +14,9 @@ class Compound(HasTraits):
     name: str
       Name of the compound
     formula : str
-        Chemical forumla.
+        Chemical formula of the intact, neutral form of the molecule.
     adducts : str
-        Adduct ions.
+        Adduct accounting form the ionization and potential in source degradation.
     mz : float
         Mass-to-charge ratio.
     mz_threshold : float
@@ -27,6 +27,8 @@ class Compound(HasTraits):
         Max retention time (minutes).
     rt_peak : float
         Peak retention time (minutes).
+    neutral_mass : float
+        The intact, neutral mass of the molecule
     pubchem_id : str
         Pubchem ID for compound.
     """
