@@ -40,7 +40,7 @@ def check_dir(path, **setup):
     assert data['mzml_file_name'] == os.path.basename(path).replace('.mzML',
                                                                     '')
     assert data['atlases'] == []
-    assert data['run_file_id'] == 'dummy_shock_id'
+    assert data['mzml_file_name'] + '.hdf' in data['run_file_id']
 
     for (key, value) in setup.items():
         assert data[key] == value
