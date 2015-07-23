@@ -9,14 +9,9 @@ import tables
 from .trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo import \
     transform
 
-if 'KB_NARRATIVE' in os.environ:
-    from .kbase_utils import (
-        get_object_uid, SHOCK_URL, save_ws_object, getHandles, get_object,
-        get_object_from_ref, download_file_from_shock)
-else:
-    from .nersc_utils import (
-        get_object_uid, SHOCK_URL, save_ws_object, get_object,
-        get_object_from_ref)
+from .kbase_utils import (
+    get_object_uid, SHOCK_URL, save_ws_object, getHandles, get_object,
+    get_object_from_ref, download_file_from_shock)
 
 
 def create_compound(name, formula, adducts, mz, mz_threshold, rt_min,
