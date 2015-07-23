@@ -158,7 +158,10 @@ class Experiment(HasTraits):
         filespec: FileSpec
             The file spec for the files.
         """
-        state = filespec.__getstate__()
+        keys = filespec.trait_names()
+        state = {}
+        for key in keys:
+            state[key] = getattr(filespec, key)
         for fname in files:
             finfo = FileInfo(mzml_file=fname, **state)
             finfo.parse()
