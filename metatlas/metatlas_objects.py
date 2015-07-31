@@ -198,36 +198,18 @@ class _Workspace(object):
         self.db = dataset.connect('sqlite:///%s' % path)
         os.chmod(path, 0o775)
 
-    def save(self, experiment):
-        top = pickle.dumps(experiment)
-        finfos = [pickle.dumps(f) for f in experiment.finfos]
-        finfos = pickle.dumps(finfos)
-        atlases = []
-        for atlas in experiment.atlases:
-            compounds = [pickle.dumps(c) for c in atlas.compounds]
-            atlases.append([pickle.dumps(atlas)] + compounds)
-        atlases = pickle.dumps(atlases)
-        self.db[experiment.name].insert(dict(top=top, finfos=finfos,
-                                             atlases=atlases))
+    def save(self, obj):
+        self.db[obj.name].insert(dict(data=pickle.dumps(obj)))
 
     def load(self, name):
-        objects = self.db[name].all()
+        try:
+            objects = self.db[name].all()
+        except Exception:
+            errmsg = 'Object called "%s" not found in database"' % name
+            raise ValueError(errmsg)
         if objects:
             obj = list(objects)[-1]
-            experiment = pickle.loads(obj['top'])
-            finfos = pickle.loads(obj['finfos'])
-            for f in finfos:
-                finfo = pickle.loads(f)
-                experiment.finfos.append(finfo)
-            atlas_blobs = pickle.loads(obj['atlases'])
-            for blob in atlas_blobs:
-                atlas = pickle.loads(blob[0])
-                experiment.atlases.append(atlas)
-                for b in blob[1:]:
-                    compound = pickle.loads(b)
-                    atlas.compounds.append(compound)
-            return experiment
-
+            return pickle.loads(obj['data'])
 
 # Singleton Workspace object
 _WORKSPACE = _Workspace()
