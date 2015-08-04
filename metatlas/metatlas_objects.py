@@ -1,6 +1,8 @@
 import os
 import dataset
 import pickle
+import random
+import pandas as pd
 from .mzml_loader import mzml_to_hdf
 from IPython.utils.traitlets import (
     HasTraits, CUnicode, CFloat, List, CInt, Bool, Instance)
@@ -8,7 +10,15 @@ from IPython.utils.traitlets import (
 NERSC_WORKSPACE = '/project/projectdirs/metatlas/workspace'
 
 
-class Compound(HasTraits):
+class _MetatlasObject(HasTraits):
+    name = CUnicode()
+    unique_id = CInt()
+
+    def _unique_id_default(self):
+        return random.randint(0, 1e6)
+
+
+class Compound(_MetatlasObject):
 
     """
     name: str
@@ -32,7 +42,6 @@ class Compound(HasTraits):
     pubchem_id : str
         Pubchem ID for compound.
     """
-    name = CUnicode()
     formula = CUnicode()
     adducts = CUnicode()
     mz = CFloat()
@@ -41,10 +50,10 @@ class Compound(HasTraits):
     rt_max = CFloat()
     rt_peak = CFloat()
     neutral_mass = CFloat()
-    pubchem_id = CFloat()
+    pubchem_id = CUnicode()
 
 
-class Atlas(HasTraits):
+class Atlas(_MetatlasObject):
 
     """
     name : str
@@ -52,7 +61,7 @@ class Atlas(HasTraits):
     compounds : list of strings
         Names of compounds (names of kbase workspace objects).
     sample : str
-        Description of sample.
+        Descri 84t4ption of sample.
     method : str
         Description of method.
     """
@@ -61,8 +70,43 @@ class Atlas(HasTraits):
     sample = CUnicode()
     method = CUnicode()
 
+    def edit(self):
+        import qgrid
+        qgrid.nbinstall(overwrite=False)
+        from IPython.html.widgets import Button, HBox
+        from IPython.display import display
 
-class FileSpec(HasTraits):
+        # create a visualization for the dataframe
+        if not self.compounds:
+            self.compounds.append(Compound())
+        data = [c._trait_values for c in self.compounds]
+        dataframe = pd.DataFrame(data)
+        cols = ['name', 'formula', 'adducts', 'mz', 'mz_threshold',
+                'rt_min', 'rt_max', 'rt_peak', 'neutral_mass',
+                'pubchem_id']
+        grid = qgrid.QGridWidget(df=dataframe[cols], remote_js=True)
+
+        add_row = Button(description="Add Row")
+        add_row.on_click(grid.add_row)
+
+        rem_row = Button(description="Remove Row")
+        rem_row.on_click(grid.remove_row)
+
+        display(HBox((add_row, rem_row)), grid)
+
+        grid.on_msg(self._incoming_msg)
+
+    def _incoming_msg(self, widget, msg):
+        if msg['type'] == 'add_row':
+            self.compounds.append(Compound())
+        elif msg['type'] == 'remove_row':
+            self.compounds.pop(msg['row'])
+        elif msg['type'] == 'cell_change':
+            c = self.compounds[msg['row']]
+            setattr(c, msg['column'], msg['value'])
+
+
+class FileSpec(_MetatlasObject):
 
     """
     polarity : int, optional
@@ -110,7 +154,7 @@ class FileInfo(FileSpec):
         self.hdf_file = mzml_to_hdf(self.mzml_file, self.hdf_file or None)
 
 
-class Experiment(HasTraits):
+class Experiment(_MetatlasObject):
 
     """
     name : str
