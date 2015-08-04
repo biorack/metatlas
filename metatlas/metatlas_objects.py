@@ -211,6 +211,53 @@ class Experiment(_MetatlasObject):
             finfo.parse()
             self.finfos.append(finfo)
 
+    def edit(self):
+        import qgrid
+        qgrid.nbinstall(overwrite=False)
+        from IPython.html.widgets import Button
+        from IPython.display import display
+
+        # create a visualization for the dataframe
+        if not self.finfos:
+            raise TypeError('Please load files first')
+        data = [f._trait_values for f in self.finfos]
+        dataframe = pd.DataFrame(data)
+        cols = ['name', ]
+        grid = qgrid.QGridWidget(df=dataframe[cols], remote_js=True)
+
+        rem_row = Button(description="Remove Finfo")
+        rem_row.on_click(grid.remove_row)
+
+        display(rem_row, grid)
+
+        grid.on_msg(self._incoming_msg)
+
+    def _incoming_msg(self, widget, msg):
+        if msg['type'] == 'remove_row':
+            self.finfos.pop(msg['row'])
+        elif msg['type'] == 'cell_change':
+            f = self.finfos[msg['row']]
+            setattr(f, msg['column'], msg['value'])
+
+
+def list_experiments(username=None):
+    """Get a list of available experiments.
+
+    Parameters
+    ----------
+    username: str, optional
+        Username of original experimenter.
+
+    Returns
+    -------
+    out : Experiment
+        Experiment object.
+    """
+    if username:
+        raise NotImplemented
+    experiments = _WORKSPACE.load_all()
+    return [e.name for e in experiments]
+
 
 def get_experiment(name, username=None):
     """Get an experiment by name.
@@ -254,6 +301,10 @@ class _Workspace(object):
         if objects:
             obj = list(objects)[-1]
             return pickle.loads(obj['data'])
+
+    def load_all(self):
+        return [self.load(t) for t in self.db.tables]
+
 
 # Singleton Workspace object
 _WORKSPACE = _Workspace()
