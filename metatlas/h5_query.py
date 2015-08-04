@@ -100,7 +100,8 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     polarity : int
         Plus proton (1) or Minus proton (0).
     **kwargs
-        Optional search modifiers.  (e.g. min_r=0, max_mz=100, precursor_MZ=1)
+        Optional search modifiers.  (e.g. min_r=0, max_mz=100, precursor_MZ=1).
+        Use verbose=True for displaying query messages.
 
     Returns
     -------
@@ -137,14 +138,16 @@ def get_data(h5file, ms_level, polarity, **kwargs):
 
     # chop off the initial ' & '
     query = query[3:]
-    print('Querying: %s from %s' % (query, table._v_name))
+    if kwargs.get('verbose', None):
+        print('Querying: %s from %s' % (query, table._v_name))
 
     data = table.read_where(query)
 
     if not data.size:
         raise ValueError('No data found matching criteria')
 
-    print('Query complete')
+    if kwargs.get('verbose', None):
+        print('Query complete')
 
     return dict(i=data['i'], rt=data['rt'], mz=data['mz'])
 
