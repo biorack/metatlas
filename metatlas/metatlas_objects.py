@@ -300,6 +300,8 @@ class _Workspace(object):
             raise ValueError(errmsg)
         if objects:
             obj = list(objects)[-1]
+            if 'top' in obj:
+                return pickle.loads(obj['top'])  # backwards compatibility
             return pickle.loads(obj['data'])
 
     def load_all(self):
