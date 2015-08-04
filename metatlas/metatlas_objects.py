@@ -222,7 +222,9 @@ class Experiment(_MetatlasObject):
             raise TypeError('Please load files first')
         data = [f._trait_values for f in self.finfos]
         dataframe = pd.DataFrame(data)
-        cols = ['name', ]
+        cols = ['name', 'polarity', 'group', 'inclusion_order',
+                'normalization_factor', 'retention_correction']
+
         grid = qgrid.QGridWidget(df=dataframe[cols], remote_js=True)
 
         rem_row = Button(description="Remove Finfo")
@@ -256,7 +258,7 @@ def list_experiments(username=None):
     if username:
         raise NotImplemented
     experiments = _WORKSPACE.load_all()
-    return [e.name for e in experiments]
+    return [e.name for e in experiments if isinstance(e, Experiment)]
 
 
 def get_experiment(name, username=None):
@@ -300,13 +302,16 @@ class _Workspace(object):
             raise ValueError(errmsg)
         if objects:
             obj = list(objects)[-1]
-            if 'top' in obj:
-                return pickle.loads(obj['top'])  # backwards compatibility
             return pickle.loads(obj['data'])
 
     def load_all(self):
-        return [self.load(t) for t in self.db.tables]
-
+        objs = []
+        for t in self.db.tables:
+            try:
+                objs.append(self.load(t))
+            except Exception:
+                pass
+        return objs
 
 # Singleton Workspace object
 _WORKSPACE = _Workspace()
