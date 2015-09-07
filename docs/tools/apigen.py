@@ -299,11 +299,15 @@ class ApiDocWriter(object):
                   (len(c)+9) + '\n\n'
             ad += '\n.. autoclass:: ' + c + '\n'
             # must NOT exclude from index to keep cross-refs working
+            ad += ' :show-inheritance:\n' \
+                  '  :undoc-members:\n'
+            """
             ad += '  :members:\n' \
                   '  :undoc-members:\n' \
                   '  :show-inheritance:\n' \
                   '\n' \
                   '  .. automethod:: __init__\n'
+            """
         return ad
 
     def _survives_exclude(self, matchstr, match_type):
