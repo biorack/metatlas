@@ -9,7 +9,7 @@ from IPython.utils.traitlets import (
     HasTraits, CUnicode, List, CInt, Instance, Enum,
     CFloat, TraitError, CBool)
 from IPython.display import display
-from ipywidgets import Text, Dropdown, HBox, VBox
+from IPython.html.widgets import Text, Dropdown, HBox, VBox
 import dataset
 
 from metatlas import mzml_to_hdf
