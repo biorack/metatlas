@@ -4,7 +4,7 @@
    
 .. toctree::
    :hidden:
-   :maxdepth: 1
+   :maxdepth: 2
 
    source/installation
    source/examples
