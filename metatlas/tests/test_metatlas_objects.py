@@ -1,5 +1,5 @@
 
-import metatlas_objects as mo
+from metatlas import metatlas_objects as mo
 
 
 def test_simple():
