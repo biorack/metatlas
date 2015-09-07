@@ -5,11 +5,19 @@ import os
 import pickle
 import functools
 
-from IPython.utils.traitlets import (
-    HasTraits, CUnicode, List, CInt, Instance, Enum,
-    CFloat, TraitError, CBool)
+try:
+    from traitlets import (
+        HasTraits, CUnicode, List, CInt, Instance, Enum,
+        CFloat, TraitError, CBool)
+except ImportError:
+    from IPython.utils.traitlets import (
+        HasTraits, CUnicode, List, CInt, Instance, Enum,
+        CFloat, TraitError, CBool)
 from IPython.display import display
-from IPython.html.widgets import Text, Dropdown, HBox, VBox
+try:
+    from ipywidgets import Text, Dropdown, HBox, VBox
+except ImportError:
+    from IPython.html.widgets import Text, Dropdown, HBox, VBox
 import dataset
 
 from metatlas import mzml_to_hdf
