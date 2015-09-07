@@ -20,12 +20,25 @@ import sys, os, datetime
 # -- General configuration -----------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
-#needs_sphinx = '1.0'
+needs_sphinx = '1.0'
 
-# Add any Sphinx extension module names here, as strings. They can be extensions
-# coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode', 'sphinx.ext.todo',
-              'sphinx.ext.intersphinx', 'sphinx.ext.inheritance_diagram',
+
+# Add any Sphinx extension module names here, as strings. They can be
+# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
+# ones.
+sys.path.append(os.path.abspath('sphinxext'))
+
+extensions = ['sphinx.ext.autodoc',
+              'sphinx.ext.doctest',
+              'sphinx.ext.intersphinx',
+              'sphinx.ext.todo',
+              'sphinx.ext.coverage',
+              'sphinx.ext.pngmath',
+              'sphinx.ext.ifconfig',
+              'sphinx.ext.autosummary',
+              'sphinx.ext.mathjax',
+              'sphinx.ext.inheritance_diagram',
+              'sphinx.ext.viewcode',
               'numpydoc']
 
 # Add any paths that contain templates here, relative to this directory.

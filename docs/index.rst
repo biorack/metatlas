@@ -8,10 +8,10 @@
 
    source/installation
    source/examples
-   source/api
+   source/api/api
    source/info
 
-`API Reference <source/api.html>`_
+`API Reference <source/api/api.html>`_
 ------------------------------------------------
 
 Documentation for the functions included in Metatlas.

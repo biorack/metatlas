@@ -2,6 +2,7 @@
 #
 
 # You can set these variables from the command line.
+PYTHON        ?= python
 SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 PAPER         =
@@ -41,7 +42,12 @@ help:
 clean:
 	-rm -rf $(BUILDDIR)/*
 
-html:
+api:
+	@mkdir -p source/api
+	$(PYTHON) tools/build_modref_templates.py
+	@echo "Build API docs...done."
+
+html: api
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
