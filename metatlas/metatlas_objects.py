@@ -33,11 +33,17 @@ class _Workspace(object):
         #if os.path.exists(NERSC_WORKSPACE):
         #    path = 'mysql+mysqldb://%s/
         #else:
-        path = getpass.getuser() + '_workspace.db'
-        self.db = dataset.connect('sqlite:///%s' % path)
-        os.chmod(path, 0o775)
+        self.path = getpass.getuser() + '_workspace.db'
+        self._db = None
         # handle circular references
         self.seen = dict()
+
+    @property
+    def db(self):
+        if self._db:
+            return self._db
+        self._db = dataset.connect('sqlite:///%s' % self.path)
+        os.chmod(self.path, 0o775)
 
     def insert(self, name, state):
         if name not in self.db:
@@ -161,7 +167,12 @@ def set_docstring(cls):
     for (tname, trait) in sorted(cls.class_traits().items()):
         if tname.startswith('_'):
             continue
-        doc += '%s: %s\n' % (tname, trait.__class__.__name__)
+        descr = trait.__class__.__name__.lower()
+        if descr.startswith('c'):
+            descr = descr[1:]
+        elif descr == 'enum':
+            descr = '{' + ', '.join(trait.values) + '}'
+        doc += '%s: %s\n' % (tname, descr)
         help_text = trait.get_metadata('help')
         if not help_text:
             help_text = '%s value.' % tname
