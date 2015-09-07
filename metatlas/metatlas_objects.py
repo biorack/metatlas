@@ -44,6 +44,7 @@ class _Workspace(object):
             return self._db
         self._db = dataset.connect('sqlite:///%s' % self.path)
         os.chmod(self.path, 0o775)
+        return self.db
 
     def insert(self, name, state):
         if name not in self.db:
