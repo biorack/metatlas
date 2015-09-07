@@ -159,6 +159,8 @@ def set_docstring(cls):
         doc = cls.__name__ + ' object.'
     doc += '\n\nParameters\n----------\n'
     for (tname, trait) in sorted(cls.class_traits().items()):
+        if tname.startswith('_'):
+            continue
         doc += '%s: %s\n' % (tname, trait.__class__.__name__)
         help_text = trait.get_metadata('help')
         if not help_text:
