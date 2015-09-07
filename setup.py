@@ -68,7 +68,7 @@ if __name__ == "__main__":
         include_package_data=True,
         zip_safe=False,  # the package can run out of an .egg file
         install_requires=['pymzml', 'simplejson', 'requests_toolbelt',
-                          'dataset', 'ipython==3.0'],
+                          'dataset', 'ipython'],
         requires=REQUIRES,
         cmdclass={'install': custom_install},
      )

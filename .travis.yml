@@ -28,7 +28,7 @@ before_install:
 - conda update conda
 - conda info -a
 
-- travis_retry conda create -n test $PYTHON pip nose pytables matplotlib pandas
+- travis_retry conda create -n test $PYTHON pip nose pytables matplotlib pandas jupyter
 - source activate test
 # prevent readline error
 - rm /home/travis/miniconda/envs/test/lib/libreadline.so.6
