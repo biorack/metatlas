@@ -28,15 +28,31 @@ Metatlas Objects
 
 .. module:: metatlas.metatlas_objects
 
-.. autoclass:: Compound
+.. autoclass:: Method
 
 .. autoclass:: Atlas
 
-.. autoclass:: FileSpec
+.. autoclass:: Sample
 
-.. autoclass:: FileInfo
+.. autoclass:: Compound
 
-.. autoclass:: Experiment
+.. autoclass:: LcmsRun
 
-.. autofunction:: get_experiment
+.. autoclass:: Group
+
+.. autoclass:: CompoundId
+
+.. autoclass:: ReferenceDatabase
+
+.. autoclass:: FunctionalSet
+
+.. autoclass:: Reference
+
+.. autoclass:: IdentificationGrade
+
+.. autoclass:: RtReference
+
+.. autoclass:: MzReference
+
+.. autoclass:: MzIntensityPair
 
