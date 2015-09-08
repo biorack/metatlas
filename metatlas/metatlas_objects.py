@@ -23,17 +23,19 @@ import dataset
 from metatlas import mzml_to_hdf
 
 POLARITY = ('positive', 'negative', 'alternating')
-NERSC_WORKSPACE = '/project/projectdirs/metatlas/workspace'
+NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
 
 
 class _Workspace(object):
 
     def __init__(self):
         # allow for fallback when not on NERSC
-        #if os.path.exists(NERSC_WORKSPACE):
-        #    path = 'mysql+mysqldb://%s/
-        #else:
-        self.path = getpass.getuser() + '_workspace.db'
+        if os.path.exists(NERSC_USER):
+            with open(NERSC_USER) as fid:
+                pw = fid.read().strip()
+            self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/meta_atlas' % pw
+        else:
+            self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
         self._db = None
         # handle circular references
         self.seen = dict()
@@ -42,7 +44,7 @@ class _Workspace(object):
     def db(self):
         if self._db:
             return self._db
-        self._db = dataset.connect('sqlite:///%s' % self.path)
+        self._db = dataset.connect(self.path)
         os.chmod(self.path, 0o775)
         return self.db
 
