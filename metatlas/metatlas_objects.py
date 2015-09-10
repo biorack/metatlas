@@ -3,7 +3,8 @@ import uuid
 import time
 import os
 import pickle
-import functools
+import pprint
+import datetime
 
 try:
     from traitlets import (
@@ -35,9 +36,7 @@ class _Workspace(object):
                 pw = fid.read().strip()
             self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/meta_atlas' % pw
         else:
-            self.path = 'sqlite://' + os.path.join(os.getcwd(),
-                                                   getpass.getuser())
-            self.path += '_workspace.db'
+            self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
         self._db = None
         # handle circular references
         self.seen = dict()
@@ -47,7 +46,8 @@ class _Workspace(object):
         if self._db:
             return self._db
         self._db = dataset.connect(self.path)
-        os.chmod(self.path, 0o775)
+        if 'sqlite' in self.path:
+            os.chmod(self.path[10:], 0o775)
         return self.db
 
     def insert(self, name, state):
@@ -75,7 +75,11 @@ class _Workspace(object):
                 del state[tname]
                 continue
             value = getattr(obj, tname)
-            if isinstance(trait, List) and value:
+            if isinstance(trait, List):
+                # do not store this entry in our own table
+                del state[tname]
+                if not value:
+                    continue
                 # if it is not composed of other objects, just pickle it
                 if not isinstance(value[0], MetatlasObject):
                     state[tname] = pickle.dumps(value)
@@ -93,8 +97,6 @@ class _Workspace(object):
                     if not self.find_one(table_name, unique_id=obj.unique_id,
                                          target_id=subvalue.unique_id):
                         self.insert(table_name, link)
-                # do not store this entry in our own table
-                del state[tname]
             elif isinstance(trait, Instance):
                 # handle a sub-object
                 # if it is not assigned, use and empty unique_id
@@ -161,6 +163,12 @@ class _Workspace(object):
 
 # Singleton Workspace object
 workspace = _Workspace()
+
+
+def format_timestamp(tstamp):
+    """Get a formatted representation of a timestamp."""
+    dt = datetime.datetime.fromtimestamp(tstamp)
+    return dt.strftime("%b %d %Y %H:%M:%S")
 
 
 def set_docstring(cls):
@@ -264,11 +272,19 @@ class MetatlasObject(HasTraits):
         """
         if self._loopback_guard or name.startswith('_'):
             return
-        print('changed', name)
         self._changed = True
 
     def __str__(self):
         return self.name + ' (%s)' % self.unique_id
+
+    def __repr__(self):
+        names = sorted(self.trait_names())
+        names.remove('name')
+        names = ['name'] + [n for n in names if not n.startswith('_')]
+        state = dict([(n, getattr(self, n)) for n in names])
+        state['created'] = format_timestamp(self.created)
+        state['last_modified'] = format_timestamp(self.last_modified)
+        return pprint.pformat(state)
 
 
 @set_docstring
@@ -460,7 +476,7 @@ def edit_traits(obj):
     """Create an IPython widget editor for a Traits object"""
     names = sorted(obj.trait_names())
     names.remove('name')
-    names = ['name'] + names
+    names = ['name'] + [n for n in names if not n.startswith('_')]
     items = [Text('', disabled=True)]
     for name in names:
         if name.startswith('_'):
@@ -470,6 +486,8 @@ def edit_traits(obj):
         except TraitError:
             value = None
         trait = obj.traits()[name]
+        if name in ['created', 'last_modified']:
+            value = format_timestamp(value)
         if (trait.get_metadata('readonly') or
                 isinstance(trait, Instance) or value is None):
             items.append(Text(str(value), disabled=True))
@@ -487,15 +505,21 @@ def edit_traits(obj):
 
             create_dropdown(name)
         else:
-            def callback(name, textbox):
-                try:
-                    setattr(obj, name, textbox.value)
-                except Exception:
-                    textbox.color = 'red'
+            # create a closure around "name for the on_trait_change
+            # callback
+            def create_textbox(name):
+                textbox = Text(str(value))
 
-            text = Text(str(value))
-            text.on_submit(functools.partial(callback, name))
-            items.append(text)
+                def callback(dummy, value):
+                    try:
+                        setattr(obj, name, value)
+                    except Exception:
+                        textbox.color = 'red'
+                textbox.on_trait_change(callback, 'value')
+                items.append(textbox)
+
+            create_textbox(name)
+
     labels = [Text(name, disabled=True) for name in names]
     labels = [Text(obj.__class__.__name__, disabled=True)] + labels
     display(HBox(children=[VBox(children=labels), VBox(children=items)]))
