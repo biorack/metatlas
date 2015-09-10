@@ -35,7 +35,9 @@ class _Workspace(object):
                 pw = fid.read().strip()
             self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/meta_atlas' % pw
         else:
-            self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
+            self.path = 'sqlite://' + os.path.join(os.getcwd(),
+                                                   getpass.getuser())
+            self.path += '_workspace.db'
         self._db = None
         # handle circular references
         self.seen = dict()

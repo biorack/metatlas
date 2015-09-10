@@ -13,7 +13,8 @@ import os
 import sys
 # set up the NERSC enviroment
 if os.path.exists('/global/project'):
-    sys.path.insert(0, '/global/project/projectdirs/metatlas/python_pkgs/')
+    # NOTE: this line needs to be added to $HOME/.ipython/default_profile/startup/ipython_startup.py:
+    #  sys.path.insert(0, '/global/project/projectdirs/metatlas/python_pkgs/')
     os.environ['R_LIBS_USER'] = '/global/project/projectdirs/metatlas/r_pkgs/'
     try:
         sys.path.remove('/anaconda/lib/python2.7/site-packages')
