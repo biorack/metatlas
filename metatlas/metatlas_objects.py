@@ -119,7 +119,7 @@ class _Workspace(object):
             return self.seen[obj.unique_id]
         name = name or obj.__class__.__name__
         # get our table entry
-        if name not in self.db:
+        if name.lower() not in self.db:
             return
         entry = self.find_one(name, unique_id=obj.unique_id)
         if not entry:

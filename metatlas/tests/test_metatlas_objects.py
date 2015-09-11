@@ -50,7 +50,7 @@ def test_unique_links():
 
     test.items = []
     test.retrieve()
-    assert len(test.items) == 1
+    assert len(test.items) == 1, len(test.items)
     assert test.items[0].unique_id == sub_version
 
 
@@ -61,6 +61,6 @@ def test_circular_reference():
     test.store()
     test.items = []
     test.retrieve()
-    assert len(test.items[0].items) == 2
+    assert len(test.items[0].items) == 2, len(test.items)
     assert test.items[0].items[1].unique_id == orig_id
     assert test.unique_id == orig_id
