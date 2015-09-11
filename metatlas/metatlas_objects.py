@@ -4,7 +4,7 @@ import time
 import os
 import pickle
 import pprint
-import datetime
+from pandas import Timestamp
 
 try:
     from traitlets import (
@@ -51,16 +51,17 @@ class _Workspace(object):
         return self.db
 
     def insert(self, name, state):
+        name = name.lower()
         if name not in self.db:
             self.db.create_table(name, primary_id='unique_id',
                                  primary_type='String(32)')
         self.db[name].insert(state)
 
-    def find_one(self, name, **kwargs):
-        return self.db[name].find_one(**kwargs)
+    def find_one(self, table_name, **kwargs):
+        return self.db[table_name.lower()].find_one(**kwargs)
 
-    def find(self, name, **kwargs):
-        return self.db[name].find(**kwargs)
+    def find(self, table_name, **kwargs):
+        return self.db[table_name.lower()].find(**kwargs)
 
     def save(self, obj, name=None):
         if obj.unique_id in self.seen:
@@ -165,10 +166,42 @@ class _Workspace(object):
 workspace = _Workspace()
 
 
+def queryDatabase(object_type, user=None, **kwargs):
+    """Query the Metatlas object database.
+
+    Parameters
+    ----------
+    object_type: string
+      The type of object to search for (i.e. "Group").
+    user: string, optional
+      Username to search with (defaults to current).
+    **kwargs
+      Specific search queries (i.e. name="Sargasso").
+
+    Returns
+    -------
+    objects: list
+      List of Metalas Objects meeting the criteria.  Will return the
+      latest version of each object.
+    """
+    try:
+        klass = eval(object_type.capitalize())
+    except NameError:
+        raise NameError('Unrecognize Metalas Object name: %s' % object_type)
+    user = user or getpass.getuser()
+    kwargs.setdefault('modified_by', user)
+    items = [i for i in workspace.find(object_type, **kwargs)]
+    prev_uuids = [i['prev_unique_id'] for i in items]
+    unique_ids = [i['unique_id'] for i in items
+                  if i['unique_id'] not in prev_uuids]
+    items = [klass(unique_id=i) for i in unique_ids]
+    return [i.retrieve() for i in items]
+
+
 def format_timestamp(tstamp):
     """Get a formatted representation of a timestamp."""
-    dt = datetime.datetime.fromtimestamp(tstamp)
-    return dt.strftime("%b %d %Y %H:%M:%S")
+    ts = Timestamp.fromtimestamp(int(tstamp))
+    return ts.isoformat()
 
 
 def set_docstring(cls):
