@@ -67,6 +67,8 @@ class _Workspace(object):
         if obj.unique_id in self.seen:
             return
         name = name or obj.__class__.__name__
+        if not name.lower().endswith('s'):
+            name += 's'
         if self.find_one(name, unique_id=obj.unique_id):
             return
         self.seen[obj.unique_id] = ''
@@ -118,6 +120,8 @@ class _Workspace(object):
         if obj.unique_id in self.seen:
             return self.seen[obj.unique_id]
         name = name or obj.__class__.__name__
+        if not name.lower().endswith('s'):
+            name += 's'
         # get our table entry
         if name.lower() not in self.db:
             return
@@ -173,8 +177,6 @@ def queryDatabase(object_type, user=None, **kwargs):
     ----------
     object_type: string
       The type of object to search for (i.e. "Group").
-    user: string, optional
-      Username to search with (defaults to current).
     **kwargs
       Specific search queries (i.e. name="Sargasso").
 
@@ -188,8 +190,8 @@ def queryDatabase(object_type, user=None, **kwargs):
         klass = eval(object_type.capitalize())
     except NameError:
         raise NameError('Unrecognize Metalas Object name: %s' % object_type)
-    user = user or getpass.getuser()
-    kwargs.setdefault('modified_by', user)
+    if not object_type.lower().endswith('s'):
+        object_type += 's'
     items = [i for i in workspace.find(object_type, **kwargs)]
     prev_uuids = [i['prev_unique_id'] for i in items]
     unique_ids = [i['unique_id'] for i in items
@@ -242,11 +244,11 @@ class MetatlasObject(HasTraits):
                          readonly=True)
     created = CInt(help='Unix timestamp at object creation',
                    readonly=True)
-    created_by = CUnicode(help='User who created the object',
+    created_by = CUnicode(help='Username who created the object',
                           readonly=True)
     last_modified = CInt(help='Unix timestamp at last object update',
                          readonly=True)
-    modified_by = CUnicode(help='User who last updated the object',
+    modified_by = CUnicode(help='Username who last updated the object',
                            readonly=True)
     prev_unique_id = CUnicode(help='Unique id of previous version',
                               readonly=True)
