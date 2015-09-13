@@ -170,15 +170,17 @@ class _Workspace(object):
 workspace = _Workspace()
 
 
-def queryDatabase(object_type, user=None, **kwargs):
+def queryDatabase(object_type, **kwargs):
     """Query the Metatlas object database.
 
     Parameters
     ----------
     object_type: string
-      The type of object to search for (i.e. "Group").
+      The type of object to search for (i.e. "Groups").
     **kwargs
       Specific search queries (i.e. name="Sargasso").
+      Use '%' for glob patterns (i.e. description='Hello%', name='%Smith',
+                                      formula='%H20%')
 
     Returns
     -------
@@ -186,13 +188,32 @@ def queryDatabase(object_type, user=None, **kwargs):
       List of Metalas Objects meeting the criteria.  Will return the
       latest version of each object.
     """
-    try:
-        klass = eval(object_type.capitalize())
-    except NameError:
-        raise NameError('Unrecognize Metalas Object name: %s' % object_type)
-    if not object_type.lower().endswith('s'):
+    object_type = object_type.lower()
+    klass = None
+    for k in MetatlasObject.__subclasses__():
+        name = k.__name__.lower()
+        if object_type == name or object_type == name + 's':
+            klass = k
+            break
+    if not klass:
+        raise ValueError('Unknown object type: %s' % object_type)
+    if not object_type.endswith('s'):
         object_type += 's'
-    items = [i for i in workspace.find(object_type, **kwargs)]
+    # Get just the unique ids matching the critera first
+    # Example query:
+    # SELECT prev_unique_ids, unique_ids
+    # FROM tablename
+    # WHERE (city = 'New York' AND name like 'IBM%')
+    query = "select prev_unique_id, unique_id from %s where (" % object_type
+    clauses = []
+    for (key, value) in kwargs.items():
+        if '%' in value:
+            clauses.append("%s like '%s'" % (key, value.replace('*', '%')))
+        else:
+            clauses.append("%s = '%s'" % (key, value))
+    query += 'and '.join(clauses)
+    query += ')'
+    items = [i for i in workspace.db.query(query)]
     prev_uuids = [i['prev_unique_id'] for i in items]
     unique_ids = [i['unique_id'] for i in items
                   if i['unique_id'] not in prev_uuids]

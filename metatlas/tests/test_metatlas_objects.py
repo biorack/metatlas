@@ -64,3 +64,29 @@ def test_circular_reference():
     assert len(test.items[0].items) == 2, len(test.items)
     assert test.items[0].items[1].unique_id == orig_id
     assert test.unique_id == orig_id
+
+
+def test_simple_query():
+    test1 = mo.LcmsRun(name='First')
+    first_version = test1.unique_id
+    test1.description = "Hey there"
+    test1.store()
+    assert test1.unique_id != first_version
+    items = mo.queryDatabase('lcmsrun', name='First')
+    assert items[-1].unique_id == test1.unique_id
+    assert all([i.unique_id != first_version for i in items])
+
+
+def test_glob_query():
+    test1 = mo.LcmsRun(name='First')
+    test2 = mo.LcmsRun(name='Second')
+    test3 = mo.LcmsRun(name='Third')
+    test1.store()
+    test2.store()
+    test3.store()
+    items = mo.queryDatabase('lcmsrun', name='Fir%')
+    assert items[-1].unique_id == test1.unique_id
+    items = mo.queryDatabase('lcmsrun', name='%econd')
+    assert items[-1].unique_id == test2.unique_id
+    items = mo.queryDatabase('LcmsRuns', name='%ir%')
+    assert items[-1].unique_id == test3.unique_id
