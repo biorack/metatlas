@@ -35,7 +35,7 @@ release: test gh-pages
 
 
 deploy:
-	rsync -rv metatlas silvest@edisongrid.nersc.gov:/project/projectdirs/metatlas/python_pkgs/
+	rsync -rv metatlas silvest@edisongrid.nersc.gov:/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages
 
 docs: clean
 	export SPHINXOPTS=-W
