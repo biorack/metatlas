@@ -90,3 +90,10 @@ def test_glob_query():
     assert items[-1].unique_id == test2.unique_id
     items = mo.queryDatabase('LcmsRuns', name='%ir%')
     assert items[-1].unique_id == test3.unique_id
+
+
+def test_escape_glob():
+    test1 = mo.LcmsRun(description='Flow %')
+    test1.store()
+    items = mo.queryDatabase('lcmsrun', description='Flow %%')
+    assert items[-1].unique_id == test1.unique_id

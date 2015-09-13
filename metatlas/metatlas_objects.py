@@ -180,7 +180,8 @@ def queryDatabase(object_type, **kwargs):
     **kwargs
       Specific search queries (i.e. name="Sargasso").
       Use '%' for glob patterns (i.e. description='Hello%', name='%Smith',
-                                      formula='%H20%')
+                                      formula='%H20%').
+      If you want to search for a '%' character, use '%%'.
 
     Returns
     -------
@@ -207,13 +208,17 @@ def queryDatabase(object_type, **kwargs):
     query = "select prev_unique_id, unique_id from %s where (" % object_type
     clauses = []
     for (key, value) in kwargs.items():
-        if '%' in value:
+        if '%%' in value:
+            clauses.append("%s = '%s'" % (key, value.replace('%%', '%')))
+        elif '%' in value:
             clauses.append("%s like '%s'" % (key, value.replace('*', '%')))
         else:
             clauses.append("%s = '%s'" % (key, value))
     query += 'and '.join(clauses)
     query += ')'
+    print(query)
     items = [i for i in workspace.db.query(query)]
+    print(len(items))
     prev_uuids = [i['prev_unique_id'] for i in items]
     unique_ids = [i['unique_id'] for i in items
                   if i['unique_id'] not in prev_uuids]
