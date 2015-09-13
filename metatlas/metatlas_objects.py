@@ -185,7 +185,7 @@ def queryDatabase(object_type, **kwargs):
     Returns
     -------
     objects: list
-      List of Metalas Objects meeting the criteria.  Will return the
+      List of Metatlas Objects meeting the criteria.  Will return the
       latest version of each object.
     """
     object_type = object_type.lower()
