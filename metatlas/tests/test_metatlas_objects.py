@@ -88,7 +88,7 @@ def test_glob_query():
     assert items[-1].unique_id == test1.unique_id
     items = mo.queryDatabase('lcmsrun', name='%econd')
     assert items[-1].unique_id == test2.unique_id
-    items = mo.queryDatabase('LcmsRuns', name='%ir%')
+    items = mo.queryDatabase('LcmsRuns', name='T%ir%')
     assert items[-1].unique_id == test3.unique_id
 
 

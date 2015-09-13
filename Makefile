@@ -34,7 +34,7 @@ release: test gh-pages
 	git push origin --tags
 
 
-deploy:
+deploy: gh-pages
 	rsync -rv metatlas silvest@edisongrid.nersc.gov:/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages
 
 docs: clean

@@ -179,9 +179,8 @@ def queryDatabase(object_type, **kwargs):
       The type of object to search for (i.e. "Groups").
     **kwargs
       Specific search queries (i.e. name="Sargasso").
-      Use '%' for glob patterns (i.e. description='Hello%', name='%Smith',
-                                      formula='%H20%').
-      If you want to search for a '%' character, use '%%'.
+      Use '%' for wildcard patterns (i.e. description='Hello%').
+      If you want to match a '%' character, use '%%'.
 
     Returns
     -------
