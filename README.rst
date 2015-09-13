@@ -15,12 +15,23 @@ Features
 - Custom plotters for XIC, Chromatogram, and Heatmap
 
 
-Installation
-------------
+Local Installation
+------------------
 
 .. code-block:: bash
 
     $ pip install metatlas
+
+
+Installation at NERSC
+---------------------
+
+Run the following at the top of a notebook or add to your IPython startup file (normally ~/.ipython/profile_default/startup/ipython_startup.py):
+
+.. code-block:: python
+
+    import sys
+    sys.path.insert(0, '/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages')
 
 
 Documentation
