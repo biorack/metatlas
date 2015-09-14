@@ -72,7 +72,7 @@ def test_get_data():
 
 def test_get_info():
     data = get_info(fid)
-    assert data['ms2_pos'] == 0
-    assert data['ms1_pos'] == 0
-    assert data['ms1_neg'] == 933367
-    assert data['ms2_neg'] == 0
+    assert data['ms2_pos']['nrows'] == 0
+    assert data['ms1_pos']['nrows'] == 0
+    assert data['ms1_neg']['nrows'] == 933367
+    assert data['ms2_neg']['nrows'] == 0
