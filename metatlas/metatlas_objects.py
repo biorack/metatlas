@@ -4,6 +4,9 @@ import time
 import os
 import pickle
 import pprint
+import tables
+import numpy as np
+import matplotlib.pyplot as plt
 from pandas import Timestamp
 
 try:
@@ -21,7 +24,7 @@ except ImportError:
     from IPython.html.widgets import Text, Dropdown, HBox, VBox
 import dataset
 
-from metatlas import mzml_to_hdf
+from metatlas import mzml_to_hdf, get_XIC, get_spectrogram, get_info
 
 POLARITY = ('positive', 'negative', 'alternating')
 NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
@@ -401,6 +404,61 @@ class LcmsRun(MetatlasObject):
     def parse(self):
         """Parse a file info spec"""
         self.hdf_file = mzml_to_hdf(self.mzml_file, self.hdf_file or None)
+
+    def interact(self, min_mz=None, max_mz=None, polarity=None):
+        """Interact with LCMS data - XIC linked to a Spectrogram plot.
+
+        Parameters
+        ----------
+        min_mz: float
+            Minimum m/z (defaults to file min)
+        max_mz: float
+            Maximum m/z (defaults to file max)
+        polarity: {0, 1}
+            Polarity (defaults to neg. if present in file, else pos.)
+        """
+        fid = tables.open_file(self.hdf5_file)
+        # TODO: get sensible defaults here
+        info = get_info(fid)
+        if polarity is None:
+            if info['ms1_neg']['nrows']:
+                polarity = 0
+            else:
+                polarity = 1
+        if polarity == 0:
+            table_name = 'ms1_neg'
+        else:
+            table_name = 'ms1_pos'
+        if min_mz is None:
+            min_mz = info[table_name]['min_mz']
+        if max_mz is None:
+            max_mz = info[table_name]['max_mz']
+
+        rt, irt = get_XIC(fid, min_mz, max_mz, 1, polarity)
+        mz, imz = get_spectrogram(fid, rt[0], rt[1], 1, polarity)
+
+        fig, (ax1, ax2) = plt.subplots(ncols=2)
+        ax1.plot(rt, irt)
+        ax1.set_title('XIC: %0.1f - %0.1f m/z' % (min_mz, max_mz))
+        ax1.set_xlabel('Time (min)')
+        ax1.set_ylabel('Intensity')
+
+        ax2.plot(mz, imz)
+        ax2.set_xlabel('Mass (m/z)')
+        ax2.set_title('Spectrogram at %0.1f min' % rt.min())
+
+        def callback(event):
+            if event.inaxes == ax1:
+                rt_event = event.xdata
+                # get the closest actual RT
+                idx = (np.abs(rt - rt_event)).argmin()
+                mz, imz = get_spectrogram(fid, rt[idx], rt[idx+1], 1, polarity)
+                ax2.clear()
+                ax2.plot(mz, imz)
+                ax2.set_xlabel('Mass (m/z)')
+                ax2.set_title('Spectrogram at %0.1f min' % rt_event)
+                fig.canvas.draw()
+        fig.canvas.mpl_connect('button_press_event', callback)
 
 
 @set_docstring

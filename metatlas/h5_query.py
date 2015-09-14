@@ -282,10 +282,21 @@ def get_info(h5file):
     out : dict
         Number of rows for all of the tables in the file.
     """
-    return dict(ms1_neg=h5file.root.ms1_neg.nrows,
-                ms1_pos=h5file.root.ms1_pos.nrows,
-                ms2_neg=h5file.root.ms2_neg.nrows,
-                ms2_pos=h5file.root.ms2_pos.nrows)
+    info = dict()
+    for table_name in ['ms1_neg', 'ms1_pos', 'ms2_neg', 'ms2_pos']:
+        table = h5file.get_node('/%s' % table_name)
+        data = dict()
+        data['nrows'] = table.nrows
+        if not table.nrows:
+            info[table_name] = data
+            continue
+        data['min_mz'] = table.col('mz').min()
+        data['max_mz'] = table.col('mz').max()
+        data['min_rt'] = table.col('rt').min()
+        data['max_rt'] = table.col('rt').max()
+        info[table_name] = data
+
+    return info
 
 
 if __name__ == '__main__':  # pragma: no cover
