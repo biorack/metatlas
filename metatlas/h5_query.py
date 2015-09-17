@@ -8,7 +8,6 @@ import numpy as np
 
 try:
     import matplotlib.pyplot as plt
-    plt.ioff()
 except ImportError:
     plt = None
 
@@ -302,6 +301,7 @@ def get_info(h5file):
 if __name__ == '__main__':  # pragma: no cover
     import argparse
     import os
+    plt.iof()
 
     desc = "Query and plot MZML data from HDF files"
     parser = argparse.ArgumentParser(description=desc)

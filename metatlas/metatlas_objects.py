@@ -418,7 +418,7 @@ class LcmsRun(MetatlasObject):
             Polarity (defaults to neg. if present in file, else pos.)
         """
         fid = tables.open_file(self.hdf5_file)
-        # TODO: get sensible defaults here
+
         info = get_info(fid)
         if polarity is None:
             if info['ms1_neg']['nrows']:
@@ -442,6 +442,7 @@ class LcmsRun(MetatlasObject):
         ax1.set_title('XIC: %0.1f - %0.1f m/z' % (min_mz, max_mz))
         ax1.set_xlabel('Time (min)')
         ax1.set_ylabel('Intensity')
+        ax1._vline = ax1.axvline(rt[0])
 
         ax2.plot(mz, imz)
         ax2.set_xlabel('Mass (m/z)')
@@ -453,12 +454,17 @@ class LcmsRun(MetatlasObject):
                 # get the closest actual RT
                 idx = (np.abs(rt - rt_event)).argmin()
                 mz, imz = get_spectrogram(fid, rt[idx], rt[idx+1], 1, polarity)
+
+                ax1._vline.remove()
+                ax1._vline = ax1.axvline(rt_event, color='k')
+
                 ax2.clear()
                 ax2.plot(mz, imz)
                 ax2.set_xlabel('Mass (m/z)')
                 ax2.set_title('Spectrogram at %0.1f min' % rt_event)
                 fig.canvas.draw()
         fig.canvas.mpl_connect('button_press_event', callback)
+        fig.canvas.draw()
 
 
 @set_docstring
