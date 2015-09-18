@@ -1,3 +1,4 @@
+print('importing objects')
 import getpass
 import uuid
 import time
@@ -12,7 +13,8 @@ from traitlets import (
     CFloat, TraitError, CBool)
 import dataset
 
-from metatlas import mzml_to_hdf, get_XIC, get_spectrogram, get_info
+print('finished object imports')
+
 
 POLARITY = ('positive', 'negative', 'alternating')
 NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
@@ -394,6 +396,7 @@ class LcmsRun(MetatlasObject):
 
     def parse(self):
         """Parse a file info spec"""
+        from metatlas import mzml_to_hdf
         self.hdf_file = mzml_to_hdf(self.mzml_file, self.hdf_file or None)
 
     def interact(self, min_mz=None, max_mz=None, polarity=None, ms_level=1):
@@ -411,6 +414,7 @@ class LcmsRun(MetatlasObject):
             The ms level.
         """
         import matplotlib.pyplot as plt
+        from metatlas import get_XIC, get_spectrogram, get_info
         fid = tables.open_file(self.hdf5_file)
 
         info = get_info(fid)

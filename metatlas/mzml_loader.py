@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+print('importing mzml_loader')
 import argparse
 import os
 import pwd
@@ -9,6 +10,7 @@ import sys
 import tables
 import pymzml
 
+print('finished mzml_loader imports')
 DEBUG = False
 
 
