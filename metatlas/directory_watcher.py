@@ -3,8 +3,6 @@ import pickle
 import os
 import re
 
-from metatlas import LcmsRun, mzml_to_hdf
-
 
 TEMP_FILE_NAME = os.path.join(os.path.dirname(os.path.dirname(__file__)), "snap.shot")
 
@@ -61,6 +59,7 @@ def update_metatlas(directory):
 
         # convert to HDF and store the entry in the database
         try:
+            from metatlas import LcmsRun, mzml_to_hdf
             hdf_file = mzml_to_hdf(fname)
             description = info['experiment'] + ' ' + info['path']
             ctime = os.stat(fname).st_ctime
