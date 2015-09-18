@@ -8,15 +8,9 @@ import tables
 import numpy as np
 from pandas import Timestamp
 
-try:
-    from traitlets import (
-        HasTraits, CUnicode, List, CInt, Instance, Enum,
-        CFloat, TraitError, CBool)
-except ImportError:
-    from IPython.utils.traitlets import (
-        HasTraits, CUnicode, List, CInt, Instance, Enum,
-        CFloat, TraitError, CBool)
-from IPython.display import display
+from traitlets import (
+    HasTraits, CUnicode, List, CInt, Instance, Enum,
+    CFloat, TraitError, CBool)
 import dataset
 
 from metatlas import mzml_to_hdf, get_XIC, get_spectrogram, get_info
@@ -598,6 +592,7 @@ def edit_traits(obj):
         from ipywidgets import Text, Dropdown, HBox, VBox
     except ImportError:
         from IPython.html.widgets import Text, Dropdown, HBox, VBox
+    from IPython.display import display
     names = sorted(obj.trait_names())
     names.remove('name')
     names = ['name'] + [n for n in names if not n.startswith('_')]
