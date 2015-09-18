@@ -48,6 +48,8 @@ def update_metatlas(directory):
 
     patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
+    print('Found %s files' % len(new_files))
+
     for fname in new_files:
         info = patt.match(os.path.abspath(fname))
         if info:
