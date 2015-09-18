@@ -48,7 +48,7 @@ def update_metatlas(directory):
         snw = SnapshotWrapper.load(TEMP_FILE_NAME)
     new_files = snw.get_added_files()
 
-    patt = re.compile(r".+\/original_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
+    patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
     for fname in new_files:
         info = patt.match(os.path.abspath(fname))
