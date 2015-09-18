@@ -17,10 +17,6 @@ except ImportError:
         HasTraits, CUnicode, List, CInt, Instance, Enum,
         CFloat, TraitError, CBool)
 from IPython.display import display
-try:
-    from ipywidgets import Text, Dropdown, HBox, VBox
-except ImportError:
-    from IPython.html.widgets import Text, Dropdown, HBox, VBox
 import dataset
 
 from metatlas import mzml_to_hdf, get_XIC, get_spectrogram, get_info
@@ -598,6 +594,10 @@ class MzReference(Reference):
 
 def edit_traits(obj):
     """Create an IPython widget editor for a Traits object"""
+    try:
+        from ipywidgets import Text, Dropdown, HBox, VBox
+    except ImportError:
+        from IPython.html.widgets import Text, Dropdown, HBox, VBox
     names = sorted(obj.trait_names())
     names.remove('name')
     names = ['name'] + [n for n in names if not n.startswith('_')]
