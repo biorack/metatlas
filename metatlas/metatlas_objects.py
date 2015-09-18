@@ -6,7 +6,6 @@ import pickle
 import pprint
 import tables
 import numpy as np
-from pandas import Timestamp
 
 from traitlets import (
     HasTraits, CUnicode, List, CInt, Instance, Enum,
@@ -159,7 +158,9 @@ class _Workspace(object):
         return obj
 
 # Singleton Workspace object
+print('Getting workspace')
 workspace = _Workspace()
+print('Got workspace')
 
 
 def queryDatabase(object_type, **kwargs):
@@ -219,6 +220,7 @@ def queryDatabase(object_type, **kwargs):
 
 def format_timestamp(tstamp):
     """Get a formatted representation of a timestamp."""
+    from pandas import Timestamp
     ts = Timestamp.fromtimestamp(int(tstamp))
     return ts.isoformat()
 
