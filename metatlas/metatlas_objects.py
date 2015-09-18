@@ -1,4 +1,3 @@
-print('importing objects')
 import getpass
 import uuid
 import time
@@ -12,8 +11,6 @@ from traitlets import (
     HasTraits, CUnicode, List, CInt, Instance, Enum,
     CFloat, TraitError, CBool)
 import dataset
-
-print('finished object imports')
 
 
 POLARITY = ('positive', 'negative', 'alternating')
@@ -160,9 +157,7 @@ class _Workspace(object):
         return obj
 
 # Singleton Workspace object
-print('Getting workspace')
 workspace = _Workspace()
-print('Got workspace')
 
 
 def queryDatabase(object_type, **kwargs):

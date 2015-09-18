@@ -35,8 +35,8 @@ release: test gh-pages
 
 
 deploy: gh-pages
-	git push origin --all
 	rsync -rv metatlas silvest@edisongrid.nersc.gov:/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages
+	git push origin --all
 
 docs: clean
 	export SPHINXOPTS=-W
