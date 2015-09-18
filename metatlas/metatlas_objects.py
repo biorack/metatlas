@@ -405,7 +405,7 @@ class LcmsRun(MetatlasObject):
         """Parse a file info spec"""
         self.hdf_file = mzml_to_hdf(self.mzml_file, self.hdf_file or None)
 
-    def interact(self, min_mz=None, max_mz=None, polarity=None):
+    def interact(self, min_mz=None, max_mz=None, polarity=None, ms_level=1):
         """Interact with LCMS data - XIC linked to a Spectrogram plot.
 
         Parameters
@@ -416,19 +416,21 @@ class LcmsRun(MetatlasObject):
             Maximum m/z (defaults to file max)
         polarity: {0, 1}
             Polarity (defaults to neg. if present in file, else pos.)
+        ms_level: {0, 1}
+            The ms level.
         """
         fid = tables.open_file(self.hdf5_file)
 
         info = get_info(fid)
         if polarity is None:
-            if info['ms1_neg']['nrows']:
+            if info['ms%s_neg' % ms_level]['nrows']:
                 polarity = 0
             else:
                 polarity = 1
         if polarity == 0:
-            table_name = 'ms1_neg'
+            table_name = 'ms%s_neg' % ms_level
         else:
-            table_name = 'ms1_pos'
+            table_name = 'ms%s_pos' % ms_level
         if min_mz is None:
             min_mz = info[table_name]['min_mz']
         if max_mz is None:
@@ -444,9 +446,9 @@ class LcmsRun(MetatlasObject):
         ax1.set_ylabel('Intensity')
         ax1._vline = ax1.axvline(rt[0])
 
-        ax2.plot(mz, imz)
+        ax2.vlines(mz, 0, imz)
         ax2.set_xlabel('Mass (m/z)')
-        ax2.set_title('Spectrogram at %0.1f min' % rt.min())
+        ax2.set_title('MS%s Spectrogram at %0.1f min' % (ms_level, rt.min()))
 
         def callback(event):
             if event.inaxes == ax1:
@@ -459,7 +461,7 @@ class LcmsRun(MetatlasObject):
                 ax1._vline = ax1.axvline(rt_event, color='k')
 
                 ax2.clear()
-                ax2.plot(mz, imz)
+                ax2.vlines(mz, 0, imz)
                 ax2.set_xlabel('Mass (m/z)')
                 ax2.set_title('Spectrogram at %0.1f min' % rt_event)
                 fig.canvas.draw()
