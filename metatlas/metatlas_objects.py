@@ -6,7 +6,6 @@ import pickle
 import pprint
 import tables
 import numpy as np
-import matplotlib.pyplot as plt
 from pandas import Timestamp
 
 try:
@@ -417,6 +416,7 @@ class LcmsRun(MetatlasObject):
         ms_level: {0, 1}
             The ms level.
         """
+        import matplotlib.pyplot as plt
         fid = tables.open_file(self.hdf5_file)
 
         info = get_info(fid)

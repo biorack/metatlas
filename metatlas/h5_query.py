@@ -6,11 +6,6 @@ from __future__ import print_function
 import tables
 import numpy as np
 
-try:
-    import matplotlib.pyplot as plt
-except ImportError:
-    plt = None
-
 
 def plot_XIC(x, y, title='XIC for Sample', **kwargs):
     """
@@ -27,6 +22,7 @@ def plot_XIC(x, y, title='XIC for Sample', **kwargs):
     **kwargs
         Keyword arguments for ``plt.plot``.
     """
+    import matplotlib.pyplot as plt
     plt.plot(x, y / y.max() * 100, **kwargs)
     plt.xlabel('Time (min)')
     plt.ylabel('Intensity (%)')
@@ -48,6 +44,7 @@ def plot_spectrogram(x, y, title='Spectrogram for Sample', **kwargs):
     **kwargs
         Keyword arguments for ``plt.plot``.
     """
+    import matplotlib.pyplot as plt
     plt.plot(x, y / y.max() * 100, **kwargs)
     plt.xlabel('Mass (m/z)')
     plt.ylabel('Intensity (%)')
@@ -72,6 +69,7 @@ def plot_heatmap(arr, rt_bins, mz_bins, title='HeatMap for Sample', **kwargs):
     **kwargs
         Keyword arguments for ``plt.imshow``.
     """
+    import matplotlib.pyplot as plt
     kwargs.setdefault('interpolation', 'nearest')
     kwargs.setdefault('aspect', 'auto')
     kwargs.setdefault('cmap', 'YlGnBu_r')
@@ -301,6 +299,7 @@ def get_info(h5file):
 if __name__ == '__main__':  # pragma: no cover
     import argparse
     import os
+    import matplotlib.pyplot as plt
     plt.iof()
 
     desc = "Query and plot MZML data from HDF files"
