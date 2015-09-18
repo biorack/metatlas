@@ -535,8 +535,8 @@ class CompoundId(MetatlasObject):
 @set_docstring
 class Atlas(MetatlasObject):
     """An atlas contains many compound_ids."""
-    compounds_ids = List(Instance(CompoundId),
-                         help='List of Compound Identification objects')
+    compound_ids = List(Instance(CompoundId),
+                        help='List of Compound Identification objects')
 
 
 @set_docstring
