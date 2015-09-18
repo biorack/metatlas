@@ -218,9 +218,7 @@ def queryDatabase(object_type, **kwargs):
             clauses.append("%s = '%s'" % (key, value))
     query += 'and '.join(clauses)
     query += ')'
-    print(query)
     items = [i for i in workspace.db.query(query)]
-    print(len(items))
     prev_uuids = [i['prev_unique_id'] for i in items]
     unique_ids = [i['unique_id'] for i in items
                   if i['unique_id'] not in prev_uuids]

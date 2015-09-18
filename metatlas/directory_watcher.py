@@ -57,6 +57,7 @@ def update_metatlas(directory):
         else:
             print("Invalid path name", fname)
             continue
+        print(fname)
 
         # convert to HDF and store the entry in the database
         try:
