@@ -7,7 +7,9 @@ import pwd
 import datetime
 import sys
 
+print('importing tables')
 import tables
+print('import pymzml')
 import pymzml
 
 print('finished mzml_loader imports')
