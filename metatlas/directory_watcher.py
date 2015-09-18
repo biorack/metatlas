@@ -82,4 +82,5 @@ if __name__ == '__main__':
     parser.add_argument("directory", type=str, nargs=1, help="Directory to watch")
 
     args = parser.parse_args()
+    print(args)
     update_metatlas(args.directory[0])
