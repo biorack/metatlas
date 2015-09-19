@@ -73,7 +73,7 @@ def update_metatlas(directory):
                           created=ctime, last_modified=ctime,
                           mzml_file=fname, hdf_file=hdf_file)
             run.store()
-        except TypeError as e:
+        except Exception as e:
             print(e)
 
     snw.update().save()
