@@ -7,9 +7,14 @@ import pprint
 import tables
 import numpy as np
 
-from traitlets import (
-    HasTraits, CUnicode, List, CInt, Instance, Enum,
-    CFloat, TraitError, CBool)
+try:
+    from traitlets import (
+        HasTraits, CUnicode, List, CInt, Instance, Enum,
+        CFloat, TraitError, CBool)
+except ImportError:
+    from IPython.utils.traitlets import (
+        HasTraits, CUnicode, List, CInt, Instance, Enum,
+        CFloat, TraitError, CBool)
 import dataset
 
 
