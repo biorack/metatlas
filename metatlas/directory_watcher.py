@@ -61,10 +61,9 @@ def update_metatlas(directory):
 
         # convert to HDF and store the entry in the database
         try:
-            print('Trying to import')
             from metatlas import LcmsRun, mzml_to_hdf
-            print('Imported')
             hdf_file = mzml_to_hdf(fname)
+            print(hdf_file)
             description = info['experiment'] + ' ' + info['path']
             ctime = os.stat(fname).st_ctime
             run = LcmsRun(name=info['path'], description=description,
