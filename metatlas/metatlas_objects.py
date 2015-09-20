@@ -6,6 +6,7 @@ import pickle
 import pprint
 import tables
 import numpy as np
+from pwd import getpwuid
 
 try:
     from traitlets import (
@@ -165,6 +166,11 @@ class _Workspace(object):
 workspace = _Workspace()
 
 
+def _all_subclasses(cls):
+    return cls.__subclasses__() + [g for s in cls.__subclasses__()
+                                   for g in _all_subclasses(s)]
+
+
 def queryDatabase(object_type, **kwargs):
     """Query the Metatlas object database.
 
@@ -185,7 +191,7 @@ def queryDatabase(object_type, **kwargs):
     """
     object_type = object_type.lower()
     klass = None
-    for k in MetatlasObject.__subclasses__():
+    for k in _all_subclasses(MetatlasObject):
         name = k.__name__.lower()
         if object_type == name or object_type == name + 's':
             klass = k
@@ -378,26 +384,61 @@ class Sample(MetatlasObject):
     pass
 
 
+def load_lcms_files(mzml_files):
+    """Parse mzML files and load them into LcmsRun objects.
+
+    Note: This should be done automatically for runs in
+    /project/projectdirs/metatlas/raw_data/<username>
+
+    Parameters
+    ----------
+    mzml_files: list of str
+       List of paths to mzml_files.
+
+    Returns
+    -------
+    runs: list
+       List of LcmsRun objects.
+    """
+    runs = []
+    for fname in mzml_files:
+        try:
+            from metatlas import LcmsRun, mzml_to_hdf
+            hdf_file = mzml_to_hdf(fname)
+            user = getpwuid(os.stat(fname).st_uid).pw_name
+            filename = os.path.splitext(os.path.basename(fname))[0]
+            dirname = os.path.dirname(fname)
+            experiment = os.path.basename(dirname)
+            description = experiment + ' ' + filename
+            ctime = os.stat(fname).st_ctime
+            run = LcmsRun(name=filename, description=description,
+                          created_by=user,
+                          modified_by=user,
+                          created=ctime, last_modified=ctime,
+                          mzml_file=fname, hdf5_file=hdf_file)
+            run.store()
+            runs.append(run)
+        except Exception as e:
+            print(e)
+    return runs
+
+
 @set_docstring
 class LcmsRun(MetatlasObject):
     """An LCMS run is the reference to a file prepared with liquid 
     chromatography and mass spectrometry.
 
     The msconvert program is used to convert raw data (centroided is prefered)
-    to mzML.  The mzML file can be converted to HDF5 by the metatlas method below (parse).
+    to mzML.
+
+    Note: These objects are not intented to be created directly, but by putting
+    the files in /project/projectdirs/metatlas/raw_data/<username> or by 
+    running `load_lcms_files()`.
     """
     method = Instance(Method, allow_none=True)
     hdf5_file = CUnicode(help='Path to the HDF5 file at NERSC')
     mzml_file = CUnicode(help='Path to the MZML file at NERSC')
     sample = Instance(Sample, allow_none=True)
-
-    def _name_default(self):
-        return self.mzml_file.replace('.mzml', '')
-
-    def parse(self):
-        """Parse a file info spec"""
-        from metatlas import mzml_to_hdf
-        self.hdf_file = mzml_to_hdf(self.mzml_file, self.hdf_file or None)
 
     def interact(self, min_mz=None, max_mz=None, polarity=None, ms_level=1):
         """Interact with LCMS data - XIC linked to a Spectrogram plot.
@@ -545,11 +586,11 @@ class CompoundId(MetatlasObject):
         ref_type: {'mz', 'rt', 'fragmentation'}
           The type of reference.
         """
-        if ref_type.lower() == 'mz':
+        if ref_type.lower() in ['mz', 'm/z']:
             return [r for r in self.references if isinstance(r, MzReference)]
-        elif ref_type.lower() == 'rt':
+        elif ref_type.lower() in ['rt', 'retention_time', 'retention time']:
             return [r for r in self.references if isinstance(r, RtReference)]
-        elif ref_type.lower() == 'fragmentation':
+        elif ref_type.lower() in ['frag', 'fragmentation']:
             return [r for r in self.references if
                     isinstance(r, FragmentationReference)]
         else:

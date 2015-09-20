@@ -1,5 +1,6 @@
 
 from metatlas import metatlas_objects as mo
+from metatlas.mzml_loader import get_test_data
 
 
 def test_simple():
@@ -97,3 +98,38 @@ def test_escape_glob():
     test1.store()
     items = mo.queryDatabase('lcmsrun', description='Flow %%')
     assert items[-1].unique_id == test1.unique_id
+
+
+def test_select_reference_by_type():
+    mz_refs = [mo.MzReference(name=str(i)) for i in range(3)]
+    rt_refs = [mo.RtReference(name=str(i)) for i in range(4)]
+    frag_refs = [mo.FragmentationReference(name=str(i)) for i in range(2)]
+
+    compound_id = mo.CompoundId(name='test',
+                                references=mz_refs + rt_refs + frag_refs)
+    compound_id.store()
+
+    assert mo.queryDatabase('mzreference', name='1')[0].name == '1'
+
+    mz_select = compound_id.select_by_type('mz')
+    assert mz_select[0] is mz_refs[0]
+    assert len(mz_select) == 3
+
+    assert len(compound_id.select_by_type('rt')) == 4
+    assert len(compound_id.select_by_type('frag')) == 2
+
+
+def test_load_lcms_files():
+    paths = get_test_data().values()
+    runs = mo.load_lcms_files(paths)
+    for run in runs:
+        assert run.mzml_file
+        assert run.hdf5_file
+        assert run.created
+        assert run.created_by
+        assert run.description
+        assert run.name
+        assert run.last_modified
+        assert run.modified_by == run.created_by
+        assert run.unique_id
+        assert not run.prev_unique_id

@@ -8,6 +8,7 @@ from numpy.testing import assert_raises
 from metatlas.mzml_loader import mzml_to_hdf, get_test_data, main
 from metatlas.h5_query import get_info
 
+
 def test_loader():
     paths = get_test_data()
     out_file = 'test_loader.h5'
