@@ -529,7 +529,7 @@ class Compound(MetatlasObject):
     For IDs that have high enough confidence for structural assignments an
     InChi string is the ID.
     """
-    InChl = CUnicode(help='IUPAC International Chemical Identifier, optional')
+    InChI = CUnicode(help='IUPAC International Chemical Identifier, optional')
     reference_xrefs = List(Instance(ReferenceDatabase),
                            help='Tag a compound with compound ids from ' +
                                 'external databases')
@@ -593,7 +593,9 @@ class CompoundId(MetatlasObject):
     """A CompoundId links multiple sources of evidence about a compound's 
     identity to an Atlas."""
     compound = Instance(Compound, allow_none=True)
-    identification_grade = _IdGradeTrait()
+    identification_grade = _IdGradeTrait(
+        help='Identification grade of the id (can be specified by a letter A-H'
+    )
     references = List(Instance(Reference))
 
     def select_by_type(self, ref_type):
@@ -613,6 +615,7 @@ class CompoundId(MetatlasObject):
                     isinstance(r, FragmentationReference)]
         else:
             raise ValueError('Invalid reference type')
+
 
 @set_docstring
 class Atlas(MetatlasObject):
