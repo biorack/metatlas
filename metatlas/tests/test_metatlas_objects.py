@@ -134,3 +134,10 @@ def test_load_lcms_files():
         assert run.unique_id
         assert not run.prev_unique_id
         assert mo.queryDatabase('lcmsrun', unique_id=run.unique_id)
+
+
+def test_id_grade_trait():
+    e = mo.IdentificationGrade(name='E')
+    e.store()
+    cid = mo.CompoundId(identification_grade='e')
+    assert cid.identification_grade.unique_id == e.unique_id

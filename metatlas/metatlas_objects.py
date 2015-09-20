@@ -570,12 +570,30 @@ class IdentificationGrade(MetatlasObject):
     pass
 
 
+class _IdGradeTrait(Instance):
+
+    klass = IdentificationGrade
+    allow_none = True
+
+    def validate(self, obj, value):
+        if isinstance(value, self.klass):
+            return value
+        elif isinstance(value, str):
+            objects = queryDatabase('identificationgrade', name=value.upper())
+            if objects:
+                return objects[-1]
+            else:
+                self.error(obj, value)
+        else:
+            self.error(obj, value)
+
+
 @set_docstring
 class CompoundId(MetatlasObject):
     """A CompoundId links multiple sources of evidence about a compound's 
     identity to an Atlas."""
     compound = Instance(Compound, allow_none=True)
-    identification_grade = Instance(IdentificationGrade, allow_none=True)
+    identification_grade = _IdGradeTrait()
     references = List(Instance(Reference))
 
     def select_by_type(self, ref_type):
@@ -595,7 +613,6 @@ class CompoundId(MetatlasObject):
                     isinstance(r, FragmentationReference)]
         else:
             raise ValueError('Invalid reference type')
-
 
 @set_docstring
 class Atlas(MetatlasObject):
