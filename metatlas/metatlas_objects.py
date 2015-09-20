@@ -504,6 +504,7 @@ class Reference(MetatlasObject):
     """
     lcms_run = Instance(LcmsRun, allow_none=True)
     enabled = CBool(True)
+    ref_type = CUnicode(help='The type of reference')
 
 
 @set_docstring
@@ -536,6 +537,24 @@ class CompoundId(MetatlasObject):
     identification_grade = Instance(IdentificationGrade, allow_none=True)
     references = List(Instance(Reference))
 
+    def select_by_type(self, ref_type):
+        """Select references by type.
+
+        Parameters
+        ----------
+        ref_type: {'mz', 'rt', 'fragmentation'}
+          The type of reference.
+        """
+        if ref_type.lower() == 'mz':
+            return [r for r in self.references if isinstance(r, MzReference)]
+        elif ref_type.lower() == 'rt':
+            return [r for r in self.references if isinstance(r, RtReference)]
+        elif ref_type.lower() == 'fragmentation':
+            return [r for r in self.references if
+                    isinstance(r, FragmentationReference)]
+        else:
+            raise ValueError('Invalid reference type')
+
 
 @set_docstring
 class Atlas(MetatlasObject):
@@ -563,7 +582,6 @@ class MzIntensityPair(MetatlasObject):
 
 @set_docstring
 class FragmentationReference(Reference):
-
     polarity = Enum(POLARITY, 'positive')
     precursor_mz = CFloat()
     mz_intensities = List(Instance(MzIntensityPair),
@@ -573,7 +591,6 @@ class FragmentationReference(Reference):
 
 @set_docstring
 class RtReference(Reference):
-
     RTpeak = CFloat()
     RTmin = CFloat()
     RTmax = CFloat()
