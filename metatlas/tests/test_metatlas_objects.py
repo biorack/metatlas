@@ -133,3 +133,4 @@ def test_load_lcms_files():
         assert run.modified_by == run.created_by
         assert run.unique_id
         assert not run.prev_unique_id
+        assert mo.queryDatabase('lcmsrun', unique_id=run.unique_id)
