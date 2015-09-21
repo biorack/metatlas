@@ -105,8 +105,8 @@ def test_select_reference_by_type():
     rt_refs = [mo.RtReference(name=str(i)) for i in range(4)]
     frag_refs = [mo.FragmentationReference(name=str(i)) for i in range(2)]
 
-    compound_id = mo.CompoundId(name='test',
-                                references=mz_refs + rt_refs + frag_refs)
+    compound_id = mo.CompoundIdentification(
+        name='test', references=mz_refs + rt_refs + frag_refs)
     compound_id.store()
 
     assert mo.queryDatabase('mzreference', name='1')[0].name == '1'
@@ -139,5 +139,5 @@ def test_load_lcms_files():
 def test_id_grade_trait():
     e = mo.IdentificationGrade(name='E')
     e.store()
-    cid = mo.CompoundId(identification_grade='e')
+    cid = mo.CompoundIdentification(identification_grade='e')
     assert cid.identification_grade.unique_id == e.unique_id

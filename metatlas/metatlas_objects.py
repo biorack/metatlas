@@ -551,7 +551,7 @@ class Reference(MetatlasObject):
 @set_docstring
 class IdentificationGrade(MetatlasObject):
     """
-    Each CompoundId will have an identification_grade
+    Each CompoundIdentification will have an identification_grade
     Identification Grades:
     1) High intensity and verifiable by MSMS and RT
     authentic standard
@@ -589,9 +589,9 @@ class _IdGradeTrait(Instance):
 
 
 @set_docstring
-class CompoundId(MetatlasObject):
-    """A CompoundId links multiple sources of evidence about a compound's 
-    identity to an Atlas."""
+class CompoundIdentification(MetatlasObject):
+    """A CompoundIdentification links multiple sources of evidence about a 
+    compound's identity to an Atlas."""
     compound = Instance(Compound, allow_none=True)
     identification_grade = _IdGradeTrait(
         help='Identification grade of the id (can be specified by a letter A-H'
@@ -620,8 +620,9 @@ class CompoundId(MetatlasObject):
 @set_docstring
 class Atlas(MetatlasObject):
     """An atlas contains many compound_ids."""
-    compound_ids = List(Instance(CompoundId),
-                        help='List of Compound Identification objects')
+    compound_identifications = List(
+        Instance(CompoundIdentification),
+        help='List of Compound Identification objects')
 
 
 @set_docstring
