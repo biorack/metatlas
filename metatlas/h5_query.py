@@ -92,6 +92,8 @@ def get_data(h5file, ms_level, polarity, **kwargs):
 
     Parameters
     ----------
+    h5file: string or open pytables file
+        The path to the h5file or open file handle.
     ms_level : int
         MS Level.
     polarity : int
@@ -105,6 +107,9 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     out : dictionary
         Dictionary with arrays for 'i', 'mz', and 'rt' values meeting criteria.
     """
+    if not isinstance(h5file, tables.File):
+        h5file = tables.open_file(h5file)
+
     if ms_level == 1:
         if not polarity:
             table = h5file.root.ms1_neg
@@ -155,8 +160,8 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
 
     Parameters
     ----------
-    h5file : table file handle
-        Handle to an open tables file.
+    h5file: string or open pytables file
+        The path to the h5file or open file handle.
     min_mz : float
         Minimum m/z value.
     max_mz : float
@@ -196,8 +201,8 @@ def get_heatmap(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
 
     Parameters
     ----------
-    h5file : table file handle
-        Handle to an open tables file.
+    h5file: string or open pytables file
+        The path to the h5file or open file handle.
     mz_steps : int or array-like
         Bins to use for the mz axis.
     rt_steps : int or array-like
@@ -274,11 +279,19 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
 def get_info(h5file):
     """Get info about an LCMS HDF file
 
+    Parameters
+    ----------
+    h5file: string or open pytables file
+        The path to the h5file or open file handle.
+
     Returns
     -------
     out : dict
         Number of rows for all of the tables in the file.
     """
+    if not isinstance(h5file, tables.File):
+        h5file = tables.open_file(h5file)
+
     info = dict()
     for table_name in ['ms1_neg', 'ms1_pos', 'ms2_neg', 'ms2_pos']:
         table = h5file.get_node('/%s' % table_name)
