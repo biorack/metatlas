@@ -35,7 +35,7 @@ def update_metatlas(directory):
 
         # copy the original file to a pasteur backup
         if os.environ['USER'] == 'pasteur':
-            pasteur_path = patt.replace('raw_data', 'pasteur_backup')
+            pasteur_path = fname.replace('raw_data', 'pasteur_backup')
             dname = os.path.dirname(pasteur_path)
             if not os.path.exists(dname):
                 os.makedirs(dname)
