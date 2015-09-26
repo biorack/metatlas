@@ -185,13 +185,15 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz, **kwargs)
 
-    bins = bins or np.unique(data['rt'])
+    if not bins:
+        # the last bin edget is inclusive, so we have to add another bin
+        bins = np.unique(data['rt'])
+        delta = bins[1] - bins[0]
+        bins = np.hstack(bins, bins[-1] + delta)
 
     i, rt = np.histogram(data['rt'], bins=bins, weights=data['i'])
-    # center the bins
-    rt = (rt[:-1] + rt[1:]) / 2
 
-    return rt, i
+    return rt[:-1], i[:-1]
 
 
 def get_heatmap(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):

@@ -514,7 +514,7 @@ class LcmsRun(MetatlasObject):
                 rt_event = event.xdata
                 # get the closest actual RT
                 idx = (np.abs(rt - rt_event)).argmin()
-                mz, imz = get_spectrogram(fid, rt[idx], rt[idx+1], 1, polarity)
+                mz, imz = get_spectrogram(fid, rt[idx], rt[idx], 1, polarity)
 
                 ax1._vline.remove()
                 ax1._vline = ax1.axvline(rt_event, color='k')
