@@ -1,54 +1,23 @@
-from watchdog.utils.dirsnapshot import DirectorySnapshot, DirectorySnapshotDiff
-import pickle
 import os
 import re
 
 
-TEMP_FILE_NAME = os.path.join(os.path.dirname(os.path.dirname(__file__)), "snap.shot")
-
-
-class SnapshotWrapper:
-
-    @classmethod
-    def load(cls, file_name):
-        print(file_name)
-        f = open(file_name, "rb")
-        return pickle.load(f)
-
-    def __init__(self, directory, file_name):
-        self.directory = directory
-        self.file_name = file_name
-        self.snapshot = DirectorySnapshot(directory)
-
-    def save(self, to_file=None):
-        if to_file is None:
-            snap_file = open(self.file_name, "wb")
-        else:
-            snap_file = open(to_file, "wb")
-        pickle.dump(self, snap_file)
-        snap_file.close()
-        return self
-
-    def get_added_files(self):
-        new_snap = DirectorySnapshot(self.directory)
-        old_snap = self.snapshot
-        return DirectorySnapshotDiff(old_snap, new_snap).files_created
-
-    def update(self):
-        self.snapshot = DirectorySnapshot(self.directory)
-        return self
-
-
 def update_metatlas(directory):
-    if not os.path.exists(TEMP_FILE_NAME):
-        snw = SnapshotWrapper(directory, TEMP_FILE_NAME)
-    else:
-        snw = SnapshotWrapper.load(TEMP_FILE_NAME)
-    new_files = snw.get_added_files()
+
+    new_files = []
+    for root, directories, filenames in os.walk(directory):
+        for fname in filenames:
+            if fname.endswith('.mzML'):
+                fname = os.path.join(root, fname)
+                hdf5_file = fname.replace('.mzML', '.h5')
+                if not os.path.exists(hdf5_file):
+                    new_files.append(fname)
 
     patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
-    print('Found %s files' % len(new_files))
+    print('Found %s new files' % len(new_files))
+    import sys
+    sys.exit()
 
     for fname in new_files:
         info = patt.match(os.path.abspath(fname))
@@ -57,7 +26,11 @@ def update_metatlas(directory):
         else:
             print("Invalid path name", fname)
             continue
+
         print(fname)
+
+        # todo: try and copy original file to a pasteur-only folder
+        # todo: search the database at the end for unreachable files
 
         # convert to HDF and store the entry in the database
         try:
@@ -74,8 +47,6 @@ def update_metatlas(directory):
             run.store()
         except Exception as e:
             print(e)
-
-    snw.update().save()
 
 
 if __name__ == '__main__':
