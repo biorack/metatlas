@@ -59,8 +59,6 @@ def update_metatlas(directory):
         except Exception as e:
             print(e)
 
-        sys.exit()
-
 
 if __name__ == '__main__':
     import argparse

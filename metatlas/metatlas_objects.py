@@ -424,6 +424,10 @@ def load_lcms_files(mzml_files):
     """
     runs = []
     for fname in mzml_files:
+        hdf5_file = fname.replace('.mzML', '.h5')
+        if os.path.exists(hdf5_file):
+            print('File already exists: %s' % hdf5_file)
+            continue
         try:
             from metatlas import LcmsRun, mzml_to_hdf
             hdf_file = mzml_to_hdf(fname)
