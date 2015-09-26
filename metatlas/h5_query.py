@@ -23,9 +23,9 @@ def plot_XIC(x, y, title='XIC for Sample', **kwargs):
         Keyword arguments for ``plt.plot``.
     """
     import matplotlib.pyplot as plt
-    plt.plot(x, y / y.max() * 100, **kwargs)
+    plt.plot(x, y, **kwargs)
     plt.xlabel('Time (min)')
-    plt.ylabel('Intensity (%)')
+    plt.ylabel('Intensity')
     plt.title(title)
 
 
@@ -45,9 +45,9 @@ def plot_spectrogram(x, y, title='Spectrogram for Sample', **kwargs):
         Keyword arguments for ``plt.plot``.
     """
     import matplotlib.pyplot as plt
-    plt.plot(x, y / y.max() * 100, **kwargs)
+    plt.plot(x, y, **kwargs)
     plt.xlabel('Mass (m/z)')
-    plt.ylabel('Intensity (%)')
+    plt.ylabel('Intensity')
     plt.title(title)
 
 
@@ -180,8 +180,7 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     Returns
     -------
     out : tuple of arrays
-        (rt_vals, i_vals) arrays in the desired range.  The intensities are
-        scaled to [0, 100].
+        (rt_vals, i_vals) arrays in the desired range.
     """
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz, **kwargs)
@@ -192,7 +191,7 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     # center the bins
     rt = (rt[:-1] + rt[1:]) / 2
 
-    return rt, i / i.max() * 100
+    return rt, i
 
 
 def get_heatmap(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
@@ -263,8 +262,7 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
     Returns
     -------
     out : tuple of arrays
-        (mz_vals, i_vals) arrays in the desired range.  The intensities are
-        scaled to [0, 100].
+        (mz_vals, i_vals) arrays in the desired range.
     """
     data = get_data(h5file, ms_level, polarity, min_rt=min_rt,
                     max_rt=max_rt, **kwargs)
@@ -273,7 +271,7 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
     # center the bins
     mz = (mz[:-1] + mz[1:]) / 2
 
-    return mz, i / i.max() * 100
+    return mz, i
 
 
 def get_info(h5file):

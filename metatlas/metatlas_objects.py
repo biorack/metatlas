@@ -281,6 +281,7 @@ class MetatlasObject(HasTraits):
                               readonly=True)
     _loopback_guard = CBool(False, readonly=True)
     _changed = CBool(False, readonly=True)
+    _snapshot = List(CUnicode, readonly=True)
 
     def __init__(self, **kwargs):
         """Set the default attributes."""
@@ -291,6 +292,7 @@ class MetatlasObject(HasTraits):
         kwargs.setdefault('last_modified', int(time.time()))
         super(MetatlasObject, self).__init__(**kwargs)
         self.on_trait_change(self._on_update)
+        self._get_snapshot()
 
     def store(self, name=None):
         """Store the object in the workspace, including child objects.
@@ -299,6 +301,17 @@ class MetatlasObject(HasTraits):
         Child objects are captured in link tables.
         """
         self._loopback_guard = True
+        if not self._changed:
+            # check for sub-objects and our snapshot to be sure
+            if self._snapshot != self._get_snapshot():
+                self._changed = True
+            else:
+                for (tname, trait) in self.traits().items():
+                    if isinstance(trait, Instance):
+                        val = getattr(self, tname)
+                        if val._changed:
+                            self._changed = True
+                            break
         if self._changed:
             self.prev_unique_id = self.unique_id
             self.unique_id = uuid.uuid4().hex
@@ -313,6 +326,7 @@ class MetatlasObject(HasTraits):
         """
         self._loopback_guard = True
         value = workspace.load(self, name)
+        self._get_snapshot()
         self._changed = False
         self._loopback_guard = False
         return value
@@ -335,6 +349,14 @@ class MetatlasObject(HasTraits):
         if self._loopback_guard or name.startswith('_'):
             return
         self._changed = True
+
+    def _get_snapshot(self):
+        """Get a list of all sub-unique ids"""
+        self._snapshot = []
+        for (tname, trait) in self.traits().items():
+            if isinstance(trait, List):
+                val = getattr(self, tname)
+                self._snapshot.extend([o.unique_id for o in val])
 
     def __str__(self):
         return self.name + ' (%s)' % self.unique_id
