@@ -189,7 +189,7 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
         # the last bin edget is inclusive, so we have to add another bin
         bins = np.unique(data['rt'])
         delta = bins[1] - bins[0]
-        bins = np.hstack(bins, bins[-1] + delta)
+        bins = np.hstack((bins, bins[-1] + delta))
 
     i, rt = np.histogram(data['rt'], bins=bins, weights=data['i'])
 

@@ -46,7 +46,6 @@ def test_spectrogram():
 
     assert np.allclose(x.mean(), 855.718857765)
     assert y.min() >= 0
-    assert y.max() <= 100
 
     plot_spectrogram(x, y)
 
