@@ -136,7 +136,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
 
     if not query:
         data = table.read()
-        return dict(i=data['i'], rt=data['rt'], mz=data['mz'])
+        return data
 
     # chop off the initial ' & '
     query = query[3:]
@@ -151,7 +151,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     if kwargs.get('verbose', None):
         print('Query complete')
 
-    return dict(i=data['i'], rt=data['rt'], mz=data['mz'])
+    return data
 
 
 def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
