@@ -1,5 +1,7 @@
 import os
 import re
+import sys
+import shutil
 
 
 def update_metatlas(directory):
@@ -16,8 +18,6 @@ def update_metatlas(directory):
     patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
     print('Found %s new files' % len(new_files))
-    import sys
-    sys.exit()
 
     for fname in new_files:
         info = patt.match(os.path.abspath(fname))
@@ -28,15 +28,23 @@ def update_metatlas(directory):
             continue
 
         print(fname)
+        os.chmod(fname, 0o660)
 
-        # todo: try and copy original file to a pasteur-only folder
+        # copy the original file to a pasteur backup
+        if os.environ['USER'] == 'pasteur':
+            pasteur_path = patt.replace('raw_data', 'pasteur_backup')
+            dname = os.path.dirname(pasteur_path)
+            if not os.path.exists(dname):
+                os.makedirs(dname)
+            shutil.copy(fname, pasteur_path)
+
         # todo: search the database at the end for unreachable files
 
         # convert to HDF and store the entry in the database
         try:
             from metatlas import LcmsRun, mzml_to_hdf
             hdf5_file = mzml_to_hdf(fname)
-            print(hdf5_file)
+            os.chmod(hdf5_file, 0o660)
             description = info['experiment'] + ' ' + info['path']
             ctime = os.stat(fname).st_ctime
             run = LcmsRun(name=info['path'], description=description,
@@ -47,6 +55,8 @@ def update_metatlas(directory):
             run.store()
         except Exception as e:
             print(e)
+
+        sys.exit()
 
 
 if __name__ == '__main__':
