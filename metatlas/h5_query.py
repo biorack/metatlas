@@ -7,9 +7,9 @@ import tables
 import numpy as np
 
 
-def plot_XIC(x, y, title='XIC for Sample', **kwargs):
+def plot_chromatogram(x, y, title='XIC for Sample', **kwargs):
     """
-    Plots an XIC.
+    Plots a Chromatogram.
 
     Parameters
     ----------
@@ -154,9 +154,10 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     return data
 
 
-def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
+def get_chromatogram(h5file, min_mz, max_mz, ms_level, polarity,
+                     aggregator=np.sum, **kwargs):
     """
-    Get Extracted-ion chromatogram (XIC) data - RT vs. cum sum of intensities
+    Get Chromatogram data - RT vs. intensity aggregation
 
     Parameters
     ----------
@@ -170,9 +171,9 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
         MS Level.
     polarity: int
         Plus proton (1) or Minus proton (0).
-    bins : int or array-like, optional.
-        Desired bins to use for the histogram, defaults to unique retention
-        times.
+    aggregator: function
+        Function to aggregate the intensity data.  Defaults to np.sum,
+        producing an XIC. For Base Peak Chromatogram, use np.max.
     **kwargs
         Optional search modifiers.  (e.g. precursor_MZ=1,
             min_collision_energy=4)
@@ -184,19 +185,18 @@ def get_XIC(h5file, min_mz, max_mz, ms_level, polarity, bins=None, **kwargs):
     """
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz, **kwargs)
+    rt = np.unique(data['rt'])
+    edges = np.argwhere(np.diff(data['rt']) > 0).squeeze()
+    start = 0
+    i = []
+    for e in edges:
+        i.append(aggregator(data['i'][start:e]))
+        start = e
+    i.append(aggregator(data['i'][start:]))
+    return rt, np.array(i)
 
-    if not bins:
-        # the last bin edget is inclusive, so we have to add another bin
-        bins = np.unique(data['rt'])
-        delta = bins[1] - bins[0]
-        bins = np.hstack((bins, bins[-1] + delta))
 
-    i, rt = np.histogram(data['rt'], bins=bins, weights=data['i'])
-
-    return rt[:-1], i[:-1]
-
-
-def get_heatmap(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
+def get_heatmap(h5file, mz_bins, ms_level, polarity, **kwargs):
     """
     Get a HeatMap of RT vs MZ.
 
@@ -206,8 +206,6 @@ def get_heatmap(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
         The path to the h5file or open file handle.
     mz_steps : int or array-like
         Bins to use for the mz axis.
-    rt_steps : int or array-like
-        Bins to use for the rt axis.
     ms_level : int
         MS Level.
     polarity: int
@@ -219,17 +217,15 @@ def get_heatmap(h5file, mz_bins, rt_bins, ms_level, polarity, **kwargs):
     Returns
     -------
     out : dict
-        Dictionary containing: 'arr', 'rt_bins', 'mz_bins'.  We return a log
-        scaled output array.
+        Dictionary containing: 'arr', 'rt_bins', 'mz_bins'.
     """
     data = get_data(h5file, ms_level, polarity, **kwargs)
 
-    arr, mz_bins, rt_bins = np.histogram2d(data['mz'], data['rt'],
-                                           weights=data['i'],
-                                           bins=(mz_bins, rt_bins))
-    # center the bins
-    mz_bins = (mz_bins[:-1] + mz_bins[1:]) / 2
-    rt_bins = (rt_bins[:-1] + rt_bins[1:]) / 2
+    rt_bins = np.unique(data['rt'])
+    rt_bins = np.concatenate((rt_bins, rt_bins[-1] + 1))
+    arr, _, _ = np.histogram2d(data['mz'], data['rt'],
+                               weights=data['i'],
+                               bins=(mz_bins, rt_bins))
 
     mz_centroid = (np.sum(np.multiply(np.sum(arr, axis=1), mz_bins))
                    / np.sum(arr))
@@ -333,8 +329,8 @@ if __name__ == '__main__':  # pragma: no cover
     basename = os.path.splitext(fname)[0]
 
     if args.xic:
-        x, y = get_XIC(fid, 0, 100000, 1, 0)
-        plot_XIC(x, y, title=basename)
+        x, y = get_chromatogram(fid, 0, 100000, 1, 0)
+        plot_chromatogram(x, y, title=basename)
 
     if args.spectrogram:
         x, y = get_spectrogram(fid, 1, 5, 1, 0)

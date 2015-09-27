@@ -6,8 +6,8 @@ import tables
 
 from metatlas.mzml_loader import mzml_to_hdf, get_test_data
 from metatlas.h5_query import (
-    get_XIC, get_data, get_spectrogram, get_heatmap,
-    plot_heatmap, plot_spectrogram, plot_XIC, get_info)
+    get_chromatagram, get_data, get_spectrogram, get_heatmap,
+    plot_heatmap, plot_spectrogram, plot_chromatagram, get_info)
 
 fid = None
 
@@ -33,12 +33,19 @@ def rmse(targets, predictions):
 
 
 def test_XIC():
-    x, y = get_XIC(fid, 1, 1000, 1, 0)
+    x, y = get_chromatagram(fid, 1, 1000, 1, 0)
     dname = os.path.dirname(__file__)
     xicof_scidb = np.load(os.path.join(dname, 'xic_scidb.npy'))
 
     assert rmse(y, xicof_scidb[:, 1][:-1]) < 0.06
-    plot_XIC(x, y)
+    plot_chromatagram(x, y)
+
+
+def test_BPC():
+    x, y = get_chromatagram(fid, 1, 1000, 1, 0, np.max)
+
+    assert y.max() == 1, y.max()
+    plot_chromatagram(x, y, title='BPC for Sample')
 
 
 def test_spectrogram():
