@@ -30,8 +30,8 @@ def update_metatlas(directory):
         print(fname)
         try:
             os.chmod(fname, 0o660)
-        except OSError:
-            pass
+        except Exception as e:
+            print(e)
 
         # copy the original file to a pasteur backup
         if os.environ['USER'] == 'pasteur':
