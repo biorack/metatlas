@@ -37,7 +37,7 @@ def test_XIC():
     dname = os.path.dirname(__file__)
     xicof_scidb = np.load(os.path.join(dname, 'xic_scidb.npy'))
 
-    assert rmse(y, xicof_scidb[:, 1][:-2]) < 0.06
+    assert rmse(y, xicof_scidb[:, 1]) < 0.06
     plot_chromatogram(x, y)
 
 

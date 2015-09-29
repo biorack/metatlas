@@ -221,16 +221,16 @@ def get_heatmap(h5file, mz_bins, ms_level, polarity, **kwargs):
     """
     data = get_data(h5file, ms_level, polarity, **kwargs)
 
-    rt_bins = np.unique(data['rt'])
-    rt_bins = np.concatenate((rt_bins, rt_bins[-1] + 1))
-    arr, _, _ = np.histogram2d(data['mz'], data['rt'],
-                               weights=data['i'],
-                               bins=(mz_bins, rt_bins))
+    rt_values = np.unique(data['rt'])
+    rt_bins = np.hstack((rt_values, rt_values[-1] + 1))
+    arr, mz_bins, _ = np.histogram2d(data['mz'], data['rt'],
+                                     weights=data['i'],
+                                     bins=(mz_bins, rt_bins))
 
-    mz_centroid = (np.sum(np.multiply(np.sum(arr, axis=1), mz_bins))
+    mz_centroid = (np.sum(np.multiply(np.sum(arr, axis=1), mz_bins[:-1]))
                    / np.sum(arr))
 
-    return dict(arr=arr, rt_bins=rt_bins, mz_bins=mz_bins,
+    return dict(arr=arr, rt_bins=rt_values, mz_bins=mz_bins,
                 mz_centroid=mz_centroid)
 
 
@@ -309,7 +309,6 @@ if __name__ == '__main__':  # pragma: no cover
     import argparse
     import os
     import matplotlib.pyplot as plt
-    plt.iof()
 
     desc = "Query and plot MZML data from HDF files"
     parser = argparse.ArgumentParser(description=desc)
@@ -320,7 +319,7 @@ if __name__ == '__main__':  # pragma: no cover
     parser.add_argument("--heatmap", action="store_true",
                         help="Get and plot Heatmap")
     parser.add_argument('input_file', help="Input HDF file",
-                        action='store', required=True)
+                        action='store')
 
     args = parser.parse_args()
 
@@ -337,7 +336,7 @@ if __name__ == '__main__':  # pragma: no cover
         plot_spectrogram(x, y)
 
     if args.heatmap:
-        data = get_heatmap(fid, 1000, 1000, 1, 0)
+        data = get_heatmap(fid, 1000, 1, 0)
         plot_heatmap(data['arr'], data['rt_bins'], data['mz_bins'])
 
     plt.show()
