@@ -61,12 +61,12 @@ def test_spectrogram():
 def test_heatmap():
     data = get_heatmap(fid, 1000, 1, 0)
 
-    assert np.allclose(data['arr'].mean(), 8743.73010776)
-    assert np.allclose(data['mz_bins'][0], 30.838549386)
-    assert np.allclose(data['rt_bins'][-1], 19.2570870609)
+    assert np.allclose(data['arr'].mean(), 3790.08673939)
+    assert np.allclose(data['mz_bins'][0], 30.004)
+    assert np.allclose(data['rt_bins'][-1], 19.2667)
 
     data = get_heatmap(fid, 1000, 1, 0, min_mz=50)
-    assert np.allclose(data['mz_bins'][0], 50.8247537537)
+    assert np.allclose(data['mz_bins'][0], 50.0002)
     plot_heatmap(data['arr'], data['rt_bins'], data['mz_bins'])
 
 
