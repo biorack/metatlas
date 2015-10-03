@@ -337,16 +337,18 @@ class MetatlasObject(HasTraits):
     description = CUnicode('No description', help='Description of the object')
     unique_id = CUnicode(help='Unique identifier for the object',
                          readonly=True)
-    created = CInt(help='Unix timestamp at object creation',
-                   readonly=True)
-    created_by = CUnicode(help='Username who created the object',
-                          readonly=True)
+    version = CInt(help='The current version of the object', readonly=True)
+    creation_time = CInt(help='Unix timestamp at object creation',
+                         readonly=True)
+    username = CUnicode(help='Username who created the object',
+                        readonly=True)
     last_modified = CInt(help='Unix timestamp at last object update',
                          readonly=True)
-    modified_by = CUnicode(help='Username who last updated the object',
-                           readonly=True)
-    prev_unique_id = CUnicode(help='Unique id of previous version',
-                              readonly=True)
+    prev_uid = CUnicode(
+        help='Previous unique_id, if cloned from another object',
+        readonly=True)
+    prev_version = CUnicode(help='Version of previous object when cloned',
+                            readyonly=True)
     _loopback_guard = CBool(False, readonly=True)
     _changed = CBool(False, readonly=True)
 
@@ -354,8 +356,7 @@ class MetatlasObject(HasTraits):
         """Set the default attributes."""
         kwargs.setdefault('unique_id', uuid.uuid4().hex)
         kwargs.setdefault('created_by', getpass.getuser())
-        kwargs.setdefault('modified_by', getpass.getuser())
-        kwargs.setdefault('created', int(time.time()))
+        kwargs.setdefault('creation_time', int(time.time()))
         kwargs.setdefault('last_modified', int(time.time()))
         super(MetatlasObject, self).__init__(**kwargs)
         self.on_trait_change(self._on_update)
@@ -366,15 +367,43 @@ class MetatlasObject(HasTraits):
         Child objects are stored in their own tables, and Lists of
         Child objects are captured in link tables.
         """
+        if getpass.getuser() != self.created_by:
+            raise ValueError(
+                'Please use clone() for objects created by another user')
         self._loopback_guard = True
         if self._changed:
-            self.prev_unique_id = self.unique_id
-            self.unique_id = uuid.uuid4().hex
+            self.version += 1
             self.last_modified = time.time()
-            self.modified_by = getpass.getuser()
         workspace.save(self, name)
         self._changed = False
         self._loopback_guard = False
+
+    def clone(self, recursive=False):
+        """Create a new version of this object.
+
+        Parameters
+        ----------
+        recursive: boolean, optional
+            If true, clone all of the descendant objects as well.
+
+        Returns
+        -------
+        obj: MetatlasObject
+            Cloned object.
+        """
+        obj = self.__class__()
+        for (tname, trait) in self.traits.items():
+            if tname.startswith('_') or trait.get_metadata('readonly'):
+                continue
+            val = getattr(self, tname)
+            if recursive and isinstance(trait, List):
+                val = [v.clone() for v in val]
+            elif recursive and isinstance(trait, Instance) and val:
+                val = val.clone()
+            setattr(obj, tname, val)
+        obj.prev_uid = self.unique_id
+        obj.prev_version = self.version
+        return obj
 
     def retrieve(self, name=None):
         """Retrieve the object from the workspace, including child objects.
