@@ -534,6 +534,10 @@ class Compound(MetatlasObject):
     InChi string is the ID.
     """
     InChI = CUnicode(help='IUPAC International Chemical Identifier, optional')
+    formula = CUnicode()
+    MonoIsotopic_molecular_weight = CFloat()
+    synonyms = CUnicode()
+    url = CUnicode(help='Reference database table url')
     reference_xrefs = List(Instance(ReferenceDatabase),
                            help='Tag a compound with compound ids from ' +
                                 'external databases')
