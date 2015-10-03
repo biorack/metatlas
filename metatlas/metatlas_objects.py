@@ -2,6 +2,7 @@ import getpass
 import uuid
 import time
 import os
+import sys
 import pickle
 import pprint
 import tables
@@ -21,6 +22,73 @@ import dataset
 
 POLARITY = ('positive', 'negative', 'alternating')
 NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
+
+
+# http://stackoverflow.com/a/13259435
+_pyversion = sys.version_info[0]
+
+
+def callback_method(func):
+    def notify(self, *args, **kwargs):
+        for _, callback in self._callbacks:
+            callback()
+        return func(self, *args, **kwargs)
+    return notify
+
+
+class NotifyList(list):
+    extend = callback_method(list.extend)
+    append = callback_method(list.append)
+    remove = callback_method(list.remove)
+    pop = callback_method(list.pop)
+    __delitem__ = callback_method(list.__delitem__)
+    __setitem__ = callback_method(list.__setitem__)
+    __iadd__ = callback_method(list.__iadd__)
+    __imul__ = callback_method(list.__imul__)
+
+    # Take care to return a new NotifyList if we slice it.
+    if _pyversion < 3:
+        __setslice__ = callback_method(list.__setslice__)
+        __delslice__ = callback_method(list.__delslice__)
+
+        def __getslice__(self, *args):
+            return self.__class__(list.__getslice__(self, *args))
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            return self.__class__(list.__getitem__(self, item))
+        else:
+            return list.__getitem__(self, item)
+
+    def __init__(self, *args):
+        list.__init__(self, *args)
+        self._callbacks = []
+        self._callback_cntr = 0
+
+    def register_callback(self, cb):
+        self._callbacks.append((self._callback_cntr, cb))
+        self._callback_cntr += 1
+        return self._callback_cntr - 1
+
+    def unregister_callback(self, cbid):
+        for idx, (i, cb) in enumerate(self._callbacks):
+            if i == cbid:
+                self._callbacks.pop(idx)
+                return cb
+        else:
+            return None
+
+
+class ListNotifier(List):
+
+    def validate(self, obj, value):
+        value = super(ListNotifier, self).validate(obj, value)
+        value = NotifyList(value)
+
+        def callback(*args):
+            obj._notify_trait(self.name, value, value)
+        value.register_callback(callback)
+        return value
 
 
 class _Workspace(object):
@@ -523,7 +591,7 @@ class FunctionalSet(MetatlasObject):
     "Sugars" would be a set that contains "Hexoses".
     """
     enabled = CBool(True)
-    members = List(Instance(MetatlasObject))
+    members = ListNotifier(Instance(MetatlasObject))
 
 
 @set_docstring
@@ -538,10 +606,10 @@ class Compound(MetatlasObject):
     MonoIsotopic_molecular_weight = CFloat()
     synonyms = CUnicode()
     url = CUnicode(help='Reference database table url')
-    reference_xrefs = List(Instance(ReferenceDatabase),
+    reference_xrefs = ListNotifier(Instance(ReferenceDatabase),
                            help='Tag a compound with compound ids from ' +
                                 'external databases')
-    functional_sets = List(Instance(FunctionalSet))
+    functional_sets = ListNotifier(Instance(FunctionalSet))
 
 
 @set_docstring
@@ -604,7 +672,7 @@ class CompoundIdentification(MetatlasObject):
     identification_grade = _IdGradeTrait(
         help='Identification grade of the id (can be specified by a letter A-H'
     )
-    references = List(Instance(Reference))
+    references = ListNotifier(Instance(Reference))
 
     def select_by_type(self, ref_type):
         """Select references by type.
@@ -628,7 +696,7 @@ class CompoundIdentification(MetatlasObject):
 @set_docstring
 class Atlas(MetatlasObject):
     """An atlas contains many compound_ids."""
-    compound_identifications = List(
+    compound_identifications = ListNotifier(
         Instance(CompoundIdentification),
         help='List of Compound Identification objects')
 
@@ -640,7 +708,7 @@ class Group(MetatlasObject):
     group of files, or
     group of groups
     """
-    items = List(Instance(MetatlasObject),
+    items = ListNotifier(Instance(MetatlasObject),
                  help='Can contain other groups or LCMS Runs')
 
 
@@ -654,7 +722,7 @@ class MzIntensityPair(MetatlasObject):
 class FragmentationReference(Reference):
     polarity = Enum(POLARITY, 'positive')
     precursor_mz = CFloat()
-    mz_intensities = List(Instance(MzIntensityPair),
+    mz_intensities = ListNotifier(Instance(MzIntensityPair),
                           help='list of [mz, intesity] tuples that describe ' +
                                ' a fragmentation spectra')
 

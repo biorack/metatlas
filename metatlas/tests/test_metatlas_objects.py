@@ -141,3 +141,11 @@ def test_id_grade_trait():
     e.store()
     cid = mo.CompoundIdentification(identification_grade='e')
     assert cid.identification_grade.unique_id == e.unique_id
+
+
+def test_list_item_changed():
+    g = mo.Group()
+    g.items = []
+    g._changed = False
+    g.items.append(mo.Group())
+    assert g._changed
