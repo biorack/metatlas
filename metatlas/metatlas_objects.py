@@ -397,9 +397,9 @@ class MetatlasObject(HasTraits):
                 continue
             val = getattr(self, tname)
             if recursive and isinstance(trait, List):
-                val = [v.clone() for v in val]
+                val = [v.clone(True) for v in val]
             elif recursive and isinstance(trait, Instance) and val:
-                val = val.clone()
+                val = val.clone(True)
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
         obj.prev_version = self.version
