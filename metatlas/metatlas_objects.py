@@ -91,7 +91,7 @@ class ListNotifier(List):
         return value
 
 
-class _Workspace(object):
+class Workspace(object):
 
     def __init__(self):
         # allow for fallback when not on NERSC
@@ -116,9 +116,6 @@ class _Workspace(object):
 
     def insert(self, name, state):
         name = name.lower()
-        if name not in self.db:
-            self.db.create_table(name, primary_id='unique_id',
-                                 primary_type='String(32)')
         self.db[name].insert(state)
 
     def find_one(self, table_name, **kwargs):
@@ -230,13 +227,85 @@ class _Workspace(object):
         # return object for parent usage
         return obj
 
+# idea: use the current syntax for save/load/
+
+
 # Singleton Workspace object
-workspace = _Workspace()
+workspace = Workspace()
 
 
 def _all_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__()
                                    for g in _all_subclasses(s)]
+
+
+def retrieve(object_type, **kwargs):
+    """Get objects from the Metatlas object database.
+
+    Parameters
+    ----------
+    object_type: string
+      The type of object to search for (i.e. "Groups").
+    **kwargs
+      Specific search queries (i.e. name="Sargasso").
+      Use '%' for wildcard patterns (i.e. description='Hello%').
+      If you want to match a '%' character, use '%%'.
+
+    Returns
+    -------
+    objects: list
+      List of Metatlas Objects meeting the criteria.  Will return the
+      latest version of each object.
+    """
+    object_type = object_type.lower()
+    klass = None
+    for k in _all_subclasses(MetatlasObject):
+        name = k.__name__.lower()
+        if object_type == name or object_type == name + 's':
+            klass = k
+            break
+    if not klass:
+        raise ValueError('Unknown object type: %s' % object_type)
+    if not object_type.endswith('s'):
+        object_type += 's'
+    # Get just the unique ids matching the critera first
+    # Example query:
+    # SELECT prev_unique_ids, unique_ids
+    # FROM tablename
+    # WHERE (city = 'New York' AND name like 'IBM%')
+    query = "select unique_id, version from %s where (" % object_type
+    clauses = []
+    for (key, value) in kwargs.items():
+        if '%%' in value:
+            clauses.append("%s = '%s'" % (key, value.replace('%%', '%')))
+        elif '%' in value:
+            clauses.append("%s like '%s'" % (key, value.replace('*', '%')))
+        else:
+            clauses.append("%s = '%s'" % (key, value))
+    query += 'and '.join(clauses)
+    query += ')'
+    if not clauses:
+        query = query.replace('where ()', '')
+    items = [i for i in workspace.db.query(query)]
+    # next, we get the latest by unique id
+
+    # next, we fetch the full top-level objects
+
+    # we then recurse down until we hit all the leaf nodes
+    pass
+
+
+def store(objects):
+    """Store Metatlas objects in the database.
+
+    Parameters
+    ----------
+    objects: Metatlas object or list of Metatlas Objects
+        Object(s) to store in the database.
+    """
+    if not isinstance(objects, (list, set)):
+        objects = [objects]
+    workspace.store(objects)
 
 
 def queryDatabase(object_type, **kwargs):
@@ -361,7 +430,7 @@ class MetatlasObject(HasTraits):
         super(MetatlasObject, self).__init__(**kwargs)
         self.on_trait_change(self._on_update)
 
-    def store(self, name=None):
+    def _store(self, name=None):
         """Store the object in the workspace, including child objects.
 
         Child objects are stored in their own tables, and Lists of
@@ -404,15 +473,6 @@ class MetatlasObject(HasTraits):
         obj.prev_uid = self.unique_id
         obj.prev_version = self.version
         return obj
-
-    def retrieve(self, name=None):
-        """Retrieve the object from the workspace, including child objects.
-        """
-        self._loopback_guard = True
-        value = workspace.load(self, name)
-        self._changed = False
-        self._loopback_guard = False
-        return value
 
     def edit(self):
         """Create an editor for the object
