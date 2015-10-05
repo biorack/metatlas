@@ -7,6 +7,8 @@ import pickle
 import pprint
 import tables
 import numpy as np
+import six
+from collections import defaultdict
 from pwd import getpwuid
 
 try:
@@ -91,6 +93,29 @@ class ListNotifier(List):
         return value
 
 
+class Stub(HasTraits):
+
+    unique_id = CUnicode()
+    object_type = CUnicode()
+
+    def __repr__(self):
+        return '%s %s' % (self.object_type.capitalize(),
+                          self.unique_id)
+
+
+class MetInstance(Instance):
+    allow_none = True
+
+    def validate(self, obj, value):
+        if isinstance(value, (self.klass, Stub)):
+            return value
+        elif isinstance(value, six.string_types):
+            return Stub(unique_id=value,
+                        object_type=self.klass.__name__)
+        else:
+            self.error(obj, value)
+
+
 class Workspace(object):
 
     def __init__(self):
@@ -116,6 +141,8 @@ class Workspace(object):
 
     def insert(self, name, state):
         name = name.lower()
+        self.db.create_table(name, primary_id='unique_id',
+                             primary_type='String(32)')
         self.db[name].insert(state)
 
     def find_one(self, table_name, **kwargs):
@@ -161,7 +188,7 @@ class Workspace(object):
                     if not self.find_one(table_name, unique_id=obj.unique_id,
                                          target_id=subvalue.unique_id):
                         self.insert(table_name, link)
-            elif isinstance(trait, Instance):
+            elif isinstance(trait, MetInstance):
                 # handle a sub-object
                 # if it is not assigned, use and empty unique_id
                 if value is None:
@@ -177,58 +204,36 @@ class Workspace(object):
         self.insert(name, state)
         del self.seen[obj.unique_id]
 
-    def load(self, obj, name=None):
-        if obj.unique_id in self.seen:
-            return self.seen[obj.unique_id]
-        name = name or obj.__class__.__name__
-        if not name.lower().endswith('s'):
-            name += 's'
-        # get our table entry
-        if name.lower() not in self.db:
-            return
-        entry = self.find_one(name, unique_id=obj.unique_id)
-        if not entry:
-            return
-        state = obj.traits()
-        self.seen[obj.unique_id] = obj
-        for (tname, trait) in state.items():
-            if tname.startswith('_'):
-                continue
+    def retreive_many(self, items, name):
+        queries = defaultdict(list)
+        # get list of unique ids for each list subtype
+        for (tname, trait) in items[0].traits().items():
             if isinstance(trait, List):
-                # check for a pickled object
-                if tname in entry:
-                    setattr(obj, tname, entry[tname])
-                    continue
-                # get the items using the link table
-                # make the items retrieve themselves by unique id
-                items = []
                 table_name = '_'.join([name, tname])
-                rows = self.find(table_name, unique_id=obj.unique_id)
-                for row in rows:
-                    klass = eval(row['target_table'])
-                    target = klass(unique_id=row['target_id'])
-                    target = target.retrieve()
-                    if target:
-                        items.append(target)
-                setattr(obj, tname, items)
-            elif isinstance(trait, Instance):
-                # handle a sub-object
-                # if it was not assigned, use None
-                if not entry[tname]:
-                    setattr(obj, tname, None)
-                # allow the object to retrieve itself by unique id
-                else:
-                    subobject = trait.klass(unique_id=entry[tname])
-                    setattr(obj, tname, subobject.retrieve())
-            else:
-                # set the attribute directly
-                setattr(obj, tname, entry[tname])
-        del self.seen[obj.unique_id]
-        # return object for parent usage
-        return obj
-
-# idea: use the current syntax for save/load/
-
+                queries[table_name] = [i.unique_id for i in items]
+        # gather all of the entries
+        for table_name in queries:
+            querystr = 'select * from %s where unique_id in (' % table_name
+            querystr += ', '.join(queries[table_name])
+            result = self.db.query(querystr + ')')
+            queries[table_name] = defaultdict(list)
+            [queries[table_name][r.unique_id].append(r) for r in result]
+        # use the latest version of each entry and store a stub
+        for item in items:
+            for table_name in queries:
+                items = []
+                prev_item = None
+                for i in queries[table_name][item.unique_id]:
+                    if prev_item is None:
+                        prev_item = i
+                    if i['unique_id'] != prev_item['unique_id']:
+                        items.append(Stub(unique_id=prev_item['target_id'],
+                                          object_type=prev_item['target_table']))
+                    prev_item = i
+                if items[-1]['unique_id'] != prev_item['unique_id']:
+                    items.append(Stub(unique_id=prev_item['target_id'],
+                                      object_type=prev_item['target_table']))
+        return items
 
 # Singleton Workspace object
 workspace = Workspace()
@@ -268,12 +273,11 @@ def retrieve(object_type, **kwargs):
         raise ValueError('Unknown object type: %s' % object_type)
     if not object_type.endswith('s'):
         object_type += 's'
-    # Get just the unique ids matching the critera first
     # Example query:
-    # SELECT prev_unique_ids, unique_ids
+    # SELECT *
     # FROM tablename
     # WHERE (city = 'New York' AND name like 'IBM%')
-    query = "select unique_id, version from %s where (" % object_type
+    query = "select * from %s where (" % object_type
     clauses = []
     for (key, value) in kwargs.items():
         if '%%' in value:
@@ -287,12 +291,25 @@ def retrieve(object_type, **kwargs):
     if not clauses:
         query = query.replace('where ()', '')
     items = [i for i in workspace.db.query(query)]
-    # next, we get the latest by unique id
-
-    # next, we fetch the full top-level objects
-
-    # we then recurse down until we hit all the leaf nodes
-    pass
+    prev_uuids = [i['prev_uid'] for i in items]
+    items = [klass(**i) for i in items
+             if i['unique_id'] not in prev_uuids]
+    uids = [i.unique_id for i in items]
+    # get stubs for each of the list items
+    for (tname, trait) in items[0].traits().items():
+        if isinstance(trait, List):
+            table_name = '_'.join([name, tname])
+            querystr = 'select * from %s where unique_id in (' % table_name
+            querystr += ', '.join(uids)
+            result = workspace.db.query(querystr + ')')
+            sublist = defaultdict(list)
+            for r in result:
+                sublist[r.unique_id].append(Stub(unique_id=r.target_id,
+                                                 object_type=r.target_table))
+            for i in items:
+                setattr(i, tname, sublist[i.unique_id])
+    # TODO: allow for a recursive keyword
+    return items
 
 
 def store(objects):
@@ -306,6 +323,8 @@ def store(objects):
     if not isinstance(objects, (list, set)):
         objects = [objects]
     workspace.store(objects)
+    # for store, we gather up a dict of lists, and then
+    # use insert_many on each table
 
 
 def queryDatabase(object_type, **kwargs):
@@ -406,18 +425,13 @@ class MetatlasObject(HasTraits):
     description = CUnicode('No description', help='Description of the object')
     unique_id = CUnicode(help='Unique identifier for the object',
                          readonly=True)
-    version = CInt(help='The current version of the object', readonly=True)
     creation_time = CInt(help='Unix timestamp at object creation',
                          readonly=True)
     username = CUnicode(help='Username who created the object',
                         readonly=True)
     last_modified = CInt(help='Unix timestamp at last object update',
                          readonly=True)
-    prev_uid = CUnicode(
-        help='Previous unique_id, if cloned from another object',
-        readonly=True)
-    prev_version = CUnicode(help='Version of previous object when cloned',
-                            readyonly=True)
+    prev_uid = CUnicode(help='Previous unique_id', readonly=True)
     _loopback_guard = CBool(False, readonly=True)
     _changed = CBool(False, readonly=True)
 
@@ -467,7 +481,7 @@ class MetatlasObject(HasTraits):
             val = getattr(self, tname)
             if recursive and isinstance(trait, List):
                 val = [v.clone(True) for v in val]
-            elif recursive and isinstance(trait, Instance) and val:
+            elif recursive and isinstance(trait, MetInstance) and val:
                 val = val.clone(True)
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
@@ -596,10 +610,10 @@ class LcmsRun(MetatlasObject):
     the files in /project/projectdirs/metatlas/raw_data/<username> or by 
     running `load_lcms_files()`.
     """
-    method = Instance(Method, allow_none=True)
+    method = MetInstance(Method)
     hdf5_file = CUnicode(help='Path to the HDF5 file at NERSC')
     mzml_file = CUnicode(help='Path to the MZML file at NERSC')
-    sample = Instance(Sample, allow_none=True)
+    sample = MetInstance(Sample)
 
     def interact(self, min_mz=None, max_mz=None, polarity=None, ms_level=1):
         """Interact with LCMS data - XIC linked to a Spectrogram plot.
@@ -680,7 +694,7 @@ class FunctionalSet(MetatlasObject):
     "Sugars" would be a set that contains "Hexoses".
     """
     enabled = CBool(True)
-    members = ListNotifier(Instance(MetatlasObject))
+    members = ListNotifier(MetInstance(MetatlasObject))
 
 
 @set_docstring
@@ -695,10 +709,10 @@ class Compound(MetatlasObject):
     MonoIsotopic_molecular_weight = CFloat()
     synonyms = CUnicode()
     url = CUnicode(help='Reference database table url')
-    reference_xrefs = ListNotifier(Instance(ReferenceDatabase),
+    reference_xrefs = ListNotifier(MetInstance(ReferenceDatabase),
                            help='Tag a compound with compound ids from ' +
                                 'external databases')
-    functional_sets = ListNotifier(Instance(FunctionalSet))
+    functional_sets = ListNotifier(MetInstance(FunctionalSet))
 
 
 @set_docstring
@@ -708,7 +722,7 @@ class Reference(MetatlasObject):
     retention times, m/z, and fragmentation.
     MIDAS is a great example of this.
     """
-    lcms_run = Instance(LcmsRun, allow_none=True)
+    lcms_run = MetInstance(LcmsRun)
     enabled = CBool(True)
     ref_type = CUnicode(help='The type of reference')
 
@@ -735,10 +749,9 @@ class IdentificationGrade(MetatlasObject):
     pass
 
 
-class _IdGradeTrait(Instance):
+class _IdGradeTrait(MetInstance):
 
     klass = IdentificationGrade
-    allow_none = True
 
     def validate(self, obj, value):
         if isinstance(value, self.klass):
@@ -757,11 +770,11 @@ class _IdGradeTrait(Instance):
 class CompoundIdentification(MetatlasObject):
     """A CompoundIdentification links multiple sources of evidence about a 
     compound's identity to an Atlas."""
-    compound = Instance(Compound, allow_none=True)
+    compound = MetInstance(Compound)
     identification_grade = _IdGradeTrait(
         help='Identification grade of the id (can be specified by a letter A-H'
     )
-    references = ListNotifier(Instance(Reference))
+    references = ListNotifier(MetInstance(Reference))
 
     def select_by_type(self, ref_type):
         """Select references by type.
@@ -786,7 +799,7 @@ class CompoundIdentification(MetatlasObject):
 class Atlas(MetatlasObject):
     """An atlas contains many compound_ids."""
     compound_identifications = ListNotifier(
-        Instance(CompoundIdentification),
+        MetInstance(CompoundIdentification),
         help='List of Compound Identification objects')
 
 
@@ -797,7 +810,7 @@ class Group(MetatlasObject):
     group of files, or
     group of groups
     """
-    items = ListNotifier(Instance(MetatlasObject),
+    items = ListNotifier(MetInstance(MetatlasObject),
                  help='Can contain other groups or LCMS Runs')
 
 
@@ -811,7 +824,7 @@ class MzIntensityPair(MetatlasObject):
 class FragmentationReference(Reference):
     polarity = Enum(POLARITY, 'positive')
     precursor_mz = CFloat()
-    mz_intensities = ListNotifier(Instance(MzIntensityPair),
+    mz_intensities = ListNotifier(MetInstance(MzIntensityPair),
                           help='list of [mz, intesity] tuples that describe ' +
                                ' a fragmentation spectra')
 
