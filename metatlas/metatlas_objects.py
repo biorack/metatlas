@@ -3,7 +3,6 @@ import uuid
 import time
 import os
 import sys
-import pickle
 import pprint
 import tables
 import numpy as np
@@ -98,6 +97,9 @@ class Stub(HasTraits):
     unique_id = CUnicode()
     object_type = CUnicode()
 
+    def retrieve(self):
+        return retrieve(self.object_type, unique_id=self.unique_id)[0]
+
     def __repr__(self):
         return '%s %s' % (self.object_type.capitalize(),
                           self.unique_id)
@@ -151,29 +153,33 @@ class Workspace(object):
     def find(self, table_name, **kwargs):
         return self.db[table_name.lower()].find(**kwargs)
 
-    def save(self, obj, name=None):
-        if obj.unique_id in self.seen:
+    def save_objects(self, objects):
+        if not isinstance(objects, (list, set)):
+            objects = [objects]
+        self._seen = dict()
+        self._updates = defaultdict(list)
+        self._inserts = defaultdict(list)
+        for obj in objects:
+            self.save(obj)
+        for (table_name, updates) in self._updates.items():
+            with self.db:
+                for (uid, prev_uid) in updates:
+                    self.db.query('update %s set unique_id = %s where unique_id = %s' % (table_name, prev_uid, uid))
+        for (table_name, inserts) in self._inserts.items():
+            self.db[table_name].insert_many(inserts)
+
+    def save(self, obj):
+        if obj.unique_id in self._seen:
             return
-        name = name or obj.__class__.__name__
-        if not name.lower().endswith('s'):
-            name += 's'
-        if self.find_one(name, unique_id=obj.unique_id):
-            return
-        self.seen[obj.unique_id] = ''
-        state = obj.traits().copy()
+        name = obj.__class__.__name__.lower() + 's'
+        self._seen[obj.unique_id] = True
+        changed, prev_uid = obj._update()
+        state = dict()
         for (tname, trait) in obj.traits().items():
-            if tname.startswith('_'):
-                del state[tname]
-                continue
-            value = getattr(obj, tname)
             if isinstance(trait, List):
+                value = getattr(obj, tname)
                 # do not store this entry in our own table
-                del state[tname]
                 if not value:
-                    continue
-                # if it is not composed of other objects, just pickle it
-                if not isinstance(value[0], MetatlasObject):
-                    state[tname] = pickle.dumps(value)
                     continue
                 # handle a list of objects by using a Link table
                 # create the link table if necessary
@@ -181,14 +187,16 @@ class Workspace(object):
                 # create an entry in the table for each item
                 # store the item in its own table
                 for subvalue in value:
-                    subvalue.store()
+                    self.save(value)
                     link = dict(unique_id=obj.unique_id,
                                 target_id=subvalue.unique_id,
                                 target_table=subvalue.__class__.__name__)
-                    if not self.find_one(table_name, unique_id=obj.unique_id,
-                                         target_id=subvalue.unique_id):
-                        self.insert(table_name, link)
+                    self._inserts[table_name].append(link)
+                if prev_uid:
+                    self._updates[table_name].append((obj.unique_id,
+                                                      obj.prev_uid))
             elif isinstance(trait, MetInstance):
+                value = getattr(obj, tname)
                 # handle a sub-object
                 # if it is not assigned, use and empty unique_id
                 if value is None:
@@ -197,48 +205,23 @@ class Workspace(object):
                 # itself
                 else:
                     state[tname] = value.unique_id
-                    value.store()
-            else:
+                    self.save(value)
+            elif changed:
+                value = getattr(obj, tname)
                 # store the raw value in this table
                 state[tname] = value
-        self.insert(name, state)
-        del self.seen[obj.unique_id]
-
-    def retreive_many(self, items, name):
-        queries = defaultdict(list)
-        # get list of unique ids for each list subtype
-        for (tname, trait) in items[0].traits().items():
-            if isinstance(trait, List):
-                table_name = '_'.join([name, tname])
-                queries[table_name] = [i.unique_id for i in items]
-        # gather all of the entries
-        for table_name in queries:
-            querystr = 'select * from %s where unique_id in (' % table_name
-            querystr += ', '.join(queries[table_name])
-            result = self.db.query(querystr + ')')
-            queries[table_name] = defaultdict(list)
-            [queries[table_name][r.unique_id].append(r) for r in result]
-        # use the latest version of each entry and store a stub
-        for item in items:
-            for table_name in queries:
-                items = []
-                prev_item = None
-                for i in queries[table_name][item.unique_id]:
-                    if prev_item is None:
-                        prev_item = i
-                    if i['unique_id'] != prev_item['unique_id']:
-                        items.append(Stub(unique_id=prev_item['target_id'],
-                                          object_type=prev_item['target_table']))
-                    prev_item = i
-                if items[-1]['unique_id'] != prev_item['unique_id']:
-                    items.append(Stub(unique_id=prev_item['target_id'],
-                                      object_type=prev_item['target_table']))
-        return items
+        if prev_uid:
+            self._updates[name].append((obj.unique_id, obj.prev_uid))
+        else:
+            state['prev_uid'] = ''
+        if changed:
+            self._inserts[name].append(state)
 
 # Singleton Workspace object
 workspace = Workspace()
 
 
+# TODO: make this a LUT
 def _all_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__()
                                    for g in _all_subclasses(s)]
@@ -320,66 +303,7 @@ def store(objects):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
-    if not isinstance(objects, (list, set)):
-        objects = [objects]
-    workspace.store(objects)
-    # for store, we gather up a dict of lists, and then
-    # use insert_many on each table
-
-
-def queryDatabase(object_type, **kwargs):
-    """Query the Metatlas object database.
-
-    Parameters
-    ----------
-    object_type: string
-      The type of object to search for (i.e. "Groups").
-    **kwargs
-      Specific search queries (i.e. name="Sargasso").
-      Use '%' for wildcard patterns (i.e. description='Hello%').
-      If you want to match a '%' character, use '%%'.
-
-    Returns
-    -------
-    objects: list
-      List of Metatlas Objects meeting the criteria.  Will return the
-      latest version of each object.
-    """
-    object_type = object_type.lower()
-    klass = None
-    for k in _all_subclasses(MetatlasObject):
-        name = k.__name__.lower()
-        if object_type == name or object_type == name + 's':
-            klass = k
-            break
-    if not klass:
-        raise ValueError('Unknown object type: %s' % object_type)
-    if not object_type.endswith('s'):
-        object_type += 's'
-    # Get just the unique ids matching the critera first
-    # Example query:
-    # SELECT prev_unique_ids, unique_ids
-    # FROM tablename
-    # WHERE (city = 'New York' AND name like 'IBM%')
-    query = "select prev_unique_id, unique_id from %s where (" % object_type
-    clauses = []
-    for (key, value) in kwargs.items():
-        if '%%' in value:
-            clauses.append("%s = '%s'" % (key, value.replace('%%', '%')))
-        elif '%' in value:
-            clauses.append("%s like '%s'" % (key, value.replace('*', '%')))
-        else:
-            clauses.append("%s = '%s'" % (key, value))
-    query += 'and '.join(clauses)
-    query += ')'
-    if not clauses:
-        query = query.replace('where ()', '')
-    items = [i for i in workspace.db.query(query)]
-    prev_uuids = [i['prev_unique_id'] for i in items]
-    unique_ids = [i['unique_id'] for i in items
-                  if i['unique_id'] not in prev_uuids]
-    items = [klass(unique_id=i) for i in unique_ids]
-    return [i.retrieve() for i in items]
+    workspace.save_objects(objects)
 
 
 def format_timestamp(tstamp):
@@ -438,28 +362,26 @@ class MetatlasObject(HasTraits):
     def __init__(self, **kwargs):
         """Set the default attributes."""
         kwargs.setdefault('unique_id', uuid.uuid4().hex)
-        kwargs.setdefault('created_by', getpass.getuser())
+        kwargs.setdefault('username', getpass.getuser())
         kwargs.setdefault('creation_time', int(time.time()))
         kwargs.setdefault('last_modified', int(time.time()))
         super(MetatlasObject, self).__init__(**kwargs)
         self.on_trait_change(self._on_update)
 
-    def _store(self, name=None):
+    def _update(self):
         """Store the object in the workspace, including child objects.
 
         Child objects are stored in their own tables, and Lists of
         Child objects are captured in link tables.
         """
-        if getpass.getuser() != self.created_by:
-            raise ValueError(
-                'Please use clone() for objects created by another user')
         self._loopback_guard = True
-        if self._changed:
-            self.version += 1
+        changed, prev_uid = self._changed, self.prev_uid
+        if changed:
             self.last_modified = time.time()
-        workspace.save(self, name)
+            self.prev_uid = uuid.uuid4().hex
         self._changed = False
         self._loopback_guard = False
+        return changed, prev_uid
 
     def clone(self, recursive=False):
         """Create a new version of this object.
@@ -485,7 +407,6 @@ class MetatlasObject(HasTraits):
                 val = val.clone(True)
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
-        obj.prev_version = self.version
         return obj
 
     def edit(self):
