@@ -157,15 +157,26 @@ class Workspace(object):
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
+        self._link_updates = defaultdict(list)
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
         for obj in objects:
             self.save(obj)
-        for (table_name, updates) in self._updates.items():
+        for (table_name, updates) in self._link_updates.items():
             with self.db:
                 for (uid, prev_uid) in updates:
-                    self.db.query('update %s set unique_id = %s where unique_id = %s' % (table_name, prev_uid, uid))
+                    self.db.query('update %s set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
+        for (table_name, updates) in self._updates.items():
+            if '_' not in table_name and table_name not in self.db:
+                self.db.create_table(table_name, primary_id='unique_id',
+                                     primary_type='String(32)')
+            with self.db:
+                for (uid, prev_uid) in updates:
+                    self.db.query('update %s set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, inserts) in self._inserts.items():
+            if '_' not in table_name and table_name not in self.db:
+                self.db.create_table(table_name, primary_id='unique_id',
+                                     primary_type='String(32)')
             self.db[table_name].insert_many(inserts)
 
     def save(self, obj):
@@ -176,25 +187,28 @@ class Workspace(object):
         changed, prev_uid = obj._update()
         state = dict()
         for (tname, trait) in obj.traits().items():
+            if tname.startswith('_'):
+                continue
             if isinstance(trait, List):
+                # handle a list of objects by using a Link table
+                # create the link table if necessary
+                table_name = '_'.join([name, tname])
+                if changed and prev_uid:
+                    self._link_updates[table_name].append((obj.unique_id,
+                                                           obj.prev_uid))
                 value = getattr(obj, tname)
                 # do not store this entry in our own table
                 if not value:
                     continue
-                # handle a list of objects by using a Link table
-                # create the link table if necessary
-                table_name = '_'.join([name, tname])
                 # create an entry in the table for each item
                 # store the item in its own table
                 for subvalue in value:
-                    self.save(value)
-                    link = dict(unique_id=obj.unique_id,
+                    self.save(subvalue)
+                    link = dict(source_id=obj.unique_id,
                                 target_id=subvalue.unique_id,
-                                target_table=subvalue.__class__.__name__)
-                    self._inserts[table_name].append(link)
-                if prev_uid:
-                    self._updates[table_name].append((obj.unique_id,
-                                                      obj.prev_uid))
+                                target_table=subvalue.__class__.__name__.lower() + 's')
+                    if changed:
+                        self._inserts[table_name].append(link)
             elif isinstance(trait, MetInstance):
                 value = getattr(obj, tname)
                 # handle a sub-object
@@ -210,7 +224,7 @@ class Workspace(object):
                 value = getattr(obj, tname)
                 # store the raw value in this table
                 state[tname] = value
-        if prev_uid:
+        if prev_uid and changed:
             self._updates[name].append((obj.unique_id, obj.prev_uid))
         else:
             state['prev_uid'] = ''
@@ -281,14 +295,15 @@ def retrieve(object_type, **kwargs):
     # get stubs for each of the list items
     for (tname, trait) in items[0].traits().items():
         if isinstance(trait, List):
-            table_name = '_'.join([name, tname])
-            querystr = 'select * from %s where unique_id in (' % table_name
-            querystr += ', '.join(uids)
-            result = workspace.db.query(querystr + ')')
+            table_name = '_'.join([object_type, tname])
+            querystr = 'select * from %s where source_id in ("' % table_name
+            querystr += '" , "'.join(uids)
+            result = workspace.db.query(querystr + '")')
             sublist = defaultdict(list)
             for r in result:
-                sublist[r.unique_id].append(Stub(unique_id=r.target_id,
-                                                 object_type=r.target_table))
+                stub = Stub(unique_id=r['target_id'],
+                            object_type=r['target_table'])
+                sublist[r['source_id']].append(stub)
             for i in items:
                 setattr(i, tname, sublist[i.unique_id])
     # TODO: allow for a recursive keyword
@@ -366,6 +381,7 @@ class MetatlasObject(HasTraits):
         kwargs.setdefault('creation_time', int(time.time()))
         kwargs.setdefault('last_modified', int(time.time()))
         super(MetatlasObject, self).__init__(**kwargs)
+        self._changed = True
         self.on_trait_change(self._on_update)
 
     def _update(self):
@@ -397,7 +413,7 @@ class MetatlasObject(HasTraits):
             Cloned object.
         """
         obj = self.__class__()
-        for (tname, trait) in self.traits.items():
+        for (tname, trait) in self.traits().items():
             if tname.startswith('_') or trait.get_metadata('readonly'):
                 continue
             val = getattr(self, tname)
@@ -436,7 +452,7 @@ class MetatlasObject(HasTraits):
         names.remove('name')
         names = ['name'] + [n for n in names if not n.startswith('_')]
         state = dict([(n, getattr(self, n)) for n in names])
-        state['created'] = format_timestamp(self.created)
+        state['creation_time'] = format_timestamp(self.creation_time)
         state['last_modified'] = format_timestamp(self.last_modified)
         return pprint.pformat(state)
 
@@ -678,7 +694,8 @@ class _IdGradeTrait(MetInstance):
         if isinstance(value, self.klass):
             return value
         elif isinstance(value, str):
-            objects = queryDatabase('identificationgrade', name=value.upper())
+            # TODO: this should computed once and stored
+            objects = retrieve('identificationgrade', name=value.upper())
             if objects:
                 return objects[-1]
             else:
@@ -829,10 +846,6 @@ def edit_traits(obj):
     labels = [Text(obj.__class__.__name__, disabled=True)] + labels
     display(HBox(children=[VBox(children=labels), VBox(children=items)]))
 
-
-# TODO:
-# make identification grade a custom trait
-# go through the workflow and determine how best to utilize the objects
 
 if __name__ == '__main__':
     m = Group()
