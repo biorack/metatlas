@@ -80,10 +80,11 @@ class NotifyList(list):
             return None
 
 
-class ListNotifier(List):
+class MetList(List):
+    allow_none = True
 
     def validate(self, obj, value):
-        value = super(ListNotifier, self).validate(obj, value)
+        value = super(MetList, self).validate(obj, value)
         value = NotifyList(value)
 
         def callback(*args):
@@ -92,17 +93,16 @@ class ListNotifier(List):
         return value
 
 
-class Stub(HasTraits):
+class MetUnicode(CUnicode):
+    allow_none = True
 
-    unique_id = CUnicode()
-    object_type = CUnicode()
 
-    def retrieve(self):
-        return retrieve(self.object_type, unique_id=self.unique_id)[0]
+class MetFloat(CFloat):
+    allow_none = True
 
-    def __repr__(self):
-        return '%s %s' % (self.object_type.capitalize(),
-                          self.unique_id)
+
+class MetInt(CInt):
+    allow_none = True
 
 
 class MetInstance(Instance):
@@ -116,6 +116,23 @@ class MetInstance(Instance):
                         object_type=self.klass.__name__)
         else:
             self.error(obj, value)
+
+
+class MetEnum(Enum):
+    allow_none = True
+
+
+class Stub(HasTraits):
+
+    unique_id = MetUnicode()
+    object_type = MetUnicode()
+
+    def retrieve(self):
+        return retrieve(self.object_type, unique_id=self.unique_id)[0]
+
+    def __repr__(self):
+        return '%s %s' % (self.object_type.capitalize(),
+                          self.unique_id)
 
 
 class Workspace(object):
@@ -360,17 +377,17 @@ def set_docstring(cls):
 @set_docstring
 class MetatlasObject(HasTraits):
 
-    name = CUnicode('Untitled', help='Name of the object')
-    description = CUnicode('No description', help='Description of the object')
-    unique_id = CUnicode(help='Unique identifier for the object',
+    name = MetUnicode('Untitled', help='Name of the object')
+    description = MetUnicode('No description', help='Description of the object')
+    unique_id = MetUnicode(help='Unique identifier for the object',
                          readonly=True)
-    creation_time = CInt(help='Unix timestamp at object creation',
+    creation_time = MetInt(help='Unix timestamp at object creation',
                          readonly=True)
-    username = CUnicode(help='Username who created the object',
+    username = MetUnicode(help='Username who created the object',
                         readonly=True)
-    last_modified = CInt(help='Unix timestamp at last object update',
+    last_modified = MetInt(help='Unix timestamp at last object update',
                          readonly=True)
-    prev_uid = CUnicode(help='Previous unique_id', readonly=True)
+    prev_uid = MetUnicode(help='Previous unique_id', readonly=True)
     _loopback_guard = CBool(False, readonly=True)
     _changed = CBool(False, readonly=True)
 
@@ -463,27 +480,27 @@ class Method(MetatlasObject):
     For each LCMS run, a Method is a consistent description of
     how the sample was prepared and LCMS data was collected.
     """
-    protocol_ref = CUnicode(help='Reference to a published protocol: ' +
+    protocol_ref = MetUnicode(help='Reference to a published protocol: ' +
         'identical to the protocol used.')
-    quenching_method = CUnicode(help='Description of the method used to ' +
+    quenching_method = MetUnicode(help='Description of the method used to ' +
         'stop metabolism.')
-    extraction_solvent = CUnicode(help='Solvent or solvent mixture used to ' +
+    extraction_solvent = MetUnicode(help='Solvent or solvent mixture used to ' +
         'extract metabolites.')
-    reconstitution_method = CUnicode(help='Solvent or solvent mixture ' +
+    reconstitution_method = MetUnicode(help='Solvent or solvent mixture ' +
         'the extract is reconstituted in prior to injection for an LCMS Run.')
-    mobile_phase_a = CUnicode(help='Solvent or solvent mixture.')
-    mobile_phase_b = CUnicode(help='Solvent or solvent mixture.')
-    temporal_parameters = CUnicode('List of temporal changes to the' +
+    mobile_phase_a = MetUnicode(help='Solvent or solvent mixture.')
+    mobile_phase_b = MetUnicode(help='Solvent or solvent mixture.')
+    temporal_parameters = MetUnicode('List of temporal changes to the' +
         'mixing of mobile_phase_a and mobile_phase_b.')
-    column_model = CUnicode(help='Brand and catalog number of the column')
-    column_type = CUnicode(help='Class of column used.')
-    scan_mz_range = CUnicode(help='Minimum and ' +
+    column_model = MetUnicode(help='Brand and catalog number of the column')
+    column_type = MetUnicode(help='Class of column used.')
+    scan_mz_range = MetUnicode(help='Minimum and ' +
         'maximum mz recorded for a run.')
-    instrument = CUnicode(help='Brand and catalog number for the ' +
+    instrument = MetUnicode(help='Brand and catalog number for the ' +
         'mass spectrometer.')
-    ion_source = CUnicode(help='Method for ionization.')
-    mass_analyzer = CUnicode(help='Method for detection.')
-    polarity = Enum(POLARITY, 'positive', help='polarity for the run')
+    ion_source = MetUnicode(help='Method for ionization.')
+    mass_analyzer = MetUnicode(help='Method for detection.')
+    polarity = MetEnum(POLARITY, 'positive', help='polarity for the run')
 
 
 @set_docstring
@@ -548,8 +565,8 @@ class LcmsRun(MetatlasObject):
     running `load_lcms_files()`.
     """
     method = MetInstance(Method)
-    hdf5_file = CUnicode(help='Path to the HDF5 file at NERSC')
-    mzml_file = CUnicode(help='Path to the MZML file at NERSC')
+    hdf5_file = MetUnicode(help='Path to the HDF5 file at NERSC')
+    mzml_file = MetUnicode(help='Path to the MZML file at NERSC')
     sample = MetInstance(Sample)
 
     def interact(self, min_mz=None, max_mz=None, polarity=None, ms_level=1):
@@ -631,7 +648,7 @@ class FunctionalSet(MetatlasObject):
     "Sugars" would be a set that contains "Hexoses".
     """
     enabled = CBool(True)
-    members = ListNotifier(MetInstance(MetatlasObject))
+    members = MetList(MetInstance(MetatlasObject))
 
 
 @set_docstring
@@ -641,15 +658,15 @@ class Compound(MetatlasObject):
     For IDs that have high enough confidence for structural assignments an
     InChi string is the ID.
     """
-    InChI = CUnicode(help='IUPAC International Chemical Identifier, optional')
-    formula = CUnicode()
-    MonoIsotopic_molecular_weight = CFloat()
-    synonyms = CUnicode()
-    url = CUnicode(help='Reference database table url')
-    reference_xrefs = ListNotifier(MetInstance(ReferenceDatabase),
+    InChI = MetUnicode(help='IUPAC International Chemical Identifier, optional')
+    formula = MetUnicode()
+    MonoIsotopic_molecular_weight = MetFloat()
+    synonyms = MetUnicode()
+    url = MetUnicode(help='Reference database table url')
+    reference_xrefs = MetList(MetInstance(ReferenceDatabase),
                            help='Tag a compound with compound ids from ' +
                                 'external databases')
-    functional_sets = ListNotifier(MetInstance(FunctionalSet))
+    functional_sets = MetList(MetInstance(FunctionalSet))
 
 
 @set_docstring
@@ -661,7 +678,7 @@ class Reference(MetatlasObject):
     """
     lcms_run = MetInstance(LcmsRun)
     enabled = CBool(True)
-    ref_type = CUnicode(help='The type of reference')
+    ref_type = MetUnicode(help='The type of reference')
 
 
 @set_docstring
@@ -712,7 +729,7 @@ class CompoundIdentification(MetatlasObject):
     identification_grade = _IdGradeTrait(
         help='Identification grade of the id (can be specified by a letter A-H'
     )
-    references = ListNotifier(MetInstance(Reference))
+    references = MetList(MetInstance(Reference))
 
     def select_by_type(self, ref_type):
         """Select references by type.
@@ -736,7 +753,7 @@ class CompoundIdentification(MetatlasObject):
 @set_docstring
 class Atlas(MetatlasObject):
     """An atlas contains many compound_ids."""
-    compound_identifications = ListNotifier(
+    compound_identifications = MetList(
         MetInstance(CompoundIdentification),
         help='List of Compound Identification objects')
 
@@ -748,31 +765,31 @@ class Group(MetatlasObject):
     group of files, or
     group of groups
     """
-    items = ListNotifier(MetInstance(MetatlasObject),
+    items = MetList(MetInstance(MetatlasObject),
                  help='Can contain other groups or LCMS Runs')
 
 
 @set_docstring
 class MzIntensityPair(MetatlasObject):
-    mz = CFloat()
-    intensity = CFloat()
+    mz = MetFloat()
+    intensity = MetFloat()
 
 
 @set_docstring
 class FragmentationReference(Reference):
-    polarity = Enum(POLARITY, 'positive')
-    precursor_mz = CFloat()
-    mz_intensities = ListNotifier(MetInstance(MzIntensityPair),
+    polarity = MetEnum(POLARITY, 'positive')
+    precursor_mz = MetFloat()
+    mz_intensities = MetList(MetInstance(MzIntensityPair),
                           help='list of [mz, intesity] tuples that describe ' +
                                ' a fragmentation spectra')
 
 
 @set_docstring
 class RtReference(Reference):
-    RTpeak = CFloat()
-    RTmin = CFloat()
-    RTmax = CFloat()
-    RTUnits = Enum(('sec', 'min'), 'sec')
+    RTpeak = MetFloat()
+    RTmin = MetFloat()
+    RTmax = MetFloat()
+    RTUnits = MetEnum(('sec', 'min'), 'sec')
 
 
 @set_docstring
@@ -780,13 +797,13 @@ class MzReference(Reference):
     """Source of the assertion that a compound has a given m/z and
     other properties directly tied to m/z.
     """ 
-    mz = CFloat()
-    mz_tolerance = CFloat()
-    mz_tolerance_units = Enum(('ppm', 'Da'), 'ppm')
-    detected_polarity = Enum(POLARITY, 'positive')
-    adduct = CUnicode(help='Optional adduct')
-    modification = CUnicode(help='Optional modification')
-    observed_formula = CUnicode(help='Optional observed formula')
+    mz = MetFloat()
+    mz_tolerance = MetFloat()
+    mz_tolerance_units = MetEnum(('ppm', 'Da'), 'ppm')
+    detected_polarity = MetEnum(POLARITY, 'positive')
+    adduct = MetUnicode(help='Optional adduct')
+    modification = MetUnicode(help='Optional modification')
+    observed_formula = MetUnicode(help='Optional observed formula')
 
 
 def edit_traits(obj):
