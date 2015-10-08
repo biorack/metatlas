@@ -3,10 +3,11 @@ import uuid
 import time
 import os
 import sys
-import pickle
 import pprint
 import tables
 import numpy as np
+import six
+from collections import defaultdict
 from pwd import getpwuid
 
 try:
@@ -79,10 +80,11 @@ class NotifyList(list):
             return None
 
 
-class ListNotifier(List):
+class MetList(List):
+    allow_none = True
 
     def validate(self, obj, value):
-        value = super(ListNotifier, self).validate(obj, value)
+        value = super(MetList, self).validate(obj, value)
         value = NotifyList(value)
 
         def callback(*args):
@@ -91,7 +93,49 @@ class ListNotifier(List):
         return value
 
 
-class _Workspace(object):
+class MetUnicode(CUnicode):
+    allow_none = True
+
+
+class MetFloat(CFloat):
+    allow_none = True
+
+
+class MetInt(CInt):
+    allow_none = True
+
+
+class MetInstance(Instance):
+    allow_none = True
+
+    def validate(self, obj, value):
+        if isinstance(value, (self.klass, Stub)):
+            return value
+        elif isinstance(value, six.string_types):
+            return Stub(unique_id=value,
+                        object_type=self.klass.__name__)
+        else:
+            self.error(obj, value)
+
+
+class MetEnum(Enum):
+    allow_none = True
+
+
+class Stub(HasTraits):
+
+    unique_id = MetUnicode()
+    object_type = MetUnicode()
+
+    def retrieve(self):
+        return retrieve(self.object_type, unique_id=self.unique_id)[0]
+
+    def __repr__(self):
+        return '%s %s' % (self.object_type.capitalize(),
+                          self.unique_id)
+
+
+class Workspace(object):
 
     def __init__(self):
         # allow for fallback when not on NERSC
@@ -116,9 +160,8 @@ class _Workspace(object):
 
     def insert(self, name, state):
         name = name.lower()
-        if name not in self.db:
-            self.db.create_table(name, primary_id='unique_id',
-                                 primary_type='String(32)')
+        self.db.create_table(name, primary_id='unique_id',
+                             primary_type='String(32)')
         self.db[name].insert(state)
 
     def find_one(self, table_name, **kwargs):
@@ -127,44 +170,64 @@ class _Workspace(object):
     def find(self, table_name, **kwargs):
         return self.db[table_name.lower()].find(**kwargs)
 
-    def save(self, obj, name=None):
-        if obj.unique_id in self.seen:
+    def save_objects(self, objects):
+        if not isinstance(objects, (list, set)):
+            objects = [objects]
+        self._seen = dict()
+        self._link_updates = defaultdict(list)
+        self._updates = defaultdict(list)
+        self._inserts = defaultdict(list)
+        for obj in objects:
+            self.save(obj)
+        for (table_name, updates) in self._link_updates.items():
+            with self.db:
+                for (uid, prev_uid) in updates:
+                    self.db.query('update %s set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
+        for (table_name, updates) in self._updates.items():
+            if '_' not in table_name and table_name not in self.db:
+                self.db.create_table(table_name, primary_id='unique_id',
+                                     primary_type='String(32)')
+            with self.db:
+                for (uid, prev_uid) in updates:
+                    self.db.query('update %s set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
+        for (table_name, inserts) in self._inserts.items():
+            if '_' not in table_name and table_name not in self.db:
+                self.db.create_table(table_name, primary_id='unique_id',
+                                     primary_type='String(32)')
+            self.db[table_name].insert_many(inserts)
+
+    def save(self, obj):
+        if obj.unique_id in self._seen:
             return
-        name = name or obj.__class__.__name__
-        if not name.lower().endswith('s'):
-            name += 's'
-        if self.find_one(name, unique_id=obj.unique_id):
-            return
-        self.seen[obj.unique_id] = ''
-        state = obj.traits().copy()
+        name = obj.__class__.__name__.lower() + 's'
+        self._seen[obj.unique_id] = True
+        changed, prev_uid = obj._update()
+        state = dict()
         for (tname, trait) in obj.traits().items():
             if tname.startswith('_'):
-                del state[tname]
                 continue
-            value = getattr(obj, tname)
             if isinstance(trait, List):
-                # do not store this entry in our own table
-                del state[tname]
-                if not value:
-                    continue
-                # if it is not composed of other objects, just pickle it
-                if not isinstance(value[0], MetatlasObject):
-                    state[tname] = pickle.dumps(value)
-                    continue
                 # handle a list of objects by using a Link table
                 # create the link table if necessary
                 table_name = '_'.join([name, tname])
+                if changed and prev_uid:
+                    self._link_updates[table_name].append((obj.unique_id,
+                                                           obj.prev_uid))
+                value = getattr(obj, tname)
+                # do not store this entry in our own table
+                if not value:
+                    continue
                 # create an entry in the table for each item
                 # store the item in its own table
                 for subvalue in value:
-                    subvalue.store()
-                    link = dict(unique_id=obj.unique_id,
+                    self.save(subvalue)
+                    link = dict(source_id=obj.unique_id,
                                 target_id=subvalue.unique_id,
-                                target_table=subvalue.__class__.__name__)
-                    if not self.find_one(table_name, unique_id=obj.unique_id,
-                                         target_id=subvalue.unique_id):
-                        self.insert(table_name, link)
-            elif isinstance(trait, Instance):
+                                target_table=subvalue.__class__.__name__.lower() + 's')
+                    if changed:
+                        self._inserts[table_name].append(link)
+            elif isinstance(trait, MetInstance):
+                value = getattr(obj, tname)
                 # handle a sub-object
                 # if it is not assigned, use and empty unique_id
                 if value is None:
@@ -173,74 +236,30 @@ class _Workspace(object):
                 # itself
                 else:
                     state[tname] = value.unique_id
-                    value.store()
-            else:
+                    self.save(value)
+            elif changed:
+                value = getattr(obj, tname)
                 # store the raw value in this table
                 state[tname] = value
-        self.insert(name, state)
-        del self.seen[obj.unique_id]
-
-    def load(self, obj, name=None):
-        if obj.unique_id in self.seen:
-            return self.seen[obj.unique_id]
-        name = name or obj.__class__.__name__
-        if not name.lower().endswith('s'):
-            name += 's'
-        # get our table entry
-        if name.lower() not in self.db:
-            return
-        entry = self.find_one(name, unique_id=obj.unique_id)
-        if not entry:
-            return
-        state = obj.traits()
-        self.seen[obj.unique_id] = obj
-        for (tname, trait) in state.items():
-            if tname.startswith('_'):
-                continue
-            if isinstance(trait, List):
-                # check for a pickled object
-                if tname in entry:
-                    setattr(obj, tname, entry[tname])
-                    continue
-                # get the items using the link table
-                # make the items retrieve themselves by unique id
-                items = []
-                table_name = '_'.join([name, tname])
-                rows = self.find(table_name, unique_id=obj.unique_id)
-                for row in rows:
-                    klass = eval(row['target_table'])
-                    target = klass(unique_id=row['target_id'])
-                    target = target.retrieve()
-                    if target:
-                        items.append(target)
-                setattr(obj, tname, items)
-            elif isinstance(trait, Instance):
-                # handle a sub-object
-                # if it was not assigned, use None
-                if not entry[tname]:
-                    setattr(obj, tname, None)
-                # allow the object to retrieve itself by unique id
-                else:
-                    subobject = trait.klass(unique_id=entry[tname])
-                    setattr(obj, tname, subobject.retrieve())
-            else:
-                # set the attribute directly
-                setattr(obj, tname, entry[tname])
-        del self.seen[obj.unique_id]
-        # return object for parent usage
-        return obj
+        if prev_uid and changed:
+            self._updates[name].append((obj.unique_id, obj.prev_uid))
+        else:
+            state['prev_uid'] = ''
+        if changed:
+            self._inserts[name].append(state)
 
 # Singleton Workspace object
-workspace = _Workspace()
+workspace = Workspace()
 
 
+# TODO: make this a LUT
 def _all_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__()
                                    for g in _all_subclasses(s)]
 
 
-def queryDatabase(object_type, **kwargs):
-    """Query the Metatlas object database.
+def retrieve(object_type, **kwargs):
+    """Get objects from the Metatlas object database.
 
     Parameters
     ----------
@@ -268,12 +287,11 @@ def queryDatabase(object_type, **kwargs):
         raise ValueError('Unknown object type: %s' % object_type)
     if not object_type.endswith('s'):
         object_type += 's'
-    # Get just the unique ids matching the critera first
     # Example query:
-    # SELECT prev_unique_ids, unique_ids
+    # SELECT *
     # FROM tablename
     # WHERE (city = 'New York' AND name like 'IBM%')
-    query = "select prev_unique_id, unique_id from %s where (" % object_type
+    query = "select * from %s where (" % object_type
     clauses = []
     for (key, value) in kwargs.items():
         if '%%' in value:
@@ -287,11 +305,37 @@ def queryDatabase(object_type, **kwargs):
     if not clauses:
         query = query.replace('where ()', '')
     items = [i for i in workspace.db.query(query)]
-    prev_uuids = [i['prev_unique_id'] for i in items]
-    unique_ids = [i['unique_id'] for i in items
-                  if i['unique_id'] not in prev_uuids]
-    items = [klass(unique_id=i) for i in unique_ids]
-    return [i.retrieve() for i in items]
+    prev_uuids = [i['prev_uid'] for i in items]
+    items = [klass(**i) for i in items
+             if i['unique_id'] not in prev_uuids]
+    uids = [i.unique_id for i in items]
+    # get stubs for each of the list items
+    for (tname, trait) in items[0].traits().items():
+        if isinstance(trait, List):
+            table_name = '_'.join([object_type, tname])
+            querystr = 'select * from %s where source_id in ("' % table_name
+            querystr += '" , "'.join(uids)
+            result = workspace.db.query(querystr + '")')
+            sublist = defaultdict(list)
+            for r in result:
+                stub = Stub(unique_id=r['target_id'],
+                            object_type=r['target_table'])
+                sublist[r['source_id']].append(stub)
+            for i in items:
+                setattr(i, tname, sublist[i.unique_id])
+    # TODO: allow for a recursive keyword
+    return items
+
+
+def store(objects):
+    """Store Metatlas objects in the database.
+
+    Parameters
+    ----------
+    objects: Metatlas object or list of Metatlas Objects
+        Object(s) to store in the database.
+    """
+    workspace.save_objects(objects)
 
 
 def format_timestamp(tstamp):
@@ -333,57 +377,70 @@ def set_docstring(cls):
 @set_docstring
 class MetatlasObject(HasTraits):
 
-    name = CUnicode('Untitled', help='Name of the object')
-    description = CUnicode('No description', help='Description of the object')
-    unique_id = CUnicode(help='Unique identifier for the object',
+    name = MetUnicode('Untitled', help='Name of the object')
+    description = MetUnicode('No description', help='Description of the object')
+    unique_id = MetUnicode(help='Unique identifier for the object',
                          readonly=True)
-    created = CInt(help='Unix timestamp at object creation',
-                   readonly=True)
-    created_by = CUnicode(help='Username who created the object',
-                          readonly=True)
-    last_modified = CInt(help='Unix timestamp at last object update',
+    creation_time = MetInt(help='Unix timestamp at object creation',
                          readonly=True)
-    modified_by = CUnicode(help='Username who last updated the object',
-                           readonly=True)
-    prev_unique_id = CUnicode(help='Unique id of previous version',
-                              readonly=True)
+    username = MetUnicode(help='Username who created the object',
+                        readonly=True)
+    last_modified = MetInt(help='Unix timestamp at last object update',
+                         readonly=True)
+    prev_uid = MetUnicode(help='Previous unique_id', readonly=True)
     _loopback_guard = CBool(False, readonly=True)
     _changed = CBool(False, readonly=True)
 
     def __init__(self, **kwargs):
         """Set the default attributes."""
         kwargs.setdefault('unique_id', uuid.uuid4().hex)
-        kwargs.setdefault('created_by', getpass.getuser())
-        kwargs.setdefault('modified_by', getpass.getuser())
-        kwargs.setdefault('created', int(time.time()))
+        kwargs.setdefault('username', getpass.getuser())
+        kwargs.setdefault('creation_time', int(time.time()))
         kwargs.setdefault('last_modified', int(time.time()))
         super(MetatlasObject, self).__init__(**kwargs)
+        self._changed = True
         self.on_trait_change(self._on_update)
 
-    def store(self, name=None):
+    def _update(self):
         """Store the object in the workspace, including child objects.
 
         Child objects are stored in their own tables, and Lists of
         Child objects are captured in link tables.
         """
         self._loopback_guard = True
-        if self._changed:
-            self.prev_unique_id = self.unique_id
-            self.unique_id = uuid.uuid4().hex
+        changed, prev_uid = self._changed, self.prev_uid
+        if changed:
             self.last_modified = time.time()
-            self.modified_by = getpass.getuser()
-        workspace.save(self, name)
+            self.prev_uid = uuid.uuid4().hex
         self._changed = False
         self._loopback_guard = False
+        return changed, prev_uid
 
-    def retrieve(self, name=None):
-        """Retrieve the object from the workspace, including child objects.
+    def clone(self, recursive=False):
+        """Create a new version of this object.
+
+        Parameters
+        ----------
+        recursive: boolean, optional
+            If true, clone all of the descendant objects as well.
+
+        Returns
+        -------
+        obj: MetatlasObject
+            Cloned object.
         """
-        self._loopback_guard = True
-        value = workspace.load(self, name)
-        self._changed = False
-        self._loopback_guard = False
-        return value
+        obj = self.__class__()
+        for (tname, trait) in self.traits().items():
+            if tname.startswith('_') or trait.get_metadata('readonly'):
+                continue
+            val = getattr(self, tname)
+            if recursive and isinstance(trait, List):
+                val = [v.clone(True) for v in val]
+            elif recursive and isinstance(trait, MetInstance) and val:
+                val = val.clone(True)
+            setattr(obj, tname, val)
+        obj.prev_uid = self.unique_id
+        return obj
 
     def edit(self):
         """Create an editor for the object
@@ -412,7 +469,7 @@ class MetatlasObject(HasTraits):
         names.remove('name')
         names = ['name'] + [n for n in names if not n.startswith('_')]
         state = dict([(n, getattr(self, n)) for n in names])
-        state['created'] = format_timestamp(self.created)
+        state['creation_time'] = format_timestamp(self.creation_time)
         state['last_modified'] = format_timestamp(self.last_modified)
         return pprint.pformat(state)
 
@@ -423,27 +480,27 @@ class Method(MetatlasObject):
     For each LCMS run, a Method is a consistent description of
     how the sample was prepared and LCMS data was collected.
     """
-    protocol_ref = CUnicode(help='Reference to a published protocol: ' +
+    protocol_ref = MetUnicode(help='Reference to a published protocol: ' +
         'identical to the protocol used.')
-    quenching_method = CUnicode(help='Description of the method used to ' +
+    quenching_method = MetUnicode(help='Description of the method used to ' +
         'stop metabolism.')
-    extraction_solvent = CUnicode(help='Solvent or solvent mixture used to ' +
+    extraction_solvent = MetUnicode(help='Solvent or solvent mixture used to ' +
         'extract metabolites.')
-    reconstitution_method = CUnicode(help='Solvent or solvent mixture ' +
+    reconstitution_method = MetUnicode(help='Solvent or solvent mixture ' +
         'the extract is reconstituted in prior to injection for an LCMS Run.')
-    mobile_phase_a = CUnicode(help='Solvent or solvent mixture.')
-    mobile_phase_b = CUnicode(help='Solvent or solvent mixture.')
-    temporal_parameters = CUnicode('List of temporal changes to the' +
+    mobile_phase_a = MetUnicode(help='Solvent or solvent mixture.')
+    mobile_phase_b = MetUnicode(help='Solvent or solvent mixture.')
+    temporal_parameters = MetUnicode('List of temporal changes to the' +
         'mixing of mobile_phase_a and mobile_phase_b.')
-    column_model = CUnicode(help='Brand and catalog number of the column')
-    column_type = CUnicode(help='Class of column used.')
-    scan_mz_range = CUnicode(help='Minimum and ' +
+    column_model = MetUnicode(help='Brand and catalog number of the column')
+    column_type = MetUnicode(help='Class of column used.')
+    scan_mz_range = MetUnicode(help='Minimum and ' +
         'maximum mz recorded for a run.')
-    instrument = CUnicode(help='Brand and catalog number for the ' +
+    instrument = MetUnicode(help='Brand and catalog number for the ' +
         'mass spectrometer.')
-    ion_source = CUnicode(help='Method for ionization.')
-    mass_analyzer = CUnicode(help='Method for detection.')
-    polarity = Enum(POLARITY, 'positive', help='polarity for the run')
+    ion_source = MetUnicode(help='Method for ionization.')
+    mass_analyzer = MetUnicode(help='Method for detection.')
+    polarity = MetEnum(POLARITY, 'positive', help='polarity for the run')
 
 
 @set_docstring
@@ -507,10 +564,10 @@ class LcmsRun(MetatlasObject):
     the files in /project/projectdirs/metatlas/raw_data/<username> or by 
     running `load_lcms_files()`.
     """
-    method = Instance(Method, allow_none=True)
-    hdf5_file = CUnicode(help='Path to the HDF5 file at NERSC')
-    mzml_file = CUnicode(help='Path to the MZML file at NERSC')
-    sample = Instance(Sample, allow_none=True)
+    method = MetInstance(Method)
+    hdf5_file = MetUnicode(help='Path to the HDF5 file at NERSC')
+    mzml_file = MetUnicode(help='Path to the MZML file at NERSC')
+    sample = MetInstance(Sample)
 
     def interact(self, min_mz=None, max_mz=None, polarity=None, ms_level=1):
         """Interact with LCMS data - XIC linked to a Spectrogram plot.
@@ -591,7 +648,7 @@ class FunctionalSet(MetatlasObject):
     "Sugars" would be a set that contains "Hexoses".
     """
     enabled = CBool(True)
-    members = ListNotifier(Instance(MetatlasObject))
+    members = MetList(MetInstance(MetatlasObject))
 
 
 @set_docstring
@@ -601,15 +658,15 @@ class Compound(MetatlasObject):
     For IDs that have high enough confidence for structural assignments an
     InChi string is the ID.
     """
-    InChI = CUnicode(help='IUPAC International Chemical Identifier, optional')
-    formula = CUnicode()
-    MonoIsotopic_molecular_weight = CFloat()
-    synonyms = CUnicode()
-    url = CUnicode(help='Reference database table url')
-    reference_xrefs = ListNotifier(Instance(ReferenceDatabase),
+    InChI = MetUnicode(help='IUPAC International Chemical Identifier, optional')
+    formula = MetUnicode()
+    MonoIsotopic_molecular_weight = MetFloat()
+    synonyms = MetUnicode()
+    url = MetUnicode(help='Reference database table url')
+    reference_xrefs = MetList(MetInstance(ReferenceDatabase),
                            help='Tag a compound with compound ids from ' +
                                 'external databases')
-    functional_sets = ListNotifier(Instance(FunctionalSet))
+    functional_sets = MetList(MetInstance(FunctionalSet))
 
 
 @set_docstring
@@ -619,9 +676,9 @@ class Reference(MetatlasObject):
     retention times, m/z, and fragmentation.
     MIDAS is a great example of this.
     """
-    lcms_run = Instance(LcmsRun, allow_none=True)
+    lcms_run = MetInstance(LcmsRun)
     enabled = CBool(True)
-    ref_type = CUnicode(help='The type of reference')
+    ref_type = MetUnicode(help='The type of reference')
 
 
 @set_docstring
@@ -646,16 +703,16 @@ class IdentificationGrade(MetatlasObject):
     pass
 
 
-class _IdGradeTrait(Instance):
+class _IdGradeTrait(MetInstance):
 
     klass = IdentificationGrade
-    allow_none = True
 
     def validate(self, obj, value):
         if isinstance(value, self.klass):
             return value
         elif isinstance(value, str):
-            objects = queryDatabase('identificationgrade', name=value.upper())
+            # TODO: this should computed once and stored
+            objects = retrieve('identificationgrade', name=value.upper())
             if objects:
                 return objects[-1]
             else:
@@ -668,11 +725,11 @@ class _IdGradeTrait(Instance):
 class CompoundIdentification(MetatlasObject):
     """A CompoundIdentification links multiple sources of evidence about a 
     compound's identity to an Atlas."""
-    compound = Instance(Compound, allow_none=True)
+    compound = MetInstance(Compound)
     identification_grade = _IdGradeTrait(
         help='Identification grade of the id (can be specified by a letter A-H'
     )
-    references = ListNotifier(Instance(Reference))
+    references = MetList(MetInstance(Reference))
 
     def select_by_type(self, ref_type):
         """Select references by type.
@@ -696,8 +753,8 @@ class CompoundIdentification(MetatlasObject):
 @set_docstring
 class Atlas(MetatlasObject):
     """An atlas contains many compound_ids."""
-    compound_identifications = ListNotifier(
-        Instance(CompoundIdentification),
+    compound_identifications = MetList(
+        MetInstance(CompoundIdentification),
         help='List of Compound Identification objects')
 
 
@@ -708,31 +765,31 @@ class Group(MetatlasObject):
     group of files, or
     group of groups
     """
-    items = ListNotifier(Instance(MetatlasObject),
+    items = MetList(MetInstance(MetatlasObject),
                  help='Can contain other groups or LCMS Runs')
 
 
 @set_docstring
 class MzIntensityPair(MetatlasObject):
-    mz = CFloat()
-    intensity = CFloat()
+    mz = MetFloat()
+    intensity = MetFloat()
 
 
 @set_docstring
 class FragmentationReference(Reference):
-    polarity = Enum(POLARITY, 'positive')
-    precursor_mz = CFloat()
-    mz_intensities = ListNotifier(Instance(MzIntensityPair),
+    polarity = MetEnum(POLARITY, 'positive')
+    precursor_mz = MetFloat()
+    mz_intensities = MetList(MetInstance(MzIntensityPair),
                           help='list of [mz, intesity] tuples that describe ' +
                                ' a fragmentation spectra')
 
 
 @set_docstring
 class RtReference(Reference):
-    RTpeak = CFloat()
-    RTmin = CFloat()
-    RTmax = CFloat()
-    RTUnits = Enum(('sec', 'min'), 'sec')
+    RTpeak = MetFloat()
+    RTmin = MetFloat()
+    RTmax = MetFloat()
+    RTUnits = MetEnum(('sec', 'min'), 'sec')
 
 
 @set_docstring
@@ -740,13 +797,13 @@ class MzReference(Reference):
     """Source of the assertion that a compound has a given m/z and
     other properties directly tied to m/z.
     """ 
-    mz = CFloat()
-    mz_tolerance = CFloat()
-    mz_tolerance_units = Enum(('ppm', 'Da'), 'ppm')
-    detected_polarity = Enum(POLARITY, 'positive')
-    adduct = CUnicode(help='Optional adduct')
-    modification = CUnicode(help='Optional modification')
-    observed_formula = CUnicode(help='Optional observed formula')
+    mz = MetFloat()
+    mz_tolerance = MetFloat()
+    mz_tolerance_units = MetEnum(('ppm', 'Da'), 'ppm')
+    detected_polarity = MetEnum(POLARITY, 'positive')
+    adduct = MetUnicode(help='Optional adduct')
+    modification = MetUnicode(help='Optional modification')
+    observed_formula = MetUnicode(help='Optional observed formula')
 
 
 def edit_traits(obj):
@@ -806,10 +863,6 @@ def edit_traits(obj):
     labels = [Text(obj.__class__.__name__, disabled=True)] + labels
     display(HBox(children=[VBox(children=labels), VBox(children=items)]))
 
-
-# TODO:
-# make identification grade a custom trait
-# go through the workflow and determine how best to utilize the objects
 
 if __name__ == '__main__':
     m = Group()
