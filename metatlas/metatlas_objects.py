@@ -199,6 +199,8 @@ class Workspace(object):
     def save(self, obj):
         if obj.unique_id in self._seen:
             return
+        if isinstance(obj, Stub):
+            return
         name = obj.__class__.__name__.lower() + 's'
         self._seen[obj.unique_id] = True
         changed, prev_uid = obj._update()
@@ -304,7 +306,13 @@ def retrieve(object_type, **kwargs):
     query += ')'
     if not clauses:
         query = query.replace('where ()', '')
-    items = [i for i in workspace.db.query(query)]
+    try:
+        items = [i for i in workspace.db.query(query)]
+    except Exception as e:
+        if 'Unknown column' in str(e):
+            keys = [k for k in klass.class_traits().keys()
+                    if not k.startswith('_')]
+            raise ValueError('Invalid column name, valid columns: %s' % keys)
     prev_uuids = [i['prev_uid'] for i in items]
     items = [klass(**i) for i in items
              if i['unique_id'] not in prev_uuids]
