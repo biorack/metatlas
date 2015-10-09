@@ -179,3 +179,21 @@ def test_clone():
     assert test3.prev_uid == test.unique_id
     assert test3.items[0].unique_id != test.items[0].unique_id
     assert test3.items[0].prev_uid == test.items[0].unique_id
+
+
+def test_store_stubs():
+    test = mo.Group(items=[mo.Group(items=[mo.LcmsRun()]), mo.LcmsRun()])
+    mo.store(test)
+    test = mo.retrieve('group', unique_id=test.unique_id)[0]
+    assert isinstance(test.items[0], mo.Stub)
+    mo.store(test)
+
+
+def test_get_latest():
+    test = mo.Compound(name='hello')
+    mo.store(test)
+    test.name = 'goodbye'
+    mo.store(test)
+    test = mo.retrieve('compound', creation_time=test.creation_time)
+    assert len(test) == 1, len(test)
+    assert test[0].name == 'goodbye'

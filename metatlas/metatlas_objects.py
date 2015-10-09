@@ -180,6 +180,8 @@ class Workspace(object):
         for obj in objects:
             self.save(obj)
         for (table_name, updates) in self._link_updates.items():
+            if table_name not in self.db:
+                continue
             with self.db:
                 for (uid, prev_uid) in updates:
                     self.db.query('update %s set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
@@ -296,6 +298,9 @@ def retrieve(object_type, **kwargs):
     query = "select * from %s where (" % object_type
     clauses = []
     for (key, value) in kwargs.items():
+        if not isinstance(value, six.string_types):
+            clauses.append("%s = %s" % (key, value))
+            continue
         if '%%' in value:
             clauses.append("%s = '%s'" % (key, value.replace('%%', '%')))
         elif '%' in value:
@@ -321,6 +326,10 @@ def retrieve(object_type, **kwargs):
     for (tname, trait) in items[0].traits().items():
         if isinstance(trait, List):
             table_name = '_'.join([object_type, tname])
+            if table_name not in workspace.db:
+                for i in items:
+                    setattr(i, tname, [])
+                continue
             querystr = 'select * from %s where source_id in ("' % table_name
             querystr += '" , "'.join(uids)
             result = workspace.db.query(querystr + '")')
@@ -331,6 +340,8 @@ def retrieve(object_type, **kwargs):
                 sublist[r['source_id']].append(stub)
             for i in items:
                 setattr(i, tname, sublist[i.unique_id])
+    for i in items:
+        i._changed = False
     # TODO: allow for a recursive keyword
     return items
 
