@@ -45,17 +45,16 @@ def update_metatlas(directory):
 
         # convert to HDF and store the entry in the database
         try:
-            from metatlas import LcmsRun, mzml_to_hdf
+            from metatlas import LcmsRun, mzml_to_hdf, store
             hdf5_file = mzml_to_hdf(fname)
             os.chmod(hdf5_file, 0o660)
             description = info['experiment'] + ' ' + info['path']
             ctime = os.stat(fname).st_ctime
             run = LcmsRun(name=info['path'], description=description,
-                          created_by=info['username'],
-                          modified_by=info['username'],
-                          created=ctime, last_modified=ctime,
+                          username=info['username'],
+                          creation_time=ctime, last_modified=ctime,
                           mzml_file=fname, hdf5_file=hdf5_file)
-            run.store()
+            store(run)
         except Exception as e:
             print(e)
 
