@@ -220,3 +220,20 @@ def test_user_preserve():
     return
     assert items[0].lcms_run.retrieve().username == 'foo'
     assert items[1].lcms_run.retrieve().username == username
+
+
+def test_store_all():
+    items = []
+    all_klasses = [mo.LcmsRun, mo.FunctionalSet, mo.IdentificationGrade,
+                   mo.MzReference, mo.MzIntensityPair, mo.Compound,
+                   mo.CompoundIdentification, mo.Atlas, mo.ReferenceDatabase,
+                   mo.FragmentationReference, mo.Group, mo.Sample]
+    for klass in all_klasses:
+        items.append(klass())
+    mo.store(items)
+    for klass in all_klasses:
+        name = klass.__name__
+        assert len(mo.retrieve(name))
+
+
+

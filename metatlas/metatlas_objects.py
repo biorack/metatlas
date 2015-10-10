@@ -203,7 +203,10 @@ class Workspace(object):
             return
         if isinstance(obj, Stub):
             return
-        name = obj.__class__.__name__.lower() + 's'
+        if obj.__class__.__name__.lower().endswith('s'):
+            name = obj.__class__.__name__.lower() + 'es'
+        else:
+            name = obj.__class__.__name__.lower() + 's'
         self._seen[obj.unique_id] = True
         changed, prev_uid = obj._update(override)
         state = dict()
@@ -289,7 +292,9 @@ def retrieve(object_type, **kwargs):
             break
     if not klass:
         raise ValueError('Unknown object type: %s' % object_type)
-    if not object_type.endswith('s'):
+    if klass.__name__.endswith('s') and not object_type.endswith('es'):
+        object_type += 'es'
+    elif not object_type.endswith('s'):
         object_type += 's'
     # Example query:
     # SELECT *
@@ -310,7 +315,7 @@ def retrieve(object_type, **kwargs):
     query += 'and '.join(clauses)
     query += ')'
     if not clauses:
-        query = query.replace('where ()', '')
+        query = query.replace(' where ()', '')
     try:
         items = [i for i in workspace.db.query(query)]
     except Exception as e:
@@ -740,6 +745,8 @@ class _IdGradeTrait(MetInstance):
     klass = IdentificationGrade
 
     def validate(self, obj, value):
+        if not value:
+            return
         if isinstance(value, self.klass):
             return value
         elif isinstance(value, str):
