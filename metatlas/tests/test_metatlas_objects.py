@@ -1,6 +1,7 @@
 
 from metatlas import metatlas_objects as mo
 from metatlas.mzml_loader import get_test_data
+import getpass
 
 
 def test_simple():
@@ -197,3 +198,25 @@ def test_get_latest():
     test = mo.retrieve('compound', creation_time=test.creation_time)
     assert len(test) == 1, len(test)
     assert test[0].name == 'goodbye'
+
+
+def test_user_preserve():
+    run = mo.LcmsRun(username='foo')
+    test = mo.Reference(name='hello', username='foo', lcms_run=run)
+    orig_id = test.unique_id
+    mo.store(test, override=True)
+    assert test.unique_id == orig_id
+    mo.store(test)
+    assert test.unique_id != orig_id
+    items = mo.retrieve('reference', name='hello')
+    username = getpass.getuser()
+    assert items[-2].username == 'foo'
+    assert items[-1].username == username
+    assert items[-2].lcms_run.retrieve().username == 'foo'
+    assert items[-1].lcms_run.retrieve().username == 'foo'
+    run.name = 'hello'
+    mo.store(test)
+    items = mo.retrieve('reference', creation_time=test.creation_time)
+    return
+    assert items[0].lcms_run.retrieve().username == 'foo'
+    assert items[1].lcms_run.retrieve().username == username

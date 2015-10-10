@@ -170,7 +170,7 @@ class Workspace(object):
     def find(self, table_name, **kwargs):
         return self.db[table_name.lower()].find(**kwargs)
 
-    def save_objects(self, objects):
+    def save_objects(self, objects, override=False):
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
@@ -178,34 +178,34 @@ class Workspace(object):
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
         for obj in objects:
-            self.save(obj)
+            self.save(obj, override)
         for (table_name, updates) in self._link_updates.items():
             if table_name not in self.db:
                 continue
             with self.db:
                 for (uid, prev_uid) in updates:
-                    self.db.query('update %s set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
+                    self.db.query('update "%s" set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, updates) in self._updates.items():
             if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
             with self.db:
                 for (uid, prev_uid) in updates:
-                    self.db.query('update %s set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
+                    self.db.query('update "%s" set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, inserts) in self._inserts.items():
             if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
             self.db[table_name].insert_many(inserts)
 
-    def save(self, obj):
+    def save(self, obj, override=False):
         if obj.unique_id in self._seen:
             return
         if isinstance(obj, Stub):
             return
         name = obj.__class__.__name__.lower() + 's'
         self._seen[obj.unique_id] = True
-        changed, prev_uid = obj._update()
+        changed, prev_uid = obj._update(override)
         state = dict()
         for (tname, trait) in obj.traits().items():
             if tname.startswith('_'):
@@ -224,7 +224,7 @@ class Workspace(object):
                 # create an entry in the table for each item
                 # store the item in its own table
                 for subvalue in value:
-                    self.save(subvalue)
+                    self.save(subvalue, override)
                     link = dict(source_id=obj.unique_id,
                                 target_id=subvalue.unique_id,
                                 target_table=subvalue.__class__.__name__.lower() + 's')
@@ -240,7 +240,7 @@ class Workspace(object):
                 # itself
                 else:
                     state[tname] = value.unique_id
-                    self.save(value)
+                    self.save(value, override)
             elif changed:
                 value = getattr(obj, tname)
                 # store the raw value in this table
@@ -295,7 +295,7 @@ def retrieve(object_type, **kwargs):
     # SELECT *
     # FROM tablename
     # WHERE (city = 'New York' AND name like 'IBM%')
-    query = "select * from %s where (" % object_type
+    query = "select * from '%s' where (" % object_type
     clauses = []
     for (key, value) in kwargs.items():
         if not isinstance(value, six.string_types):
@@ -318,10 +318,14 @@ def retrieve(object_type, **kwargs):
             keys = [k for k in klass.class_traits().keys()
                     if not k.startswith('_')]
             raise ValueError('Invalid column name, valid columns: %s' % keys)
+        else:
+            raise(e)
     prev_uuids = [i['prev_uid'] for i in items]
     items = [klass(**i) for i in items
              if i['unique_id'] not in prev_uuids]
     uids = [i.unique_id for i in items]
+    if not items:
+        return []
     # get stubs for each of the list items
     for (tname, trait) in items[0].traits().items():
         if isinstance(trait, List):
@@ -346,7 +350,7 @@ def retrieve(object_type, **kwargs):
     return items
 
 
-def store(objects):
+def store(objects, override=False):
     """Store Metatlas objects in the database.
 
     Parameters
@@ -354,7 +358,7 @@ def store(objects):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
-    workspace.save_objects(objects)
+    workspace.save_objects(objects, override)
 
 
 def format_timestamp(tstamp):
@@ -403,9 +407,9 @@ class MetatlasObject(HasTraits):
     creation_time = MetInt(help='Unix timestamp at object creation',
                          readonly=True)
     username = MetUnicode(help='Username who created the object',
-                        readonly=True)
+                          readonly=True)
     last_modified = MetInt(help='Unix timestamp at last object update',
-                         readonly=True)
+                           readonly=True)
     prev_uid = MetUnicode(help='Previous unique_id', readonly=True)
     _loopback_guard = CBool(False, readonly=True)
     _changed = CBool(False, readonly=True)
@@ -420,17 +424,26 @@ class MetatlasObject(HasTraits):
         self._changed = True
         self.on_trait_change(self._on_update)
 
-    def _update(self):
+    def _update(self, override_user=False):
         """Store the object in the workspace, including child objects.
 
         Child objects are stored in their own tables, and Lists of
         Child objects are captured in link tables.
         """
         self._loopback_guard = True
-        changed, prev_uid = self._changed, self.prev_uid
-        if changed:
+        # see if we need to create a new object
+        if not override_user and self.username != getpass.getuser():
+            self._changed = True
+            self.prev_uid = self.unique_id
+            self.unique_id = uuid.uuid4().hex
+            self.username = getpass.getuser()
             self.last_modified = time.time()
-            self.prev_uid = uuid.uuid4().hex
+            return True, None
+        else:
+            changed, prev_uid = self._changed, self.prev_uid
+            if changed:
+                self.last_modified = time.time()
+                self.prev_uid = uuid.uuid4().hex
         self._changed = False
         self._loopback_guard = False
         return changed, prev_uid
@@ -564,10 +577,10 @@ def load_lcms_files(mzml_files):
                           modified_by=user,
                           created=ctime, last_modified=ctime,
                           mzml_file=fname, hdf5_file=hdf_file)
-            run.store()
             runs.append(run)
         except Exception as e:
             print(e)
+    store(runs)
     return runs
 
 
