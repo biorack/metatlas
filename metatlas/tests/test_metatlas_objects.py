@@ -223,14 +223,10 @@ def test_user_preserve():
 
 def test_store_all():
     items = []
-    all_klasses = [mo.LcmsRun, mo.FunctionalSet, mo.IdentificationGrade,
-                   mo.MzReference, mo.MzIntensityPair, mo.Compound,
-                   mo.CompoundIdentification, mo.Atlas, mo.ReferenceDatabase,
-                   mo.FragmentationReference, mo.Group, mo.Sample]
-    for klass in all_klasses:
+    for klass in mo.SUBCLASS_LUT.values():
         items.append(klass())
     mo.store(items)
-    for klass in all_klasses:
+    for klass in mo.SUBCLASS_LUT.values():
         name = klass.__name__
         assert len(mo.retrieve(name))
 

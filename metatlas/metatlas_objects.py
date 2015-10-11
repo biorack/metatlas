@@ -259,12 +259,6 @@ class Workspace(object):
 workspace = Workspace()
 
 
-# TODO: make this a LUT
-def _all_subclasses(cls):
-    return cls.__subclasses__() + [g for s in cls.__subclasses__()
-                                   for g in _all_subclasses(s)]
-
-
 def retrieve(object_type, **kwargs):
     """Get objects from the Metatlas object database.
 
@@ -284,12 +278,7 @@ def retrieve(object_type, **kwargs):
       latest version of each object.
     """
     object_type = object_type.lower()
-    klass = None
-    for k in _all_subclasses(MetatlasObject):
-        name = k.__name__.lower()
-        if object_type == name or object_type == name + 's':
-            klass = k
-            break
+    klass = SUBCLASS_LUT.get(object_type, None)
     if not klass:
         raise ValueError('Unknown object type: %s' % object_type)
     if klass.__name__.endswith('s') and not object_type.endswith('es'):
@@ -509,6 +498,11 @@ class MetatlasObject(HasTraits):
         state['creation_time'] = format_timestamp(self.creation_time)
         state['last_modified'] = format_timestamp(self.last_modified)
         return pprint.pformat(state)
+
+
+def _get_subclasses(cls):
+    return cls.__subclasses__() + [g for s in cls.__subclasses__()
+                                   for g in _get_subclasses(s)]
 
 
 @set_docstring
@@ -843,6 +837,16 @@ class MzReference(Reference):
     adduct = MetUnicode(help='Optional adduct')
     modification = MetUnicode(help='Optional modification')
     observed_formula = MetUnicode(help='Optional observed formula')
+
+
+SUBCLASS_LUT = dict()
+for klass in _get_subclasses(MetatlasObject):
+    name = klass.__name__.lower()
+    SUBCLASS_LUT[name] = klass
+    if name.endswith('s'):
+        SUBCLASS_LUT[name + 'es'] = klass
+    else:
+        SUBCLASS_LUT[name + 's'] = klass
 
 
 def edit_traits(obj):
