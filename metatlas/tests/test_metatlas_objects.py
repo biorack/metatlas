@@ -128,14 +128,13 @@ def test_load_lcms_files():
     for run in runs:
         assert run.mzml_file
         assert run.hdf5_file
-        assert run.created
-        assert run.created_by
+        assert run.creation_time
         assert run.description
         assert run.name
         assert run.last_modified
-        assert run.modified_by == run.created_by
+        assert run.username
         assert run.unique_id
-        assert not run.prev_unique_id
+        assert not run.prev_uid
         assert mo.retrieve('lcmsrun', unique_id=run.unique_id)
 
 
