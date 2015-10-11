@@ -734,19 +734,25 @@ class IdentificationGrade(MetatlasObject):
     pass
 
 
+ID_GRADES = dict()
+
+
 class _IdGradeTrait(MetInstance):
 
     klass = IdentificationGrade
 
     def validate(self, obj, value):
+        global ID_GRADES
         if not value:
             return
         if isinstance(value, self.klass):
             return value
         elif isinstance(value, str):
-            # TODO: this should computed once and stored
+            if value.upper() in ID_GRADES:
+                return ID_GRADES[name.upper()]
             objects = retrieve('identificationgrade', name=value.upper())
             if objects:
+                ID_GRADES[value.upper()] = objects[-1]
                 return objects[-1]
             else:
                 self.error(obj, value)
