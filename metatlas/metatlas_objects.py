@@ -184,14 +184,14 @@ class Workspace(object):
                 continue
             with self.db:
                 for (uid, prev_uid) in updates:
-                    self.db.query('update "%s" set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
+                    self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, updates) in self._updates.items():
             if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
             with self.db:
                 for (uid, prev_uid) in updates:
-                    self.db.query('update "%s" set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
+                    self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, inserts) in self._inserts.items():
             if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
@@ -290,7 +290,7 @@ def retrieve(object_type, **kwargs):
     # SELECT *
     # FROM tablename
     # WHERE (city = 'New York' AND name like 'IBM%')
-    query = 'select * from "%s" where (' % object_type
+    query = 'select * from `%s` where (' % object_type
     clauses = []
     for (key, value) in kwargs.items():
         if not isinstance(value, six.string_types):
@@ -330,7 +330,7 @@ def retrieve(object_type, **kwargs):
                 for i in items:
                     setattr(i, tname, [])
                 continue
-            querystr = 'select * from "%s" where source_id in ("' % table_name
+            querystr = 'select * from `%s` where source_id in ("' % table_name
             querystr += '" , "'.join(uids)
             result = workspace.db.query(querystr + '")')
             sublist = defaultdict(list)
