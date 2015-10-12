@@ -285,22 +285,23 @@ def retrieve(object_type, **kwargs):
         object_type += 'es'
     elif not object_type.endswith('s'):
         object_type += 's'
+    recursive = kwargs.pop('recursive', False)
     # Example query:
     # SELECT *
     # FROM tablename
     # WHERE (city = 'New York' AND name like 'IBM%')
-    query = "select * from '%s' where (" % object_type
+    query = 'select * from "%s" where (' % object_type
     clauses = []
     for (key, value) in kwargs.items():
         if not isinstance(value, six.string_types):
             clauses.append("%s = %s" % (key, value))
             continue
         if '%%' in value:
-            clauses.append("%s = '%s'" % (key, value.replace('%%', '%')))
+            clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
         elif '%' in value:
-            clauses.append("%s like '%s'" % (key, value.replace('*', '%')))
+            clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
         else:
-            clauses.append("%s = '%s'" % (key, value))
+            clauses.append('%s = "%s"' % (key, value))
     query += 'and '.join(clauses)
     query += ')'
     if not clauses:
@@ -320,6 +321,7 @@ def retrieve(object_type, **kwargs):
     uids = [i.unique_id for i in items]
     if not items:
         return []
+    queries = defaultdict(list)
     # get stubs for each of the list items
     for (tname, trait) in items[0].traits().items():
         if isinstance(trait, List):
@@ -328,7 +330,7 @@ def retrieve(object_type, **kwargs):
                 for i in items:
                     setattr(i, tname, [])
                 continue
-            querystr = 'select * from %s where source_id in ("' % table_name
+            querystr = 'select * from "%s" where source_id in ("' % table_name
             querystr += '" , "'.join(uids)
             result = workspace.db.query(querystr + '")')
             sublist = defaultdict(list)
@@ -336,11 +338,19 @@ def retrieve(object_type, **kwargs):
                 stub = Stub(unique_id=r['target_id'],
                             object_type=r['target_table'])
                 sublist[r['source_id']].append(stub)
+                if recursive:
+                    queries[object_type].append(r['target_id'])
             for i in items:
                 setattr(i, tname, sublist[i.unique_id])
+        elif isinstance(trait, MetInstance):
+            pass
     for i in items:
         i._changed = False
     # TODO: allow for a recursive keyword
+    # what would this look like? - we gather up all of the stubs as queries
+    # and keep going until there are no more queries
+    if recursive:
+        pass
     return items
 
 
@@ -395,11 +405,12 @@ def set_docstring(cls):
 class MetatlasObject(HasTraits):
 
     name = MetUnicode('Untitled', help='Name of the object')
-    description = MetUnicode('No description', help='Description of the object')
+    description = MetUnicode('No description',
+                             help='Description of the object')
     unique_id = MetUnicode(help='Unique identifier for the object',
-                         readonly=True)
+                           readonly=True)
     creation_time = MetInt(help='Unix timestamp at object creation',
-                         readonly=True)
+                           readonly=True)
     username = MetUnicode(help='Username who created the object',
                           readonly=True)
     last_modified = MetInt(help='Unix timestamp at last object update',

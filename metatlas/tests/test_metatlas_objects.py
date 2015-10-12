@@ -134,7 +134,6 @@ def test_load_lcms_files():
         assert run.last_modified
         assert run.username
         assert run.unique_id
-        assert not run.prev_uid
         assert mo.retrieve('lcmsrun', unique_id=run.unique_id)
 
 
@@ -231,4 +230,18 @@ def test_store_all():
         assert len(mo.retrieve(name))
 
 
+def test_stub_instance():
+    run = mo.LcmsRun(username='foo')
+    test = mo.Reference(name='hello', lcms_run=run)
+    mo.store(test)
+    item = mo.retrieve('reference', name='hello')[0]
+    assert isinstance(item.lcms_run, mo.Stub)
 
+
+def test_retrieve_recursive():
+    return
+    run = mo.LcmsRun(username='foo')
+    test = mo.Reference(name='hello', lcms_run=run)
+    mo.store(test)
+    item = mo.retrieve('reference', name='hello', recursive=True)[0]
+    assert isinstance(item.lcms_run, mo.LcmsRun)
