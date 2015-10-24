@@ -158,6 +158,9 @@ class Workspace(object):
             os.chmod(self.path[10:], 0o775)
         return self.db
 
+    def convert_to_double(self, table, entry):
+        self.db.query('alter table `%s` modify `%s` double' % (table, entry))
+
     def insert(self, name, state):
         name = name.lower()
         self.db.create_table(name, primary_id='unique_id',
