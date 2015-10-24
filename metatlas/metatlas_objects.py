@@ -25,9 +25,8 @@ POLARITY = ('positive', 'negative', 'alternating')
 NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
 
 
+# Observable List from
 # http://stackoverflow.com/a/13259435
-_pyversion = sys.version_info[0]
-
 
 def callback_method(func):
     def notify(self, *args, **kwargs):
@@ -48,7 +47,7 @@ class NotifyList(list):
     __imul__ = callback_method(list.__imul__)
 
     # Take care to return a new NotifyList if we slice it.
-    if _pyversion < 3:
+    if sys.version_info[0] < 3:
         __setslice__ = callback_method(list.__setslice__)
         __delslice__ = callback_method(list.__delslice__)
 

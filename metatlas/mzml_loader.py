@@ -104,6 +104,7 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
 
     got_first = False
+
     for (ind, spectrum) in enumerate(mzml_reader):
 
         if got_first and spectrum['id'] == 1:
@@ -115,6 +116,9 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
             continue
         except Exception as e:
             print(e.message)
+            continue
+
+        if not rows:
             continue
 
         got_first = True
