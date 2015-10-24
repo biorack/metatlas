@@ -245,3 +245,12 @@ def test_retrieve_recursive():
     mo.store(test)
     item = mo.retrieve('reference', name='hello', recursive=True)[0]
     assert isinstance(item.lcms_run, mo.LcmsRun)
+
+
+def test_floating_point():
+    compound = mo.Compound(name='foo', MonoIsotopic_molecular_weight=1.0)
+    mo.store(compound)
+    compound.MonoIsotopic_molecular_weight = 1.000007
+    mo.store(compound)
+    test = mo.retrieve('compound', name='foo')[-1]
+    assert test.MonoIsotopic_molecular_weight == 1.000007, test.MonoIsotopic_molecular_weight

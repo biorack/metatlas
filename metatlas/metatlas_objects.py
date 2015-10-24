@@ -345,6 +345,8 @@ def retrieve(object_type, **kwargs):
         elif isinstance(trait, MetInstance):
             pass
     for i in items:
+        if not i.prev_uid:
+            i.prev_uid = 'origin'
         i._changed = False
     # TODO: allow for a recursive keyword
     # what would this look like? - we gather up all of the stubs as queries
