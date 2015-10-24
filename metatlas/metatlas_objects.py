@@ -111,8 +111,11 @@ class MetInstance(Instance):
         if isinstance(value, (self.klass, Stub)):
             return value
         elif isinstance(value, six.string_types):
-            return Stub(unique_id=value,
-                        object_type=self.klass.__name__)
+            if value:
+                return Stub(unique_id=value,
+                            object_type=self.klass.__name__)
+            else:
+                return None
         else:
             self.error(obj, value)
 
@@ -287,7 +290,6 @@ def retrieve(object_type, **kwargs):
         object_type += 'es'
     elif not object_type.endswith('s'):
         object_type += 's'
-    recursive = kwargs.pop('recursive', False)
     # Example query:
     # SELECT *
     # FROM tablename
@@ -323,7 +325,6 @@ def retrieve(object_type, **kwargs):
     uids = [i.unique_id for i in items]
     if not items:
         return []
-    queries = defaultdict(list)
     # get stubs for each of the list items
     for (tname, trait) in items[0].traits().items():
         if isinstance(trait, List):
@@ -340,8 +341,6 @@ def retrieve(object_type, **kwargs):
                 stub = Stub(unique_id=r['target_id'],
                             object_type=r['target_table'])
                 sublist[r['source_id']].append(stub)
-                if recursive:
-                    queries[object_type].append(r['target_id'])
             for i in items:
                 setattr(i, tname, sublist[i.unique_id])
         elif isinstance(trait, MetInstance):
@@ -350,11 +349,6 @@ def retrieve(object_type, **kwargs):
         if not i.prev_uid:
             i.prev_uid = 'origin'
         i._changed = False
-    # TODO: allow for a recursive keyword
-    # what would this look like? - we gather up all of the stubs as queries
-    # and keep going until there are no more queries
-    if recursive:
-        pass
     return items
 
 
@@ -482,6 +476,32 @@ class MetatlasObject(HasTraits):
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
         return obj
+
+    def retrieve_stubs(self, _seen=None):
+        """Recursively retrieve the stub objects for this object.
+        """
+        # prevent circular references
+        if _seen is None:
+            _seen = set()
+        if self in _seen:
+            return self
+        _seen.add(self)
+        for (tname, trait) in self.traits().items():
+            if isinstance(trait, MetList):
+                value = getattr(self, tname)
+                new = []
+                for subvalue in value:
+                    if isinstance(subvalue, Stub):
+                        subvalue = subvalue.retrieve()
+                        subvalue.retrieve_stubs(_seen)
+                    new.append(subvalue)
+                setattr(self, tname, new)
+            elif isinstance(trait, MetInstance):
+                value = getattr(self, tname)
+                if isinstance(value, Stub):
+                    value = value.retrieve()
+                    value.retrieve_stubs(_seen)
+                    setattr(self, tname, value)
 
     def edit(self):
         """Create an editor for the object
