@@ -175,7 +175,7 @@ class Workspace(object):
     def find(self, table_name, **kwargs):
         return self.db[table_name.lower()].find(**kwargs)
 
-    def save_objects(self, objects, override=False):
+    def save_objects(self, objects, _override=False):
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
@@ -183,7 +183,7 @@ class Workspace(object):
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
         for obj in objects:
-            self.save(obj, override)
+            self.save(obj, _override)
         for (table_name, updates) in self._link_updates.items():
             if table_name not in self.db:
                 continue
@@ -306,7 +306,7 @@ def retrieve(object_type, **kwargs):
             clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
         else:
             clauses.append('%s = "%s"' % (key, value))
-    query += 'and '.join(clauses)
+    query += ' and '.join(clauses)
     query += ')'
     if not clauses:
         query = query.replace(' where ()', '')
@@ -352,7 +352,73 @@ def retrieve(object_type, **kwargs):
     return items
 
 
-def store(objects, override=False):
+def remove(object_type, **kwargs):
+    """Remove objects from the Metatlas object database.
+
+    Parameters
+    ----------
+    object_type: string
+      The type of object to remove (i.e. "Groups").
+    **kwargs
+      Specific search queries (i.e. name="Sargasso").
+      Use '%' for wildcard patterns (i.e. description='Hello%').
+      If you want to match a '%' character, use '%%'.
+
+    Returns
+    -------
+    objects: list
+      List of Metatlas Objects meeting the criteria.  Will return the
+      latest version of each object.
+    """
+    object_type = object_type.lower()
+    klass = SUBCLASS_LUT.get(object_type, None)
+    if not klass:
+        raise ValueError('Unknown object type: %s' % object_type)
+    if klass.__name__.endswith('s') and not object_type.endswith('es'):
+        object_type += 'es'
+    elif not object_type.endswith('s'):
+        object_type += 's'
+    kwargs.setdefault('username', getpass.getuser())
+    override = kwargs.pop('_override', False)
+    # Example query:
+    # DELETE *
+    # FROM tablename
+    # WHERE (city = 'New York' AND name like 'IBM%')
+    query = 'delete from `%s` where (' % object_type
+    clauses = []
+    for (key, value) in kwargs.items():
+        if not isinstance(value, six.string_types):
+            clauses.append("%s = %s" % (key, value))
+            continue
+        if '%%' in value:
+            clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
+        elif '%' in value:
+            clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
+        else:
+            clauses.append('%s = "%s"' % (key, value))
+    query += ' and '.join(clauses)
+    query += ')'
+    if not clauses:
+        query = query.replace(' where ()', '')
+    if not override:
+        if sys.version.startswith('2'):
+            ans = raw_input('Are you sure you want to delete these entries?')
+        else:
+            ans = input('Are you sure you want to delete these entries?')
+        if ans[0].lower() != 'y':
+            return
+    try:
+        workspace.db.query(query)
+    except Exception as e:
+        if 'Unknown column' in str(e):
+            keys = [k for k in klass.class_traits().keys()
+                    if not k.startswith('_')]
+            raise ValueError('Invalid column name, valid columns: %s' % keys)
+        else:
+            raise(e)
+
+
+def store(objects, **kwargs):
     """Store Metatlas objects in the database.
 
     Parameters
@@ -360,7 +426,7 @@ def store(objects, override=False):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
-    workspace.save_objects(objects, override)
+    workspace.save_objects(objects, **kwargs)
 
 
 def format_timestamp(tstamp):
@@ -476,32 +542,6 @@ class MetatlasObject(HasTraits):
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
         return obj
-
-    def retrieve_stubs(self, _seen=None):
-        """Recursively retrieve the stub objects for this object.
-        """
-        # prevent circular references
-        if _seen is None:
-            _seen = set()
-        if self in _seen:
-            return self
-        _seen.add(self)
-        for (tname, trait) in self.traits().items():
-            if isinstance(trait, MetList):
-                value = getattr(self, tname)
-                new = []
-                for subvalue in value:
-                    if isinstance(subvalue, Stub):
-                        subvalue = subvalue.retrieve()
-                        subvalue.retrieve_stubs(_seen)
-                    new.append(subvalue)
-                setattr(self, tname, new)
-            elif isinstance(trait, MetInstance):
-                value = getattr(self, tname)
-                if isinstance(value, Stub):
-                    value = value.retrieve()
-                    value.retrieve_stubs(_seen)
-                    setattr(self, tname, value)
 
     def edit(self):
         """Create an editor for the object

@@ -202,7 +202,7 @@ def test_user_preserve():
     run = mo.LcmsRun(username='foo')
     test = mo.Reference(name='hello', username='foo', lcms_run=run)
     orig_id = test.unique_id
-    mo.store(test, override=True)
+    mo.store(test, _override=True)
     assert test.unique_id == orig_id
     mo.store(test)
     assert test.unique_id != orig_id
@@ -245,3 +245,11 @@ def test_floating_point():
     mo.store(compound)
     test = mo.retrieve('compound', name='foo')[-1]
     assert test.MonoIsotopic_molecular_weight == 1.000007, test.MonoIsotopic_molecular_weight
+
+
+def test_remove():
+    compound = mo.Compound(name='foo', MonoIsotopic_molecular_weight=1.0)
+    mo.store(compound)
+    mo.remove('compound', name='foo', _override=True)
+    test = mo.retrieve('compound', name='foo')
+    assert not test
