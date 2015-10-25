@@ -9,6 +9,7 @@ import numpy as np
 import six
 from collections import defaultdict
 from pwd import getpwuid
+from tabulate import tabulate
 
 try:
     from traitlets import (
@@ -554,6 +555,43 @@ class MetatlasObject(HasTraits):
         Otherwise, there will be a text editor.
         """
         edit_traits(self)
+
+    def show_diff(self, unique_id=None):
+        """Show a diff of what has changed between this and previous version.
+
+        Parameters
+        ----------
+        unique_id: optional, string
+            Unique id to compare against (defaults to previous entry in db).
+        """
+        if unique_id is None:
+            unique_id = self.unique_id
+        obj = retrieve(self.__class__.__name__, unique_id=unique_id)
+        if len(obj) != 1:
+            print('No change!')
+            return
+        obj = obj[0]
+        msg = []
+        for (tname, trait) in self.traits().items():
+            if tname.startswith('_') or trait.get_metadata('readonly'):
+                continue
+            val = getattr(self, tname)
+            other = getattr(obj, tname)
+            if isinstance(trait, MetInstance):
+                if val.unique_id != other.unique_id:
+                    msg.append((tname, other.unique_id, val.unique_id))
+            elif isinstance(trait, MetList):
+                if not len(val) == len(other):
+                    msg.append((tname, '%s items' % len(other),
+                                '%s items' % len(val)))
+                else:
+                    for (v, o) in zip(val, other):
+                        if not v.unique_id == o.unique_id:
+                            msg.append((tname, 'objects changed', ''))
+                            break
+            elif val != other:
+                msg.append((tname, str(other), str(val)))
+        print(tabulate(msg))
 
     def _on_update(self, name):
         """When the model changes, set the update fields.
