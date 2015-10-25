@@ -66,8 +66,8 @@ def test_circular_reference():
     mo.store(test)
     test.items = []
     test = mo.retrieve('group', unique_id=test.unique_id)[0]
-    sub0 = test.items[0].retrieve()
-    assert len(sub0.items) == 2
+    sub0 = test.items[0]
+    assert len(sub0.items) == 2, sub0.items
     assert sub0.items[1].unique_id == orig_id
     assert test.unique_id == orig_id
 
@@ -184,7 +184,7 @@ def test_store_stubs():
     test = mo.Group(items=[mo.Group(items=[mo.LcmsRun()]), mo.LcmsRun()])
     mo.store(test)
     test = mo.retrieve('group', unique_id=test.unique_id)[0]
-    assert isinstance(test.items[0], mo.Stub)
+    assert isinstance(test.items[0], mo.Group)
     mo.store(test)
 
 
@@ -210,14 +210,14 @@ def test_user_preserve():
     username = getpass.getuser()
     assert items[-2].username == 'foo'
     assert items[-1].username == username
-    assert items[-2].lcms_run.retrieve().username == 'foo'
-    assert items[-1].lcms_run.retrieve().username == 'foo'
+    assert items[-2].lcms_run.username == 'foo'
+    assert items[-1].lcms_run.username == 'foo'
     run.name = 'hello'
     mo.store(test)
     items = mo.retrieve('reference', creation_time=test.creation_time)
     return
-    assert items[0].lcms_run.retrieve().username == 'foo'
-    assert items[1].lcms_run.retrieve().username == username
+    assert items[0].lcms_run.username == 'foo'
+    assert items[1].lcms_run.username == username
 
 
 def test_store_all():
@@ -235,15 +235,6 @@ def test_stub_instance():
     test = mo.Reference(name='hello', lcms_run=run)
     mo.store(test)
     item = mo.retrieve('reference', name='hello')[0]
-    assert isinstance(item.lcms_run, mo.Stub)
-
-
-def test_retrieve_recursive():
-    return
-    run = mo.LcmsRun(username='foo')
-    test = mo.Reference(name='hello', lcms_run=run)
-    mo.store(test)
-    item = mo.retrieve('reference', name='hello', recursive=True)[0]
     assert isinstance(item.lcms_run, mo.LcmsRun)
 
 

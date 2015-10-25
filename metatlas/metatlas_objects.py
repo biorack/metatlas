@@ -534,6 +534,27 @@ class MetatlasObject(HasTraits):
         state['last_modified'] = format_timestamp(self.last_modified)
         return pprint.pformat(state)
 
+    def __getattribute__(self, name):
+        """Automatically resolve stubs on demand.
+        """
+        value = super(MetatlasObject, self).__getattribute__(name)
+        if isinstance(value, Stub):
+            value = value.retrieve()
+            setattr(self, name, value)
+        elif isinstance(value, list) and value:
+            new = []
+            changed = False
+            for subvalue in value:
+                if isinstance(subvalue, Stub):
+                    new.append(subvalue.retrieve())
+                    changed = True
+                else:
+                    new.append(subvalue)
+            if changed:
+                setattr(self, name, new)
+                value = new
+        return value
+
 
 def _get_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__()
