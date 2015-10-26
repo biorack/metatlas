@@ -979,6 +979,22 @@ class MzReference(Reference):
     observed_formula = MetUnicode(help='Optional observed formula')
 
 
+def find_invalid_runs(**kwargs):
+    """Find invalid runs.
+    """
+    override = kwargs.pop('_override', False)
+    if not override:
+        kwargs.setdefault('username', getpass.getuser())
+    all_runs = retrieve('lcmsruns', **kwargs)
+    invalid = []
+    for run in all_runs:
+        if (not os.path.exists(run.hdf5_file) or
+            not os.path.exists(run.mzml_file) or
+            not os.stat(run.hdf5_file).st_size):
+                invalid.append(run)
+    return invalid
+
+
 SUBCLASS_LUT = dict()
 for klass in _get_subclasses(MetatlasObject):
     name = klass.__name__.lower()
