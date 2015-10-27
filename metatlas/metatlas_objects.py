@@ -291,11 +291,22 @@ def retrieve(object_type, **kwargs):
         object_type += 'es'
     elif not object_type.endswith('s'):
         object_type += 's'
-    # Example query:
+    # Example query if group id is given
     # SELECT *
     # FROM tablename
     # WHERE (city = 'New York' AND name like 'IBM%')
-    query = 'select * from `%s` where (' % object_type
+
+    # Example query where unique id and group id are not given
+    # (to avoid getting all versions of the same object)
+    # http://stackoverflow.com/a/12102288
+    # SELECT *
+    # from (SELECT * from `groups`
+    #       WHERE (name='spam') ORDER BY last_modified)
+    # x GROUP BY group_id
+    if 'group_id' not in kwargs and 'unique_id' not in kwargs:
+        query = 'select * from (select * from `%s` where (' % object_type
+    else:
+        query = 'select * from `%s` where (' % object_type
     clauses = []
     for (key, value) in kwargs.items():
         if not isinstance(value, six.string_types):
@@ -309,6 +320,8 @@ def retrieve(object_type, **kwargs):
             clauses.append('%s = "%s"' % (key, value))
     query += ' and '.join(clauses)
     query += ')'
+    if 'group_id' not in kwargs and 'unique_id' not in kwargs:
+        query += ' order by last_modified) x group by group_id'
     if not clauses:
         query = query.replace(' where ()', '')
     try:
@@ -419,6 +432,14 @@ def remove(object_type, **kwargs):
             raise(e)
 
 
+def remove_objects(objects, **kwargs):
+    """Remove objects from the database.
+
+    Also removes previous versions of the same object.
+    """
+    pass
+
+
 def store(objects, **kwargs):
     """Store Metatlas objects in the database.
 
@@ -480,13 +501,15 @@ class MetatlasObject(HasTraits):
                           readonly=True)
     last_modified = MetInt(help='Unix timestamp at last object update',
                            readonly=True)
-    prev_uid = MetUnicode(help='Previous unique_id', readonly=True)
+    prev_uid = MetUnicode(help='Unique id of previous version', readonly=True)
+    group_id = MetUnicode(help='Id used to group versions of the same object',                  readonly=True)
     _loopback_guard = CBool(False, readonly=True)
     _changed = CBool(False, readonly=True)
 
     def __init__(self, **kwargs):
         """Set the default attributes."""
         kwargs.setdefault('unique_id', uuid.uuid4().hex)
+        kwargs.setdefault('group_id', kwargs['unique_id'])
         kwargs.setdefault('username', getpass.getuser())
         kwargs.setdefault('creation_time', int(time.time()))
         kwargs.setdefault('last_modified', int(time.time()))
@@ -505,6 +528,7 @@ class MetatlasObject(HasTraits):
         if not override_user and self.username != getpass.getuser():
             self._changed = True
             self.prev_uid = self.unique_id
+            self.group_id = self.unique_id
             self.unique_id = uuid.uuid4().hex
             self.username = getpass.getuser()
             self.last_modified = time.time()
@@ -542,6 +566,8 @@ class MetatlasObject(HasTraits):
                 val = val.clone(True)
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
+        obj.group_id = self.unique_id
+        obj.unique_id = uuid.uui4.hex()
         return obj
 
     def edit(self):
@@ -562,7 +588,7 @@ class MetatlasObject(HasTraits):
         Parameters
         ----------
         unique_id: optional, string
-            Unique id to compare against (defaults to previous entry in db).
+            Unique id to compare against (defaults to current entry in db).
         """
         if unique_id is None:
             unique_id = self.unique_id
@@ -1064,5 +1090,10 @@ def edit_traits(obj):
 
 
 if __name__ == '__main__':
-    m = Group()
-    m.__doc__
+    m1 = Group(name='spam')
+    store(m1)
+    m1.description = 'baz'
+    import time
+    time.sleep(2)
+    store(m1)
+    retrieve('group', name='spam')
