@@ -209,10 +209,7 @@ class Workspace(object):
             return
         if isinstance(obj, Stub):
             return
-        if obj.__class__.__name__.lower().endswith('s'):
-            name = obj.__class__.__name__.lower() + 'es'
-        else:
-            name = obj.__class__.__name__.lower() + 's'
+        name = TABLENAME_LUT[obj.__class__]
         self._seen[obj.unique_id] = True
         changed, prev_uid = obj._update(override)
         state = dict()
@@ -287,10 +284,7 @@ def retrieve(object_type, **kwargs):
     klass = SUBCLASS_LUT.get(object_type, None)
     if not klass:
         raise ValueError('Unknown object type: %s' % object_type)
-    if klass.__name__.endswith('s') and not object_type.endswith('es'):
-        object_type += 'es'
-    elif not object_type.endswith('s'):
-        object_type += 's'
+    object_type = TABLENAME_LUT[klass]
     # Example query if group id is given
     # SELECT *
     # FROM tablename
@@ -302,11 +296,8 @@ def retrieve(object_type, **kwargs):
     # SELECT *
     # from (SELECT * from `groups`
     #       WHERE (name='spam') ORDER BY last_modified)
-    # x GROUP BY group_id
-    if 'group_id' not in kwargs and 'unique_id' not in kwargs:
-        query = 'select * from (select * from `%s` where (' % object_type
-    else:
-        query = 'select * from `%s` where (' % object_type
+    # x GROUP BY head_id
+    query = 'select * from `%s` where (' % object_type
     clauses = []
     for (key, value) in kwargs.items():
         if not isinstance(value, six.string_types):
@@ -318,10 +309,9 @@ def retrieve(object_type, **kwargs):
             clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
         else:
             clauses.append('%s = "%s"' % (key, value))
-    query += ' and '.join(clauses)
-    query += ')'
-    if 'group_id' not in kwargs and 'unique_id' not in kwargs:
-        query += ' order by last_modified) x group by group_id'
+    if 'unique_id' not in kwargs:
+        clauses.append('unique_id = head_id')
+    query += ' and '.join(clauses) + ')'
     if not clauses:
         query = query.replace(' where ()', '')
     try:
@@ -333,9 +323,7 @@ def retrieve(object_type, **kwargs):
             raise ValueError('Invalid column name, valid columns: %s' % keys)
         else:
             raise(e)
-    prev_uuids = [i['prev_uid'] for i in items]
-    items = [klass(**i) for i in items
-             if i['unique_id'] not in prev_uuids]
+    items = [klass(**i) for i in items]
     uids = [i.unique_id for i in items]
     if not items:
         return []
@@ -377,21 +365,12 @@ def remove(object_type, **kwargs):
       Specific search queries (i.e. name="Sargasso").
       Use '%' for wildcard patterns (i.e. description='Hello%').
       If you want to match a '%' character, use '%%'.
-
-    Returns
-    -------
-    objects: list
-      List of Metatlas Objects meeting the criteria.  Will return the
-      latest version of each object.
     """
     object_type = object_type.lower()
     klass = SUBCLASS_LUT.get(object_type, None)
     if not klass:
         raise ValueError('Unknown object type: %s' % object_type)
-    if klass.__name__.endswith('s') and not object_type.endswith('es'):
-        object_type += 'es'
-    elif not object_type.endswith('s'):
-        object_type += 's'
+    object_type = TABLENAME_LUT[klass]
     kwargs.setdefault('username', getpass.getuser())
     override = kwargs.pop('_override', False)
     # Example query:
@@ -432,12 +411,41 @@ def remove(object_type, **kwargs):
             raise(e)
 
 
-def remove_objects(objects, **kwargs):
+def remove_objects(objects, all_versions=True, **kwargs):
     """Remove objects from the database.
 
-    Also removes previous versions of the same object.
+    Parameters
+    ----------
+    all_versions: boolean, optional
+        If True, remove all versions of the object sharing the current
+        head_id.
     """
-    pass
+    ids = defaultdict(list)
+    username = getpass.getuser()
+    override = kwargs.pop('_override', False)
+    for obj in objects:
+        if not override and obj.username != username:
+            continue
+        name = TABLENAME_LUT[obj.__class__]
+        if all_versions:
+            ids[name].append(obj.head_id)
+        else:
+            ids[name].append(obj.unique_id)
+    if not override:
+        if sys.version.startswith('2'):
+            ans = raw_input('Are you sure you want to delete these entries?')
+        else:
+            ans = input('Are you sure you want to delete these entries?')
+        if ans[0].lower() != 'y':
+            return
+    for (table_name, uids) in ids.items():
+        query = 'delete * from `%s` where %s in ('
+        if all_versions:
+            query = query % (table_name, 'head_id')
+        else:
+            query = query % (table_name, 'unique_id')
+        query += '" , "'.join(uids)
+        workspace.db.query(query)
 
 
 def store(objects, **kwargs):
@@ -502,14 +510,14 @@ class MetatlasObject(HasTraits):
     last_modified = MetInt(help='Unix timestamp at last object update',
                            readonly=True)
     prev_uid = MetUnicode(help='Unique id of previous version', readonly=True)
-    group_id = MetUnicode(help='Id used to group versions of the same object',                  readonly=True)
+    head_id = MetUnicode(help='Unique id of most recent version of this object', readonly=True)
     _loopback_guard = CBool(False, readonly=True)
     _changed = CBool(False, readonly=True)
 
     def __init__(self, **kwargs):
         """Set the default attributes."""
         kwargs.setdefault('unique_id', uuid.uuid4().hex)
-        kwargs.setdefault('group_id', kwargs['unique_id'])
+        kwargs.setdefault('head_id', kwargs['unique_id'])
         kwargs.setdefault('username', getpass.getuser())
         kwargs.setdefault('creation_time', int(time.time()))
         kwargs.setdefault('last_modified', int(time.time()))
@@ -528,8 +536,8 @@ class MetatlasObject(HasTraits):
         if not override_user and self.username != getpass.getuser():
             self._changed = True
             self.prev_uid = self.unique_id
-            self.group_id = self.unique_id
             self.unique_id = uuid.uuid4().hex
+            self.head_id = self.unique_id
             self.username = getpass.getuser()
             self.last_modified = time.time()
             return True, None
@@ -566,8 +574,8 @@ class MetatlasObject(HasTraits):
                 val = val.clone(True)
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
-        obj.group_id = self.unique_id
-        obj.unique_id = uuid.uui4.hex()
+        obj.head_id = self.unique_id
+        obj.unique_id = uuid.uuid4().hex
         return obj
 
     def edit(self):
@@ -1022,13 +1030,16 @@ def find_invalid_runs(**kwargs):
 
 
 SUBCLASS_LUT = dict()
+TABLENAME_LUT = dict()
 for klass in _get_subclasses(MetatlasObject):
     name = klass.__name__.lower()
     SUBCLASS_LUT[name] = klass
     if name.endswith('s'):
         SUBCLASS_LUT[name + 'es'] = klass
+        TABLENAME_LUT[klass] = name + 'es'
     else:
         SUBCLASS_LUT[name + 's'] = klass
+        TABLENAME_LUT[klass] = name + 's'
 
 
 def edit_traits(obj):

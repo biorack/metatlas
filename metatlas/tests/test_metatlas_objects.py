@@ -5,7 +5,7 @@ import getpass
 
 
 def test_simple():
-    test = mo.MetatlasObject()
+    test = mo.Group()
     uid = test.unique_id
     mo.store(test)
     assert test.unique_id == uid
