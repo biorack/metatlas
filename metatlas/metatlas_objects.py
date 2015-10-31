@@ -932,7 +932,7 @@ class _IdGradeTrait(MetInstance):
 class CompoundIdentification(MetatlasObject):
     """A CompoundIdentification links multiple sources of evidence about a 
     compound's identity to an Atlas."""
-    compound = MetInstance(Compound)
+    compound = MetList(MetInstance(Compound))
     identification_grade = _IdGradeTrait(
         help='Identification grade of the id (can be specified by a letter A-H'
     )

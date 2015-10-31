@@ -12,5 +12,5 @@ from .metatlas_objects import (
     Method, Sample, LcmsRun, ReferenceDatabase, FunctionalSet,
     Compound, Reference, IdentificationGrade, CompoundIdentification, Atlas,
     Group, MzIntensityPair, FragmentationReference, RtReference,
-    MzReference, retrieve, store
+    MzReference, retrieve, store, remove, remove_objects
 )
