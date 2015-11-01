@@ -1125,13 +1125,7 @@ def edit_traits(obj):
 
 if __name__ == '__main__':
     m1 = Group(name='spam')
-    from PyQt4.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
-    import ipdb; ipdb.set_trace()
-    pass
-    
     store(m1)
     m1.description = 'baz'
-    import time
-    time.sleep(2)
     store(m1)
-    retrieve('group', name='spam')
+    print(retrieve('group', name='spam'))
