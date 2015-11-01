@@ -1,12 +1,21 @@
 import os
 import re
-import sys
 import shutil
+from collections import defaultdict
+from subprocess import Popen, PIPE
+
+
+def send_mail(subject, username, body):
+    msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, username, body)
+    p = Popen(["bash"], stdin=PIPE)
+    p.communicate(msg)
 
 
 def update_metatlas(directory):
 
     new_files = []
+    readonly_files = defaultdict(set)
+    other_errors = defaultdict(list)
     for root, directories, filenames in os.walk(directory):
         for fname in filenames:
             if fname.endswith('.mzML'):
@@ -41,8 +50,6 @@ def update_metatlas(directory):
                 os.makedirs(dname)
             shutil.copy(fname, pasteur_path)
 
-        # todo: search the database at the end for unreachable files
-
         # convert to HDF and store the entry in the database
         try:
             from metatlas import LcmsRun, mzml_to_hdf, store
@@ -56,7 +63,35 @@ def update_metatlas(directory):
                           mzml_file=fname, hdf5_file=hdf5_file)
             store(run)
         except Exception as e:
+            if 'exists but it can not be written' in str(e):
+                readonly_files[info['username']].add(os.path.dirname(fname))
+            else:
+                other_errors[info['username']].append(str(e))
             print(e)
+
+    from metatlas.metatlas_objects import find_invalid_runs
+    invalid_runs = find_invalid_runs(_override=True)
+
+    if readonly_files:
+        for (username, dirnames) in readonly_files.items():
+            body = ("Please log in to NERSC and run 'chmod 777' on the "
+                   "following directories:\n%s" % ('\n'.join(dirnames)))
+            send_mail('Metatlas Files are Inaccessible', username, body)
+    if invalid_runs:
+        grouped = defaultdict(list)
+        for run in invalid_runs:
+            grouped[run.username].append(run.mzml_file)
+        for (username, filenames) in grouped.items():
+            body = 'You have runs that are not longer accessible\n'
+            body += 'To remove them all, run the following on ipython.nersc.gov:\n'
+            body += 'from metatlas.metatlas_objects import find_invalid_runs, remove\n'
+            body += 'remove(find_invalid_runs())\n\n'
+            body += 'The invalid runs are:\n%s' % ('\n'.join(filenames))
+            send_mail('Metatlas Runs are Inaccessible', username, body)
+    if other_errors:
+        for (username, errors) in other_errors.items():
+            body = 'Errored files found while loading in Metatlas files:\n%s' % '\n'.join(errors)
+            send_mail('Errors loading Metatlas files', username, body)
 
 
 if __name__ == '__main__':
