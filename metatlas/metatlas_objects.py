@@ -232,6 +232,7 @@ class Workspace(object):
                 for subvalue in value:
                     self.save(subvalue, override)
                     link = dict(source_id=obj.unique_id,
+                                head_id=obj.head_id,
                                 target_id=subvalue.unique_id,
                                 target_table=subvalue.__class__.__name__.lower() + 's')
                     if changed:
@@ -282,9 +283,10 @@ def retrieve(object_type, **kwargs):
     """
     object_type = object_type.lower()
     klass = SUBCLASS_LUT.get(object_type, None)
-    if not klass:
-        raise ValueError('Unknown object type: %s' % object_type)
-    object_type = TABLENAME_LUT[klass]
+    if object_type not in workspace.db:
+        if not klass:
+            raise ValueError('Unknown object type: %s' % object_type)
+        object_type = TABLENAME_LUT[klass]
     # Example query if group id is given
     # SELECT *
     # FROM tablename
@@ -309,7 +311,7 @@ def retrieve(object_type, **kwargs):
             clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
         else:
             clauses.append('%s = "%s"' % (key, value))
-    if 'unique_id' not in kwargs:
+    if 'unique_id' not in kwargs and klass:
         clauses.append('unique_id = head_id')
     query += ' and '.join(clauses) + ')'
     if not clauses:
@@ -400,6 +402,22 @@ def remove(object_type, **kwargs):
             ans = input('Are you sure you want to delete these entries?')
         if ans[0].lower() != 'y':
             return
+    # check for lists items that need removal
+    if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
+        uid_query = query.replace('delete ', 'select unique_id ')
+        uids = [i['unique_id'] for i in workspace.db.query(uid_query)]
+        sub_query = 'delete from `%s` where source_id in ("%s")'
+        for (tname, trait) in klass.class_traits().items():
+            table_name = '%s_%s' % (object_type, tname)
+            if not uids or table_name not in workspace.db:
+                continue
+            if isinstance(trait, MetList):
+                table_query = sub_query % (table_name, '", "'.join(uids))
+                print(table_query)
+                try:
+                    workspace.db.query(table_query)
+                except Exception as e:
+                    print(e)
     try:
         workspace.db.query(query)
     except Exception as e:
@@ -420,17 +438,22 @@ def remove_objects(objects, all_versions=True, **kwargs):
         If True, remove all versions of the object sharing the current
         head_id.
     """
+    if not isinstance(objects, (list, set)):
+        objects = [objects]
     ids = defaultdict(list)
     username = getpass.getuser()
     override = kwargs.pop('_override', False)
+    attr = 'head_id' if all_versions else 'unique_id'
     for obj in objects:
         if not override and obj.username != username:
             continue
         name = TABLENAME_LUT[obj.__class__]
-        if all_versions:
-            ids[name].append(obj.head_id)
-        else:
-            ids[name].append(obj.unique_id)
+        ids[name].append(getattr(obj, attr))
+        # remove list items as well
+        for (tname, trait) in obj.traits().items():
+            if isinstance(trait, MetList):
+                subname = '%s_%s' % (name, tname)
+                ids[subname].append(getattr(obj, attr))
     if not override:
         if sys.version.startswith('2'):
             ans = raw_input('Are you sure you want to delete these entries?')
@@ -439,12 +462,12 @@ def remove_objects(objects, all_versions=True, **kwargs):
         if ans[0].lower() != 'y':
             return
     for (table_name, uids) in ids.items():
-        query = 'delete * from `%s` where %s in ('
-        if all_versions:
-            query = query % (table_name, 'head_id')
-        else:
-            query = query % (table_name, 'unique_id')
+        if table_name not in workspace.db:
+            continue
+        query = 'delete from `%s` where %s in ("'
+        query = query % (table_name, attr)
         query += '" , "'.join(uids)
+        query += '")'
         workspace.db.query(query)
 
 
@@ -1102,6 +1125,10 @@ def edit_traits(obj):
 
 if __name__ == '__main__':
     m1 = Group(name='spam')
+    from PyQt4.QtCore import pyqtRemoveInputHook; pyqtRemoveInputHook()
+    import ipdb; ipdb.set_trace()
+    pass
+    
     store(m1)
     m1.description = 'baz'
     import time

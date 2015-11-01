@@ -248,8 +248,28 @@ def test_floating_point():
 
 
 def test_remove():
-    compound = mo.Compound(name='foo', MonoIsotopic_molecular_weight=1.0)
+    compound = mo.Compound(name='foo', MonoIsotopic_molecular_weight=1.0,
+                           reference_xrefs=[mo.ReferenceDatabase(name='baz')])
+    sub_id = compound.reference_xrefs[0].unique_id
     mo.store(compound)
+    db = mo.retrieve('referencedatabase', unique_id=sub_id)[0]
+    assert db.unique_id == sub_id
     mo.remove('compound', name='foo', _override=True)
     test = mo.retrieve('compound', name='foo')
     assert not test
+    test_sub = mo.retrieve('compounds_reference_xrefs', target_id=sub_id)
+    assert not test_sub
+
+
+def test_remove_objects():
+    compound = mo.Compound(name='foo', MonoIsotopic_molecular_weight=1.0,
+                           reference_xrefs=[mo.ReferenceDatabase(name='baz')])
+    sub_id = compound.reference_xrefs[0].unique_id
+    mo.store(compound)
+    db = mo.retrieve('referencedatabase', unique_id=sub_id)[0]
+    assert db.unique_id == sub_id
+    mo.remove_objects(compound, _override=True)
+    test = mo.retrieve('compound', name='foo')
+    assert not test
+    test_sub = mo.retrieve('compounds_reference_xrefs', target_id=sub_id)
+    assert not test_sub
