@@ -1098,7 +1098,7 @@ def edit_objects(objects):
     for col in enums:
         dataframe[col] = dataframe[col].astype('category')
     for col in ['last_modified', 'creation_time']:
-        dataframe[col] = pd.to_datetime(dataframe[col])
+        dataframe[col] = pd.to_datetime(dataframe[col], unit='s')
 
     options = qgrid.grid.defaults.grid_options
     grid = qgrid.grid.QGridWidget(df=dataframe, precision=6,
