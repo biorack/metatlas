@@ -1108,8 +1108,7 @@ def edit_objects(objects):
     def handle_msg(widget, content, buffers=None):
         if content['type'] == 'cell_change':
             obj = objects[content['row']]
-            attr = dataframe.columns[content['column']]
-            setattr(obj, attr, content['value'])
+            setattr(obj, content['column'], content['value'])
 
     grid.on_msg(handle_msg)
     display(grid)
