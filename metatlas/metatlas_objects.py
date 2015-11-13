@@ -2,6 +2,7 @@ import getpass
 import uuid
 import time
 import os
+import json
 import sys
 import pprint
 import tables
@@ -10,6 +11,7 @@ import six
 from collections import defaultdict
 from pwd import getpwuid
 from tabulate import tabulate
+import pandas as pd
 
 try:
     from traitlets import (
@@ -25,6 +27,8 @@ import dataset
 POLARITY = ('positive', 'negative', 'alternating')
 NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
 
+
+FETCH_STUBS = True
 
 # Observable List from
 # http://stackoverflow.com/a/13259435
@@ -136,6 +140,9 @@ class Stub(HasTraits):
     def __repr__(self):
         return '%s %s' % (self.object_type.capitalize(),
                           self.unique_id)
+
+    def __str__(self):
+        return self.unique_id
 
 
 class Workspace(object):
@@ -484,8 +491,7 @@ def store(objects, **kwargs):
 
 def format_timestamp(tstamp):
     """Get a formatted representation of a timestamp."""
-    from pandas import Timestamp
-    ts = Timestamp.fromtimestamp(int(tstamp))
+    ts = pd.Timestamp.fromtimestamp(int(tstamp))
     return ts.isoformat()
 
 
@@ -673,10 +679,10 @@ class MetatlasObject(HasTraits):
         """Automatically resolve stubs on demand.
         """
         value = super(MetatlasObject, self).__getattribute__(name)
-        if isinstance(value, Stub):
+        if isinstance(value, Stub) and FETCH_STUBS:
             value = value.retrieve()
             setattr(self, name, value)
-        elif isinstance(value, list) and value:
+        elif isinstance(value, list) and value and FETCH_STUBS:
             new = []
             changed = False
             for subvalue in value:
@@ -776,14 +782,14 @@ def load_lcms_files(mzml_files):
 
 @set_docstring
 class LcmsRun(MetatlasObject):
-    """An LCMS run is the reference to a file prepared with liquid 
+    """An LCMS run is the reference to a file prepared with liquid
     chromatography and mass spectrometry.
 
     The msconvert program is used to convert raw data (centroided is prefered)
     to mzML.
 
     Note: These objects are not intented to be created directly, but by putting
-    the files in /project/projectdirs/metatlas/raw_data/<username> or by 
+    the files in /project/projectdirs/metatlas/raw_data/<username> or by
     running `load_lcms_files()`.
     """
     method = MetInstance(Method)
@@ -953,7 +959,7 @@ class _IdGradeTrait(MetInstance):
 
 @set_docstring
 class CompoundIdentification(MetatlasObject):
-    """A CompoundIdentification links multiple sources of evidence about a 
+    """A CompoundIdentification links multiple sources of evidence about a
     compound's identity to an Atlas."""
     compound = MetList(MetInstance(Compound))
     identification_grade = _IdGradeTrait(
@@ -1026,7 +1032,7 @@ class RtReference(Reference):
 class MzReference(Reference):
     """Source of the assertion that a compound has a given m/z and
     other properties directly tied to m/z.
-    """ 
+    """
     mz = MetFloat()
     mz_tolerance = MetFloat()
     mz_tolerance_units = MetEnum(('ppm', 'Da'), 'ppm')
@@ -1063,6 +1069,50 @@ for klass in _get_subclasses(MetatlasObject):
     else:
         SUBCLASS_LUT[name + 's'] = klass
         TABLENAME_LUT[klass] = name + 's'
+
+
+def edit_objects(objects):
+    global FETCH_STUBS
+    import qgrid
+    qgrid.nbinstall(overwrite=False)
+    from IPython.html.widgets import Button, HBox
+    from IPython.display import display
+
+    # we want to handle dates, enums, and use ids for objects
+    FETCH_STUBS = False
+    objs = [o._trait_values for o in objects if o.__class__ == objects[0].__class__]
+    FETCH_STUBS = True
+    enums = []
+    cols = []
+    # remove lists and use strings for objects
+    for (tname, trait) in objects[0].traits().items():
+        if tname.startswith('_') or tname in ['head_id', 'prev_uid']:
+            continue
+        cols.append(tname)
+        if isinstance(trait, (MetList, MetInstance)):
+            [o.__setitem__(tname, str(o[tname])) for o in objs]
+        if isinstance(trait, Enum):
+            enums.append(tname)
+
+    dataframe = pd.DataFrame(objs)[sorted(cols)]
+    for col in enums:
+        dataframe[col] = dataframe[col].astype('category')
+    for col in ['last_modified', 'creation_time']:
+        dataframe[col] = pd.to_datetime(dataframe[col])
+
+    options = qgrid.grid.defaults.grid_options
+    grid = qgrid.grid.QGridWidget(df=dataframe, precision=6,
+                       grid_options=json.dumps(options),
+                       remote_js=True)
+
+    def handle_msg(widget, content, buffers=None):
+        if content['type'] == 'cell_change':
+            obj = objects[content['row']]
+            attr = dataframe.columns[content['column']]
+            setattr(obj, attr, content['value'])
+
+    grid.on_msg(handle_msg)
+    display(grid)
 
 
 def edit_traits(obj):
