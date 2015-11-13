@@ -1089,8 +1089,11 @@ def edit_objects(objects):
         if tname.startswith('_') or tname in ['head_id', 'prev_uid']:
             continue
         cols.append(tname)
-        if isinstance(trait, (MetList, MetInstance)):
-            [o.__setitem__(tname, str(o[tname])) for o in objs]
+        if isinstance(trait, MetList):
+            [o.__setitem__(tname, str([i.unique_id for i in o[tname]]))
+             for o in objs]
+        if isinstance(trait, MetInstance):
+            [o.__setitem__(tname, getattr(o[tname], 'unique_id', 'None')) for o in objs]
         if isinstance(trait, Enum):
             enums.append(tname)
 
