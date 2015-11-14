@@ -18,8 +18,8 @@ where possible to simplify access to the MySQL database.
 Otherwise, custom queries are created as needed.
 The dataset library provides custom table schema creation and ORM handling.
 
-An object can contain a reference to another object.  This is stored in the table
-by storing the `unique_id` of the other object.  An object can contain a list
+An object holds a reference to another object by storing the `unique_id`
+of the other object in the table.  An object can contain a list
 of references to other objects.  These are stored in a separate link table, which
 allows a many-to-many relationship of objects. Where possible, access to the database
 is batched, where a query to each table is made only once for a given operation.
@@ -35,3 +35,12 @@ database is given a new `unique_id`, that id is stored as the `prev_uid` of the 
 The same is done for any entries in the link table(s).  The `head_id` is used for grouping
 a set of changes together.  A new `head_id` is created on a `.clone()` of an object,
 or when saving changes to an object created by another user.
+
+Visualization
+-------------
+A metatlas object can be edited by calling `.edit()`, which creates an IPython widget
+interface to the object, allowing the user to edit the object.
+A group of metatlas objects can be edited by calling `edit_objects()`, which creates
+a QGrid widget, allowing the user to edit the objects in a table.
+The matplotlib notebook backend is used to create interactive visualizations of
+data.
