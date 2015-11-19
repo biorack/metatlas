@@ -1025,7 +1025,7 @@ class RtReference(Reference):
     RTpeak = MetFloat()
     RTmin = MetFloat()
     RTmax = MetFloat()
-    RTUnits = MetEnum(('sec', 'min'), 'sec')
+    RTunits = MetEnum(('sec', 'min'), 'sec')
 
 
 @set_docstring
