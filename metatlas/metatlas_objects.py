@@ -812,7 +812,7 @@ class LcmsRun(MetatlasObject):
             The ms level.
         """
         import matplotlib.pyplot as plt
-        from metatlas import get_XIC, get_spectrogram, get_info
+        from metatlas import get_chromatogram, get_spectrogram, get_info
         fid = tables.open_file(self.hdf5_file)
 
         info = get_info(fid)
@@ -830,7 +830,7 @@ class LcmsRun(MetatlasObject):
         if max_mz is None:
             max_mz = info[table_name]['max_mz']
 
-        rt, irt = get_XIC(fid, min_mz, max_mz, 1, polarity)
+        rt, irt = get_chromatogram(fid, min_mz, max_mz, 1, polarity)
         mz, imz = get_spectrogram(fid, rt[0], rt[1], 1, polarity)
 
         fig, (ax1, ax2) = plt.subplots(ncols=2)
@@ -1155,7 +1155,7 @@ def edit_traits(obj):
 
             create_dropdown(name)
         else:
-            # create a closure around "name for the on_trait_change
+            # create a closure around "name" for the on_trait_change
             # callback
             def create_textbox(name):
                 textbox = Text(str(value))
