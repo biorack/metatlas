@@ -169,7 +169,10 @@ class Workspace(object):
         return self.db
 
     def convert_to_double(self, table, entry):
-        self.db.query('alter table `%s` modify `%s` double' % (table, entry))
+        try:
+            self.db.query('alter table `%s` modify `%s` double' % (table, entry))
+        except Exception as e:
+            print(e)
 
     def insert(self, name, state):
         name = name.lower()
@@ -505,8 +508,11 @@ def store(objects, **kwargs):
 
 def format_timestamp(tstamp):
     """Get a formatted representation of a timestamp."""
-    ts = pd.Timestamp.fromtimestamp(int(tstamp))
-    return ts.isoformat()
+    try:
+        ts = pd.Timestamp.fromtimestamp(int(tstamp))
+        return ts.isoformat()
+    except Exception:
+        return str(tstamp)
 
 
 def set_docstring(cls):
@@ -1118,9 +1124,10 @@ def edit_objects(objects):
         dataframe[col] = pd.to_datetime(dataframe[col], unit='s')
 
     options = qgrid.grid.defaults.grid_options
-    grid = qgrid.grid.QGridWidget(df=dataframe, precision=6,
+    grid = qgrid.grid.QGridWidget(precision=6,
                        grid_options=json.dumps(options),
                        remote_js=True)
+    grid.df = dataframe
 
     def handle_msg(widget, content, buffers=None):
         if content['type'] == 'cell_change':
