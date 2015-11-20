@@ -202,6 +202,7 @@ class Workspace(object):
             if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
+                fix_table(table_name)
             with self.db:
                 for (uid, prev_uid) in updates:
                     self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
@@ -209,6 +210,7 @@ class Workspace(object):
             if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
+                fix_table(table_name)
             self.db[table_name].insert_many(inserts)
 
     def save(self, obj, override=False):
@@ -268,6 +270,17 @@ class Workspace(object):
 
 # Singleton Workspace object
 workspace = Workspace()
+
+
+def fix_table(table_name):
+    """Fix a table by converting floating point values to doubles"""
+    klass = SUBCLASS_LUT.get(table_name, None)
+    if not klass:
+        return
+    table_name = TABLENAME_LUT[klass]
+    for (tname, trait) in klass.class_traits().items():
+        if isinstance(trait, MetFloat):
+            workspace.convert_to_double(table_name, tname)
 
 
 def retrieve(object_type, **kwargs):
