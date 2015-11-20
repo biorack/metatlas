@@ -360,6 +360,7 @@ def retrieve(object_type, **kwargs):
         if not i.prev_uid:
             i.prev_uid = 'origin'
         i._changed = False
+    items.sort(key=lambda x: x.last_modified)
     return items
 
 
