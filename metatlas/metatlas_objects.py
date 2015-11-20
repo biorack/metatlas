@@ -1080,7 +1080,7 @@ def edit_objects(objects):
 
     # we want to handle dates, enums, and use ids for objects
     FETCH_STUBS = False
-    objs = [o._trait_values for o in objects if o.__class__ == objects[0].__class__]
+    objs = [o._trait_values.copy() for o in objects if o.__class__ == objects[0].__class__]
     FETCH_STUBS = True
     enums = []
     cols = []
@@ -1111,7 +1111,10 @@ def edit_objects(objects):
     def handle_msg(widget, content, buffers=None):
         if content['type'] == 'cell_change':
             obj = objects[content['row']]
-            setattr(obj, content['column'], content['value'])
+            try:
+                setattr(obj, content['column'], content['value'])
+            except Exception:
+                pass
 
     grid.on_msg(handle_msg)
     display(grid)
