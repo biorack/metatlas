@@ -6,6 +6,7 @@ from subprocess import Popen, PIPE
 
 
 def send_mail(subject, username, body):
+    return
     msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, username, body)
     p = Popen(["bash"], stdin=PIPE)
     p.communicate(msg)

@@ -2,6 +2,7 @@
 from metatlas import metatlas_objects as mo
 from metatlas.mzml_loader import get_test_data
 import getpass
+import dill
 
 
 def test_simple():
@@ -273,3 +274,10 @@ def test_remove_objects():
     assert not test
     test_sub = mo.retrieve('compounds_reference_xrefs', target_id=sub_id)
     assert not test_sub
+
+
+def test_dill():
+    test = mo.Group(items=[mo.Group(description='hello')])
+    blob = dill.dumps(test)
+    new = dill.loads(blob)
+    assert new.items[0].description == 'hello'

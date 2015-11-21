@@ -8,7 +8,6 @@ import pprint
 import tables
 import numpy as np
 import six
-import dill
 from collections import defaultdict
 from pwd import getpwuid
 from tabulate import tabulate
@@ -94,7 +93,7 @@ class MetList(List):
         value = super(MetList, self).validate(obj, value)
         value = NotifyList(value)
 
-        value.register_callback(lambda x: setattr(obj, '_changed', True))
+        value.register_callback(lambda: setattr(obj, '_changed', True))
         return value
 
 
