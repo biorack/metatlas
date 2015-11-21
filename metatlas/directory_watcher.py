@@ -12,6 +12,7 @@ def send_mail(subject, username, body):
     #now = datetime.now()
     #if time(00, 00) <= now.time() <= time(00, 10):
     #    # send it to silvest for now
+    body += '\nwas %s' % username
     username = 'silvest'
     msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, username, body)
     p = Popen(["bash"], stdin=PIPE)
