@@ -8,6 +8,7 @@ import pprint
 import tables
 import numpy as np
 import six
+import dill
 from collections import defaultdict
 from pwd import getpwuid
 from tabulate import tabulate
@@ -35,6 +36,8 @@ FETCH_STUBS = True
 
 def callback_method(func):
     def notify(self, *args, **kwargs):
+        if not hasattr(self, '_callbacks'):
+            return func(self, *args, **kwargs)
         for _, callback in self._callbacks:
             callback()
         return func(self, *args, **kwargs)
@@ -91,9 +94,7 @@ class MetList(List):
         value = super(MetList, self).validate(obj, value)
         value = NotifyList(value)
 
-        def callback(*args):
-            obj._notify_trait(self.name, value, value)
-        value.register_callback(callback)
+        value.register_callback(lambda x: setattr(obj, '_changed', True))
         return value
 
 
