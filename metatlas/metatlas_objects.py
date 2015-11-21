@@ -216,6 +216,21 @@ class Workspace(object):
                 fix_table(table_name)
             self.db[table_name].insert_many(inserts)
 
+    def create_link_tables(self, klass):
+        name = TABLENAME_LUT[klass]
+        for (tname, trait) in klass.class_traits().items():
+            if isinstance(trait, MetList):
+                table_name = '_'.join([name, tname])
+                print(table_name)
+                if table_name not in self.db:
+                    self.db.create_table(table_name, primary_id='unique_id',
+                                         primary_type='String(32)')
+                    link = dict(source_id=uuid.uuid4().hex,
+                                head_id=uuid.uuid4().hex,
+                                target_id=uuid.uuid4().hex,
+                                target_table=uuid.uuid4().hex)
+                    self.db[table_name].insert(link)
+
     def save(self, obj, override=False):
         if obj.unique_id in self._seen:
             return
@@ -978,27 +993,6 @@ class _IdGradeTrait(MetInstance):
 
 
 @set_docstring
-class CompoundIdentification(MetatlasObject):
-    """A CompoundIdentification links multiple sources of evidence about a
-    compound's identity to an Atlas."""
-    compound = MetList(MetInstance(Compound))
-    identification_grade = _IdGradeTrait(
-        help='Identification grade of the id (can be specified by a letter A-H'
-    )
-    mz_references = MetList(MetInstance(MzReference))
-    rt_references = MetList(MetInstance(RtReference))
-    frag_references = MetList(MetInstance(FragmentationReference))
-
-
-@set_docstring
-class Atlas(MetatlasObject):
-    """An atlas contains many compound_ids."""
-    compound_identifications = MetList(
-        MetInstance(CompoundIdentification),
-        help='List of Compound Identification objects')
-
-
-@set_docstring
 class Group(MetatlasObject):
     """A Group can be a:
     file,
@@ -1044,6 +1038,27 @@ class MzReference(Reference):
     adduct = MetUnicode(help='Optional adduct')
     modification = MetUnicode(help='Optional modification')
     observed_formula = MetUnicode(help='Optional observed formula')
+
+
+@set_docstring
+class CompoundIdentification(MetatlasObject):
+    """A CompoundIdentification links multiple sources of evidence about a
+    compound's identity to an Atlas."""
+    compound = MetList(MetInstance(Compound))
+    identification_grade = _IdGradeTrait(
+        help='Identification grade of the id (can be specified by a letter A-H'
+    )
+    mz_references = MetList(MetInstance(MzReference))
+    rt_references = MetList(MetInstance(RtReference))
+    frag_references = MetList(MetInstance(FragmentationReference))
+
+
+@set_docstring
+class Atlas(MetatlasObject):
+    """An atlas contains many compound_ids."""
+    compound_identifications = MetList(
+        MetInstance(CompoundIdentification),
+        help='List of Compound Identification objects')
 
 
 def find_invalid_runs(**kwargs):
