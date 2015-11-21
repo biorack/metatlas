@@ -985,25 +985,9 @@ class CompoundIdentification(MetatlasObject):
     identification_grade = _IdGradeTrait(
         help='Identification grade of the id (can be specified by a letter A-H'
     )
-    references = MetList(MetInstance(Reference))
-
-    def select_by_type(self, ref_type):
-        """Select references by type.
-
-        Parameters
-        ----------
-        ref_type: {'mz', 'rt', 'fragmentation'}
-          The type of reference.
-        """
-        if ref_type.lower() in ['mz', 'm/z']:
-            return [r for r in self.references if isinstance(r, MzReference)]
-        elif ref_type.lower() in ['rt', 'retention_time', 'retention time']:
-            return [r for r in self.references if isinstance(r, RtReference)]
-        elif ref_type.lower() in ['frag', 'fragmentation']:
-            return [r for r in self.references if
-                    isinstance(r, FragmentationReference)]
-        else:
-            raise ValueError('Invalid reference type')
+    mz_references = MetList(MetInstance(MzReference))
+    rt_references = MetList(MetInstance(RtReference))
+    frag_references = MetList(MetInstance(FragmentationReference))
 
 
 @set_docstring
@@ -1042,10 +1026,10 @@ class FragmentationReference(Reference):
 
 @set_docstring
 class RtReference(Reference):
-    RTpeak = MetFloat()
-    RTmin = MetFloat()
-    RTmax = MetFloat()
-    RTunits = MetEnum(('sec', 'min'), 'sec')
+    rt_peak = MetFloat()
+    rt_min = MetFloat()
+    rt_max = MetFloat()
+    rt_units = MetEnum(('sec', 'min'), 'sec')
 
 
 @set_docstring
