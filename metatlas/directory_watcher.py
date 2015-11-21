@@ -1,12 +1,18 @@
 import os
+import pwd
 import re
 import shutil
 from collections import defaultdict
 from subprocess import Popen, PIPE
+from datetime import datetime, time
 
 
 def send_mail(subject, username, body):
-    return
+    """Send the mail only once per day."""
+    #now = datetime.now()
+    #if time(00, 00) <= now.time() <= time(00, 10):
+    #    # send it to silvest for now
+    username = 'silvest'
     msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, username, body)
     p = Popen(["bash"], stdin=PIPE)
     p.communicate(msg)
@@ -36,6 +42,7 @@ def update_metatlas(directory):
         else:
             print("Invalid path name", fname)
             continue
+        username = pwd.getpwuid(os.stat(fname).st_uid).pw_name
 
         print(fname)
         try:
@@ -65,7 +72,7 @@ def update_metatlas(directory):
             store(run)
         except Exception as e:
             if 'exists but it can not be written' in str(e):
-                readonly_files[info['username']].add(os.path.dirname(fname))
+                readonly_files[username].add(os.path.dirname(fname))
             else:
                 other_errors[info['username']].append(str(e))
             print(e)
