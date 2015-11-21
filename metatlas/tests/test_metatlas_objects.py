@@ -281,3 +281,13 @@ def test_dill():
     blob = dill.dumps(test)
     new = dill.loads(blob)
     assert new.items[0].description == 'hello'
+
+
+def test_retrieve_head():
+    test = mo.LcmsRun(name='foo')
+    mo.store(test)
+    old = len(mo.retrieve('lcmsrun', name='foo'))
+    test.description = 'bar'
+    mo.store(test)
+    new = len(mo.retrieve('lcmsrun', name='foo'))
+    assert new == old
