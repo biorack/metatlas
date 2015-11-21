@@ -304,6 +304,10 @@ def fix_table(table_name):
 def retrieve(object_type, **kwargs):
     """Get objects from the Metatlas object database.
 
+    This will automatically select only objects created by the current
+    user unless `username` is provided. Use `username='*'` to search
+    against all users.
+
     Parameters
     ----------
     object_type: string
@@ -319,6 +323,10 @@ def retrieve(object_type, **kwargs):
       List of Metatlas Objects meeting the criteria.  Will return the
       latest version of each object.
     """
+    if kwargs.get('username', '') == '*':
+        kwargs.pop('username')
+    else:
+        kwargs.setdefault('username', getpass.getuser())
     object_type = object_type.lower()
     klass = SUBCLASS_LUT.get(object_type, None)
     if object_type not in workspace.db:
