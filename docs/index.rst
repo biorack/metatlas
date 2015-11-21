@@ -1,7 +1,7 @@
 
 .. include:: ../README.rst
    :end-before:  Installation
-   
+
 .. toctree::
    :hidden:
    :maxdepth: 2
@@ -10,6 +10,7 @@
    source/examples
    source/api/metatlas
    source/info
+   source/admin
 
 `API Reference <source/api/metatlas.html>`_
 ------------------------------------------------
@@ -32,3 +33,9 @@ Introductory examples.
 -----------------------------------------
 
 Other information about Metatlas.
+
+
+`Admin <source/admin.html>`_
+-----------------------------------------
+
+Information about Metatlas administration.
