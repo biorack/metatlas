@@ -121,7 +121,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
         table = h5file.root.ms2_pos
 
     if not table.nrows:
-        raise ValueError('No data in chosen table: %s' % table._v_name)
+        return None
 
     query = ''
 
@@ -185,6 +185,8 @@ def get_chromatogram(h5file, min_mz, max_mz, ms_level, polarity,
     """
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz, **kwargs)
+    if not data:
+        return [], []
     rt = np.unique(data['rt'])
     edges = np.argwhere(np.diff(data['rt']) > 0).squeeze()
     start = 0
@@ -220,6 +222,8 @@ def get_heatmap(h5file, mz_bins, ms_level, polarity, **kwargs):
         Dictionary containing: 'arr', 'rt_bins', 'mz_bins'.
     """
     data = get_data(h5file, ms_level, polarity, **kwargs)
+    if not data:
+        return None
 
     rt_values = np.unique(data['rt'])
     rt_bins = np.hstack((rt_values, rt_values[-1] + 1))
@@ -264,6 +268,8 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
     """
     data = get_data(h5file, ms_level, polarity, min_rt=min_rt,
                     max_rt=max_rt, **kwargs)
+    if not data:
+        return [], []
 
     i, mz = np.histogram(data['mz'], bins=bins, weights=data['i'])
     # center the bins
