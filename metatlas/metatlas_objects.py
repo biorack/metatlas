@@ -684,7 +684,7 @@ class MetatlasObject(HasTraits):
         self._changed = True
 
     def __str__(self):
-        return self.name + ' (%s)' % self.unique_id
+        return self.__repr__()
 
     def __repr__(self):
         names = sorted(self.trait_names())
@@ -1163,7 +1163,11 @@ def edit_traits(obj):
         if name in ['created', 'last_modified']:
             value = format_timestamp(value)
         if (trait.get_metadata('readonly') or
-                isinstance(trait, Instance) or value is None):
+                isinstance(trait, (Instance, MetList)) or value is None):
+            if isinstance(trait, Instance):
+                value = value.unique_id
+            elif isinstance(trait, MetList):
+                value = [o.unique_id for o in value]
             items.append(Text(str(value), disabled=True))
 
         elif isinstance(trait, Enum):
