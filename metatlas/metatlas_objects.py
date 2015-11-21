@@ -135,7 +135,8 @@ class Stub(HasTraits):
     object_type = MetUnicode()
 
     def retrieve(self):
-        return retrieve(self.object_type, unique_id=self.unique_id)[0]
+        return retrieve(self.object_type, username='*',
+                        unique_id=self.unique_id)[0]
 
     def __repr__(self):
         return '%s %s' % (self.object_type.capitalize(),
@@ -323,16 +324,17 @@ def retrieve(object_type, **kwargs):
       List of Metatlas Objects meeting the criteria.  Will return the
       latest version of each object.
     """
-    if kwargs.get('username', '') == '*':
-        kwargs.pop('username')
-    else:
-        kwargs.setdefault('username', getpass.getuser())
     object_type = object_type.lower()
     klass = SUBCLASS_LUT.get(object_type, None)
     if object_type not in workspace.db:
         if not klass:
             raise ValueError('Unknown object type: %s' % object_type)
         object_type = TABLENAME_LUT[klass]
+    if '_' not in object_type:
+        if kwargs.get('username', '') == '*':
+            kwargs.pop('username')
+        else:
+            kwargs.setdefault('username', getpass.getuser())
     # Example query if group id is given
     # SELECT *
     # FROM tablename

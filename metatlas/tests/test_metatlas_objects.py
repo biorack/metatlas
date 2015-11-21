@@ -104,25 +104,6 @@ def test_escape_glob():
     assert items[-1].unique_id == test1.unique_id
 
 
-def test_select_reference_by_type():
-    mz_refs = [mo.MzReference(name=str(i)) for i in range(3)]
-    rt_refs = [mo.RtReference(name=str(i)) for i in range(4)]
-    frag_refs = [mo.FragmentationReference(name=str(i)) for i in range(2)]
-
-    compound_id = mo.CompoundIdentification(
-        name='test', references=mz_refs + rt_refs + frag_refs)
-    mo.store(compound_id)
-
-    assert mo.retrieve('mzreference', name='1')[0].name == '1'
-
-    mz_select = compound_id.select_by_type('mz')
-    assert mz_select[0] is mz_refs[0]
-    assert len(mz_select) == 3
-
-    assert len(compound_id.select_by_type('rt')) == 4
-    assert len(compound_id.select_by_type('frag')) == 2
-
-
 def test_load_lcms_files():
     paths = get_test_data().values()
     runs = mo.load_lcms_files(paths)
@@ -207,7 +188,7 @@ def test_user_preserve():
     assert test.unique_id == orig_id
     mo.store(test)
     assert test.unique_id != orig_id
-    items = mo.retrieve('reference', name='hello')
+    items = mo.retrieve('reference', username='*', name='hello')
     username = getpass.getuser()
     assert items[-2].username == 'foo'
     assert items[-1].username == username
@@ -215,7 +196,8 @@ def test_user_preserve():
     assert items[-1].lcms_run.username == 'foo'
     run.name = 'hello'
     mo.store(test)
-    items = mo.retrieve('reference', creation_time=test.creation_time)
+    items = mo.retrieve('reference', username='*',
+                        creation_time=test.creation_time)
     return
     assert items[0].lcms_run.username == 'foo'
     assert items[1].lcms_run.username == username
