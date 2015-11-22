@@ -185,7 +185,7 @@ def get_chromatogram(h5file, min_mz, max_mz, ms_level, polarity,
     """
     data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
                     max_mz=max_mz, **kwargs)
-    if not data:
+    if data is None:
         return [], []
     rt = np.unique(data['rt'])
     edges = np.argwhere(np.diff(data['rt']) > 0).squeeze()
@@ -222,7 +222,7 @@ def get_heatmap(h5file, mz_bins, ms_level, polarity, **kwargs):
         Dictionary containing: 'arr', 'rt_bins', 'mz_bins'.
     """
     data = get_data(h5file, ms_level, polarity, **kwargs)
-    if not data:
+    if data is None:
         return None
 
     rt_values = np.unique(data['rt'])
@@ -268,7 +268,7 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
     """
     data = get_data(h5file, ms_level, polarity, min_rt=min_rt,
                     max_rt=max_rt, **kwargs)
-    if not data:
+    if data is None:
         return [], []
 
     i, mz = np.histogram(data['mz'], bins=bins, weights=data['i'])
