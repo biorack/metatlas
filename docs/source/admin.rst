@@ -38,7 +38,9 @@ The CRON job settings are in `/project/projectdirs/metatlas/crontab.edison.paste
 Anaconda
 --------
 We have an Anaconda instance at NERSC: `/project/projectdirs/metatlas/anaconda`.  We have all the required libraries stored there.  See the `installation` instructions for how to users are meant to use it.  You can `pip install` and
-`conda install`.
+`conda install`.  The packages required for `metatlas` are listed the
+`setup.py`, except for qgrid, which was installed directly from the QGrid
+repo as `pip install https://github.com/quantopian/qgrid/`.
 
 
 R packages
@@ -59,8 +61,17 @@ $ R
 $ cp -r ~/R/x86_64-unknown-linux-gnu-library/3.1/my_lib /global/project/projectdirs/metatlas/r_pkgs/my_lib
 ```
 
+The currently installed packages are:
+
+```
+biocLite("mzR")
+biocLite("xcms")
+```
+
 Synchronizing the Repo
 ----------------------
 There is a `make deploy` target in the top level `Makefile` in the repo
 that will publish the latest changes to documentation and `rsync` the
 files to the anaconda environment at NERSC.
+
+
