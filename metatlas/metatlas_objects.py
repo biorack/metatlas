@@ -224,8 +224,7 @@ class Workspace(object):
                 table_name = '_'.join([name, tname])
                 print(table_name)
                 if table_name not in self.db:
-                    self.db.create_table(table_name, primary_id='unique_id',
-                                         primary_type='String(32)')
+                    self.db.create_table(table_name)
                     link = dict(source_id=uuid.uuid4().hex,
                                 head_id=uuid.uuid4().hex,
                                 target_id=uuid.uuid4().hex,
