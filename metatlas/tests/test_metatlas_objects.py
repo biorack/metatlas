@@ -222,16 +222,16 @@ def test_stub_instance():
 
 
 def test_floating_point():
-    compound = mo.Compound(name='foo', MonoIsotopic_molecular_weight=1.0)
+    compound = mo.Compound(name='foo', mono_isotopic_molecular_weight=1.0)
     mo.store(compound)
-    compound.MonoIsotopic_molecular_weight = 1.000007
+    compound.mono_isotopic_molecular_weight = 1.000007
     mo.store(compound)
     test = mo.retrieve('compound', name='foo')[-1]
-    assert test.MonoIsotopic_molecular_weight == 1.000007, test.MonoIsotopic_molecular_weight
+    assert test.mono_isotopic_molecular_weight == 1.000007, test.mono_isotopic_molecular_weight
 
 
 def test_remove():
-    compound = mo.Compound(name='foo', MonoIsotopic_molecular_weight=1.0,
+    compound = mo.Compound(name='foo', mono_isotopic_molecular_weight=1.0,
                            reference_xrefs=[mo.ReferenceDatabase(name='baz')])
     sub_id = compound.reference_xrefs[0].unique_id
     mo.store(compound)
