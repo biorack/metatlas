@@ -10,7 +10,7 @@ from pwd import getpwuid
 from tabulate import tabulate
 import pandas as pd
 
-from .utils import (
+from .object_helpers import (
     set_docstring, Workspace, format_timestamp, MetList,
     MetUnicode, MetFloat, MetInstance, MetInt, MetEnum,
     edit_traits, HasTraits, CBool, Stub, List
