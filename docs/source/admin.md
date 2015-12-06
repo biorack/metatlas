@@ -13,7 +13,7 @@ Log in to NERSC via `ssh username@edisongrid.nersc.gov`.
 There is a pseudo-super user account called `pasteur`. To log in to
 pasteur:
 
-```
+```bash
 module load globus
 myproxy-logon -s nerscca.nersc.gov
 NERSC PW
@@ -60,7 +60,7 @@ available because we set the `R_LIBS` variable in
 `metatlas/__init__.py`. To load new packages, log in to NERSC, and
 follow this example (replacing the source and lib name with your own):
 
-```
+```bash
 $ module load R
 $ R
 > source("http://bioconductor.org/biocLite.R")
@@ -72,7 +72,7 @@ $ cp -r ~/R/x86_64-unknown-linux-gnu-library/3.1/my_lib /global/project/projectd
 
 The currently installed packages are:
 
-```
+```bash
 biocLite("mzR")
 biocLite("xcms")
 ```
