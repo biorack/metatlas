@@ -43,7 +43,14 @@ def update_metatlas(directory):
         else:
             print("Invalid path name", fname)
             continue
-        username = pwd.getpwuid(os.stat(fname).st_uid).pw_name
+        dirname = os.path.dirname(fname)
+        try:
+            username = pwd.getpwuid(os.stat(fname).st_uid).pw_name
+        except OSError:
+            try:
+                username = pwd.getpwuid(os.stat(dirname).st_uid).pw_name
+            except Exception:
+                username = info['username']
 
         print(fname)
         try:
@@ -73,7 +80,7 @@ def update_metatlas(directory):
             store(run)
         except Exception as e:
             if 'exists but it can not be written' in str(e):
-                readonly_files[username].add(os.path.dirname(fname))
+                readonly_files[username].add(dirname)
             else:
                 other_errors[info['username']].append(str(e))
             print(e)
