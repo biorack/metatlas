@@ -139,7 +139,11 @@ class Workspace(object):
     @property
     def db(self):
         if self._db:
-            return self._db
+            try:
+                self._db.tables()
+                return self._db
+            except Exception:
+                print('Reconnecting to database')
         self._db = dataset.connect(self.path)
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
@@ -151,18 +155,6 @@ class Workspace(object):
         except Exception as e:
             print(e)
 
-    def insert(self, name, state):
-        name = name.lower()
-        self.db.create_table(name, primary_id='unique_id',
-                             primary_type='String(32)')
-        self.db[name].insert(state)
-
-    def find_one(self, table_name, **kwargs):
-        return self.db[table_name.lower()].find_one(**kwargs)
-
-    def find(self, table_name, **kwargs):
-        return self.db[table_name.lower()].find(**kwargs)
-
     def save_objects(self, objects, _override=False):
         if not isinstance(objects, (list, set)):
             objects = [objects]
@@ -170,42 +162,43 @@ class Workspace(object):
         self._link_updates = defaultdict(list)
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
+        db = self.db
         for obj in objects:
-            self.save(obj, _override)
+            self._save(obj, _override)
         for (table_name, updates) in self._link_updates.items():
-            if table_name not in self.db:
+            if table_name not in db:
                 continue
-            with self.db:
+            with db:
                 for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
+                    db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, updates) in self._updates.items():
             if '_' not in table_name and table_name not in self.db:
-                self.db.create_table(table_name, primary_id='unique_id',
+                db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
                 self.fix_table(table_name)
-            with self.db:
+            with db:
                 for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
+                    db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, inserts) in self._inserts.items():
-            if '_' not in table_name and table_name not in self.db:
-                self.db.create_table(table_name, primary_id='unique_id',
+            if '_' not in table_name and table_name not in db:
+                db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
                 self.fix_table(table_name)
-            self.db[table_name].insert_many(inserts)
+            db[table_name].insert_many(inserts)
 
     def create_link_tables(self, klass):
         name = self.table_name[klass]
+        db = self.db
         for (tname, trait) in klass.class_traits().items():
             if isinstance(trait, MetList):
                 table_name = '_'.join([name, tname])
-                print(table_name)
-                if table_name not in self.db:
-                    self.db.create_table(table_name)
+                if table_name not in db:
+                    db.create_table(table_name)
                     link = dict(source_id=uuid.uuid4().hex,
                                 head_id=uuid.uuid4().hex,
                                 target_id=uuid.uuid4().hex,
                                 target_table=uuid.uuid4().hex)
-                    self.db[table_name].insert(link)
+                    db[table_name].insert(link)
 
     def save(self, obj, override=False):
         if obj.unique_id in self._seen:
@@ -233,7 +226,7 @@ class Workspace(object):
                 # create an entry in the table for each item
                 # store the item in its own table
                 for subvalue in value:
-                    self.save(subvalue, override)
+                    self._save(subvalue, override)
                     link = dict(source_id=obj.unique_id,
                                 head_id=obj.head_id,
                                 target_id=subvalue.unique_id,
@@ -250,7 +243,7 @@ class Workspace(object):
                 # itself
                 else:
                     state[tname] = value.unique_id
-                    self.save(value, override)
+                    self._save(value, override)
             elif changed:
                 value = getattr(obj, tname)
                 # store the raw value in this table
@@ -275,7 +268,8 @@ class Workspace(object):
     def retrieve(self, object_type, **kwargs):
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
-        if object_type not in self.db:
+        db = self.db
+        if object_type not in db:
             if not klass:
                 raise ValueError('Unknown object type: %s' % object_type)
             object_type = self.tablename_lut[klass]
@@ -314,7 +308,7 @@ class Workspace(object):
         if not clauses:
             query = query.replace(' where ()', '')
         try:
-            items = [i for i in self.db.query(query)]
+            items = [i for i in db.query(query)]
         except Exception as e:
             if 'Unknown column' in str(e):
                 keys = [k for k in klass.class_traits().keys()
@@ -330,13 +324,13 @@ class Workspace(object):
         for (tname, trait) in items[0].traits().items():
             if isinstance(trait, List):
                 table_name = '_'.join([object_type, tname])
-                if table_name not in self.db:
+                if table_name not in db:
                     for i in items:
                         setattr(i, tname, [])
                     continue
                 querystr = 'select * from `%s` where source_id in ("' % table_name
                 querystr += '" , "'.join(uids)
-                result = self.db.query(querystr + '")')
+                result = db.query(querystr + '")')
                 sublist = defaultdict(list)
                 for r in result:
                     stub = Stub(unique_id=r['target_id'],
@@ -379,6 +373,7 @@ class Workspace(object):
                 clauses.append('%s = "%s"' % (key, value))
         query += ' and '.join(clauses)
         query += ')'
+        db = self.db
         if not clauses:
             query = query.replace(' where ()', '')
         if not override:
@@ -391,20 +386,20 @@ class Workspace(object):
         # check for lists items that need removal
         if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
             uid_query = query.replace('delete ', 'select unique_id ')
-            uids = [i['unique_id'] for i in self.db.query(uid_query)]
+            uids = [i['unique_id'] for i in db.query(uid_query)]
             sub_query = 'delete from `%s` where source_id in ("%s")'
             for (tname, trait) in klass.class_traits().items():
                 table_name = '%s_%s' % (object_type, tname)
-                if not uids or table_name not in self.db:
+                if not uids or table_name not in db:
                     continue
                 if isinstance(trait, MetList):
                     table_query = sub_query % (table_name, '", "'.join(uids))
                     try:
-                        self.db.query(table_query)
+                        db.query(table_query)
                     except Exception as e:
                         print(e)
         try:
-            self.db.query(query)
+            db.query(query)
         except Exception as e:
             if 'Unknown column' in str(e):
                 keys = [k for k in klass.class_traits().keys()
@@ -420,6 +415,7 @@ class Workspace(object):
         username = getpass.getuser()
         override = kwargs.pop('_override', False)
         attr = 'head_id' if all_versions else 'unique_id'
+        db = self.db
         for obj in objects:
             if not override and obj.username != username:
                 continue
@@ -438,13 +434,13 @@ class Workspace(object):
             if ans[0].lower() != 'y':
                 return
         for (table_name, uids) in ids.items():
-            if table_name not in self.db:
+            if table_name not in db:
                 continue
             query = 'delete from `%s` where %s in ("'
             query = query % (table_name, attr)
             query += '" , "'.join(uids)
             query += '")'
-            self.db.query(query)
+            db.query(query)
 
 
 def format_timestamp(tstamp):
