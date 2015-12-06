@@ -140,7 +140,7 @@ class Workspace(object):
     def db(self):
         if self._db:
             try:
-                self._db.tables()
+                self._db.tables
                 return self._db
             except Exception:
                 print('Reconnecting to database')
@@ -200,7 +200,7 @@ class Workspace(object):
                                 target_table=uuid.uuid4().hex)
                     db[table_name].insert(link)
 
-    def save(self, obj, override=False):
+    def _save(self, obj, override=False):
         if obj.unique_id in self._seen:
             return
         if isinstance(obj, Stub):
