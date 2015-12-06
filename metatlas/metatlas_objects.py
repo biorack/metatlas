@@ -930,11 +930,18 @@ class Compound(MetatlasObject):
     For IDs that have high enough confidence for structural assignments an
     InChi string is the ID.
     """
-    InChI = MetUnicode(help='IUPAC International Chemical Identifier, optional')
+    inchi = MetUnicode(help='IUPAC International Chemical Identifier, optional')
     formula = MetUnicode()
-    MonoIsotopic_molecular_weight = MetFloat()
+    mono_isotopic_molecular_weight = MetFloat()
     synonyms = MetUnicode()
     url = MetUnicode(help='Reference database table url')
+    permanent_charge = MetInt()
+    inchi_key = MetUnicode()
+    number_components = MetInt(help='Must be one or greater')
+    neutralized_inchi = MetUnicode()
+    neutralized_inchi_key = MetUnicode()
+    neutralized_2d_inchi = MetUnicode()
+    neutralized_2d_inchi_key = MetUnicode()
     reference_xrefs = MetList(MetInstance(ReferenceDatabase),
                            help='Tag a compound with compound ids from ' +
                                 'external databases')
