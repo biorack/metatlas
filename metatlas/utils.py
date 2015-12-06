@@ -17,7 +17,6 @@ except ImportError:
         HasTraits, CUnicode, List, CInt, Instance, Enum,
         CFloat, TraitError, CBool)
 
-POLARITY = ('positive', 'negative', 'alternating')
 NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
 
 # Observable List from

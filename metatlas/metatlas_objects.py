@@ -13,13 +13,15 @@ import pandas as pd
 from .utils import (
     set_docstring, Workspace, format_timestamp, MetList,
     MetUnicode, MetFloat, MetInstance, MetInt, MetEnum,
-    edit_traits, HasTraits, CBool, POLARITY, Stub, List
+    edit_traits, HasTraits, CBool, Stub, List
 )
 
 
 # Whether to fetch stubs automatically, disabled when we want to display
 # a large number of objects.
 FETCH_STUBS = True
+
+POLARITY = ('positive', 'negative', 'alternating')
 
 
 def retrieve(object_type, **kwargs):
