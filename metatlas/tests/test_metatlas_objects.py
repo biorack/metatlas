@@ -205,10 +205,10 @@ def test_user_preserve():
 
 def test_store_all():
     items = []
-    for klass in mo.SUBCLASS_LUT.values():
+    for klass in mo.WORKSPACE.subclass_lut.values():
         items.append(klass())
     mo.store(items)
-    for klass in mo.SUBCLASS_LUT.values():
+    for klass in mo.WORKSPACE.subclass_lut.values():
         name = klass.__name__
         assert len(mo.retrieve(name))
 

@@ -3,302 +3,23 @@ import uuid
 import time
 import os
 import json
-import sys
 import pprint
 import tables
 import numpy as np
-import six
-from collections import defaultdict
 from pwd import getpwuid
 from tabulate import tabulate
 import pandas as pd
 
-try:
-    from traitlets import (
-        HasTraits, CUnicode, List, CInt, Instance, Enum,
-        CFloat, TraitError, CBool)
-except ImportError:
-    from IPython.utils.traitlets import (
-        HasTraits, CUnicode, List, CInt, Instance, Enum,
-        CFloat, TraitError, CBool)
-import dataset
+from .utils import (
+    set_docstring, Workspace, format_timestamp, MetList,
+    MetUnicode, MetFloat, MetInstance, MetInt, MetEnum,
+    edit_traits, HasTraits, CBool, POLARITY, Stub, List
+)
 
 
-POLARITY = ('positive', 'negative', 'alternating')
-NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
-
-
+# Whether to fetch stubs automatically, disabled when we want to display
+# a large number of objects.
 FETCH_STUBS = True
-
-# Observable List from
-# http://stackoverflow.com/a/13259435
-
-def callback_method(func):
-    def notify(self, *args, **kwargs):
-        if not hasattr(self, '_callbacks'):
-            return func(self, *args, **kwargs)
-        for _, callback in self._callbacks:
-            callback()
-        return func(self, *args, **kwargs)
-    return notify
-
-
-class NotifyList(list):
-    extend = callback_method(list.extend)
-    append = callback_method(list.append)
-    remove = callback_method(list.remove)
-    pop = callback_method(list.pop)
-    __delitem__ = callback_method(list.__delitem__)
-    __setitem__ = callback_method(list.__setitem__)
-    __iadd__ = callback_method(list.__iadd__)
-    __imul__ = callback_method(list.__imul__)
-
-    # Take care to return a new NotifyList if we slice it.
-    if sys.version_info[0] < 3:
-        __setslice__ = callback_method(list.__setslice__)
-        __delslice__ = callback_method(list.__delslice__)
-
-        def __getslice__(self, *args):
-            return self.__class__(list.__getslice__(self, *args))
-
-    def __getitem__(self, item):
-        if isinstance(item, slice):
-            return self.__class__(list.__getitem__(self, item))
-        else:
-            return list.__getitem__(self, item)
-
-    def __init__(self, *args):
-        list.__init__(self, *args)
-        self._callbacks = []
-        self._callback_cntr = 0
-
-    def register_callback(self, cb):
-        self._callbacks.append((self._callback_cntr, cb))
-        self._callback_cntr += 1
-        return self._callback_cntr - 1
-
-    def unregister_callback(self, cbid):
-        for idx, (i, cb) in enumerate(self._callbacks):
-            if i == cbid:
-                self._callbacks.pop(idx)
-                return cb
-        else:
-            return None
-
-
-class MetList(List):
-    allow_none = True
-
-    def validate(self, obj, value):
-        value = super(MetList, self).validate(obj, value)
-        value = NotifyList(value)
-
-        value.register_callback(lambda: setattr(obj, '_changed', True))
-        return value
-
-
-class MetUnicode(CUnicode):
-    allow_none = True
-
-
-class MetFloat(CFloat):
-    allow_none = True
-
-
-class MetInt(CInt):
-    allow_none = True
-
-
-class MetInstance(Instance):
-    allow_none = True
-
-    def validate(self, obj, value):
-        if isinstance(value, (self.klass, Stub)):
-            return value
-        elif isinstance(value, six.string_types):
-            if value:
-                return Stub(unique_id=value,
-                            object_type=self.klass.__name__)
-            else:
-                return None
-        else:
-            self.error(obj, value)
-
-
-class MetEnum(Enum):
-    allow_none = True
-
-
-class Stub(HasTraits):
-
-    unique_id = MetUnicode()
-    object_type = MetUnicode()
-
-    def retrieve(self):
-        return retrieve(self.object_type, username='*',
-                        unique_id=self.unique_id)[0]
-
-    def __repr__(self):
-        return '%s %s' % (self.object_type.capitalize(),
-                          self.unique_id)
-
-    def __str__(self):
-        return self.unique_id
-
-
-class Workspace(object):
-
-    def __init__(self):
-        # allow for fallback when not on NERSC
-        if os.path.exists(NERSC_USER):
-            with open(NERSC_USER) as fid:
-                pw = fid.read().strip()
-            self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/meta_atlas' % pw
-        else:
-            self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
-        self._db = None
-        # handle circular references
-        self.seen = dict()
-
-    @property
-    def db(self):
-        if self._db:
-            return self._db
-        self._db = dataset.connect(self.path)
-        if 'sqlite' in self.path:
-            os.chmod(self.path[10:], 0o775)
-        return self.db
-
-    def convert_to_double(self, table, entry):
-        try:
-            self.db.query('alter table `%s` modify `%s` double' % (table, entry))
-        except Exception as e:
-            print(e)
-
-    def insert(self, name, state):
-        name = name.lower()
-        self.db.create_table(name, primary_id='unique_id',
-                             primary_type='String(32)')
-        self.db[name].insert(state)
-
-    def find_one(self, table_name, **kwargs):
-        return self.db[table_name.lower()].find_one(**kwargs)
-
-    def find(self, table_name, **kwargs):
-        return self.db[table_name.lower()].find(**kwargs)
-
-    def save_objects(self, objects, _override=False):
-        if not isinstance(objects, (list, set)):
-            objects = [objects]
-        self._seen = dict()
-        self._link_updates = defaultdict(list)
-        self._updates = defaultdict(list)
-        self._inserts = defaultdict(list)
-        for obj in objects:
-            self.save(obj, _override)
-        for (table_name, updates) in self._link_updates.items():
-            if table_name not in self.db:
-                continue
-            with self.db:
-                for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
-        for (table_name, updates) in self._updates.items():
-            if '_' not in table_name and table_name not in self.db:
-                self.db.create_table(table_name, primary_id='unique_id',
-                                     primary_type='String(32)')
-                fix_table(table_name)
-            with self.db:
-                for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
-        for (table_name, inserts) in self._inserts.items():
-            if '_' not in table_name and table_name not in self.db:
-                self.db.create_table(table_name, primary_id='unique_id',
-                                     primary_type='String(32)')
-                fix_table(table_name)
-            self.db[table_name].insert_many(inserts)
-
-    def create_link_tables(self, klass):
-        name = TABLENAME_LUT[klass]
-        for (tname, trait) in klass.class_traits().items():
-            if isinstance(trait, MetList):
-                table_name = '_'.join([name, tname])
-                print(table_name)
-                if table_name not in self.db:
-                    self.db.create_table(table_name)
-                    link = dict(source_id=uuid.uuid4().hex,
-                                head_id=uuid.uuid4().hex,
-                                target_id=uuid.uuid4().hex,
-                                target_table=uuid.uuid4().hex)
-                    self.db[table_name].insert(link)
-
-    def save(self, obj, override=False):
-        if obj.unique_id in self._seen:
-            return
-        if isinstance(obj, Stub):
-            return
-        name = TABLENAME_LUT[obj.__class__]
-        self._seen[obj.unique_id] = True
-        changed, prev_uid = obj._update(override)
-        state = dict()
-        for (tname, trait) in obj.traits().items():
-            if tname.startswith('_'):
-                continue
-            if isinstance(trait, List):
-                # handle a list of objects by using a Link table
-                # create the link table if necessary
-                table_name = '_'.join([name, tname])
-                if changed and prev_uid:
-                    self._link_updates[table_name].append((obj.unique_id,
-                                                           obj.prev_uid))
-                value = getattr(obj, tname)
-                # do not store this entry in our own table
-                if not value:
-                    continue
-                # create an entry in the table for each item
-                # store the item in its own table
-                for subvalue in value:
-                    self.save(subvalue, override)
-                    link = dict(source_id=obj.unique_id,
-                                head_id=obj.head_id,
-                                target_id=subvalue.unique_id,
-                                target_table=subvalue.__class__.__name__.lower() + 's')
-                    if changed:
-                        self._inserts[table_name].append(link)
-            elif isinstance(trait, MetInstance):
-                value = getattr(obj, tname)
-                # handle a sub-object
-                # if it is not assigned, use and empty unique_id
-                if value is None:
-                    state[tname] = ''
-                # otherwise, store the uid and allow the object to store
-                # itself
-                else:
-                    state[tname] = value.unique_id
-                    self.save(value, override)
-            elif changed:
-                value = getattr(obj, tname)
-                # store the raw value in this table
-                state[tname] = value
-        if prev_uid and changed:
-            self._updates[name].append((obj.unique_id, obj.prev_uid))
-        else:
-            state['prev_uid'] = ''
-        if changed:
-            self._inserts[name].append(state)
-
-# Singleton Workspace object
-workspace = Workspace()
-
-
-def fix_table(table_name):
-    """Fix a table by converting floating point values to doubles"""
-    klass = SUBCLASS_LUT.get(table_name, None)
-    if not klass:
-        return
-    table_name = TABLENAME_LUT[klass]
-    for (tname, trait) in klass.class_traits().items():
-        if isinstance(trait, MetFloat):
-            workspace.convert_to_double(table_name, tname)
 
 
 def retrieve(object_type, **kwargs):
@@ -323,85 +44,7 @@ def retrieve(object_type, **kwargs):
       List of Metatlas Objects meeting the criteria.  Will return the
       latest version of each object.
     """
-    object_type = object_type.lower()
-    klass = SUBCLASS_LUT.get(object_type, None)
-    if object_type not in workspace.db:
-        if not klass:
-            raise ValueError('Unknown object type: %s' % object_type)
-        object_type = TABLENAME_LUT[klass]
-    if '_' not in object_type:
-        if kwargs.get('username', '') == '*':
-            kwargs.pop('username')
-        else:
-            kwargs.setdefault('username', getpass.getuser())
-    # Example query if group id is given
-    # SELECT *
-    # FROM tablename
-    # WHERE (city = 'New York' AND name like 'IBM%')
-
-    # Example query where unique id and group id are not given
-    # (to avoid getting all versions of the same object)
-    # http://stackoverflow.com/a/12102288
-    # SELECT *
-    # from (SELECT * from `groups`
-    #       WHERE (name='spam') ORDER BY last_modified)
-    # x GROUP BY head_id
-    query = 'select * from `%s` where (' % object_type
-    clauses = []
-    for (key, value) in kwargs.items():
-        if not isinstance(value, six.string_types):
-            clauses.append("%s = %s" % (key, value))
-            continue
-        if '%%' in value:
-            clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
-        elif '%' in value:
-            clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
-        else:
-            clauses.append('%s = "%s"' % (key, value))
-    if 'unique_id' not in kwargs and klass:
-        clauses.append('unique_id = head_id')
-    query += ' and '.join(clauses) + ')'
-    if not clauses:
-        query = query.replace(' where ()', '')
-    try:
-        items = [i for i in workspace.db.query(query)]
-    except Exception as e:
-        if 'Unknown column' in str(e):
-            keys = [k for k in klass.class_traits().keys()
-                    if not k.startswith('_')]
-            raise ValueError('Invalid column name, valid columns: %s' % keys)
-        else:
-            raise(e)
-    items = [klass(**i) for i in items]
-    uids = [i.unique_id for i in items]
-    if not items:
-        return []
-    # get stubs for each of the list items
-    for (tname, trait) in items[0].traits().items():
-        if isinstance(trait, List):
-            table_name = '_'.join([object_type, tname])
-            if table_name not in workspace.db:
-                for i in items:
-                    setattr(i, tname, [])
-                continue
-            querystr = 'select * from `%s` where source_id in ("' % table_name
-            querystr += '" , "'.join(uids)
-            result = workspace.db.query(querystr + '")')
-            sublist = defaultdict(list)
-            for r in result:
-                stub = Stub(unique_id=r['target_id'],
-                            object_type=r['target_table'])
-                sublist[r['source_id']].append(stub)
-            for i in items:
-                setattr(i, tname, sublist[i.unique_id])
-        elif isinstance(trait, MetInstance):
-            pass
-    for i in items:
-        if not i.prev_uid:
-            i.prev_uid = 'origin'
-        i._changed = False
-    items.sort(key=lambda x: x.last_modified)
-    return items
+    return WORKSPACE.retrieve(object_type, **kwargs)
 
 
 def remove(object_type, **kwargs):
@@ -416,65 +59,7 @@ def remove(object_type, **kwargs):
       Use '%' for wildcard patterns (i.e. description='Hello%').
       If you want to match a '%' character, use '%%'.
     """
-    object_type = object_type.lower()
-    klass = SUBCLASS_LUT.get(object_type, None)
-    if not klass:
-        raise ValueError('Unknown object type: %s' % object_type)
-    object_type = TABLENAME_LUT[klass]
-    kwargs.setdefault('username', getpass.getuser())
-    override = kwargs.pop('_override', False)
-    # Example query:
-    # DELETE *
-    # FROM tablename
-    # WHERE (city = 'New York' AND name like 'IBM%')
-    query = 'delete from `%s` where (' % object_type
-    clauses = []
-    for (key, value) in kwargs.items():
-        if not isinstance(value, six.string_types):
-            clauses.append("%s = %s" % (key, value))
-            continue
-        if '%%' in value:
-            clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
-        elif '%' in value:
-            clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
-        else:
-            clauses.append('%s = "%s"' % (key, value))
-    query += ' and '.join(clauses)
-    query += ')'
-    if not clauses:
-        query = query.replace(' where ()', '')
-    if not override:
-        if sys.version.startswith('2'):
-            ans = raw_input('Are you sure you want to delete these entries?')
-        else:
-            ans = input('Are you sure you want to delete these entries?')
-        if ans[0].lower() != 'y':
-            return
-    # check for lists items that need removal
-    if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
-        uid_query = query.replace('delete ', 'select unique_id ')
-        uids = [i['unique_id'] for i in workspace.db.query(uid_query)]
-        sub_query = 'delete from `%s` where source_id in ("%s")'
-        for (tname, trait) in klass.class_traits().items():
-            table_name = '%s_%s' % (object_type, tname)
-            if not uids or table_name not in workspace.db:
-                continue
-            if isinstance(trait, MetList):
-                table_query = sub_query % (table_name, '", "'.join(uids))
-                print(table_query)
-                try:
-                    workspace.db.query(table_query)
-                except Exception as e:
-                    print(e)
-    try:
-        workspace.db.query(query)
-    except Exception as e:
-        if 'Unknown column' in str(e):
-            keys = [k for k in klass.class_traits().keys()
-                    if not k.startswith('_')]
-            raise ValueError('Invalid column name, valid columns: %s' % keys)
-        else:
-            raise(e)
+    return WORKSPACE.remove(object_type, **kwargs)
 
 
 def remove_objects(objects, all_versions=True, **kwargs):
@@ -486,37 +71,7 @@ def remove_objects(objects, all_versions=True, **kwargs):
         If True, remove all versions of the object sharing the current
         head_id.
     """
-    if not isinstance(objects, (list, set)):
-        objects = [objects]
-    ids = defaultdict(list)
-    username = getpass.getuser()
-    override = kwargs.pop('_override', False)
-    attr = 'head_id' if all_versions else 'unique_id'
-    for obj in objects:
-        if not override and obj.username != username:
-            continue
-        name = TABLENAME_LUT[obj.__class__]
-        ids[name].append(getattr(obj, attr))
-        # remove list items as well
-        for (tname, trait) in obj.traits().items():
-            if isinstance(trait, MetList):
-                subname = '%s_%s' % (name, tname)
-                ids[subname].append(getattr(obj, attr))
-    if not override:
-        if sys.version.startswith('2'):
-            ans = raw_input('Are you sure you want to delete these entries?')
-        else:
-            ans = input('Are you sure you want to delete these entries?')
-        if ans[0].lower() != 'y':
-            return
-    for (table_name, uids) in ids.items():
-        if table_name not in workspace.db:
-            continue
-        query = 'delete from `%s` where %s in ("'
-        query = query % (table_name, attr)
-        query += '" , "'.join(uids)
-        query += '")'
-        workspace.db.query(query)
+    return WORKSPACE.remove_objects(objects, all_versions, **kwargs)
 
 
 def store(objects, **kwargs):
@@ -527,45 +82,7 @@ def store(objects, **kwargs):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
-    workspace.save_objects(objects, **kwargs)
-
-
-def format_timestamp(tstamp):
-    """Get a formatted representation of a timestamp."""
-    try:
-        ts = pd.Timestamp.fromtimestamp(int(tstamp))
-        return ts.isoformat()
-    except Exception:
-        return str(tstamp)
-
-
-def set_docstring(cls):
-    """Set the docstring for a MetatlasObject object"""
-    doc = cls.__doc__
-    if not doc:
-        doc = cls.__name__ + ' object.'
-    doc += '\n\nParameters\n----------\n'
-    for (tname, trait) in sorted(cls.class_traits().items()):
-        if tname.startswith('_'):
-            continue
-        descr = trait.__class__.__name__.lower()
-        if descr.startswith('c'):
-            descr = descr[1:]
-        elif descr == 'enum':
-            descr = '{' + ', '.join(trait.values) + '}'
-        doc += '%s: %s\n' % (tname, descr)
-        help_text = trait.get_metadata('help')
-        if not help_text:
-            help_text = '%s value.' % tname
-        help_text = help_text.strip()
-        if help_text.endswith('.'):
-            help_text = help_text[:-1]
-        if trait.get_metadata('readonly'):
-            help_text += ' (read only)'
-        help_text += '.'
-        doc += '    %s\n' % help_text
-    cls.__doc__ = doc
-    return cls
+    WORKSPACE.save_objects(objects, **kwargs)
 
 
 @set_docstring
@@ -739,11 +256,6 @@ class MetatlasObject(HasTraits):
                 setattr(self, name, new)
                 value = new
         return value
-
-
-def _get_subclasses(cls):
-    return cls.__subclasses__() + [g for s in cls.__subclasses__()
-                                   for g in _get_subclasses(s)]
 
 
 @set_docstring
@@ -997,8 +509,8 @@ class _IdGradeTrait(MetInstance):
             return value
         elif isinstance(value, str):
             if value.upper() in ID_GRADES:
-                return ID_GRADES[name.upper()]
-            objects = retrieve('identificationgrade', name=value.upper())
+                return ID_GRADES[value.upper()]
+            objects = WORKSPACE.retrieve('identificationgrade', name=value.upper())
             if objects:
                 ID_GRADES[value.upper()] = objects[-1]
                 return objects[-1]
@@ -1093,25 +605,18 @@ def find_invalid_runs(**kwargs):
     return invalid
 
 
-SUBCLASS_LUT = dict()
-TABLENAME_LUT = dict()
-for klass in _get_subclasses(MetatlasObject):
-    name = klass.__name__.lower()
-    SUBCLASS_LUT[name] = klass
-    if name.endswith('s'):
-        SUBCLASS_LUT[name + 'es'] = klass
-        TABLENAME_LUT[klass] = name + 'es'
-    else:
-        SUBCLASS_LUT[name + 's'] = klass
-        TABLENAME_LUT[klass] = name + 's'
+# Singleton Workspace object
+# Must be instantiated after all of the Metatlas Objects
+# are defined so we can get all of the subclasses.
+WORKSPACE = Workspace()
 
 
-def edit_objects(objects):
+def _create_qgrid(objects):
+    """Create a qgrid from a list of metatlas objects.
+    """
     global FETCH_STUBS
     import qgrid
     qgrid.nbinstall(overwrite=False)
-    from IPython.html.widgets import Button, HBox
-    from IPython.display import display
 
     # we want to handle dates, enums, and use ids for objects
     FETCH_STUBS = False
@@ -1129,7 +634,7 @@ def edit_objects(objects):
              for o in objs]
         if isinstance(trait, MetInstance):
             [o.__setitem__(tname, getattr(o[tname], 'unique_id', 'None')) for o in objs]
-        if isinstance(trait, Enum):
+        if isinstance(trait, MetEnum):
             enums.append(tname)
 
     dataframe = pd.DataFrame(objs)[sorted(cols)]
@@ -1153,69 +658,15 @@ def edit_objects(objects):
                 pass
 
     grid.on_msg(handle_msg)
-    display(grid)
+    return grid
 
 
-def edit_traits(obj):
-    """Create an IPython widget editor for a Traits object"""
-    try:
-        from ipywidgets import Text, Dropdown, HBox, VBox
-    except ImportError:
-        from IPython.html.widgets import Text, Dropdown, HBox, VBox
+def edit_objects(objects):
+    """Edit a set of metatlas object in a QGrid.
+    """
     from IPython.display import display
-    names = sorted(obj.trait_names())
-    names.remove('name')
-    names = ['name'] + [n for n in names if not n.startswith('_')]
-    items = [Text('', disabled=True)]
-    for name in names:
-        if name.startswith('_'):
-            continue
-        try:
-            value = getattr(obj, name)
-        except TraitError:
-            value = None
-        trait = obj.traits()[name]
-        if name in ['created', 'last_modified']:
-            value = format_timestamp(value)
-        if (trait.get_metadata('readonly') or
-                isinstance(trait, (Instance, MetList)) or value is None):
-            if isinstance(trait, Instance):
-                value = value.unique_id
-            elif isinstance(trait, MetList):
-                value = [o.unique_id for o in value]
-            items.append(Text(str(value), disabled=True))
-
-        elif isinstance(trait, Enum):
-            # create a closure around "name" for the on_trait_change
-            # callback
-            def create_dropdown(name):
-                dd = Dropdown(value=value, options=trait.values)
-
-                def callback(dummy, value):
-                    setattr(obj, name, value)
-                dd.on_trait_change(callback, 'value')
-                items.append(dd)
-
-            create_dropdown(name)
-        else:
-            # create a closure around "name" for the on_trait_change
-            # callback
-            def create_textbox(name):
-                textbox = Text(str(value))
-
-                def callback(dummy, value):
-                    try:
-                        setattr(obj, name, value)
-                    except Exception:
-                        textbox.color = 'red'
-                textbox.on_trait_change(callback, 'value')
-                items.append(textbox)
-
-            create_textbox(name)
-
-    labels = [Text(name, disabled=True) for name in names]
-    labels = [Text(obj.__class__.__name__, disabled=True)] + labels
-    display(HBox(children=[VBox(children=labels), VBox(children=items)]))
+    grid = _create_qgrid(objects)
+    display(grid)
 
 
 if __name__ == '__main__':

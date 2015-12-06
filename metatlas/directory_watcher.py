@@ -64,7 +64,11 @@ def update_metatlas(directory):
             dname = os.path.dirname(pasteur_path)
             if not os.path.exists(dname):
                 os.makedirs(dname)
-            shutil.copy(fname, pasteur_path)
+            try:
+                shutil.copy(fname, pasteur_path)
+            except IOError as e:
+                other_errors[username].append(str(e))
+                continue
 
         # convert to HDF and store the entry in the database
         try:
