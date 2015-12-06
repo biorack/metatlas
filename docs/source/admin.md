@@ -14,10 +14,10 @@ There is a pseudo-super user account called `pasteur`. To log in to
 pasteur:
 
 ```
-    module load globus
-    myproxy-logon -s nerscca.nersc.gov
-    NERSC PW
-    gsissh localhost -p 2222 -l pasteur
+module load globus
+myproxy-logon -s nerscca.nersc.gov
+NERSC PW
+gsissh localhost -p 2222 -l pasteur
 ```
 
 MySQL
@@ -61,20 +61,20 @@ available because we set the `R_LIBS` variable in
 follow this example (replacing the source and lib name with your own):
 
 ```
-    $ module load R
-    $ R
-    > source("http://bioconductor.org/biocLite.R")
-    > # accept installation into a local directory (copy that directory)
-    > biocLite("my_lib")
-    > quit()
-    $ cp -r ~/R/x86_64-unknown-linux-gnu-library/3.1/my_lib /global/project/projectdirs/metatlas/r_pkgs/my_lib
+$ module load R
+$ R
+> source("http://bioconductor.org/biocLite.R")
+> # accept installation into a local directory (copy that directory)
+> biocLite("my_lib")
+> quit()
+$ cp -r ~/R/x86_64-unknown-linux-gnu-library/3.1/my_lib /global/project/projectdirs/metatlas/r_pkgs/my_lib
 ```
 
 The currently installed packages are:
 
 ```
-    biocLite("mzR")
-    biocLite("xcms")
+biocLite("mzR")
+biocLite("xcms")
 ```
 
 Synchronizing the Repo
