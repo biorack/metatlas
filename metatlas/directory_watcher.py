@@ -67,7 +67,7 @@ def update_metatlas(directory):
             try:
                 shutil.copy(fname, pasteur_path)
             except IOError as e:
-                readonly_files[username].append(dirname)
+                readonly_files[username].add(dirname)
                 continue
 
         # convert to HDF and store the entry in the database
