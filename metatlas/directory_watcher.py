@@ -9,14 +9,13 @@ from datetime import datetime, time
 
 def send_mail(subject, username, body):
     """Send the mail only once per day."""
-    #now = datetime.now()
-    #if time(00, 00) <= now.time() <= time(00, 10):
-    #    # send it to silvest for now
-    body += '\nwas %s' % username
-    username = 'silvest'
-    msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, username, body)
-    p = Popen(["bash"], stdin=PIPE)
-    p.communicate(msg)
+    now = datetime.now()
+    if time(00, 00) <= now.time() <= time(00, 10):
+        body += '\nwas %s' % username
+        username = 'silvest'
+        msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, username, body)
+        p = Popen(["bash"], stdin=PIPE)
+        p.communicate(msg)
 
 
 def update_metatlas(directory):
