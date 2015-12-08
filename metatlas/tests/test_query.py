@@ -7,7 +7,10 @@ import tables
 from metatlas.mzml_loader import mzml_to_hdf, get_test_data
 from metatlas.h5_query import (
     get_chromatogram, get_data, get_spectrogram, get_heatmap,
-    plot_heatmap, plot_spectrogram, plot_chromatogram, get_info)
+    get_info)
+from metatlas.plotting import (
+    plot_heatmap, plot_spectrogram, plot_chromatogram
+)
 
 fid = None
 
