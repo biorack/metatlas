@@ -46,6 +46,6 @@ For version information, see the Revision History_.
 
 .. _online: http://metabolite-atlas.github.io/metatlas/
 
-.. _notebook: https://github.com/metabolite-atlas/metatlas/blob/master/docs/example_notebooks/data_access_examples%20Methionine%20QExactive.ipynb
+.. _notebook: https://github.com/metabolite-atlas/metatlas/blob/master/docs/example_notebooks/data_access_examples_Methionine_QExactive.ipynb
 
 .. _History: https://github.com/metabolite-atlas/metatlas/blob/master/HISTORY.rst
