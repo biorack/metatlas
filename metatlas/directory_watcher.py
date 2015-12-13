@@ -95,6 +95,7 @@ def update_metatlas(directory):
         for (username, dirnames) in readonly_files.items():
             body = ("Please log in to NERSC and run 'chmod 777' on the "
                    "following directories:\n%s" % ('\n'.join(dirnames)))
+            print(body)
             send_mail('Metatlas Files are Inaccessible', username, body)
     if invalid_runs:
         grouped = defaultdict(list)
@@ -106,11 +107,14 @@ def update_metatlas(directory):
             body += 'from metatlas.metatlas_objects import find_invalid_runs, remove\n'
             body += 'remove(find_invalid_runs())\n\n'
             body += 'The invalid runs are:\n%s' % ('\n'.join(filenames))
+            print('Invalid runs', username, filenames)
             send_mail('Metatlas Runs are Inaccessible', username, body)
     if other_errors:
         for (username, errors) in other_errors.items():
             body = 'Errored files found while loading in Metatlas files:\n%s' % '\n'.join(errors)
             send_mail('Errors loading Metatlas files', username, body)
+            print('Other errors', username, errors)
+    print('Done!')
 
 
 if __name__ == '__main__':

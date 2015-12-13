@@ -597,6 +597,8 @@ def find_invalid_runs(**kwargs):
     override = kwargs.pop('_override', False)
     if not override:
         kwargs.setdefault('username', getpass.getuser())
+    else:
+        kwargs.setdefault('username', '*')
     all_runs = retrieve('lcmsruns', **kwargs)
     invalid = []
     for run in all_runs:
