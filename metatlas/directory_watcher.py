@@ -104,9 +104,9 @@ def update_metatlas(directory):
             grouped[run.username].append(run.mzml_file)
         for (username, filenames) in grouped.items():
             body = 'You have runs that are not longer accessible\n'
-            body += 'To remove them all, run the following on ipython.nersc.gov:\n'
-            body += 'from metatlas.metatlas_objects import find_invalid_runs, remove\n'
-            body += 'remove(find_invalid_runs())\n\n'
+            body += 'To remove them from the database, run the following on ipython.nersc.gov:\n\n'
+            body += 'from metatlas.metatlas_objects import find_invalid_runs, remove_objects\n'
+            body += 'remove_objects(find_invalid_runs())\n\n'
             body += 'The invalid runs are:\n%s' % ('\n'.join(filenames))
             print('Invalid runs', username, filenames)
             send_mail('Metatlas Runs are Inaccessible', username, body)
