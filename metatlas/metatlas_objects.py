@@ -61,6 +61,9 @@ def remove(object_type, **kwargs):
       Use '%' for wildcard patterns (i.e. description='Hello%').
       If you want to match a '%' character, use '%%'.
     """
+    if not isinstance(object_type, str):
+        print('remove() expects a string argument, use remove_objects() to'
+              'delete actual objects.')
     return WORKSPACE.remove(object_type, **kwargs)
 
 
@@ -73,6 +76,9 @@ def remove_objects(objects, all_versions=True, **kwargs):
         If True, remove all versions of the object sharing the current
         head_id.
     """
+    if isinstance(object_type, str):
+        print('remove_objects() expects actual objects, use remove() to'
+              'remove objects by type.')
     return WORKSPACE.remove_objects(objects, all_versions, **kwargs)
 
 

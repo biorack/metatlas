@@ -381,7 +381,8 @@ class Workspace(object):
                 ans = raw_input('Are you sure you want to delete these entries?')
             else:
                 ans = input('Are you sure you want to delete these entries?')
-            if ans[0].lower() != 'y':
+            if not ans[0].lower().startswith('y'):
+                print('Aborting')
                 return
         # check for lists items that need removal
         if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
@@ -411,6 +412,9 @@ class Workspace(object):
     def remove_objects(self, objects, all_versions=True, **kwargs):
         if not isinstance(objects, (list, set)):
             objects = [objects]
+        if not objects:
+            print('No objects selected')
+            return
         ids = defaultdict(list)
         username = getpass.getuser()
         override = kwargs.pop('_override', False)
@@ -431,7 +435,8 @@ class Workspace(object):
                 ans = raw_input('Are you sure you want to delete these entries?')
             else:
                 ans = input('Are you sure you want to delete these entries?')
-            if ans[0].lower() != 'y':
+            if not ans[0].lower().startswith('y'):
+                print('Aborting')
                 return
         for (table_name, uids) in ids.items():
             if table_name not in db:
