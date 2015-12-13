@@ -1,0 +1,2 @@
+*/10 * * * * test `find "/global/project/projectdirs/metatlas/dirwatch2.log" -mmin +5` && /global/project/projectdirs/metatlas/run_dirwatch2.sh >& /global/project/projectdirs/metatlas/dirwatch2.log
+*/10 * * * * /global/project/projectdirs/metatlas/run_dirwatch.sh >& /global/project/projectdirs/metatlas/dirwatch.log
