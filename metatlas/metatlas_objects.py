@@ -76,7 +76,7 @@ def remove_objects(objects, all_versions=True, **kwargs):
         If True, remove all versions of the object sharing the current
         head_id.
     """
-    if isinstance(object_type, str):
+    if isinstance(objects, str):
         print('remove_objects() expects actual objects, use remove() to'
               'remove objects by type.')
     return WORKSPACE.remove_objects(objects, all_versions, **kwargs)
