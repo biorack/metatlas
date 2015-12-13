@@ -348,13 +348,22 @@ class Workspace(object):
         return items
 
     def remove(self, object_type, **kwargs):
+        override = kwargs.pop('_override', False)
+        if not override:
+            msg = 'Are you sure you want to delete the entries? (Y/N)'
+            if sys.version.startswith('2'):
+                ans = raw_input(msg)
+            else:
+                ans = input(msg)
+            if not ans[0].lower().startswith('y'):
+                print('Aborting')
+                return
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
         if not klass:
             raise ValueError('Unknown object type: %s' % object_type)
         object_type = self.tablename_lut[klass]
         kwargs.setdefault('username', getpass.getuser())
-        override = kwargs.pop('_override', False)
         # Example query:
         # DELETE *
         # FROM tablename
@@ -376,14 +385,6 @@ class Workspace(object):
         db = self.db
         if not clauses:
             query = query.replace(' where ()', '')
-        if not override:
-            if sys.version.startswith('2'):
-                ans = raw_input('Are you sure you want to delete these entries?')
-            else:
-                ans = input('Are you sure you want to delete these entries?')
-            if not ans[0].lower().startswith('y'):
-                print('Aborting')
-                return
         # check for lists items that need removal
         if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
             uid_query = query.replace('delete ', 'select unique_id ')
@@ -408,6 +409,7 @@ class Workspace(object):
                 raise ValueError('Invalid column name, valid columns: %s' % keys)
             else:
                 raise(e)
+        print('Removed')
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
         if not isinstance(objects, (list, set)):
@@ -415,9 +417,19 @@ class Workspace(object):
         if not objects:
             print('No objects selected')
             return
+        override = kwargs.pop('_override', False)
+        if not override:
+            msg = ('Are you sure you want to delete the %s object(s)? (Y/N)'
+                   % len(objects))
+            if sys.version.startswith('2'):
+                ans = raw_input(msg)
+            else:
+                ans = input(msg)
+            if not ans[0].lower().startswith('y'):
+                print('Aborting')
+                return
         ids = defaultdict(list)
         username = getpass.getuser()
-        override = kwargs.pop('_override', False)
         attr = 'head_id' if all_versions else 'unique_id'
         db = self.db
         for obj in objects:
@@ -430,14 +442,6 @@ class Workspace(object):
                 if isinstance(trait, MetList):
                     subname = '%s_%s' % (name, tname)
                     ids[subname].append(getattr(obj, attr))
-        if not override:
-            if sys.version.startswith('2'):
-                ans = raw_input('Are you sure you want to delete these entries?')
-            else:
-                ans = input('Are you sure you want to delete these entries?')
-            if not ans[0].lower().startswith('y'):
-                print('Aborting')
-                return
         for (table_name, uids) in ids.items():
             if table_name not in db:
                 continue
@@ -446,6 +450,7 @@ class Workspace(object):
             query += '" , "'.join(uids)
             query += '")'
             db.query(query)
+        print('Removed %s object(s)' % len(objects))
 
 
 def format_timestamp(tstamp):
