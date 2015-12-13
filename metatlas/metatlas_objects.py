@@ -622,13 +622,8 @@ def find_invalid_runs(**kwargs):
 WORKSPACE = Workspace()
 
 
-def _create_qgrid(objects):
-    """Create a qgrid from a list of metatlas objects.
-    """
+def _to_dataframe(objects):
     global FETCH_STUBS
-    import qgrid
-    qgrid.nbinstall(overwrite=False)
-
     # we want to handle dates, enums, and use ids for objects
     FETCH_STUBS = False
     objs = [o._trait_values.copy() for o in objects if o.__class__ == objects[0].__class__]
@@ -653,8 +648,21 @@ def _create_qgrid(objects):
         dataframe[col] = dataframe[col].astype('category')
     for col in ['last_modified', 'creation_time']:
         dataframe[col] = pd.to_datetime(dataframe[col], unit='s')
+    return dataframe
 
-    options = qgrid.grid.defaults.grid_options
+
+def _create_qgrid(objects, options=None):
+    """Create a qgrid from a list of metatlas objects.
+    """
+    import qgrid
+    qgrid.nbinstall(overwrite=False)
+
+    dataframe = _to_dataframe(objects)
+    if options:
+        defaults = qgrid.grid.defaults.grid_options
+        options = defaults.update(options)
+    else:
+        options = qgrid.grid.defaults.grid_options
     grid = qgrid.grid.QGridWidget(precision=6,
                        grid_options=json.dumps(options),
                        remote_js=True)
