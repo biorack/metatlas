@@ -78,6 +78,7 @@ def update_metatlas(directory):
             ctime = os.stat(fname).st_ctime
             run = LcmsRun(name=info['path'], description=description,
                           username=info['username'],
+                          experiment=info['experiment'],
                           creation_time=ctime, last_modified=ctime,
                           mzml_file=fname, hdf5_file=hdf5_file)
             store(run)

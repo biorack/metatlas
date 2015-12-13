@@ -351,6 +351,7 @@ class LcmsRun(MetatlasObject):
     running `load_lcms_files()`.
     """
     method = MetInstance(Method)
+    experiment = MetUnicode(help='The name of the experiment')
     hdf5_file = MetUnicode(help='Path to the HDF5 file at NERSC')
     mzml_file = MetUnicode(help='Path to the MZML file at NERSC')
     sample = MetInstance(Sample)
