@@ -140,7 +140,7 @@ class Workspace(object):
     def db(self):
         if self._db:
             try:
-                self._db.tables
+                self._db.query('show tables')
                 return self._db
             except Exception:
                 print('Reconnecting to database')
