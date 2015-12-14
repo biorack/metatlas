@@ -140,14 +140,14 @@ class Workspace(object):
     def db(self):
         if self._db:
             try:
-                self._db.query('show tables')
+                self._db.query('')
                 return self._db
             except Exception:
                 print('Reconnecting to database')
         self._db = dataset.connect(self.path)
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
-        return self.db
+        return self._db
 
     def convert_to_double(self, table, entry):
         try:
