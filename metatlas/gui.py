@@ -102,12 +102,12 @@ def show_experiments(username=None):
     display(gui)
 
 
-def show_lcms_run(run, min_mz=None, max_mz=None, polarity=None, ms_level=1):
+def show_lcms_run(run, min_mz=None, max_mz=None, polarity=None, ms_level=None):
     """Interact with LCMS data - XIC linked to a Spectrogram plot.
 
     Parameters
     ----------
-    run: LcmsRun
+    run: LcmsRun.
         The object to interact with.
     min_mz: float
         Minimum m/z (defaults to file min)
@@ -120,41 +120,110 @@ def show_lcms_run(run, min_mz=None, max_mz=None, polarity=None, ms_level=1):
     """
     fid = tables.open_file(run.hdf5_file)
 
+    # Set up defaults
     info = get_info(fid)
+    if ms_level is None:
+        if info['ms1_neg']['nrows'] or info['ms1_pos']['nrows']:
+            ms_level = 1
+        else:
+            ms_level = 2
+
     if polarity is None:
         if info['ms%s_neg' % ms_level]['nrows']:
             polarity = 0
         else:
             polarity = 1
+
     if polarity == 0:
         table_name = 'ms%s_neg' % ms_level
+        polarity = 'negative'
     else:
         table_name = 'ms%s_pos' % ms_level
+        polarity = 'positive'
+
     if min_mz is None:
         min_mz = info[table_name]['min_mz']
     if max_mz is None:
         max_mz = info[table_name]['max_mz']
 
-    rt, irt = get_chromatogram(fid, min_mz, max_mz, 1, polarity)
-    mz, imz = get_spectrogram(fid, rt[0], rt[1], 1, polarity)
-
     fig, (ax1, ax2) = plt.subplots(ncols=2)
-    ax1.plot(rt, irt)
-    ax1.set_title('XIC: %0.1f - %0.1f m/z' % (min_mz, max_mz))
-    ax1.set_xlabel('Time (min)')
-    ax1.set_ylabel('Intensity')
-    ax1._vline = ax1.axvline(rt[0])
 
-    ax2.vlines(mz, 0, imz)
-    ax2.set_xlabel('Mass (m/z)')
-    ax2.set_title('MS%s Spectrogram at %0.1f min' % (ms_level, rt.min()))
+    pol_widget = widgets.Dropdown(
+        options=['positive', 'negative'],
+        value=polarity,
+        description='Polarity:'
+    )
+    ms_widget = widgets.Dropdown(
+        options=['MS1', 'MSMS'],
+        value='MS1' if ms_level == 1 else 'MSMS',
+        description='MS Level:'
+    )
+    min_widget = widgets.FloatSlider(
+        value=min_mz,
+        min=min_mz,
+        max=max_mz,
+        description='Min M/Z:'
+    )
+    max_widget = widgets.FloatSlider(
+        value=max_mz,
+        min=min_mz,
+        max=max_mz,
+        description='Min M/Z:'
+    )
+
+    def update(dummy):
+        ax1.clear()
+        ax2.clear()
+        ax1.set_xlabel('Time (min)')
+        ax1.set_ylabel('Intensity')
+        ax2.set_xlabel('Mass (m/z)')
+
+        if ms_widget.value == 'MS1':
+            ms_level = 1
+        else:
+            ms_level = 2
+        if pol_widget.value == 'positive':
+            polarity = 1
+        else:
+            polarity = 0
+
+        min_mz = min_widget.value
+        max_mz = max_widget.value
+
+        if not info[table_name]['nrows']:
+            print('No matching rows in %s' % table_name)
+            return
+
+        rt, irt = get_chromatogram(fid, min_mz, max_mz, ms_level, polarity)
+        mz, imz = get_spectrogram(fid, rt[0] - rt[0] / 10, rt[0] + rt[0] / 10,
+            ms_level, polarity)
+
+        ax1.plot(rt, irt)
+        ax1.set_title('XIC: %0.1f - %0.1f m/z' % (min_mz, max_mz))
+
+        ax1._vline = ax1.axvline(rt[0])
+        ax2.vlines(mz, 0, imz)
+        ax2.set_title('MS%s Spectrogram at %0.1f min' % (ms_level, rt.min()))
+        fig.canvas.draw()
 
     def callback(event):
         if event.inaxes == ax1:
             rt_event = event.xdata
+            rt = ax1.lines[0].get_xdata()
+
             # get the closest actual RT
             idx = (np.abs(rt - rt_event)).argmin()
-            mz, imz = get_spectrogram(fid, rt[idx], rt[idx], 1, polarity)
+            if ms_widget.value == 'MS1':
+                ms_level = 1
+            else:
+                ms_level = 2
+            if pol_widget.value == 'positive':
+                polarity = 1
+            else:
+                polarity = 0
+
+            mz, imz = get_spectrogram(fid, rt[idx] - rt[0] / 10,
+                rt[idx] + rt[0] / 10, ms_level, polarity)
 
             ax1._vline.remove()
             ax1._vline = ax1.axvline(rt_event, color='k')
@@ -164,8 +233,15 @@ def show_lcms_run(run, min_mz=None, max_mz=None, polarity=None, ms_level=1):
             ax2.set_xlabel('Mass (m/z)')
             ax2.set_title('Spectrogram at %0.1f min' % rt_event)
             fig.canvas.draw()
+
+    update_button = widgets.Button(description='Update')
+    update_button.on_click(update)
+    update(None)
     fig.canvas.mpl_connect('button_press_event', callback)
     fig.canvas.draw()
+    display(widgets.VBox((min_widget, max_widget,
+                          widgets.HBox((pol_widget, ms_widget)),
+                          update_button)))
 
 
 def _edit_object(obj):
