@@ -12,5 +12,7 @@ from .metatlas_objects import (
     Method, Sample, LcmsRun, ReferenceDatabase, FunctionalSet,
     Compound, Reference, IdentificationGrade, CompoundIdentification, Atlas,
     Group, MzIntensityPair, FragmentationReference, RtReference,
-    MzReference, retrieve, store, remove, remove_objects, edit_objects
+    MzReference, retrieve, store, remove, remove_objects, database,
+    to_dataframe
 )
+from .gui import show_experiments, show_lcms_run, edit_objects

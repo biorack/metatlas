@@ -11,11 +11,11 @@ import pandas as pd
 try:
     from traitlets import (
         HasTraits, CUnicode, List, CInt, Instance, Enum,
-        CFloat, TraitError, CBool)
+        CFloat, CBool)
 except ImportError:
     from IPython.utils.traitlets import (
         HasTraits, CUnicode, List, CInt, Instance, Enum,
-        CFloat, TraitError, CBool)
+        CFloat, CBool)
 
 NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
 
@@ -277,7 +277,7 @@ class Workspace(object):
                 raise ValueError('Unknown object type: %s' % object_type)
             object_type = self.tablename_lut[klass]
         if '_' not in object_type:
-            if kwargs.get('username', '') == '*':
+            if kwargs.get('username', '') in ['*', 'all']:
                 kwargs.pop('username')
             else:
                 kwargs.setdefault('username', getpass.getuser())
@@ -488,6 +488,10 @@ class MetInt(CInt):
     allow_none = True
 
 
+class MetBool(CBool):
+    allow_none = True
+
+
 class Stub(HasTraits):
 
     unique_id = MetUnicode()
@@ -523,68 +527,6 @@ class MetInstance(Instance):
 
 class MetEnum(Enum):
     allow_none = True
-
-
-def edit_traits(obj):
-    """Create an IPython widget editor for a Traits object"""
-    try:
-        from ipywidgets import Text, Dropdown, HBox, VBox
-    except ImportError:
-        from IPython.html.widgets import Text, Dropdown, HBox, VBox
-    from IPython.display import display
-    names = sorted(obj.trait_names())
-    names.remove('name')
-    names = ['name'] + [n for n in names if not n.startswith('_')]
-    items = [Text('', disabled=True)]
-    for name in names:
-        if name.startswith('_'):
-            continue
-        try:
-            value = getattr(obj, name)
-        except TraitError:
-            value = None
-        trait = obj.traits()[name]
-        if name in ['created', 'last_modified']:
-            value = format_timestamp(value)
-        if (trait.get_metadata('readonly') or
-                isinstance(trait, (Instance, MetList)) or value is None):
-            if isinstance(trait, Instance):
-                value = value.unique_id
-            elif isinstance(trait, MetList):
-                value = [o.unique_id for o in value]
-            items.append(Text(str(value), disabled=True))
-
-        elif isinstance(trait, Enum):
-            # create a closure around "name" for the on_trait_change
-            # callback
-            def create_dropdown(name):
-                dd = Dropdown(value=value, options=trait.values)
-
-                def callback(dummy, value):
-                    setattr(obj, name, value)
-                dd.on_trait_change(callback, 'value')
-                items.append(dd)
-
-            create_dropdown(name)
-        else:
-            # create a closure around "name" for the on_trait_change
-            # callback
-            def create_textbox(name):
-                textbox = Text(str(value))
-
-                def callback(dummy, value):
-                    try:
-                        setattr(obj, name, value)
-                    except Exception:
-                        textbox.color = 'red'
-                textbox.on_trait_change(callback, 'value')
-                items.append(textbox)
-
-            create_textbox(name)
-
-    labels = [Text(name, disabled=True) for name in names]
-    labels = [Text(obj.__class__.__name__, disabled=True)] + labels
-    display(HBox(children=[VBox(children=labels), VBox(children=items)]))
 
 
 def get_from_nersc(user, relative_path):

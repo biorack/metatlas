@@ -2,18 +2,15 @@ import getpass
 import uuid
 import time
 import os
-import json
 import pprint
-import tables
-import numpy as np
 from pwd import getpwuid
 from tabulate import tabulate
 import pandas as pd
 
 from .object_helpers import (
     set_docstring, Workspace, format_timestamp, MetList,
-    MetUnicode, MetFloat, MetInstance, MetInt, MetEnum,
-    edit_traits, HasTraits, CBool, Stub, List
+    MetUnicode, MetFloat, MetInstance, MetInt, MetEnum, MetBool, HasTraits,
+    Stub
 )
 
 
@@ -109,8 +106,8 @@ class MetatlasObject(HasTraits):
                            readonly=True)
     prev_uid = MetUnicode(help='Unique id of previous version', readonly=True)
     head_id = MetUnicode(help='Unique id of most recent version of this object', readonly=True)
-    _loopback_guard = CBool(False, readonly=True)
-    _changed = CBool(False, readonly=True)
+    _loopback_guard = MetBool(False, readonly=True)
+    _changed = MetBool(False, readonly=True)
 
     def __init__(self, **kwargs):
         """Set the default attributes."""
@@ -175,18 +172,6 @@ class MetatlasObject(HasTraits):
         obj.head_id = self.unique_id
         obj.unique_id = uuid.uuid4().hex
         return obj
-
-    def edit(self):
-        """Create an editor for the object
-
-        Creates labels and editors for all traits.
-
-        If the trait is marked readyonly or is an instance of another Trait,
-        it will be disabled.
-        If the trait is an Enum, there will be a dropdown.
-        Otherwise, there will be a text editor.
-        """
-        edit_traits(self)
 
     def show_diff(self, unique_id=None):
         """Show a diff of what has changed between this and previous version.
@@ -362,76 +347,11 @@ class LcmsRun(MetatlasObject):
     mzml_file = MetUnicode(help='Path to the MZML file at NERSC')
     sample = MetInstance(Sample)
 
-    def interact(self, min_mz=None, max_mz=None, polarity=None, ms_level=1):
-        """Interact with LCMS data - XIC linked to a Spectrogram plot.
-
-        Parameters
-        ----------
-        min_mz: float
-            Minimum m/z (defaults to file min)
-        max_mz: float
-            Maximum m/z (defaults to file max)
-        polarity: {0, 1}
-            Polarity (defaults to neg. if present in file, else pos.)
-        ms_level: {0, 1}
-            The ms level.
-        """
-        import matplotlib.pyplot as plt
-        from metatlas import get_chromatogram, get_spectrogram, get_info
-        fid = tables.open_file(self.hdf5_file)
-
-        info = get_info(fid)
-        if polarity is None:
-            if info['ms%s_neg' % ms_level]['nrows']:
-                polarity = 0
-            else:
-                polarity = 1
-        if polarity == 0:
-            table_name = 'ms%s_neg' % ms_level
-        else:
-            table_name = 'ms%s_pos' % ms_level
-        if min_mz is None:
-            min_mz = info[table_name]['min_mz']
-        if max_mz is None:
-            max_mz = info[table_name]['max_mz']
-
-        rt, irt = get_chromatogram(fid, min_mz, max_mz, 1, polarity)
-        mz, imz = get_spectrogram(fid, rt[0], rt[1], 1, polarity)
-
-        fig, (ax1, ax2) = plt.subplots(ncols=2)
-        ax1.plot(rt, irt)
-        ax1.set_title('XIC: %0.1f - %0.1f m/z' % (min_mz, max_mz))
-        ax1.set_xlabel('Time (min)')
-        ax1.set_ylabel('Intensity')
-        ax1._vline = ax1.axvline(rt[0])
-
-        ax2.vlines(mz, 0, imz)
-        ax2.set_xlabel('Mass (m/z)')
-        ax2.set_title('MS%s Spectrogram at %0.1f min' % (ms_level, rt.min()))
-
-        def callback(event):
-            if event.inaxes == ax1:
-                rt_event = event.xdata
-                # get the closest actual RT
-                idx = (np.abs(rt - rt_event)).argmin()
-                mz, imz = get_spectrogram(fid, rt[idx], rt[idx], 1, polarity)
-
-                ax1._vline.remove()
-                ax1._vline = ax1.axvline(rt_event, color='k')
-
-                ax2.clear()
-                ax2.vlines(mz, 0, imz)
-                ax2.set_xlabel('Mass (m/z)')
-                ax2.set_title('Spectrogram at %0.1f min' % rt_event)
-                fig.canvas.draw()
-        fig.canvas.mpl_connect('button_press_event', callback)
-        fig.canvas.draw()
-
 
 @set_docstring
 class ReferenceDatabase(MetatlasObject):
     """External databases (PubChem, KEGG, MetaCyc, KBase, etc)."""
-    enabled = CBool(True)
+    enabled = MetBool(True)
 
 
 @set_docstring
@@ -440,7 +360,7 @@ class FunctionalSet(MetatlasObject):
     include "glucose, galactose, etc".  Functional sets can be sets-of-sets.
     "Sugars" would be a set that contains "Hexoses".
     """
-    enabled = CBool(True)
+    enabled = MetBool(True)
     members = MetList(MetInstance(MetatlasObject))
 
 
@@ -477,7 +397,7 @@ class Reference(MetatlasObject):
     MIDAS is a great example of this.
     """
     lcms_run = MetInstance(LcmsRun)
-    enabled = CBool(True)
+    enabled = MetBool(True)
     ref_type = MetUnicode(help='The type of reference')
 
 
@@ -620,13 +540,18 @@ def find_invalid_runs(**kwargs):
 # Must be instantiated after all of the Metatlas Objects
 # are defined so we can get all of the subclasses.
 WORKSPACE = Workspace()
+database = WORKSPACE.db
 
 
-def _to_dataframe(objects):
+def to_dataframe(objects):
+    """Convert a set of Metatlas objects into a dataframe.
+    """
     global FETCH_STUBS
     # we want to handle dates, enums, and use ids for objects
     FETCH_STUBS = False
     objs = [o._trait_values.copy() for o in objects if o.__class__ == objects[0].__class__]
+    if not objs:
+        return pd.DataFrame()
     FETCH_STUBS = True
     enums = []
     cols = []
@@ -649,43 +574,6 @@ def _to_dataframe(objects):
     for col in ['last_modified', 'creation_time']:
         dataframe[col] = pd.to_datetime(dataframe[col], unit='s')
     return dataframe
-
-
-def _create_qgrid(objects, options=None):
-    """Create a qgrid from a list of metatlas objects.
-    """
-    import qgrid
-    qgrid.nbinstall(overwrite=False)
-
-    dataframe = _to_dataframe(objects)
-    if options:
-        defaults = qgrid.grid.defaults.grid_options
-        options = defaults.update(options)
-    else:
-        options = qgrid.grid.defaults.grid_options
-    grid = qgrid.grid.QGridWidget(df=dataframe,
-                                  precision=6,
-                                  grid_options=options,
-                                  remote_js=True)
-
-    def handle_msg(widget, content, buffers=None):
-        if content['type'] == 'cell_change':
-            obj = objects[content['row']]
-            try:
-                setattr(obj, content['column'], content['value'])
-            except Exception:
-                pass
-
-    grid.on_msg(handle_msg)
-    return grid
-
-
-def edit_objects(objects):
-    """Edit a set of metatlas object in a QGrid.
-    """
-    from IPython.display import display
-    grid = _create_qgrid(objects)
-    display(grid)
 
 
 if __name__ == '__main__':
