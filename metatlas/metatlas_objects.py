@@ -663,10 +663,10 @@ def _create_qgrid(objects, options=None):
         options = defaults.update(options)
     else:
         options = qgrid.grid.defaults.grid_options
-    grid = qgrid.grid.QGridWidget(precision=6,
-                       grid_options=json.dumps(options),
-                       remote_js=True)
-    grid.df = dataframe
+    grid = qgrid.grid.QGridWidget(df=dataframe,
+                                  precision=6,
+                                  grid_options=options,
+                                  remote_js=True)
 
     def handle_msg(widget, content, buffers=None):
         if content['type'] == 'cell_change':
