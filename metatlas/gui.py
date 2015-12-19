@@ -1,5 +1,6 @@
 from collections import defaultdict
 import getpass
+
 import numpy as np
 import tables
 from IPython.display import display
@@ -18,13 +19,18 @@ from . import (
 )
 from .object_helpers import format_timestamp
 
+try:
+    import qgrid
+    qgrid.nbinstall(overwrite=True)
+    qgrid.set_grid_option('forceFitColumns', False)
+    qgrid.set_grid_option('defaultColumnWidth', 120)
+except ImportError:
+    print('Could not import QGrid')
+
 
 def create_qgrid(objects, options=None):
     """Create a qgrid from a list of metatlas objects.
     """
-    import qgrid
-    qgrid.nbinstall(overwrite=False)
-
     dataframe = to_dataframe(objects)
     if options:
         defaults = qgrid.grid.defaults.grid_options
