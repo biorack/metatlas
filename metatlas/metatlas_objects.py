@@ -163,7 +163,7 @@ class MetatlasObject(HasTraits):
             if tname.startswith('_') or trait.get_metadata('readonly'):
                 continue
             val = getattr(self, tname)
-            if recursive and isinstance(trait, List):
+            if recursive and isinstance(trait, MetList):
                 val = [v.clone(True) for v in val]
             elif recursive and isinstance(trait, MetInstance) and val:
                 val = val.clone(True)
