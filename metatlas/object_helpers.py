@@ -140,7 +140,10 @@ class Workspace(object):
     def db(self):
         if self._db:
             try:
-                self._db.query('')
+                if self._db.engine.name == 'mysql':
+                    self._db.query('show tables')
+                else:
+                    self._db.query('.tables')
                 return self._db
             except Exception:
                 print('Reconnecting to database')
