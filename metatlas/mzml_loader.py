@@ -9,25 +9,30 @@ import sys
 import tables
 import pymzml
 
+from metatlas import __version__
+
 DEBUG = False
 
 
-class Ms1Data(tables.IsDescription):
+class SpectrumData(tables.IsDescription):
     mz = tables.Float32Col(pos=0)
-    rt = tables.Float32Col(pos=1)
-    i = tables.Float32Col(pos=2)
+    i = tables.Float32Col(pos=1)
+    rt = tables.Float32Col(pos=2)
 
 
-class Ms2Data(tables.IsDescription):
-    mz = tables.Float32Col(pos=0)
-    rt = tables.Float32Col(pos=1)
-    i = tables.Float32Col(pos=2)
-    precursor_MZ = tables.Float32Col(pos=3)
-    precursor_intensity = tables.Float32Col(pos=4)
-    collision_energy = tables.Float32Col(pos=5)
+class ScanParams(tables.IsDescription):
+    rt = tables.Float32Col(pos=0)
+    polarity = tables.Int16Col(pos=1)
+    ms_level = tables.Int16Col(pos=2)
+    max_mz = tables.Float32Col(pos=3)
+    min_mz = tables.Float32Col(pos=4)
+    # the rest are only relevant for ms2 spectra
+    precursor_MZ = tables.Float32Col(pos=5)
+    precursor_intensity = tables.Float32Col(pos=6)
+    collision_energy = tables.Float32Col(pos=7)
 
 
-def read_spectrum(spectrum):
+def read_spectrum(spectrum, index):
     """Read a single spectrum
 
     Parameters
@@ -40,32 +45,24 @@ def read_spectrum(spectrum):
     out : list of tuples
         List of values associated with each peak in the spectrum.
     """
-    polarity = 'positive scan' in spectrum or 'MS:1000130' in spectrum
+    polarity = 'MS:1000130' in spectrum
     ms_level = spectrum['ms level']
     rt, units = spectrum['MS:1000016']
     if units != 'minute':
         rt /= 60
 
-    precursor_MZ = 0.0
-    precursor_intensity = 0.0
-    collision_energy = 0.0
+    collision_energy = spectrum.get('MS:1000045', 0)
+    precursor_intensity = spectrum.get('MS:1000042', 0)
+    precursor_MZ = spectrum.get('MS:1000744', 0)
+    min_mz = spectrum.get('lowest m/z value', 0)
+    max_mz = spectrum.get('highest m/z value', 0)
 
-    if ms_level == 2:
-        collision_energy = spectrum.get('collision energy',
-                                        spectrum['MS:1000045'])[1]
-        if 'peak intensity' in spectrum or 'MS:1000042' in spectrum:
-            precursor_intensity = spectrum.get('peak intensity',
-                                               spectrum['MS:1000042'])[1]
-        precursor_MZ = spectrum.get('selected ion m/z',
-                                        spectrum['MS:1000744'])[0]
+    params = (rt, polarity, ms_level, min_mz, max_mz, precursor_MZ,
+            precursor_intensity, collision_energy)
 
-        rows = [(mz, rt, i,
-                 precursor_MZ, precursor_intensity, collision_energy)
-                for (mz, i) in spectrum.peaks]
-    else:
-        rows = [(mz, rt, i) for (mz, i) in spectrum.peaks]
+    data = [(mz, i, rt) for (mz, i) in spectrum.peaks]
 
-    return ms_level, polarity, rows
+    return data, params
 
 
 def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
@@ -77,10 +74,11 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     FILTERS = tables.Filters(complib='blosc', complevel=1)
     out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
 
-    ms1_neg = out_file.create_table('/', 'ms1_neg', description=Ms1Data)
-    ms1_pos = out_file.create_table('/', 'ms1_pos', description=Ms1Data)
-    ms2_neg = out_file.create_table('/', 'ms2_neg', description=Ms2Data)
-    ms2_pos = out_file.create_table('/', 'ms2_pos', description=Ms2Data)
+    ms1_neg = out_file.create_table('/', 'ms1_neg', description=SpectrumData)
+    ms1_pos = out_file.create_table('/', 'ms1_pos', description=SpectrumData)
+    ms2_neg = out_file.create_table('/', 'ms2_neg', description=SpectrumData)
+    ms2_pos = out_file.create_table('/', 'ms2_pos', description=SpectrumData)
+    param_table = out_file.create_table('/', 'info', description=ScanParams)
 
     debug = debug or DEBUG
     if debug:
@@ -92,15 +90,19 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         ('MS:1000016', ['value', 'unitName']),  # scan start time
         ('MS:1000129', ['name']),  # negative scan
         ('MS:1000130', ['name']),  # positive scan
-        ('MS:1000744', ['name', 'value']),  # selected ion m/z
-        ('MS:1000042', ['name', 'value']),  # peak intensity
-        ('MS:1000045', ['name', 'value']),  # collision energy
+        ('MS:1000744', ['value']),  # selected ion m/z
+        ('MS:1000042', ['value']),  # peak intensity
+        ('MS:1000045', ['value']),  # collision energy
+        ('MS:1000528', ['value']),  # lowest observed m/z
+        ('MS:1000527', ['value']),  # highest observed m/z
+        ('MS:1000529', ['value']),  # serial number
     ]
 
     try:
         mzml_reader = pymzml.run.Reader(in_file_name,
                                         extraAccessions=extraAccessions)
-    except Exception:
+    except Exception as e:
+        print(e)
         raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
 
     got_first = False
@@ -111,38 +113,52 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
             # check for a repeat
             break
         try:
-            ms_level, polarity, rows = read_spectrum(spectrum)
+            data, params = read_spectrum(spectrum, ind)
         except (KeyError, TypeError):
             continue
         except Exception as e:
             print(e.message)
             continue
 
-        if not rows:
+        if not data:
             continue
 
         got_first = True
 
-        if ms_level == 1:
-            if not polarity:
+        if params[2] == 1:  # ms level
+            if not params[1]:  # polarity
                 table = ms1_neg
             else:
                 table = ms1_pos
-        elif not polarity:
+        elif not params[1]:
             table = ms2_neg
         else:
             table = ms2_pos
 
-        table.append(rows)
+        table.append(data)
         table.flush
+
+        param_table.append([params])
 
         if debug and not (ind % 100):
             sys.stdout.write('.')
             sys.stdout.flush()
 
+    param_table.flush()
+
+    for name in ['ms1_neg', 'ms2_neg', 'ms1_pos', 'ms2_pos']:
+        table = out_file.get_node('/' + name)
+        table.cols.mz.create_csindex()
+        table.copy(sortby='mz', newname=name + '_mz')
+        table.cols.mz.remove_index()
+
     out_file.set_node_attr('/', "upload_date", datetime.datetime.utcnow())
     out_file.set_node_attr('/', "uploaded_by",
                            pwd.getpwuid(os.getuid())[0])
+
+    serial = mzml_reader.param.get('MS:1000529', 'Unknown')
+    out_file.set_node_attr('/', 'instrument_serial_number', serial)
+    out_file.set_node_attr('/', 'metatlas_version', __version__)
 
     if debug:
         print('\nSaving file')

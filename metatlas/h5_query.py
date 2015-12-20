@@ -7,7 +7,7 @@ import tables
 import numpy as np
 
 
-def get_data(h5file, ms_level, polarity, **kwargs):
+def get_data(h5file, **kwargs):
     """
     Get raw data from an h5file meeting given criteria.
 
@@ -15,10 +15,6 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     ----------
     h5file: string or open pytables file
         The path to the h5file or open file handle.
-    ms_level : int
-        MS Level.
-    polarity : int
-        Plus proton (1) or Minus proton (0).
     **kwargs
         Optional search modifiers.  (e.g. min_r=0, max_mz=100, precursor_MZ=1).
         Use verbose=True for displaying query messages.
@@ -31,40 +27,69 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     if not isinstance(h5file, tables.File):
         h5file = tables.open_file(h5file)
 
-    if ms_level == 1:
-        if not polarity:
-            table = h5file.root.ms1_neg
-        else:
-            table = h5file.root.ms1_pos
-    elif not polarity:
-        table = h5file.root.ms2_neg
-    else:
-        table = h5file.root.ms2_pos
-
-    if not table.nrows:
-        return None
-
-    query = ''
-
-    for name in ['rt', 'mz', 'precursor_MZ', 'precursor_intensity',
-                 'collision_energy']:
+    queries = []
+    for name in ['precursor_MZ', 'precursor_intensity', 'collision_energy']:
         if 'min_%s' % name in kwargs:
-            query += ' & (%s >= %s)' % (name, kwargs['min_%s' % name])
+            queries.append('(%s >= %s)' % (name, kwargs['min_%s' % name]))
         if 'max_%s' % name in kwargs:
-            query += ' & (%s <= %s)' % (name, kwargs['max_%s' % name])
+            queries.append('(%s <= %s)' % (name, kwargs['max_%s' % name]))
         if name in kwargs:
-            query += ' & (%s == %s)' % (name, kwargs[name])
+            queries.append('(%s == %s)' % (name, kwargs[name]))
+
+    if queries:
+        info_table = h5file.root.info
+        query = ' & '.join(queries)
+        if kwargs.get('verbose', None):
+            print('Querying: %s from %s' % (query, info_table._v_name))
+        scans = [i['rt'] for i in info_table.where(query)]
+    else:
+        scans = None
+
+    ms_level = kwargs.get('ms_level', None)
+    if ms_level is None:
+        # Find the best ms_level
+        ms1 = h5file.root.ms1_neg.nrows + h5file.root.ms1_pos.nrows
+        ms2 = h5file.root.ms2_neg.nrows + h5file.root.ms2_pos.nrows
+        ms_level = 1 if ms1 > ms2 else 2
+
+    polarity = kwargs.get('polarity', None)
+    if polarity is None:
+        # Find the best polarity
+        if ms_level == 1:
+            polarity = h5file.root.ms1_pos.nrows > h5file.root.ms1_neg.nrows
+        else:
+            polarity = h5file.root.ms2_pos.nrows > h5file.root.ms2_neg.nrows
+
+    if ms_level == 1:
+        name = 'ms1_pos' if polarity else 'ms1_neg'
+    else:
+        name = 'ms2_pos' if polarity else 'ms2_neg'
+
+    if 'rt' in kwargs or 'min_rt' in kwargs or 'max_rt' in kwargs:
+        data_table = h5file.get_node('/' + name)
+    else:
+        data_table = h5file.get_node('/' + name + '_mz')
+
+    queries = []
+    for name in ['rt', 'mz']:
+        if 'min_%s' % name in kwargs:
+            queries.append('(%s >= %s)' % (name, kwargs['min_%s' % name]))
+        if 'max_%s' % name in kwargs:
+            queries.append('(%s <= %s)' % (name, kwargs['max_%s' % name]))
+        if name in kwargs:
+            queries.append('(%s == %s)' % (name, kwargs[name]))
+    query = ' & '.join(queries)
+
+    if kwargs.get('verbose', None):
+        print('Querying: %s from %s' % (query, data_table._v_name))
 
     if not query:
-        data = table.read()
-        return data
+        data = data_table.read()
+    else:
+        data = data_table.read_where(query)
 
-    # chop off the initial ' & '
-    query = query[3:]
-    if kwargs.get('verbose', None):
-        print('Querying: %s from %s' % (query, table._v_name))
-
-    data = table.read_where(query)
+    if scans:
+        data = data[np.in1d(data['rt'], scans)]
 
     if not data.size:
         raise ValueError('No data found matching criteria')
@@ -75,8 +100,7 @@ def get_data(h5file, ms_level, polarity, **kwargs):
     return data
 
 
-def get_chromatogram(h5file, min_mz, max_mz, ms_level, polarity,
-                     aggregator=np.sum, **kwargs):
+def get_chromatogram(h5file, min_mz, max_mz, aggregator=np.sum, **kwargs):
     """
     Get Chromatogram data - RT vs. intensity aggregation
 
@@ -104,22 +128,25 @@ def get_chromatogram(h5file, min_mz, max_mz, ms_level, polarity,
     out : tuple of arrays
         (rt_vals, i_vals) arrays in the desired range.
     """
-    data = get_data(h5file, ms_level, polarity, min_mz=min_mz,
-                    max_mz=max_mz, **kwargs)
+    data = get_data(h5file, min_mz=min_mz, max_mz=max_mz, **kwargs)
     if data is None:
         return [], []
+
     rt = np.unique(data['rt'])
-    edges = np.argwhere(np.diff(data['rt']) > 0).squeeze()
-    start = 0
-    i = []
-    for e in edges:
-        i.append(aggregator(data['i'][start:e]))
-        start = e
-    i.append(aggregator(data['i'][start:]))
-    return rt, np.array(i)
+    if aggregator == np.sum:
+        d = np.diff(rt) / 2
+        edges = np.hstack([rt[0] - d[1], rt[0:-1] + d, rt[-1] + d[-1]])
+        i, _ = np.histogram(data['rt'], bins=edges, weights=data['i'])
+    else:
+        i = []
+        for val in rt:
+            indices = np.argwhere(data['rt'] == val)
+            i.append(aggregator(np.take(data['i'], indices)))
+        i = np.array(i)
+    return rt, i
 
 
-def get_heatmap(h5file, mz_bins, ms_level, polarity, **kwargs):
+def get_heatmap(h5file, mz_bins, **kwargs):
     """
     Get a HeatMap of RT vs MZ.
 
@@ -129,10 +156,6 @@ def get_heatmap(h5file, mz_bins, ms_level, polarity, **kwargs):
         The path to the h5file or open file handle.
     mz_steps : int or array-like
         Bins to use for the mz axis.
-    ms_level : int
-        MS Level.
-    polarity: int
-        Plus proton (1) or Minus proton (0).
     **kwargs
         Optional search modifiers.  (e.g. precursor_MZ=1,
             min_collision_energy=4)
@@ -142,7 +165,7 @@ def get_heatmap(h5file, mz_bins, ms_level, polarity, **kwargs):
     out : dict
         Dictionary containing: 'arr', 'rt_bins', 'mz_bins'.
     """
-    data = get_data(h5file, ms_level, polarity, **kwargs)
+    data = get_data(h5file, **kwargs)
     if data is None:
         return None
 
@@ -159,8 +182,7 @@ def get_heatmap(h5file, mz_bins, ms_level, polarity, **kwargs):
                 mz_centroid=mz_centroid)
 
 
-def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
-                    bins=2000, **kwargs):
+def get_spectrogram(h5file, min_rt, max_rt, bins=2000, **kwargs):
     """
     Get cumulative I vs MZ in RT Range (spectrogram)
 
@@ -172,10 +194,6 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
         Minimum retention time.
     max_rt : float
         Maximum retention time.
-    ms_level : int
-        MS Level.
-    polarity: int
-        Plus proton (1) or Minus proton (0).
     bins : int or array-like
         Desired bins for the histogram.
     **kwargs
@@ -187,8 +205,7 @@ def get_spectrogram(h5file, min_rt, max_rt, ms_level, polarity,
     out : tuple of arrays
         (mz_vals, i_vals) arrays in the desired range.
     """
-    data = get_data(h5file, ms_level, polarity, min_rt=min_rt,
-                    max_rt=max_rt, **kwargs)
+    data = get_data(h5file, min_rt=min_rt, max_rt=max_rt, **kwargs)
     if data is None:
         return [], []
 
@@ -236,6 +253,7 @@ if __name__ == '__main__':  # pragma: no cover
     import argparse
     import os
     import matplotlib.pyplot as plt
+    from metatlas import plot_chromatogram, plot_spectrogram, plot_heatmap
 
     desc = "Query and plot MZML data from HDF files"
     parser = argparse.ArgumentParser(description=desc)
@@ -255,15 +273,15 @@ if __name__ == '__main__':  # pragma: no cover
     basename = os.path.splitext(fname)[0]
 
     if args.xic:
-        x, y = get_chromatogram(fid, 0, 100000, 1, 0)
+        x, y = get_chromatogram(fid, 0, 1000)
         plot_chromatogram(x, y, title=basename)
 
     if args.spectrogram:
-        x, y = get_spectrogram(fid, 1, 5, 1, 0)
+        x, y = get_spectrogram(fid, 1, 5)
         plot_spectrogram(x, y)
 
     if args.heatmap:
-        data = get_heatmap(fid, 1000, 1, 0)
+        data = get_heatmap(fid, 1000)
         plot_heatmap(data['arr'], data['rt_bins'], data['mz_bins'])
 
     plt.show()
