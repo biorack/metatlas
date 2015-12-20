@@ -71,17 +71,20 @@ def update_metatlas(directory):
 
         # convert to HDF and store the entry in the database
         try:
-            from metatlas import LcmsRun, mzml_to_hdf, store
+            from metatlas import LcmsRun, mzml_to_hdf, store, retrieve
             hdf5_file = mzml_to_hdf(fname)
             os.chmod(hdf5_file, 0o660)
             description = info['experiment'] + ' ' + info['path']
             ctime = os.stat(fname).st_ctime
-            run = LcmsRun(name=info['path'], description=description,
-                          username=info['username'],
-                          experiment=info['experiment'],
-                          creation_time=ctime, last_modified=ctime,
-                          mzml_file=fname, hdf5_file=hdf5_file)
-            store(run)
+            # TODO: remove this
+            runs = retrieve('lcmsrun', username='*', mzml_file=fname)
+            if not len(runs):
+                run = LcmsRun(name=info['path'], description=description,
+                              username=info['username'],
+                              experiment=info['experiment'],
+                              creation_time=ctime, last_modified=ctime,
+                              mzml_file=fname, hdf5_file=hdf5_file)
+                store(run)
         except Exception as e:
             if 'exists but it can not be written' in str(e):
                 readonly_files[username].add(dirname)

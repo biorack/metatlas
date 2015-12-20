@@ -27,49 +27,32 @@ def get_data(h5file, **kwargs):
     if not isinstance(h5file, tables.File):
         h5file = tables.open_file(h5file)
 
-    queries = []
-    for name in ['precursor_MZ', 'precursor_intensity', 'collision_energy']:
-        if 'min_%s' % name in kwargs:
-            queries.append('(%s >= %s)' % (name, kwargs['min_%s' % name]))
-        if 'max_%s' % name in kwargs:
-            queries.append('(%s <= %s)' % (name, kwargs['max_%s' % name]))
-        if name in kwargs:
-            queries.append('(%s == %s)' % (name, kwargs[name]))
-
-    if queries:
-        info_table = h5file.root.info
-        query = ' & '.join(queries)
-        if kwargs.get('verbose', None):
-            print('Querying: %s from %s' % (query, info_table._v_name))
-        scans = [i['rt'] for i in info_table.where(query)]
-    else:
-        scans = None
-
+    # Select the ms_level
     ms_level = kwargs.get('ms_level', None)
     if ms_level is None:
-        # Find the best ms_level
         ms1 = h5file.root.ms1_neg.nrows + h5file.root.ms1_pos.nrows
         ms2 = h5file.root.ms2_neg.nrows + h5file.root.ms2_pos.nrows
         ms_level = 1 if ms1 > ms2 else 2
 
+    # Select the polarity
     polarity = kwargs.get('polarity', None)
     if polarity is None:
-        # Find the best polarity
         if ms_level == 1:
             polarity = h5file.root.ms1_pos.nrows > h5file.root.ms1_neg.nrows
         else:
             polarity = h5file.root.ms2_pos.nrows > h5file.root.ms2_neg.nrows
 
+    # Select the table
     if ms_level == 1:
         name = 'ms1_pos' if polarity else 'ms1_neg'
     else:
         name = 'ms2_pos' if polarity else 'ms2_neg'
-
     if 'rt' in kwargs or 'min_rt' in kwargs or 'max_rt' in kwargs:
         data_table = h5file.get_node('/' + name)
     else:
         data_table = h5file.get_node('/' + name + '_mz')
 
+    # Get the selected entries
     queries = []
     for name in ['rt', 'mz']:
         if 'min_%s' % name in kwargs:
@@ -88,7 +71,24 @@ def get_data(h5file, **kwargs):
     else:
         data = data_table.read_where(query)
 
-    if scans:
+    # Handle param searches
+    queries = []
+    for name in ['precursor_MZ', 'precursor_intensity', 'collision_energy']:
+        if 'min_%s' % name in kwargs:
+            queries.append('(%s >= %s)' % (name, kwargs['min_%s' % name]))
+        if 'max_%s' % name in kwargs:
+            queries.append('(%s <= %s)' % (name, kwargs['max_%s' % name]))
+        if name in kwargs:
+            queries.append('(%s == %s)' % (name, kwargs[name]))
+
+    if queries:
+        info_table = h5file.root.info
+        queries.append('polarity == %s' % int(polarity))
+        queries.append('ms_level == %s' % int(ms_level))
+        query = ' & '.join(queries)
+        if kwargs.get('verbose', None):
+            print('Querying: %s from %s' % (query, info_table._v_name))
+        scans = [i['rt'] for i in info_table.where(query)]
         data = data[np.in1d(data['rt'], scans)]
 
     if not data.size:
