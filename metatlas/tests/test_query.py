@@ -36,7 +36,7 @@ def rmse(targets, predictions):
 
 
 def test_XIC():
-    x, y = get_chromatogram(fid, 1, 1000, 1, 0)
+    x, y = get_chromatogram(fid, 1, 1000)
     dname = os.path.dirname(__file__)
     xicof_scidb = np.load(os.path.join(dname, 'xic_scidb.npy'))
 
@@ -45,7 +45,7 @@ def test_XIC():
 
 
 def test_BPC():
-    x, y = get_chromatogram(fid, 1, 1000, 1, 0, np.max)
+    x, y = get_chromatogram(fid, 1, 1000, np.max)
 
     assert y.max() > 2.5e+06
     assert y.max() < 2.6e+06
@@ -53,7 +53,7 @@ def test_BPC():
 
 
 def test_spectrogram():
-    x, y = get_spectrogram(fid, 1, 5, 1, 0)
+    x, y = get_spectrogram(fid, 1, 5)
 
     assert np.allclose(x.mean(), 855.718857765)
     assert y.min() >= 0
@@ -62,19 +62,19 @@ def test_spectrogram():
 
 
 def test_heatmap():
-    data = get_heatmap(fid, 1000, 1, 0)
+    data = get_heatmap(fid, 1000)
 
     assert np.allclose(data['arr'].mean(), 3790.08673939)
     assert np.allclose(data['mz_bins'][0], 30.004)
     assert np.allclose(data['rt_bins'][-1], 19.2667)
 
-    data = get_heatmap(fid, 1000, 1, 0, min_mz=50)
+    data = get_heatmap(fid, 1000, min_mz=50)
     assert np.allclose(data['mz_bins'][0], 50.0002)
     plot_heatmap(data['arr'], data['rt_bins'], data['mz_bins'])
 
 
 def test_get_data():
-    data = get_data(fid, 1, 0, min_rt=5, min_mz=100)
+    data = get_data(fid, min_rt=5, min_mz=100)
     assert np.allclose(data['i'].mean(), 7825.55387233)
     assert np.allclose(data['mz'][0], 100.979026794)
     assert np.allclose(data['rt'][0], 5.00666666031)
