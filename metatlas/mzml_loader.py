@@ -20,7 +20,7 @@ class SpectrumData(tables.IsDescription):
     rt = tables.Float32Col(pos=2)
 
 
-class ScanParams(tables.IsDescription):
+class ScanInfo(tables.IsDescription):
     rt = tables.Float32Col(pos=0)
     polarity = tables.Int16Col(pos=1)
     ms_level = tables.Int16Col(pos=2)
@@ -57,12 +57,12 @@ def read_spectrum(spectrum, index):
     min_mz = spectrum.get('lowest m/z value', 0)
     max_mz = spectrum.get('highest m/z value', 0)
 
-    params = (rt, polarity, ms_level, min_mz, max_mz, precursor_MZ,
+    info = (rt, polarity, ms_level, min_mz, max_mz, precursor_MZ,
             precursor_intensity, collision_energy)
 
     data = [(mz, i, rt) for (mz, i) in spectrum.peaks]
 
-    return data, params
+    return data, info
 
 
 def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
@@ -78,7 +78,7 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     ms1_pos = out_file.create_table('/', 'ms1_pos', description=SpectrumData)
     ms2_neg = out_file.create_table('/', 'ms2_neg', description=SpectrumData)
     ms2_pos = out_file.create_table('/', 'ms2_pos', description=SpectrumData)
-    param_table = out_file.create_table('/', 'info', description=ScanParams)
+    info_table = out_file.create_table('/', 'info', description=ScanInfo)
 
     debug = debug or DEBUG
     if debug:
@@ -113,7 +113,7 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
             # check for a repeat
             break
         try:
-            data, params = read_spectrum(spectrum, ind)
+            data, info = read_spectrum(spectrum, ind)
         except (KeyError, TypeError):
             continue
         except Exception as e:
@@ -125,12 +125,12 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
 
         got_first = True
 
-        if params[2] == 1:  # ms level
-            if not params[1]:  # polarity
+        if info[2] == 1:  # ms level
+            if not info[1]:  # polarity
                 table = ms1_neg
             else:
                 table = ms1_pos
-        elif not params[1]:
+        elif not info[1]:
             table = ms2_neg
         else:
             table = ms2_pos
@@ -138,13 +138,13 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         table.append(data)
         table.flush
 
-        param_table.append([params])
+        info_table.append([info])
 
         if debug and not (ind % 100):
             sys.stdout.write('.')
             sys.stdout.flush()
 
-    param_table.flush()
+    info_table.flush()
 
     for name in ['ms1_neg', 'ms2_neg', 'ms1_pos', 'ms2_pos']:
         table = out_file.get_node('/' + name)
