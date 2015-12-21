@@ -50,7 +50,11 @@ def get_data(h5file, **kwargs):
     if 'rt' in kwargs or 'min_rt' in kwargs or 'max_rt' in kwargs:
         data_table = h5file.get_node('/' + name)
     else:
-        data_table = h5file.get_node('/' + name + '_mz')
+        try:
+            data_table = h5file.get_node('/' + name + '_mz')
+        except Exception:
+            # Fall back on original node.
+            data_table = h5file.get_node('/' + name)
 
     # Get the selected entries
     queries = []
@@ -81,8 +85,12 @@ def get_data(h5file, **kwargs):
         if name in kwargs:
             queries.append('(%s == %s)' % (name, kwargs[name]))
 
-    if queries:
+    try:
         info_table = h5file.root.info
+    except Exception:
+        info_table = None
+
+    if queries and info_table is not None:
         queries.append('polarity == %s' % int(polarity))
         queries.append('ms_level == %s' % int(ms_level))
         query = ' & '.join(queries)
