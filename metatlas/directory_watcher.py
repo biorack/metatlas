@@ -30,21 +30,14 @@ def check_file_validity(hdf5_file):
         fid = tables.open_file(hdf5_file)
     except Exception:
         return False
-    # Check for 0.1 file
-    try:
-        fid.get_node_attr('/', 'metatlas_version')
-    except AttributeError:
-        fid.close()
-        return False
-    # Check for 0.2 file
+    # Check for current version.
     try:
         format_version = fid.get_node_attr('/', 'format_version')
     except AttributeError:
+        return False
+    finally:
         fid.close()
-        return True
-    fid.close()
 
-    # Check for non-current file
     if format_version.decode('utf-8') != FORMAT_VERSION:
         return False
     else:
