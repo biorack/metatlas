@@ -2,9 +2,13 @@ import os
 import pwd
 import re
 import shutil
+import sys
+import tables
 from collections import defaultdict
 from subprocess import Popen, PIPE
 from datetime import datetime, time
+
+from metatlas.mzml_loader import FORMAT_VERSION
 
 
 def send_mail(subject, username, body):
@@ -14,11 +18,42 @@ def send_mail(subject, username, body):
         body += '\nwas %s' % username
         username = 'silvest'
         msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, username, body)
+        sys.stdout.write(msg + '\n')
+        sys.stdout.flush()
         p = Popen(["bash"], stdin=PIPE)
         p.communicate(msg)
 
 
+def check_file_validity(hdf5_file):
+    # Check for invalid file
+    try:
+        fid = tables.open_file(hdf5_file)
+    except Exception:
+        return False
+    # Check for 0.1 file
+    try:
+        fid.get_node_attr('/', 'metatlas_version')
+    except AttributeError:
+        fid.close()
+        return False
+    # Check for 0.2 file
+    try:
+        format_version = fid.get_node_attr('/', 'format_version')
+    except AttributeError:
+        fid.close()
+        return True
+    fid.close()
+
+    # Check for non-current file
+    if format_version.decode('utf-8') != FORMAT_VERSION:
+        return False
+    else:
+        return True
+
+
 def update_metatlas(directory):
+    if directory.endswith('/raw_data'):
+        return
 
     new_files = []
     readonly_files = defaultdict(set)
@@ -30,17 +65,22 @@ def update_metatlas(directory):
                 hdf5_file = fname.replace('.mzML', '.h5')
                 if not os.path.exists(hdf5_file):
                     new_files.append(fname)
+                else:
+                    if not check_file_validity(hdf5_file):
+                        new_files.append(fname)
 
     patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
-    print('Found %s new files' % len(new_files))
+    sys.stdout.write('Found %s files\n' % len(new_files))
+    sys.stdout.flush()
 
     for fname in new_files:
         info = patt.match(os.path.abspath(fname))
         if info:
             info = info.groupdict()
         else:
-            print("Invalid path name", fname)
+            sys.stdout.write("Invalid path name: %s\n" % fname)
+            sys.stdout.flush()
             continue
         dirname = os.path.dirname(fname)
         try:
@@ -51,11 +91,14 @@ def update_metatlas(directory):
             except Exception:
                 username = info['username']
 
-        print(fname)
+        sys.stdout.write(fname + '\n')
+        sys.stdout.flush()
+
         try:
             os.chmod(fname, 0o660)
         except Exception as e:
-            print(e)
+            sys.stderr.write(str(e) + '\n')
+            sys.stderr.flush()
 
         # copy the original file to a pasteur backup
         if os.environ['USER'] == 'pasteur':
@@ -72,7 +115,10 @@ def update_metatlas(directory):
         # convert to HDF and store the entry in the database
         try:
             from metatlas import LcmsRun, mzml_to_hdf, store, retrieve
-            hdf5_file = mzml_to_hdf(fname)
+            hdf5_file = fname.replace('.mzML', '.h5')
+            if os.path.exists(hdf5_file):
+                os.remove(hdf5_file)
+            mzml_to_hdf(fname, hdf5_file, True)
             os.chmod(hdf5_file, 0o660)
             description = info['experiment'] + ' ' + info['path']
             ctime = os.stat(fname).st_ctime
@@ -90,7 +136,8 @@ def update_metatlas(directory):
                 readonly_files[username].add(dirname)
             else:
                 other_errors[info['username']].append(str(e))
-            print(e)
+            sys.stderr.write(str(e) + '\n')
+            sys.stderr.flush()
 
     from metatlas.metatlas_objects import find_invalid_runs
     invalid_runs = find_invalid_runs(_override=True)
@@ -99,7 +146,6 @@ def update_metatlas(directory):
         for (username, dirnames) in readonly_files.items():
             body = ("Please log in to NERSC and run 'chmod 777' on the "
                    "following directories:\n%s" % ('\n'.join(dirnames)))
-            print(body)
             send_mail('Metatlas Files are Inaccessible', username, body)
     if invalid_runs:
         grouped = defaultdict(list)
@@ -111,14 +157,13 @@ def update_metatlas(directory):
             body += 'from metatlas.metatlas_objects import find_invalid_runs, remove_objects\n'
             body += 'remove_objects(find_invalid_runs())\n\n'
             body += 'The invalid runs are:\n%s' % ('\n'.join(filenames))
-            print('Invalid runs', username, filenames)
             send_mail('Metatlas Runs are Inaccessible', username, body)
     if other_errors:
         for (username, errors) in other_errors.items():
             body = 'Errored files found while loading in Metatlas files:\n%s' % '\n'.join(errors)
             send_mail('Errors loading Metatlas files', username, body)
-            print('Other errors', username, errors)
-    print('Done!')
+    sys.stdout.write('Done!\n')
+    sys.stdout.flush()
 
 
 if __name__ == '__main__':
@@ -128,5 +173,6 @@ if __name__ == '__main__':
     parser.add_argument("directory", type=str, nargs=1, help="Directory to watch")
 
     args = parser.parse_args()
-    print(args)
+    sys.stdout.write(str(args) + '\n')
+    sys.stdout.flush()
     update_metatlas(args.directory[0])

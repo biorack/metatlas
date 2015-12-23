@@ -24,7 +24,7 @@ try:
     qgrid.nbinstall(overwrite=True)
     qgrid.set_grid_option('forceFitColumns', False)
     qgrid.set_grid_option('defaultColumnWidth', 120)
-except ImportError:
+except Exception:
     print('Could not import QGrid')
 
 

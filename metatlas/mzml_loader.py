@@ -12,6 +12,7 @@ import pymzml
 from metatlas import __version__
 
 DEBUG = False
+FORMAT_VERSION = '0.3'
 
 
 class SpectrumData(tables.IsDescription):
@@ -82,8 +83,9 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
 
     debug = debug or DEBUG
     if debug:
-        print("STATUS: Converting %s to %s (mzML to HDF)" %
-              (in_file_name, out_file_name), end='')
+        sys.stdout.write("STATUS: Converting %s to %s (mzML to HDF)" %
+              (in_file_name, out_file_name))
+        sys.stdout.flush()
 
     # Extra accessions for pymzml to read
     extraAccessions = [
@@ -102,7 +104,8 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         mzml_reader = pymzml.run.Reader(in_file_name,
                                         extraAccessions=extraAccessions)
     except Exception as e:
-        print(e)
+        sys.stderr.write(str(e) + '\n')
+        sys.stderr.flush()
         raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
 
     got_first = False
@@ -117,7 +120,8 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         except (KeyError, TypeError):
             continue
         except Exception as e:
-            print(e.message)
+            sys.stdout.write(e.message + '\n')
+            sys.stdout.flush()
             continue
 
         if not data:
@@ -158,13 +162,16 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
 
     serial = mzml_reader.param.get('MS:1000529', 'Unknown')
     out_file.set_node_attr('/', 'instrument_serial_number', serial)
+    out_file.set_node_attr('/', 'format_version', FORMAT_VERSION)
     out_file.set_node_attr('/', 'metatlas_version', __version__)
 
     if debug:
-        print('\nSaving file')
+        sys.stdout.write('\nSaving file\n')
+        sys.stdout.flush()
     out_file.close()
     if debug:
-        print("STATUS: Finished mzML to HDF conversion")
+        sys.stdout.write("STATUS: Finished mzML to HDF conversion\n")
+        sys.stdout.flush()
 
     return out_file_name
 
