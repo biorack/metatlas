@@ -115,7 +115,7 @@ def update_metatlas(directory):
             os.chmod(hdf5_file, 0o660)
             description = info['experiment'] + ' ' + info['path']
             ctime = os.stat(fname).st_ctime
-            # TODO: remove this
+            # Add this to the database unless it is already there
             runs = retrieve('lcmsrun', username='*', mzml_file=fname)
             if not len(runs):
                 run = LcmsRun(name=info['path'], description=description,
