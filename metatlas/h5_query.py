@@ -58,7 +58,8 @@ def get_data(h5file, **kwargs):
 
     # Get the selected entries
     queries = []
-    for name in ['rt', 'mz']:
+    for name in ['rt', 'mz', 'precursor_MZ', 'precursor_intensity',
+                 'collision_energy']:
         if 'min_%s' % name in kwargs:
             queries.append('(%s >= %s)' % (name, kwargs['min_%s' % name]))
         if 'max_%s' % name in kwargs:
@@ -74,30 +75,6 @@ def get_data(h5file, **kwargs):
         data = data_table.read()
     else:
         data = data_table.read_where(query)
-
-    # Handle param searches
-    queries = []
-    for name in ['precursor_MZ', 'precursor_intensity', 'collision_energy']:
-        if 'min_%s' % name in kwargs:
-            queries.append('(%s >= %s)' % (name, kwargs['min_%s' % name]))
-        if 'max_%s' % name in kwargs:
-            queries.append('(%s <= %s)' % (name, kwargs['max_%s' % name]))
-        if name in kwargs:
-            queries.append('(%s == %s)' % (name, kwargs[name]))
-
-    try:
-        info_table = h5file.root.info
-    except Exception:
-        info_table = None
-
-    if queries and info_table is not None:
-        queries.append('polarity == %s' % int(polarity))
-        queries.append('ms_level == %s' % int(ms_level))
-        query = ' & '.join(queries)
-        if kwargs.get('verbose', None):
-            print('Querying: %s from %s' % (query, info_table._v_name))
-        scans = [i['rt'] for i in info_table.where(query)]
-        data = data[np.in1d(data['rt'], scans)]
 
     if not data.size:
         raise ValueError('No data found matching criteria')

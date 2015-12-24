@@ -12,13 +12,20 @@ import pymzml
 from metatlas import __version__
 
 DEBUG = False
-FORMAT_VERSION = '0.3'
+FORMAT_VERSION = '0.4'
 
 
-class SpectrumData(tables.IsDescription):
+class MS1Data(tables.IsDescription):
     mz = tables.Float32Col(pos=0)
     i = tables.Float32Col(pos=1)
     rt = tables.Float32Col(pos=2)
+
+
+class MS2Data(MS1Data):
+    # the rest are only relevant for ms2 spectra
+    precursor_MZ = tables.Float32Col(pos=5)
+    precursor_intensity = tables.Float32Col(pos=6)
+    collision_energy = tables.Float32Col(pos=7)
 
 
 class ScanInfo(tables.IsDescription):
@@ -61,7 +68,11 @@ def read_spectrum(spectrum, index):
     info = (rt, polarity, ms_level, min_mz, max_mz, precursor_MZ,
             precursor_intensity, collision_energy)
 
-    data = [(mz, i, rt) for (mz, i) in spectrum.peaks]
+    if ms_level == 1:
+        data = [(mz, i, rt) for (mz, i) in spectrum.peaks]
+    else:
+        data = [(mz, i, rt, precursor_MZ, precursor_intensity,
+                 collision_energy) for (mz, i) in spectrum.peaks]
 
     return data, info
 
@@ -75,10 +86,10 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     FILTERS = tables.Filters(complib='blosc', complevel=1)
     out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
 
-    ms1_neg = out_file.create_table('/', 'ms1_neg', description=SpectrumData)
-    ms1_pos = out_file.create_table('/', 'ms1_pos', description=SpectrumData)
-    ms2_neg = out_file.create_table('/', 'ms2_neg', description=SpectrumData)
-    ms2_pos = out_file.create_table('/', 'ms2_pos', description=SpectrumData)
+    ms1_neg = out_file.create_table('/', 'ms1_neg', description=MS1Data)
+    ms1_pos = out_file.create_table('/', 'ms1_pos', description=MS1Data)
+    ms2_neg = out_file.create_table('/', 'ms2_neg', description=MS2Data)
+    ms2_pos = out_file.create_table('/', 'ms2_pos', description=MS2Data)
     info_table = out_file.create_table('/', 'info', description=ScanInfo)
 
     debug = debug or DEBUG
