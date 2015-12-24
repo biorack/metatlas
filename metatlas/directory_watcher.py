@@ -67,7 +67,7 @@ def update_metatlas(directory):
     sys.stdout.write('Found %s files\n' % len(new_files))
     sys.stdout.flush()
 
-    for fname in new_files:
+    for (ind, fname) in enumerate(new_files):
         info = patt.match(os.path.abspath(fname))
         if info:
             info = info.groupdict()
@@ -84,7 +84,7 @@ def update_metatlas(directory):
             except Exception:
                 username = info['username']
 
-        sys.stdout.write(fname + '\n')
+        sys.stdout.write('%s (%s of %s)\n' % (fname, ind, len(new_files)))
         sys.stdout.flush()
 
         try:
@@ -157,6 +157,8 @@ def update_metatlas(directory):
             send_mail('Errors loading Metatlas files', username, body)
     sys.stdout.write('Done!\n')
     sys.stdout.flush()
+    # TODO: remove this
+    send_mail('Run complete', 'silvest', directory)
 
 
 if __name__ == '__main__':
