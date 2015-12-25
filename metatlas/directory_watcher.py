@@ -3,25 +3,28 @@ import pwd
 import re
 import shutil
 import sys
+import time
 import tables
 from collections import defaultdict
 from subprocess import Popen, PIPE
-from datetime import datetime, time
+from datetime import datetime
 
 from metatlas.mzml_loader import FORMAT_VERSION
+from metatlas import LcmsRun, mzml_to_hdf, store, retrieve
+
+ADMIN = 'silvest'
 
 
-def send_mail(subject, username, body):
+def send_mail(subject, username, body, force=False):
     """Send the mail only once per day."""
     now = datetime.now()
-    if time(00, 00) <= now.time() <= time(00, 10):
-        body += '\nwas %s' % username
-        username = 'silvest'
-        msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, username, body)
-        sys.stdout.write(msg + '\n')
-        sys.stdout.flush()
-        p = Popen(["bash"], stdin=PIPE)
-        p.communicate(msg)
+    if force or time(00, 00) <= now.time() <= time(00, 10):
+        for name in [username, ADMIN]:
+            msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, name, body)
+            sys.stdout.write(msg + '\n')
+            sys.stdout.flush()
+            p = Popen(["bash"], stdin=PIPE)
+            p.communicate(msg)
 
 
 def check_file_validity(hdf5_file):
@@ -84,7 +87,7 @@ def update_metatlas(directory):
             except Exception:
                 username = info['username']
 
-        sys.stdout.write('%s (%s of %s)\n' % (fname, ind, len(new_files)))
+        sys.stdout.write('(%s of %s): %s\n' % (ind + 1, len(new_files), fname))
         sys.stdout.flush()
 
         try:
@@ -105,12 +108,22 @@ def update_metatlas(directory):
                 readonly_files[username].add(dirname)
                 continue
 
+        # Check if another process already converted this file.
+        hdf5_file = fname.replace('.mzML', '.h5')
+        if os.path.exists(hdf5_file):
+            if check_file_validity(hdf5_file):
+                msg = '%s was already converted by another process \n' % fname
+                sys.stderr.write(msg)
+                sys.stderr.flush()
+                continue
+            if time.time() - os.stat(hdf5_file).st_mtime < 100:
+                msg = '%s is being converted by another process \n' % fname
+                sys.stderr.write(msg)
+                sys.stderr.flush()
+                continue
+
         # convert to HDF and store the entry in the database
         try:
-            from metatlas import LcmsRun, mzml_to_hdf, store, retrieve
-            hdf5_file = fname.replace('.mzML', '.h5')
-            if os.path.exists(hdf5_file):
-                os.remove(hdf5_file)
             mzml_to_hdf(fname, hdf5_file, True)
             os.chmod(hdf5_file, 0o660)
             description = info['experiment'] + ' ' + info['path']
@@ -157,8 +170,8 @@ def update_metatlas(directory):
             send_mail('Errors loading Metatlas files', username, body)
     sys.stdout.write('Done!\n')
     sys.stdout.flush()
-    # TODO: remove this
-    send_mail('Run complete', 'silvest', directory)
+
+    send_mail('Run complete', ADMIN, directory, True)
 
 
 if __name__ == '__main__':
