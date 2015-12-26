@@ -28,16 +28,6 @@ def send_mail(subject, username, body, force=False):
             p.communicate(msg)
 
 
-def check_file(fname, hdf5_file, delta):
-    if os.path.exists(hdf5_file):
-        if os.stat(hdf5_file).st_mtime < delta:
-            msg = '%s was already converted by another process \n' % fname
-            sys.stderr.write(msg)
-            sys.stderr.flush()
-            return True
-    return False
-
-
 def update_metatlas(directory):
     readonly_files = defaultdict(set)
     other_errors = defaultdict(list)
