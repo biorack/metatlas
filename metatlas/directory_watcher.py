@@ -1,15 +1,16 @@
 import os
+import fcntl
 import pwd
 import re
 import shutil
 import sys
 import time
-import tables
+import random
 from collections import defaultdict
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, check_output
 from datetime import datetime, time as dtime
 
-from metatlas.mzml_loader import FORMAT_VERSION
+from metatlas.mzml_loader import VERSION_TIMESTAMP
 from metatlas import LcmsRun, mzml_to_hdf, store, retrieve
 
 ADMIN = 'silvest'
@@ -27,43 +28,35 @@ def send_mail(subject, username, body, force=False):
             p.communicate(msg)
 
 
-def check_file_validity(hdf5_file):
-    # Check for invalid file
-    try:
-        fid = tables.open_file(hdf5_file)
-    except Exception:
-        return False
-    # Check for current version.
-    try:
-        format_version = fid.get_node_attr('/', 'format_version')
-    except AttributeError:
-        return False
-    finally:
-        fid.close()
-
-    if format_version.decode('utf-8') != FORMAT_VERSION:
-        return False
-    else:
-        return True
+def check_file(fname, hdf5_file, delta):
+    if os.path.exists(hdf5_file):
+        if os.stat(hdf5_file).st_mtime < delta:
+            msg = '%s was already converted by another process \n' % fname
+            sys.stderr.write(msg)
+            sys.stderr.flush()
+            return True
+    return False
 
 
 def update_metatlas(directory):
-    if directory.endswith('/raw_data'):
-        return
-
-    new_files = []
     readonly_files = defaultdict(set)
     other_errors = defaultdict(list)
-    for root, directories, filenames in os.walk(directory):
-        for fname in filenames:
-            if fname.endswith('.mzML'):
-                fname = os.path.join(root, fname)
-                hdf5_file = fname.replace('.mzML', '.h5')
-                if not os.path.exists(hdf5_file):
-                    new_files.append(fname)
-                else:
-                    if not check_file_validity(hdf5_file):
-                        new_files.append(fname)
+    directory = os.path.abspath(directory)
+    # sleep a random amount of time to avoid running at the same time as
+    # other processes
+    time.sleep(random.random() * 2)
+    mzml_files = check_output('find %s -name "*.mzML"' % directory, shell=True)
+    mzml_files = mzml_files.decode('utf-8').splitlines()
+    # find valid h5 files newer than the format version timestamp
+    delta = int((time.time() - VERSION_TIMESTAMP) / 60)
+    check = 'find %s -name "*.h5" -mmin -%s -size +1M' % (directory, delta)
+    valid_files = check_output(check, shell=True).decode('utf-8').splitlines()
+    valid_files = set(valid_files)
+
+    new_files = []
+    for mzml_file in mzml_files:
+        if mzml_file.replace('.mzML', '.h5') not in valid_files:
+            new_files.append(mzml_file)
 
     patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
@@ -108,22 +101,20 @@ def update_metatlas(directory):
                 readonly_files[username].add(dirname)
                 continue
 
-        # Check if another process already converted this file.
-        hdf5_file = fname.replace('.mzML', '.h5')
-        if os.path.exists(hdf5_file):
-            if check_file_validity(hdf5_file):
-                msg = '%s was already converted by another process \n' % fname
-                sys.stderr.write(msg)
-                sys.stderr.flush()
-                continue
-            if time.time() - os.stat(hdf5_file).st_mtime < 100:
-                msg = '%s is being converted by another process \n' % fname
-                sys.stderr.write(msg)
-                sys.stderr.flush()
-                continue
+        # get a lock on the mzml file to prevent interference
+        try:
+            fid = open(fname, 'r')
+            fcntl.flock(fid, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except IOError:
+            fid.close()
+            msg = '%s already converting in another process\n' % fname
+            sys.stderr.write(msg)
+            sys.stderr.flush()
+            continue
 
         # convert to HDF and store the entry in the database
         try:
+            hdf5_file = fname.replace('mzML', 'h5')
             mzml_to_hdf(fname, hdf5_file, True)
             os.chmod(hdf5_file, 0o660)
             description = info['experiment'] + ' ' + info['path']
@@ -144,6 +135,8 @@ def update_metatlas(directory):
                 other_errors[info['username']].append(str(e))
             sys.stderr.write(str(e) + '\n')
             sys.stderr.flush()
+        finally:
+            fid.close()
 
     from metatlas.metatlas_objects import find_invalid_runs
     invalid_runs = find_invalid_runs(_override=True)
@@ -179,7 +172,6 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Watchdog to monitor directory for new files")
     parser.add_argument("directory", type=str, nargs=1, help="Directory to watch")
-
     args = parser.parse_args()
     sys.stdout.write(str(args) + '\n')
     sys.stdout.flush()

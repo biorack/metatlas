@@ -12,8 +12,11 @@ import pymzml
 from metatlas import __version__
 
 DEBUG = False
-FORMAT_VERSION = '0.4'
-
+FORMAT_VERSION = 5
+# time.time() when the latest version of the format was created
+#VERSION_TIMESTAMP = 1451062032
+import time
+VERSION_TIMESTAMP = time.time()
 
 class MS1Data(tables.IsDescription):
     mz = tables.Float32Col(pos=0)
