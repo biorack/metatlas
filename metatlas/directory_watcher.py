@@ -7,7 +7,7 @@ import time
 import tables
 from collections import defaultdict
 from subprocess import Popen, PIPE
-from datetime import datetime
+from datetime import datetime, time as dtime
 
 from metatlas.mzml_loader import FORMAT_VERSION
 from metatlas import LcmsRun, mzml_to_hdf, store, retrieve
@@ -18,7 +18,7 @@ ADMIN = 'silvest'
 def send_mail(subject, username, body, force=False):
     """Send the mail only once per day."""
     now = datetime.now()
-    if force or time(00, 00) <= now.time() <= time(00, 10):
+    if force or dtime(00, 00) <= now.time() <= dtime(00, 10):
         for name in [username, ADMIN]:
             msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, name, body)
             sys.stdout.write(msg + '\n')
