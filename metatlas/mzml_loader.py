@@ -82,18 +82,6 @@ def read_spectrum(spectrum, index):
 def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     """Converts in_file (mzml) to binary and stores it in out_file
     """
-    if not out_file_name:
-        out_file_name = in_file_name.replace('.mzML', '.h5')
-
-    FILTERS = tables.Filters(complib='blosc', complevel=1)
-    out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
-
-    ms1_neg = out_file.create_table('/', 'ms1_neg', description=MS1Data)
-    ms1_pos = out_file.create_table('/', 'ms1_pos', description=MS1Data)
-    ms2_neg = out_file.create_table('/', 'ms2_neg', description=MS2Data)
-    ms2_pos = out_file.create_table('/', 'ms2_pos', description=MS2Data)
-    info_table = out_file.create_table('/', 'info', description=ScanInfo)
-
     debug = debug or DEBUG
     if debug:
         sys.stdout.write("STATUS: Converting %s to %s (mzML to HDF)" %
@@ -120,6 +108,25 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         sys.stderr.write(str(e) + '\n')
         sys.stderr.flush()
         raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
+
+    if not out_file_name:
+        out_file_name = in_file_name.replace('.mzML', '.h5')
+
+    FILTERS = tables.Filters(complib='blosc', complevel=1)
+    out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
+    try:
+        _convert(out_file, mzml_reader, debug)
+    finally:
+        out_file.close()
+    return out_file_name
+
+
+def _convert(out_file, mzml_reader, debug):
+    ms1_neg = out_file.create_table('/', 'ms1_neg', description=MS1Data)
+    ms1_pos = out_file.create_table('/', 'ms1_pos', description=MS1Data)
+    ms2_neg = out_file.create_table('/', 'ms2_neg', description=MS2Data)
+    ms2_pos = out_file.create_table('/', 'ms2_pos', description=MS2Data)
+    info_table = out_file.create_table('/', 'info', description=ScanInfo)
 
     got_first = False
 
@@ -185,8 +192,6 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     if debug:
         sys.stdout.write("STATUS: Finished mzML to HDF conversion\n")
         sys.stdout.flush()
-
-    return out_file_name
 
 
 def get_test_data():
