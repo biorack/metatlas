@@ -5,6 +5,7 @@ import os
 import pwd
 import datetime
 import sys
+import traceback
 
 import tables
 import pymzml
@@ -105,7 +106,7 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         mzml_reader = pymzml.run.Reader(in_file_name,
                                         extraAccessions=extraAccessions)
     except Exception as e:
-        sys.stderr.write(str(e) + '\n')
+        sys.stderr.write('\nMzml error: %s\n' % e)
         sys.stderr.flush()
         raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
 
@@ -116,6 +117,12 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     out_file = tables.open_file(out_file_name, "w", filters=FILTERS)
     try:
         _convert(out_file, mzml_reader, debug)
+    except Exception as e:
+        sys.stderr.write('\nConversion error:\n')
+        traceback.print_exception(*sys.exc_info())
+        sys.stderr.flush()
+        sys.stdout.flush()
+        raise
     finally:
         out_file.close()
     return out_file_name
@@ -140,7 +147,7 @@ def _convert(out_file, mzml_reader, debug):
         except (KeyError, TypeError):
             continue
         except Exception as e:
-            sys.stdout.write(e.message + '\n')
+            sys.stdout.write('Read spectrum error: %s\n' % e)
             sys.stdout.flush()
             continue
 

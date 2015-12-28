@@ -6,40 +6,56 @@ import shutil
 import sys
 import time
 import random
+import smtplib
+import traceback
+
 from collections import defaultdict
-from subprocess import Popen, PIPE, check_output
+from subprocess import check_output
 from datetime import datetime, time as dtime
 
 from metatlas.mzml_loader import VERSION_TIMESTAMP
 from metatlas import LcmsRun, mzml_to_hdf, store, retrieve
 
-ADMIN = 'silvest'
+ADMIN = 'bpb'
 
 
 def send_mail(subject, username, body, force=False):
     """Send the mail only once per day."""
     now = datetime.now()
     if force or dtime(00, 00) <= now.time() <= dtime(00, 10):
-        for name in [username, ADMIN]:
-            msg = 'mail -s "%s" %s@nersc.gov <<< "%s"' % (subject, name, body)
-            sys.stdout.write(msg + '\n')
+        sender = 'pasteur@nersc.gov'
+        receivers = ['%s@nersc.gov' % username, '%s@nersc.gov' % ADMIN]
+        message = """\
+From: %s
+To: %s
+Subject: %s
+
+%s
+        """ % (sender, ", ".join(receivers), subject, body)
+        try:
+            smtpObj = smtplib.SMTP('localhost')
+            smtpObj.sendmail(sender, receivers, message)
+            sys.stdout.write("Successfully sent email to %s\n" % username)
             sys.stdout.flush()
-            p = Popen(["bash"], stdin=PIPE)
-            p.communicate(msg)
+        except smtplib.SMTPException:
+            sys.stderr.write("Error: unable to send email to %s\n" % username)
+            sys.stdout.flush()
 
 
 def update_metatlas(directory):
     readonly_files = defaultdict(set)
     other_errors = defaultdict(list)
     directory = os.path.abspath(directory)
-    # sleep a random amount of time to avoid running at the same time as
-    # other processes
+
+    # Sleep a random amount of time to avoid running at the same time as
+    # other processes.
     time.sleep(random.random() * 2)
     mzml_files = check_output('find %s -name "*.mzML"' % directory, shell=True)
     mzml_files = mzml_files.decode('utf-8').splitlines()
-    # find valid h5 files newer than the format version timestamp
+
+    # Find valid h5 files newer than the format version timestamp.
     delta = int((time.time() - VERSION_TIMESTAMP) / 60)
-    check = 'find %s -name "*.h5" -mmin -%s -size +1M' % (directory, delta)
+    check = 'find %s -name "*.h5" -mmin -%s -size +2k' % (directory, delta)
     valid_files = check_output(check, shell=True).decode('utf-8').splitlines()
     valid_files = set(valid_files)
 
@@ -54,6 +70,10 @@ def update_metatlas(directory):
     sys.stdout.flush()
 
     for (ind, fname) in enumerate(new_files):
+        sys.stdout.write('(%s of %s): %s\n' % (ind + 1, len(new_files), fname))
+        sys.stdout.flush()
+
+        # Get relevant information about the file.
         info = patt.match(os.path.abspath(fname))
         if info:
             info = info.groupdict()
@@ -70,16 +90,14 @@ def update_metatlas(directory):
             except Exception:
                 username = info['username']
 
-        sys.stdout.write('(%s of %s): %s\n' % (ind + 1, len(new_files), fname))
-        sys.stdout.flush()
-
+        # Change to read only.
         try:
             os.chmod(fname, 0o660)
         except Exception as e:
             sys.stderr.write(str(e) + '\n')
             sys.stderr.flush()
 
-        # copy the original file to a pasteur backup
+        # Copy the original file to a pasteur backup.
         if os.environ['USER'] == 'pasteur':
             pasteur_path = fname.replace('raw_data', 'pasteur_backup')
             dname = os.path.dirname(pasteur_path)
@@ -91,7 +109,7 @@ def update_metatlas(directory):
                 readonly_files[username].add(dirname)
                 continue
 
-        # get a lock on the mzml file to prevent interference
+        # Get a lock on the mzml file to prevent interference.
         try:
             fid = open(fname, 'r')
             fcntl.flock(fid, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -102,7 +120,7 @@ def update_metatlas(directory):
             sys.stderr.flush()
             continue
 
-        # convert to HDF and store the entry in the database
+        # Convert to HDF and store the entry in the database.
         try:
             hdf5_file = fname.replace('mzML', 'h5')
             mzml_to_hdf(fname, hdf5_file, True)
@@ -122,12 +140,19 @@ def update_metatlas(directory):
             if 'exists but it can not be written' in str(e):
                 readonly_files[username].add(dirname)
             else:
-                other_errors[info['username']].append(str(e))
+                msg = traceback.format_exception(*sys.exc_info())
+                msg.insert(0, 'Cannot convert %s' % fname)
+                other_errors[info['username']].append('\n'.join(msg))
             sys.stderr.write(str(e) + '\n')
             sys.stderr.flush()
+            try:
+                os.remove(hdf5_file)
+            except:
+                pass
         finally:
             fid.close()
 
+    # Handle errors.
     from metatlas.metatlas_objects import find_invalid_runs
     invalid_runs = find_invalid_runs(_override=True)
 
@@ -146,15 +171,13 @@ def update_metatlas(directory):
             body += 'from metatlas.metatlas_objects import find_invalid_runs, remove_objects\n'
             body += 'remove_objects(find_invalid_runs())\n\n'
             body += 'The invalid runs are:\n%s' % ('\n'.join(filenames))
-            send_mail('Metatlas Runs are Inaccessible', username, body)
+            send_mail('Metatlas Runs are Invalid', username, body)
     if other_errors:
         for (username, errors) in other_errors.items():
-            body = 'Errored files found while loading in Metatlas files:\n%s' % '\n'.join(errors)
+            body = 'Errored files found while loading in Metatlas files:\n\n%s' % '\n********************************\n'.join(errors)
             send_mail('Errors loading Metatlas files', username, body)
     sys.stdout.write('Done!\n')
     sys.stdout.flush()
-
-    send_mail('Run complete', ADMIN, directory, True)
 
 
 if __name__ == '__main__':
