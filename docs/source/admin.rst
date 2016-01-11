@@ -8,7 +8,7 @@ The project folder at NERSC is ``/project/projectdirs/metatlas/``.
 
 Raw data is stored in ``/project/projectdirs/metatlas/raw_data``.
 
-Log in to NERSC via ``ssh username@edisongrid.nersc.gov``.
+Log in to NERSC via ``ssh username@corigrid.nersc.gov``.
 
 There is a pseudo-super user account called ``pasteur``. To log in to
 pasteur:
@@ -38,7 +38,7 @@ We have a CRON job set up to run metatlas directory watcher every ten
 minutes. The file that is run is
 ``/project/projectdirs/metatlas/run_dirwatch2.sh``. The CRON job
 settings are in
-``/project/projectdirs/metatlas/crontab.edison.pasteur``. You have to
+``/project/projectdirs/metatlas/crontab.corigrid.pasteur``. You have to
 log into pasteur to modify the CRON job.
 
 Anaconda
