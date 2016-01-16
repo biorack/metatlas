@@ -44,3 +44,4 @@ script:
   --cover-package metatlas; else nosetests --exe -v metatlas; fi
 after_success:
 - coveralls
+- bash scripts/travis_after_success.sh
