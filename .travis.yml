@@ -35,7 +35,7 @@ install:
 script:
 - if [[ $PYTHON == python=3.4* ]]; then nosetests --exe -v --with-doctest --with-cov
   --cover-package metatlas; else nosetests --exe -v metatlas; fi
-- make html
+- make docs
 after_success:
 - coveralls
 - bash scripts/travis_after_success.sh
