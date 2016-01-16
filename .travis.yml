@@ -5,9 +5,7 @@ env:
   - PYTHON="python=3.4"
   global:
   - GH_REF: github.com/metabolite-atlas/metatlas.git
-  - secure: KZOjKbbw97URoNocAQ5eVwTdNdoY1wj8azrclILwdVIlWZPq3dPDdX7mEW+ckxDsKp0TtN3h8AX06MczKof/KktHRo075glftC4CYeCdNPAEJ7xiCys/3WtdNUVbpX1+uWaT9b9rGM9sKSICom5E5xxqjpJ4dHctyDPZ9XrPZww=
-  - secure: LmEr2zGO68woRZQh0rDSM0qnG+NbQ93n/3PBaV8m2U5zRYirzb9agbZQ5qG+ucpkfk6azs0ss71tZvv/rcV76/5iigjzIc25P9P19JixT1/YLvb6sanK/7+iHUpWj5ck83ISAhBFZMV6ew5BQN6REvrEo+Lvwe9pTonP7Ud8IwU=
-  - secure: TgdrOgEFEHuP+zDsz3biwmWGdqaAd4sR8oQ2d8SX70jSr+3W9+XGRvRBcx7JzltiO1vtZDVva8Hx0ovleuokfAW7D9gZ9N4INDPsh6iCHWLVeaw7PZ/W2q9MXcXwbyPShbJcM3VLBdjMVSTHoTvpbzqL0rLj0XREr3FeJPMgEmQ=
+  - secure: t3hx7vjJgwhugvcTElVLPtIJflm6OuSjd5r6tc/gWSbvYkP4rlcNeHo3ftGi4H1aSPY84FVLSYytUtVnU7ViEt6JieB4cZpc9qsQW08W25MhH33Itt8U9ovH59OHcLjBYmai/Kq/O2lAOe52JvvbtsiR7+R9uwD3nE/Wopri5oM=
 before_install:
 - openssl aes-256-cbc -K $encrypted_10f2d1413fc4_key -iv $encrypted_10f2d1413fc4_iv
   -in kb_auth_encrypted.dat -out kb_auth_do_not_commit.dat -d
