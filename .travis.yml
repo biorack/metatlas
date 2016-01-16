@@ -38,4 +38,4 @@ script:
 - make docs
 after_success:
 - coveralls
-- bash scripts/travis_after_success.sh
+- if [[ $PYTHON == python=3.4* ]]; then bash scripts/travis_after_success.sh; fi
