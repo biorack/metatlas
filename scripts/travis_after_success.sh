@@ -9,10 +9,11 @@ then
     git config user.name "Travis Bot"
 
     ls _static
+    touch .nojekyll
     git add .
     git commit -m "Deployed to GitHub Pages"
     echo "https://${GH_REF}"
-    ghp-import -n -p -m $(GHP_MSG) -r "https://${GHTOKEN}@${GH_REF}" docs/_build/html > /dev/null 2>&1
+    git push --force --quiet "https://${GHTOKEN}@${GH_REF}" master:gh-pages > /dev/null 2>&1
     )
 else
     echo "-- will only push docs from master --"
