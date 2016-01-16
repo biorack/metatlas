@@ -3,7 +3,7 @@ if [[ $TRAVIS_PULL_REQUEST == false && $TRAVIS_BRANCH == "master" ]]
 then
     echo "-- pushing docs --"
 
-    ( cd docs/build/html
+    ( cd docs/_build/html
     git init
     git config user.email "travis@travis-ci.com"
     git config user.name "Travis Bot"
