@@ -31,7 +31,7 @@ before_install:
 #- sudo Rscript scripts/xcms-install.R
 install:
 #- export PYTHONWARNINGS=all
-#- pip install -e .
+- pip install -e .
 script:
 #- if [[ $PYTHON == python=3.4* ]]; then nosetests --exe -v --with-doctest --with-cov
 #  --cover-package metatlas; else nosetests --exe -v metatlas; fi
