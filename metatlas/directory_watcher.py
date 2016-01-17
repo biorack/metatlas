@@ -128,7 +128,10 @@ def update_metatlas(directory):
             description = info['experiment'] + ' ' + info['path']
             ctime = os.stat(fname).st_ctime
             # Add this to the database unless it is already there
-            runs = retrieve('lcmsrun', username='*', mzml_file=fname)
+            try:
+                runs = retrieve('lcmsrun', username='*', mzml_file=fname)
+            except Exception:
+                runs = list()
             if not len(runs):
                 run = LcmsRun(name=info['path'], description=description,
                               username=info['username'],
