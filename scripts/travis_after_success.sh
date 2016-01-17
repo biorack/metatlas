@@ -8,6 +8,8 @@ then
     git config user.email "travis@travis-ci.com"
     git config user.name "Travis Bot"
 
+    ls _static
+    touch .nojekyll
     git add .
     git commit -m "Deployed to GitHub Pages"
     echo "https://${GH_REF}"
