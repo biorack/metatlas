@@ -65,12 +65,11 @@ def update_metatlas(directory):
             new_files.append(mzml_file)
 
 
-    sys.stdout.write('Found %s files\n' % len(new_files))
-    sys.stdout.flush()
-
 
     patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
+    sys.stdout.write('Found %s files\n' % len(new_files))
+    sys.stdout.flush()
 
 
     for (ind, fname) in enumerate(new_files):
