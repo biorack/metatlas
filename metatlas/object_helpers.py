@@ -8,6 +8,10 @@ from collections import defaultdict
 import dataset
 import pandas as pd
 
+import socket
+import os.path
+import yaml
+
 try:
     from traitlets import (
         HasTraits, CUnicode, List, CInt, Instance, Enum,
@@ -17,7 +21,8 @@ except ImportError:
         HasTraits, CUnicode, List, CInt, Instance, Enum,
         CFloat, CBool)
 
-NERSC_USER = '/project/projectdirs/metatlas/mysql_user.txt'
+# this will eventually enter into the local config file
+#db_passwd_file = '/project/projectdirs/metatlas/mysql_user.txt'
 
 # Observable List from
 # http://stackoverflow.com/a/13259435
@@ -112,13 +117,31 @@ def _get_subclasses(cls):
 class Workspace(object):
 
     def __init__(self):
-        # allow for fallback when not on NERSC
-        if os.path.exists(NERSC_USER):
-            with open(NERSC_USER) as fid:
+        user_home = os.path.expanduser("~") #maybe used later
+
+        #
+        # get metatlas directory since notebooks and scripts could  be launched from other locations
+        # this directory contains the config files
+        metatlas_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
+
+        #
+        # get hostname to determine if you're on NERSCC
+        host_name = socket.getfqdn()
+        if 'nersc.gov' in host_name:
+            with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
+                nersc_info = yaml.load(fid)
+
+            with open(nersc_info['db_passwd_file']) as fid:
                 pw = fid.read().strip()
-            self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/meta_atlas' % pw
-        else:
-            self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
+                self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/%s' %(pw, nersc_info['db_name'])
+
+        else: # allow for fallback to local config when not on NERSC
+            with open(os.path.join(metatlas_dir, 'local_config', 'local.yml')) as fid:
+                local_info = yaml.load(fid)
+
+            #self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
+            self.path = 'mysql+pymysql://localhost/%s' %(local_info['db_name'])
+
         self._db = None
         self.tablename_lut = dict()
         self.subclass_lut = dict()

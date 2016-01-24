@@ -67,4 +67,6 @@ kb_auth_do_not_commit.dat
 
 docs/source/api/
 
-my_local_config.yaml
+metatlas/local_config/
+
+jimmy/
