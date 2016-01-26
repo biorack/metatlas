@@ -139,8 +139,8 @@ class Workspace(object):
             with open(os.path.join(metatlas_dir, 'local_config', 'local.yml')) as fid:
                 local_info = yaml.load(fid)
 
-            #self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
-            self.path = 'mysql+pymysql://localhost/%s' %(local_info['db_name'])
+            self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
+            #self.path = 'mysql+pymysql://localhost/%s' %(local_info['db_name'])
 
         self._db = None
         self.tablename_lut = dict()
