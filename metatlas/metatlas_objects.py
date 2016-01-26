@@ -345,6 +345,8 @@ class LcmsRun(MetatlasObject):
     experiment = MetUnicode(help='The name of the experiment')
     hdf5_file = MetUnicode(help='Path to the HDF5 file at NERSC')
     mzml_file = MetUnicode(help='Path to the MZML file at NERSC')
+    injection_volume = MetFloat()
+    injection_volume_units = MetEnum(('xxx', 'xx'), 'xx')
     sample = MetInstance(Sample)
 
 
