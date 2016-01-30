@@ -8,7 +8,8 @@ MAINTAINER_EMAIL = 'steven.silvester@ieee.org'
 URL = 'http://github.com/metabolite-atlas/metatlas'
 LICENSE = 'MIT'
 REQUIRES = ["numpy", "pytables", "pymzml", "simplejson", "rpy2", "pandas",
-            "dataset", "ipython", "traitlets", "six", "tabulate", "dill"]
+            "dataset", "ipython", "traitlets", "six", "tabulate", "dill",
+            "gspread"]
 CLASSIFIERS = """\
 Development Status :: 2 - Pre-Alpha
 Intended Audience :: Developers
@@ -69,7 +70,7 @@ if __name__ == "__main__":
         zip_safe=False,  # the package can run out of an .egg file
         install_requires=['pymzml', 'simplejson', 'requests_toolbelt',
                           'dataset', 'ipython', 'traitlets', 'six',
-                          'tabulate', 'dill'],
+                          'tabulate', 'dill', 'oauth2client', 'gspread'],
         requires=REQUIRES,
         cmdclass={'install': custom_install},
      )
