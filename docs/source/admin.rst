@@ -31,6 +31,42 @@ The remote path (from python) is
 The local path (at NERSC) is:
 ``mysql meta_atlas -u meta_atlas_admin -h scidb1.nersc.gov -p``.
 
+
+You can use the database on a local machine or a machine not at NERC. Here are the steps
+
+Clone the database on NERSC
+::
+
+    mysqldump meta_atlas -u meta_atlas_admin -h scidb1.nersc.gov  -p > dump.sql
+    MYSQL PW
+
+Bring the databsae to local machine
+
+::
+
+    scp username@corigrid.nersc.gov:dump.sql .
+
+
+Add the database to your mysql server
+::
+
+    mysql -uroot -p
+    LOCAL MYSQL ADMIN PW
+    CREATE DATABASE metatlas;
+    USE metatlas;
+    SOURCE dump.sql;
+
+
+Create a user
+::
+
+    CREATE USER new_user IDENTIFIED BY 'some_password';
+    GRANT ALL ON my_project_copy.* TO 'new_user'@'localhost' IDENTIFIED BY 'some_password';
+    FLUSH PRIVILEGES;
+
+Alternatively, you can create a user using myphpadmin and give him/her full access to the database.
+
+
 CRON
 ----
 
@@ -78,9 +114,20 @@ The currently installed packages are:
     biocLite("mzR")
     biocLite("xcms")
 
+
+
+RDKIT Pacakge on Debian/Ubuntu
+------------------------------
+::
+
+    conda install -c https://conda.anaconda.org/rdkit rdkit
+
+
 Synchronizing the Repo
 ----------------------
 
 There is a ``make deploy`` target in the top level ``Makefile`` in the
 repo that will publish the latest changes to documentation and ``rsync``
 the files to the anaconda environment at NERSC.
+
+
