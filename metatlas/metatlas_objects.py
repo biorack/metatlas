@@ -553,6 +553,7 @@ def to_dataframe(objects):
     FETCH_STUBS = False
     objs = [o._trait_values.copy() for o in objects if o.__class__ == objects[0].__class__]
     if not objs:
+        FETCH_STUBS = True
         return pd.DataFrame()
     FETCH_STUBS = True
     enums = []
