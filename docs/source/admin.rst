@@ -131,3 +131,29 @@ repo that will publish the latest changes to documentation and ``rsync``
 the files to the anaconda environment at NERSC.
 
 
+Synchronizing the Repo Between Githib and NERSC
+===============================================
+
+
+Initial Setup
+-------------
+- Make sure the repo is up-to-date on github
+remove metatals install from the anaconda site packages
+cd to /project/projectdirs/metatlas/projects
+clone the metatlas git repo into this folder
+clone the qgrid repo into this folder
+log in as pasture
+navigate to the metatlas folder
+execute "pip install -e ."
+this command will install metatals in the anaconda site packages path as sym links to the files in the metaltas directory
+any update to the files in metatlas directory will take immediate effect on the anaconda metatlas install.
+repeat the 7-9 above
+in the local clone metatals (the one in /project/projectdirs/metatlas/projects) create your own branch and check it out
+Do all work in that branch.
+When done, check out the master branch
+pull from github
+resolve any merge conflicts
+merge your branch with master
+resolve any conflicts
+push to gitbub
+every once in a while go to the qgrid directory and do a pull to update the files
