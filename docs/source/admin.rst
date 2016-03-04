@@ -267,32 +267,32 @@ the files to the anaconda environment at NERSC.
 Synchronizing the Repo Between Githib and NERSC
 ===============================================
 
+Work in progress......
 
 Initial Setup
 -------------
-1) Make sure the repo is up-to-date on github
-2) remove metatals install from the anaconda site packages
-3) cd to /project/projectdirs/metatlas/projects
-4) clone the metatlas git repo into this folder
-5) clone the qgrid repo into this folder
-6) log in as pasture
-7) navigate to the metatlas folder
-8) execute pip install -e .
+1) Update the repo on github
+2) Remove metatals from the anaconda site packages
+#) log in as pasture
+#) clone the metatlas git repo into /project/projectdirs/metatlas/projects
+#) navigate to the metatlas folder
+#) execute pip install -e .
 
   - this command will install metatals in the anaconda site packages path as sym links
-    to the files   in the metaltas directory any update to the files in metatlas directory
+    to the files  in this directory. Any update to the files in metatlas directory
     will take immediate effect on the anaconda metatlas install.
 
-8) repeat the 7-9 above
-9) in the local clone metatals (the one in /project/projectdirs/metatlas/projects) create your own
+#) clone qgrid from github into /project/projectdirs/metatlas/projects
+#) cd into qgrid and execute pip install -e .
+#) in the local clone metatals (the one in /project/projectdirs/metatlas/projects) create your own
    branch and check it out
 
   - Do all work in that branch.
 
-10) When done, check out the master branch
-11) pull from github
-12) resolve any merge conflicts
-13) merge your branch with master
-14) resolve any conflicts
-15) push to gitbub
+#) When done, check out the master branch
+#) pull from github
+#) resolve any merge conflicts
+#) merge your branch with master
+#) resolve any conflicts
+#) push to gitbub
     every once in a while go to the qgrid directory and do a pull to update the files
