@@ -136,8 +136,9 @@ class Workspace(object):
                 self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/%s' %(pw, nersc_info['db_name'])
 
         else: # allow for fallback to local config when not on NERSC
-            with open(os.path.join(metatlas_dir, 'local_config', 'local.yml')) as fid:
-                local_info = yaml.load(fid)
+            if os.path.exists(os.path.join(metatlas_dir, 'local_config')):
+                with open(os.path.join(metatlas_dir, 'local_config', 'local.yml')) as fid:
+                    local_info = yaml.load(fid)
 
             self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
             #self.path = 'mysql+pymysql://localhost/%s' %(local_info['db_name'])
