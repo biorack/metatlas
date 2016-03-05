@@ -123,6 +123,7 @@ class Workspace(object):
         # get metatlas directory since notebooks and scripts could  be launched from other locations
         # this directory contains the config files
         metatlas_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
+        print("Metatlas live in ", metatlas_dir)
 
         #
         # get hostname to determine if you're on NERSCC
@@ -137,12 +138,13 @@ class Workspace(object):
                 self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/%s' %(pw, nersc_info['db_name'])
 
         else: # allow for fallback to local config when not on NERSC
-            if os.path.exists(os.path.join(metatlas_dir, 'local_config')):
-                with open(os.path.join(metatlas_dir, 'local_config', 'local.yml')) as fid:
+            local_config_file = os.path.join(metatlas_dir, 'local_config', 'local.yml')
+            if os.path.isfile(local_config_file):
+                with open(local_config_file) as fid:
                     local_info = yaml.load(fid)
-
-            self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
-            #self.path = 'mysql+pymysql://localhost/%s' %(local_info['db_name'])
+                self.path = 'mysql+pymysql://localhost/%s' %(local_info['db_name'])
+            else:
+                self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
 
         self._db = None
         self.tablename_lut = dict()
