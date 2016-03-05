@@ -127,6 +127,7 @@ class Workspace(object):
         #
         # get hostname to determine if you're on NERSCC
         host_name = socket.getfqdn()
+        print("you're running on ", host_name)
         if 'nersc.gov' in host_name:
             with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
                 nersc_info = yaml.load(fid)
