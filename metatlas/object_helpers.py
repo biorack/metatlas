@@ -128,14 +128,31 @@ class Workspace(object):
         #
         # get hostname to determine if you're on NERSCC
         host_name = socket.getfqdn()
-        print("you're running on ", socket.gethostbyname(socket.gethostname()))
-        #if 'nersc.gov' in host_name or '4dbf93b13935' in host_name:
-        with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
-            nersc_info = yaml.load(fid)
+        print("you're running on %s at %s " %(host_name, socket.gethostbyname(socket.gethostname())))
 
-        with open(nersc_info['db_passwd_file']) as fid:
-            pw = fid.read().strip()
-            self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/%s' %(pw, nersc_info['db_name'])
+        if 'pyteknix' in host_name:
+            local_config_file = os.path.join(metatlas_dir, 'local_config', 'local.yml')
+            if os.path.isfile(local_config_file):
+                with open(local_config_file) as fid:
+                    local_info = yaml.load(fid)
+                self.path = 'mysql+pymysql://localhost/%s' %(local_info['db_name'])
+            else:
+                self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
+        else:
+            with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
+                nersc_info = yaml.load(fid)
+
+            with open(nersc_info['db_passwd_file']) as fid:
+                pw = fid.read().strip()
+                self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/%s' %(pw, nersc_info['db_name'])
+
+        #if 'nersc.gov' in host_name or '4dbf93b13935' in host_name:
+        #with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
+        #    nersc_info = yaml.load(fid)
+
+        #with open(nersc_info['db_passwd_file']) as fid:
+        #    pw = fid.read().strip()
+        #    self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/%s' %(pw, nersc_info['db_name'])
 
         #else: # allow for fallback to local config when not on NERSC
         #    local_config_file = os.path.join(metatlas_dir, 'local_config', 'local.yml')
