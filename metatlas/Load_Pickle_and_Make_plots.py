@@ -30,89 +30,89 @@ import os.path
 
 
 def getcommonletters(strlist):
-   return ''.join([x[0] for x in zip(*strlist) if reduce(lambda a,b:(a == b) and a or None,x)])
+    return ''.join([x[0] for x in zip(*strlist) if reduce(lambda a,b:(a == b) and a or None,x)])
 
 def findcommonstart(strlist):
-   strlist = strlist[:]
-   prev = None
-   while True:
-      common = getcommonletters(strlist)
-      if common == prev:
-         break
-      strlist.append(common)
-      prev = common
+    strlist = strlist[:]
+    prev = None
+    while True:
+        common = getcommonletters(strlist)
+        if common == prev:
+            break
+        strlist.append(common)
+        prev = common
 
-   return getcommonletters(strlist)
+    return getcommonletters(strlist)
 
 
 
 def get_data(fname):
-   with open(my_file,'r') as f:
-      data = dill.load(f)
+    with open(my_file,'r') as f:
+        data = dill.load(f)
 
-   return data
+    return data
 
 
 
 def get_group_names(data):
-   group_names = []
-   for i,d in enumerate(data):
-      newstr = d[0]['group'].name
-      group_names.append(newstr)
+    group_names = []
+    for i,d in enumerate(data):
+        newstr = d[0]['group'].name
+        group_names.append(newstr)
 
-   return group_names
+    return group_names
 
 
 def get_file_names(data):
-   file_names = []
-   for i,d in enumerate(data):
-      newstr = os.path.basename(d[0]['lcmsrun'].hdf5_file)
-      file_names.append(newstr)
+    file_names = []
+    for i,d in enumerate(data):
+        newstr = os.path.basename(d[0]['lcmsrun'].hdf5_file)
+        file_names.append(newstr)
    
-   return file_names
+    return file_names
 
 
 
 
 def get_compound_names(data):
-   compound_names = []
-   compound_objects = []
-   for i,d in enumerate(data[0]):
-      # if label: use label
-      # else if compound: use compound name
-      # else no name
-      compound_objects.append(d['identification'])
-      if len(d['identification'].compound) > 0:
-         _str = d['identification'].compound[0].name
-      else:
-         _str = d['identification'].name
-      newstr = '%s_%s_%s_%5.2f'%(_str,d['identification'].mz_references[0].detected_polarity,
-             d['identification'].mz_references[0].adduct,d['identification'].rt_references[0].rt_peak)
-      newstr = re.sub('\.', 'p', newstr) #2 or more in regexp
+    compound_names = []
+    compound_objects = []
+    for i,d in enumerate(data[0]):
+        # if label: use label
+        # else if compound: use compound name
+        # else no name
+        compound_objects.append(d['identification'])
+        if len(d['identification'].compound) > 0:
+            _str = d['identification'].compound[0].name
+        else:
+            _str = d['identification'].name
+        newstr = '%s_%s_%s_%5.2f'%(_str,d['identification'].mz_references[0].detected_polarity,
+                d['identification'].mz_references[0].adduct,d['identification'].rt_references[0].rt_peak)
+        newstr = re.sub('\.', 'p', newstr) #2 or more in regexp
 
-      newstr = re.sub('[\[\]]','',newstr)
-      newstr = re.sub('[^A-Za-z0-9+-]+', '_', newstr)
-      newstr = re.sub('i_[A-Za-z]+_i_', '', newstr)
-      if newstr[0] == '_':
-         newstr = newstr[1:]
-      if newstr[0] == '-':
-         newstr = newstr[1:]
-      if newstr[-1] == '_':
-         newstr = newstr[:-1]
+        newstr = re.sub('[\[\]]','',newstr)
+        newstr = re.sub('[^A-Za-z0-9+-]+', '_', newstr)
+        newstr = re.sub('i_[A-Za-z]+_i_', '', newstr)
+        if newstr[0] == '_':
+            newstr = newstr[1:]
+        if newstr[0] == '-':
+            newstr = newstr[1:]
+        if newstr[-1] == '_':
+            newstr = newstr[:-1]
 
-      newstr = re.sub('[^A-Za-z0-9]{2,}', '', newstr) #2 or more in regexp
-      compound_names.append(newstr)
+        newstr = re.sub('[^A-Za-z0-9]{2,}', '', newstr) #2 or more in regexp
+        compound_names.append(newstr)
 
-   #If duplicate compound names exist, then append them with a number
-   D = defaultdict(list)
-   for i,item in enumerate(compound_names):
-      D[item].append(i)
-   D = {k:v for k,v in D.items() if len(v)>1}
-   for k in D.keys():
-      for i,f in enumerate(D[k]):
-         compound_names[f] = '%s%d'%(compound_names[f],i)
+    #If duplicate compound names exist, then append them with a number
+    D = defaultdict(list)
+    for i,item in enumerate(compound_names):
+        D[item].append(i)
+    D = {k:v for k,v in D.items() if len(v)>1}
+    for k in D.keys():
+        for i,f in enumerate(D[k]):
+            compound_names[f] = '%s%d'%(compound_names[f],i)
    
-   return (compound_names, compound_objects)
+    return (compound_names, compound_objects)
 
 
 
@@ -267,17 +267,17 @@ def plot_all_files_for_each_compound(**kwargs):
 
 
 if __name__ == '__main__':
-   my_file = '/home/jimmy/Downloads/20160119_KZ_Negative_QE_HILIC_Avena_Uptake.pkl'
+    my_file = '/home/jimmy/Downloads/20160119_KZ_Negative_QE_HILIC_Avena_Uptake.pkl'
 
-   project_label = '20160119_KZ_Positive_QE_HILIC_Avena_Uptake'
+    project_label = '20160119_KZ_Positive_QE_HILIC_Avena_Uptake'
 
 
-   data = get_data(my_file)
-   compound_names = get_compound_names(data)[0]
-   file_names = get_file_names(data)
-   nCols = 10
-   nRows = 6
-   argument = {'data':data,
+    data = get_data(my_file)
+    compound_names = get_compound_names(data)[0]
+    file_names = get_file_names(data)
+    nCols = 10
+    nRows = 6
+    argument = {'data':data,
             'nCols': nCols,
             'nRows': nRows,
             'file_names': file_names,
@@ -285,10 +285,10 @@ if __name__ == '__main__':
             'project_label': project_label,
             'plot_type':'one_pdf'
            }
-   plot_all_compounds_for_each_file(**argument)
-   nCols = 9
-   nRows = 6
-   argument = {'data':data,
+    plot_all_compounds_for_each_file(**argument)
+    nCols = 9
+    nRows = 6
+    argument = {'data':data,
             'nCols': nCols,
             'nRows': nRows,
             'file_names': file_names,
@@ -296,7 +296,7 @@ if __name__ == '__main__':
             'project_label': project_label,
             'plot_type':'one_pdf'
            }
-   plot_all_files_for_each_compound(**argument)
+    plot_all_files_for_each_compound(**argument)
 
 
 
