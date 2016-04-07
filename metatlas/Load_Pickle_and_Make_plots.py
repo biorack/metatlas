@@ -30,9 +30,28 @@ import os.path
 
 
 def getcommonletters(strlist):
+    """
+    Parameters
+    ----------
+    strlist
+
+    Returns
+    -------
+
+    """
     return ''.join([x[0] for x in zip(*strlist) if reduce(lambda a,b:(a == b) and a or None,x)])
 
+
 def findcommonstart(strlist):
+    """
+    Parameters
+    ----------
+    strlist
+
+    Returns
+    -------
+
+    """
     strlist = strlist[:]
     prev = None
     while True:
@@ -45,16 +64,32 @@ def findcommonstart(strlist):
     return getcommonletters(strlist)
 
 
-
 def get_data(fname):
+    """
+    Parameters
+    ----------
+    fname
+
+    Returns
+    -------
+
+    """
     with open(my_file,'r') as f:
         data = dill.load(f)
 
     return data
 
 
-
 def get_group_names(data):
+    """
+    Parameters
+    ----------
+    data
+
+    Returns
+    -------
+
+    """
     group_names = []
     for i,d in enumerate(data):
         newstr = d[0]['group'].name
@@ -64,6 +99,15 @@ def get_group_names(data):
 
 
 def get_file_names(data):
+    """
+    Parameters
+    ----------
+    data
+
+    Returns
+    -------
+
+    """
     file_names = []
     for i,d in enumerate(data):
         newstr = os.path.basename(d[0]['lcmsrun'].hdf5_file)
@@ -72,9 +116,16 @@ def get_file_names(data):
     return file_names
 
 
-
-
 def get_compound_names(data):
+    """
+    Parameters
+    ----------
+    data
+
+    Returns
+    -------
+
+    """
     compound_names = []
     compound_objects = []
     for i,d in enumerate(data[0]):
@@ -115,8 +166,16 @@ def get_compound_names(data):
     return (compound_names, compound_objects)
 
 
-
 def plot_all_compounds_for_each_file(**kwargs):
+    """
+    Parameters
+    ----------
+    kwargs
+
+    Returns
+    -------
+
+    """
     data = kwargs['data']
     nCols = kwargs['nCols']
     nRows = kwargs['nRows']
@@ -124,6 +183,7 @@ def plot_all_compounds_for_each_file(**kwargs):
     compound_names = kwargs['compound_names']
     project_label = kwargs['project_label']
     plot_type = kwargs['plot_type'] #multi_pdf, one_pdf, png
+    scale_y = kwargs['scale_y']
     
     nRows = int(np.ceil(len(compound_names)/float(nCols)))
     print nRows
@@ -134,7 +194,20 @@ def plot_all_compounds_for_each_file(**kwargs):
     subrange = float(xmax-xmin)/float(nCols) # scale factor for the x-axis
  
     counter = 0
-    
+
+    if scale_y:
+        y_max = list()
+        for file_idx,my_file in enumerate(file_names):
+            temp = -1
+            for compound_idx,compound in enumerate(compound_names):
+                d = data[file_idx][compound_idx]
+                if len(d['data']['eic']['rt']) > 0:
+                    y = max(d['data']['eic']['intensity'])
+                    if y > temp:
+                        temp = y
+            y_max.append(temp)
+
+
     for file_idx,my_file in enumerate(file_names):
         print my_file
         
@@ -188,8 +261,16 @@ def plot_all_compounds_for_each_file(**kwargs):
         plt.clf()
 
 
-
 def plot_all_files_for_each_compound(**kwargs):
+    """
+    Parameters
+    ----------
+    kwargs
+
+    Returns
+    -------
+
+    """
     data = kwargs['data']
     nCols = kwargs['nCols']
     nRows = kwargs['nRows']
@@ -197,7 +278,8 @@ def plot_all_files_for_each_compound(**kwargs):
     compound_names = kwargs['compound_names']
     project_label = kwargs['project_label']
     plot_type = kwargs['plot_type'] #multi_pdf, one_pdf, png
-    
+    scale_y = kwargs['scale_y']
+
     nRows = int(np.ceil(len(file_names)/float(nCols)))
     print 'nrows = ', nRows 
     
@@ -206,8 +288,21 @@ def plot_all_files_for_each_compound(**kwargs):
     subrange = float(xmax-xmin)/float(nCols) # scale factor for the x-axis
  
     counter = 0
-    
-    for compound_idx,compound in enumerate(compound_names): 
+
+    if scale_y:
+        y_max = list()
+        for compound_idx,compound in enumerate(compound_names):
+            temp = -1
+            for file_idx,my_file in enumerate(file_names):
+                d = data[file_idx][compound_idx]
+                if len(d['data']['eic']['rt']) > 0:
+                    y = max(d['data']['eic']['intensity'])
+                    if y > temp:
+                        temp = y
+            y_max.append(temp)
+
+
+    for compound_idx,compound in enumerate(compound_names):
         print 10*'*'  
         print compound
         print 10*'*'  
@@ -261,9 +356,6 @@ def plot_all_files_for_each_compound(**kwargs):
         fig.set_size_inches(11, 8.5)
         fig.savefig('/tmp/' + compound + '-' + str(counter) + '.pdf')
         plt.clf()
-
-
-
 
 
 if __name__ == '__main__':
