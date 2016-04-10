@@ -1,32 +1,33 @@
-import sys
-from metatlas import metatlas_objects as metob
-from metatlas import h5_query as h5q
-import qgrid
+#import sys
+#from metatlas import metatlas_objects as metob
+#from metatlas import h5_query as h5q
+#import qgrid
 from matplotlib import pyplot as plt
-import pandas as pd
+#import pandas as pd
 import re
 import os
-import tables
-import pickle
+#import tables
+#import pickle
 import dill
 import numpy as np
-from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import Draw
-# from rdkit.Chem.rdMolDescriptors import ExactMolWt
-from rdkit.Chem import Descriptors
-from rdkit.Chem import rdMolDescriptors
-from rdkit.Chem import AllChem
-from rdkit.Chem import Draw
-from rdkit.Chem import rdDepictor
-from rdkit.Chem.Draw import rdMolDraw2D
-from rdkit.Chem.Draw import IPythonConsole
-from IPython.display import SVG,display
+#from rdkit import Chem
+#from rdkit.Chem import AllChem
+#from rdkit.Chem import Draw
+## from rdkit.Chem.rdMolDescriptors import ExactMolWt
+#from rdkit.Chem import Descriptors
+#from rdkit.Chem import rdMolDescriptors
+#from rdkit.Chem import AllChem
+#from rdkit.Chem import Draw
+#from rdkit.Chem import rdDepictor
+#from rdkit.Chem.Draw import rdMolDraw2D
+#from rdkit.Chem.Draw import IPythonConsole
+#from IPython.display import SVG,display
 from collections import defaultdict
-import time
-from textwrap import wrap
-from matplotlib.backends.backend_pdf import PdfPages
+#import time
+#from textwrap import wrap
+#from matplotlib.backends.backend_pdf import PdfPages
 import os.path
+from itertools import cycle
 
 
 def getcommonletters(strlist):
@@ -193,23 +194,32 @@ def plot_all_compounds_for_each_file(**kwargs):
     xmax = 210
     subrange = float(xmax-xmin)/float(nCols) # scale factor for the x-axis
  
-    counter = 0
-
+    y_max = list()
     if scale_y:
-        y_max = list()
         for file_idx,my_file in enumerate(file_names):
             temp = -1
+            counter = 0
             for compound_idx,compound in enumerate(compound_names):
                 d = data[file_idx][compound_idx]
                 if len(d['data']['eic']['rt']) > 0:
+                    counter += 1
                     y = max(d['data']['eic']['intensity'])
                     if y > temp:
                         temp = y
-            y_max.append(temp)
-
+            #y_max.append(temp)
+            y_max += [temp] * counter
+    else:
+        for file_idx,my_file in enumerate(file_names):
+            for compound_idx,compound in enumerate(compound_names):
+                d = data[file_idx][compound_idx]
+                if len(d['data']['eic']['rt']) > 0:
+                    y_max.append(max(d['data']['eic']['intensity']))
+    print "length of ymax is ", len(y_max)
+    return
+    y_max = cycle(y_max)
 
     for file_idx,my_file in enumerate(file_names):
-        print my_file
+        #print my_file
         
         ax = plt.subplot(111)#, aspect='equal')
         plt.setp(ax, 'frame_on', False)
@@ -225,8 +235,7 @@ def plot_all_compounds_for_each_file(**kwargs):
                 col = 0
                         
             d = data[file_idx][compound_idx]
-            #file_name = compound_names[compound_idx]
-                    
+
             rt_min = d['identification'].rt_references[0].rt_min
             rt_max = d['identification'].rt_references[0].rt_max
             rt_peak = d['identification'].rt_references[0].rt_peak
@@ -234,22 +243,22 @@ def plot_all_compounds_for_each_file(**kwargs):
             if len(d['data']['eic']['rt']) > 0:
                 x = d['data']['eic']['rt']
                 y = d['data']['eic']['intensity']
-                
+                y = y/y_max.next()
                 new_x = (x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
                 xlbl = np.array_str(np.linspace(min(x), max(x), 8), precision=2)
                 rt_min_ = (rt_min-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2)
                 rt_max_ = (rt_max-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2)
                 rt_peak_ = (rt_peak-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2)
-                ax.plot(new_x, y/max(y)+row,'k-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
+                ax.plot(new_x, y+row,'k-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
                 #ax.annotate('plot={}'.format(col+1),(max(new_x)/2+col*subrange,row-0.1), size=5,ha='center')
                 ax.annotate(xlbl,(min(new_x),row-0.1), size=2)
                 ax.annotate('{0},{1},{2},{3}'.format(compound,rt_min, rt_peak, rt_max),(min(new_x),row-0.2), size=2)#,ha='center')
                 myWhere = np.logical_and(new_x>=rt_min_, new_x<=rt_max_ )
-                ax.fill_between(new_x,min(y/max(y))+row,y/max(y)+row,myWhere, facecolor='c', alpha=0.3)
+                ax.fill_between(new_x,min(y)+row,y+row,myWhere, facecolor='c', alpha=0.3)
                 col += 1
             else:
                 new_x = (x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
-                ax.plot(new_x, y/max(y)-y/max(y)+row,'r-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
+                ax.plot(new_x, new_x-new_x+row,'r-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
                 ax.annotate(compound,(min(new_x),row-0.1), size=2)
                 col += 1
             counter += 1
@@ -257,7 +266,7 @@ def plot_all_compounds_for_each_file(**kwargs):
         plt.title(my_file)
         fig = plt.gcf()
         fig.set_size_inches(11, 8.5)
-        fig.savefig('/tmp/' + my_file + '-' + str(counter) + '.pdf')
+        fig.savefig('/home/jimmy/ben2/' + my_file + '-' + str(counter) + '.pdf')
         plt.clf()
 
 
@@ -287,20 +296,28 @@ def plot_all_files_for_each_compound(**kwargs):
     xmax = 210
     subrange = float(xmax-xmin)/float(nCols) # scale factor for the x-axis
  
-    counter = 0
 
+    y_max = list()
     if scale_y:
-        y_max = list()
         for compound_idx,compound in enumerate(compound_names):
             temp = -1
+            counter = 0
             for file_idx,my_file in enumerate(file_names):
                 d = data[file_idx][compound_idx]
                 if len(d['data']['eic']['rt']) > 0:
+                    counter += 1
                     y = max(d['data']['eic']['intensity'])
                     if y > temp:
                         temp = y
-            y_max.append(temp)
+            y_max = [temp] * counter
+    else:
+        for compound_idx,compound in enumerate(compound_names):
+            for file_idx,my_file in enumerate(file_names):
+                d = data[file_idx][compound_idx]
+                if len(d['data']['eic']['rt']) > 0:
+                    y_max.append(max(d['data']['eic']['intensity']))
 
+    y_max = cycle(y_max)
 
     for compound_idx,compound in enumerate(compound_names):
         print 10*'*'  
@@ -310,10 +327,10 @@ def plot_all_files_for_each_compound(**kwargs):
         
         ax = plt.subplot(111)#, aspect='equal')
         plt.setp(ax, 'frame_on', False)
-        ax.set_ylim([0, nRows+4])
+        ax.set_ylim([0, nRows+7])
       
         col = 0
-        row = nRows+3
+        row = nRows+6
         counter = 1
         
         for file_idx,my_file in enumerate(file_names):  
@@ -331,22 +348,22 @@ def plot_all_files_for_each_compound(**kwargs):
             if len(d['data']['eic']['rt']) > 0:
                 x = d['data']['eic']['rt']
                 y = d['data']['eic']['intensity']
-                
+                y = y/y_max.next()
                 new_x = (x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
                 xlbl = np.array_str(np.linspace(min(x), max(x), 8), precision=2)
                 rt_min_ = (rt_min-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2)
                 rt_max_ = (rt_max-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2)
                 rt_peak_ = (rt_peak-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2)
-                ax.plot(new_x, y/max(y)+row,'k-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
+                ax.plot(new_x, y+row,'k-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
                 #ax.annotate('plot={}'.format(col+1),(max(new_x)/2+col*subrange,row-0.1), size=5,ha='center')
                 ax.annotate(xlbl,(min(new_x),row-0.1), size=2)
                 ax.annotate('{0},{1},{2},{3}'.format(my_file,rt_min, rt_peak, rt_max),(min(new_x),row-0.2), size=1)#,ha='center')
                 myWhere = np.logical_and(new_x>=rt_min_, new_x<=rt_max_ )
-                ax.fill_between(new_x,min(y/max(y))+row,y/max(y)+row,myWhere, facecolor='c', alpha=0.3)
+                ax.fill_between(new_x,min(y)+row,y+row,myWhere, facecolor='c', alpha=0.3)
                 col += 1
             else:
                 new_x = (x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
-                ax.plot(new_x, y/max(y)-y/max(y)+row,'r-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
+                ax.plot(new_x, y-y+row,'r-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
                 ax.annotate(my_file,(min(new_x),row-0.1), size=1)
                 col += 1
             counter += 1
@@ -375,7 +392,8 @@ if __name__ == '__main__':
             'file_names': file_names,
             'compound_names': compound_names,
             'project_label': project_label,
-            'plot_type':'one_pdf'
+            'plot_type':'one_pdf',
+            'scale_y' : True
            }
     plot_all_compounds_for_each_file(**argument)
     nCols = 9
@@ -388,7 +406,7 @@ if __name__ == '__main__':
             'project_label': project_label,
             'plot_type':'one_pdf'
            }
-    plot_all_files_for_each_compound(**argument)
+    #plot_all_files_for_each_compound(**argument)
 
 
 
