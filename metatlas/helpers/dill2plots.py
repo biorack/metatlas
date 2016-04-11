@@ -177,13 +177,13 @@ def plot_all_compounds_for_each_file(**kwargs):
     -------
 
     """
-    data = get_data(kwargs['input_fname'])
+    data = get_data(os.path.expandvars(kwargs['input_fname']))
     compound_names = get_compound_names(data)[0]
     file_names = get_file_names(data)
 
     nCols = kwargs['nCols']
     scale_y = kwargs['scale_y']
-    output_loc = kwargs['output_loc']
+    output_loc = os.path.expandvars(kwargs['output_loc'])
 #
 #    data = kwargs['data']
 #    nCols = kwargs['nCols']
@@ -294,12 +294,12 @@ def plot_all_files_for_each_compound(**kwargs):
 
     """
 
-    data = get_data(kwargs['input_fname'])
+    data = get_data(os.path.expandvars(kwargs['input_fname']))
     compound_names = get_compound_names(data)[0]
     file_names = get_file_names(data)
     nCols = kwargs['nCols']
     scale_y = kwargs['scale_y']
-    output_loc = kwargs['output_loc']
+    output_loc = os.path.expandvars(kwargs['output_loc'])
 
     nRows = int(np.ceil(len(file_names)/float(nCols)))
     print 'nrows = ', nRows 
