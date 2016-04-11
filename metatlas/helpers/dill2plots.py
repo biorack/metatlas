@@ -75,7 +75,7 @@ def get_data(fname):
     -------
 
     """
-    with open(my_file,'r') as f:
+    with open(fname,'r') as f:
         data = dill.load(f)
 
     return data
@@ -339,9 +339,7 @@ def plot_all_files_for_each_compound(**kwargs):
         os.makedirs(output_loc)
 
     for compound_idx,compound in enumerate(compound_names):
-        print 10*'*'  
         print compound
-        print 10*'*'  
 
         
         ax = plt.subplot(111)#, aspect='equal')
@@ -391,7 +389,7 @@ def plot_all_files_for_each_compound(**kwargs):
         fig = plt.gcf()
         fig.set_size_inches(11, 8.5)
         #fig.savefig('/tmp/' + compound + '-' + str(counter) + '.pdf')
-        fig.savefig(os.path.join(output_loc, my_file + '-' + str(counter) + '.pdf'))
+        fig.savefig(os.path.join(output_loc, compound + '-' + str(counter) + '.pdf'))
         plt.clf()
 
 
@@ -402,15 +400,21 @@ if __name__ == '__main__':
     output_loc = os.path.expandvars(sys.argv[2])
 
 
+
     nCols = 10
     argument = {'input_fname':input_fname,
                 'nCols': nCols,
-                'scale_y' : True,
+                'scale_y' : False,
                 'output_loc': output_loc
                }
 
     plot_all_compounds_for_each_file(**argument)
-    #plot_all_files_for_each_compound(**argument)
+    argument = {'input_fname':input_fname,
+                'nCols': 20,
+                'scale_y' : False,
+                'output_loc': '/home/jimmy/ben/neg/unscaled/allfiles'
+                }
+    plot_all_files_for_each_compound(**argument)
 
 
 
