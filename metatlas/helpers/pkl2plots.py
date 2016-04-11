@@ -177,15 +177,21 @@ def plot_all_compounds_for_each_file(**kwargs):
     -------
 
     """
-    data = kwargs['data']
+    data = get_data(kwargs['input_fname'])
+    compound_names = get_compound_names(data)[0]
+    file_names = get_file_names(data)
+
     nCols = kwargs['nCols']
-    nRows = kwargs['nRows']
-    file_names = kwargs['file_names']
-    compound_names = kwargs['compound_names']
-    project_label = kwargs['project_label']
-    plot_type = kwargs['plot_type'] #multi_pdf, one_pdf, png
     scale_y = kwargs['scale_y']
-    
+    output_loc = kwargs['output_loc']
+#
+#    data = kwargs['data']
+#    nCols = kwargs['nCols']
+#    file_names = kwargs['file_names']
+#    compound_names = kwargs['compound_names']
+#    scale_y = kwargs['scale_y']
+#    output_fname = kwargs['output_fname']
+
     nRows = int(np.ceil(len(compound_names)/float(nCols)))
     print nRows
     print len(compound_names) 
@@ -214,12 +220,18 @@ def plot_all_compounds_for_each_file(**kwargs):
                 d = data[file_idx][compound_idx]
                 if len(d['data']['eic']['rt']) > 0:
                     y_max.append(max(d['data']['eic']['intensity']))
-    print "length of ymax is ", len(y_max)
-    return
     y_max = cycle(y_max)
 
+
+
+
+    # create ouput dir
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+
+
     for file_idx,my_file in enumerate(file_names):
-        #print my_file
+        print my_file
         
         ax = plt.subplot(111)#, aspect='equal')
         plt.setp(ax, 'frame_on', False)
@@ -266,7 +278,8 @@ def plot_all_compounds_for_each_file(**kwargs):
         plt.title(my_file)
         fig = plt.gcf()
         fig.set_size_inches(11, 8.5)
-        fig.savefig('/home/jimmy/ben2/' + my_file + '-' + str(counter) + '.pdf')
+        #fig.savefig('/home/jimmy/ben2/neg/' + my_file + '-' + str(counter) + '.pdf')
+        fig.savefig(os.path.join(output_loc, my_file + '-' + str(counter) + '.pdf'))
         plt.clf()
 
 
@@ -280,14 +293,13 @@ def plot_all_files_for_each_compound(**kwargs):
     -------
 
     """
-    data = kwargs['data']
+
+    data = get_data(kwargs['input_fname'])
+    compound_names = get_compound_names(data)[0]
+    file_names = get_file_names(data)
     nCols = kwargs['nCols']
-    nRows = kwargs['nRows']
-    file_names = kwargs['file_names']
-    compound_names = kwargs['compound_names']
-    project_label = kwargs['project_label']
-    plot_type = kwargs['plot_type'] #multi_pdf, one_pdf, png
     scale_y = kwargs['scale_y']
+    output_loc = kwargs['output_loc']
 
     nRows = int(np.ceil(len(file_names)/float(nCols)))
     print 'nrows = ', nRows 
@@ -309,7 +321,7 @@ def plot_all_files_for_each_compound(**kwargs):
                     y = max(d['data']['eic']['intensity'])
                     if y > temp:
                         temp = y
-            y_max = [temp] * counter
+            y_max += [temp] * counter
     else:
         for compound_idx,compound in enumerate(compound_names):
             for file_idx,my_file in enumerate(file_names):
@@ -317,7 +329,14 @@ def plot_all_files_for_each_compound(**kwargs):
                 if len(d['data']['eic']['rt']) > 0:
                     y_max.append(max(d['data']['eic']['intensity']))
 
+    print "length of ymax is ", len(y_max)
     y_max = cycle(y_max)
+
+
+
+    # create ouput dir
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
 
     for compound_idx,compound in enumerate(compound_names):
         print 10*'*'  
@@ -371,41 +390,26 @@ def plot_all_files_for_each_compound(**kwargs):
         plt.title(compound)
         fig = plt.gcf()
         fig.set_size_inches(11, 8.5)
-        fig.savefig('/tmp/' + compound + '-' + str(counter) + '.pdf')
+        #fig.savefig('/tmp/' + compound + '-' + str(counter) + '.pdf')
+        fig.savefig(os.path.join(output_loc, my_file + '-' + str(counter) + '.pdf'))
         plt.clf()
 
 
 if __name__ == '__main__':
-    my_file = '/home/jimmy/Downloads/20160119_KZ_Negative_QE_HILIC_Avena_Uptake.pkl'
+    import sys
 
-    project_label = '20160119_KZ_Positive_QE_HILIC_Avena_Uptake'
+    input_fname = os.path.expandvars(sys.argv[1])
+    output_loc = os.path.expandvars(sys.argv[2])
 
 
-    data = get_data(my_file)
-    compound_names = get_compound_names(data)[0]
-    file_names = get_file_names(data)
     nCols = 10
-    nRows = 6
-    argument = {'data':data,
-            'nCols': nCols,
-            'nRows': nRows,
-            'file_names': file_names,
-            'compound_names': compound_names,
-            'project_label': project_label,
-            'plot_type':'one_pdf',
-            'scale_y' : True
-           }
+    argument = {'input_fname':input_fname,
+                'nCols': nCols,
+                'scale_y' : True,
+                'output_loc': output_loc
+               }
+
     plot_all_compounds_for_each_file(**argument)
-    nCols = 9
-    nRows = 6
-    argument = {'data':data,
-            'nCols': nCols,
-            'nRows': nRows,
-            'file_names': file_names,
-            'compound_names': compound_names,
-            'project_label': project_label,
-            'plot_type':'one_pdf'
-           }
     #plot_all_files_for_each_compound(**argument)
 
 
