@@ -393,6 +393,281 @@ def plot_all_files_for_each_compound(**kwargs):
         plt.clf()
 
 
+        
+        
+
+def plot_chromatogram(d,file_name, ax=None):
+    import numpy as np
+    from textwrap import wrap
+    if ax is None:
+        ax = plt.gca()
+
+    plt.rcParams['pdf.fonttype']=42
+    plt.rcParams['pdf.use14corefonts'] = True
+    plt.rcParams['text.usetex'] = False
+    plt.rcParams.update({'font.size': 12})
+    plt.rcParams.update({'font.weight': 'bold'})
+    plt.rcParams['axes.linewidth'] = 2 # set the value globally
+
+    rt_min = d['identification'].rt_references[0].rt_min
+    rt_max = d['identification'].rt_references[0].rt_max
+    rt_peak = d['identification'].rt_references[0].rt_peak
+        
+    if len(d['data']['eic']['rt']) > 0:
+        x = d['data']['eic']['rt']
+        y = d['data']['eic']['intensity']
+        ax.plot(x,y,'k-',linewidth=2.0,alpha=1.0)  
+        myWhere = np.logical_and(x>=rt_min, x<=rt_max )
+        ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=0.3)
+
+    ax.axvline(rt_min, color='k',linewidth=2.0)
+    ax.axvline(rt_max, color='k',linewidth=2.0)
+    ax.axvline(rt_peak, color='r',linewidth=2.0)
+#     ax.set_xlabel('Time (min)',weight='bold')
+#     ax.set_ylabel('Intensity (au)',weight='bold')
+
+    ax.set_title("\n".join(wrap(file_name,54)),fontsize=12,weight='bold')
+
+def plot_all_chromatograms_all_files(data,nCols,export_file_names,export_compound_names,share_y,project_label):
+    import time
+    import os.path
+    d = 'data/%s/chromatograms/'%project_label
+    if not os.path.exists(d):
+        os.makedirs(d)
+    nRows = int(np.ceil(len(export_file_names)/float(nCols)))
+    for compound_idx,compound in enumerate(export_compound_names):
+        ##### disable this if you want to overwrite your old plots ######
+#         if not os.path.isfile('%s%s.pdf'%(d,export_compound_names[compound_idx])):
+            starttime = time.time()
+            f, ax = plt.subplots(nRows, nCols, sharey=share_y,figsize=(8*nCols,nRows * 6)) #original 8 x 6
+    #         plt.tight_layout()
+            print "figure created in ", time.time() - starttime, " seconds"
+            ax = ax.flatten()
+            parttime = time.time()
+            for i,fname in enumerate(export_file_names):
+                p = plot_chromatogram(data[i][compound_idx], fname, ax=ax[i])
+            print i, "subplots created in ", time.time() - parttime, " seconds"
+    #         parttime = time.time()
+    #         print "tight layout is ", time.time() - parttime, " seconds"
+            parttime = time.time()
+            f.savefig('%s%s.pdf'%(d,export_compound_names[compound_idx]))
+            print "time to save figure is ", time.time() - parttime, " seconds"
+            parttime = time.time()
+    #         f.clear()
+            plt.close('all')#f.clear()
+            print "time to clear and close figure is ", time.time() - parttime, " seconds"
+            print " "
+
+
+def plot_all_compounds_for_each_file(data,nCols,export_file_names,export_compound_names,share_y,project_label):
+    import time
+    d = 'data/%s/one_file_chromatograms/'%project_label
+    if not os.path.exists(d):
+        os.makedirs(d)
+    nRows = int(np.ceil(len(export_compound_names)/float(nCols)))
+    for file_idx,my_file in enumerate(export_file_names):
+        f, ax = plt.subplots(nRows, nCols, sharey=share_y,figsize=(8*nCols,nRows * 6)) #original 8 x 6
+#         plt.tight_layout()
+        ax = ax.flatten()
+        for i,compound in enumerate(export_compound_names):
+            p = plot_chromatogram(data[file_idx][i], compound, ax=ax[i])
+        f.savefig('%s%s.pdf'%(d,export_file_names[file_idx]))
+        plt.close('all')#f.clear()
+
+
+
+""" contribution from Hans de Winter """
+def _InitialiseNeutralisationReactions():
+    patts= (
+        # Imidazoles
+        ('[n+;H]','n'),
+        # Amines
+        ('[N+;!H0]','N'),
+        # Carboxylic acids and alcohols
+        ('[$([O-]);!$([O-][#7])]','O'),
+        # Thiols
+        ('[S-;X1]','S'),
+        # Sulfonamides
+        ('[$([N-;X2]S(=O)=O)]','N'),
+        # Enamines
+        ('[$([N-;X2][C,N]=C)]','N'),
+        # Tetrazoles
+        ('[n-]','[nH]'),
+        # Sulfoxides
+        ('[$([S-]=O)]','S'),
+        # Amides
+        ('[$([N-]C=O)]','N'),
+        )
+    return [(Chem.MolFromSmarts(x),Chem.MolFromSmiles(y,False)) for x,y in patts]
+
+_reactions=None
+def NeutraliseCharges(mol, reactions=None):
+    global _reactions
+    if reactions is None:
+        if _reactions is None:
+            _reactions=_InitialiseNeutralisationReactions()
+        reactions=_reactions
+#     mol = Chem.MolFromSmiles(smiles)
+    replaced = False
+    for i,(reactant, product) in enumerate(reactions):
+        while mol.HasSubstructMatch(reactant):
+            replaced = True
+            rms = AllChem.ReplaceSubstructs(mol, reactant, product)
+            rms_smiles = Chem.MolToSmiles(rms[0])
+            mol = Chem.MolFromSmiles(rms_smiles)
+    if replaced:
+        return (mol, True) #Chem.MolToSmiles(mol,True)
+    else:
+        return (mol, False)
+def drawStructure_ShowingFragment(pactolus_tree,fragment_idx,myMol,myMol_w_Hs):
+
+    drawer = rdMolDraw2D.MolDraw2DSVG(600,300)
+
+    fragment_atoms = np.where(pactolus_tree[fragment_idx]['atom_bool_arr'])[0]
+    mark_atoms_no_H = []
+    for a_index in fragment_atoms:
+        if myMol_w_Hs.GetAtomWithIdx(a_index).GetSymbol() != 'H':
+            mark_atoms_no_H.append(a_index)
+
+    rdDepictor.Compute2DCoords(myMol)
+
+    drawer.DrawMolecule(myMol,highlightAtoms=mark_atoms_no_H)
+    drawer.FinishDrawing()
+    svg = drawer.GetDrawingText().replace('svg:','')
+    return svg
+
+def drawStructure_Fragment(pactolus_tree,fragment_idx,myMol,myMol_w_Hs):
+    fragment_atoms = np.where(pactolus_tree[fragment_idx]['atom_bool_arr'])[0]
+    depth_of_hit = np.sum(pactolus_tree[fragment_idx]['bond_bool_arr'])
+    mol2 = deepcopy(myMol_w_Hs)
+    # Now set the atoms you'd like to remove to dummy atoms with atomic number 0
+    fragment_atoms = np.where(pactolus_tree[fragment_idx]['atom_bool_arr']==False)[0]
+    for f in fragment_atoms:
+        mol2.GetAtomWithIdx(f).SetAtomicNum(0)
+
+    # Now remove dummy atoms using a query
+    mol3 = Chem.DeleteSubstructs(mol2, Chem.MolFromSmarts('[#0]'))
+    mol3 = Chem.RemoveHs(mol3)
+    # You get what you are looking for
+    return moltosvg(mol3),depth_of_hit
+
+
+def moltosvg(mol,molSize=(450,150),kekulize=True):
+    mc = Chem.Mol(mol.ToBinary())
+    if kekulize:
+        try:
+            Chem.Kekulize(mc)
+        except:
+            mc = Chem.Mol(mol.ToBinary())
+    if not mc.GetNumConformers():
+        rdDepictor.Compute2DCoords(mc)
+    drawer = rdMolDraw2D.MolDraw2DSVG(molSize[0],molSize[1])
+    drawer.DrawMolecule(mc)
+    drawer.FinishDrawing()
+    svg = drawer.GetDrawingText()
+    # It seems that the svg renderer used doesn't quite hit the spec.
+    # Here are some fixes to make it work in the notebook, although I think
+    # the underlying issue needs to be resolved at the generation step
+    return svg.replace('svg:','')
+
+def get_ion_from_fragment(frag_info,spectrum):
+    hit_indices = np.where(np.sum(frag_info,axis=1))
+    hit = spectrum[hit_indices,:][0]
+    return hit,hit_indices
+
+
+
+#plot msms and annotate
+#compound name
+#formula
+#adduct
+#theoretical m/z
+#histogram of retention times
+#scatter plot of retention time with peak area
+#retention time
+#print all chromatograms
+#structure
+
+def file_with_max_precursor_intensity(data,compound_idx):
+    idx = []
+    my_max = 0
+    for i,d in enumerate(data):
+        if d[compound_idx]['data']['msms']['data']:
+            temp = d[compound_idx]['data']['msms']['data']
+            m = np.max(temp['precursor_intensity'])
+            if m > my_max:
+                my_max = m
+                idx = i
+    return idx,my_max
+
+
+def make_identification_figure(data,file_idx,compound_idx,export_name,project_label):
+    d = 'data/%s/identification/'%project_label
+    if not os.path.exists(d):
+        os.makedirs(d)
+    fig = plt.figure(figsize=(20,20))
+#     fig = plt.figure()
+    ax = fig.add_subplot(211)
+    ax.set_title(export_name,fontsize=12,weight='bold')
+    ax.set_xlabel('m/z',fontsize=12,weight='bold')
+    ax.set_ylabel('intensity',fontsize=12,weight='bold')
+
+    #TODO: iterate across all collision energies
+    precursor_intensity = data[idx][compound_idx]['data']['msms']['data']['precursor_intensity']
+    idx_max = np.argmax(precursor_intensity).flatten() 
+    
+    mz = data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max]
+    zeros = np.zeros(data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max].shape)
+    intensity = data[idx][compound_idx]['data']['msms']['data']['i'][idx_max]
+
+    ax.vlines(mz,zeros,intensity,colors='r',linewidth = 2)
+    sx = np.argsort(intensity)[::-1]
+    labels = [1.001e9]
+    for i in sx:
+        if np.min(np.abs(mz[i] - labels)) > 0.1 and intensity[i] > 0.02 * np.max(intensity):
+            ax.annotate('%5.4f'%mz[i], xy=(mz[i], 1.01*intensity[i]),rotation = 90, horizontalalignment = 'center', verticalalignment = 'left')
+            labels.append(mz[i])
+
+    plt.tight_layout()
+    L = plt.ylim()
+    plt.ylim(L[0],L[1]*1.12)
+    if data[file_idx][compound_idx]['identification'].compound:
+        inchi =  data[file_idx][compound_idx]['identification'].compound[0].inchi
+        myMol = Chem.MolFromInchi(inchi.encode('utf-8'))
+        myMol,neutralised = NeutraliseCharges(myMol)
+        image = Draw.MolToImage(myMol, size = (300,300) )
+        ax2 = fig.add_subplot(223)
+        ax2.imshow(image)
+        ax2.axis('off')
+    #     SVG(moltosvg(myMol))
+
+    ax3 = fig.add_subplot(224)
+    ax3.set_xlim(0,1)
+    mz_theoretical = data[file_idx][compound_idx]['identification'].mz_references[0].mz
+    mz_measured = data[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']
+    if not mz_measured:
+        mz_measured = 0
+
+    delta_mz = abs(mz_theoretical - mz_measured)
+    delta_ppm = delta_mz / mz_theoretical * 1e6
+    
+    rt_theoretical = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
+    rt_measured = data[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']
+    if not rt_measured:
+        rt_measured = 0
+    ax3.text(0,1,'%s'%os.path.basename(data[file_idx][compound_idx]['lcmsrun'].hdf5_file),fontsize=12)
+    ax3.text(0,0.95,'%s %s'%(export_name, data[file_idx][compound_idx]['identification'].mz_references[0].adduct),fontsize=12)
+    ax3.text(0,0.9,'m/z theoretical = %5.4f, measured = %5.4f, %5.4f ppm difference'%(mz_theoretical, mz_measured, delta_ppm),fontsize=12)
+    ax3.text(0,0.85,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=12)
+    ax3.set_ylim(0.2,1.01)
+    ax3.axis('off')
+#     plt.show()
+    fig.savefig('%sIdentifications_%s.pdf'%(d,export_name))
+    fig.clear()
+    plt.close('all')#f.clear()
+
+
+        
 if __name__ == '__main__':
     import sys
 
