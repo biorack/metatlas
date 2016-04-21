@@ -1,3 +1,46 @@
+import sys
+
+# os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
+curr_ld_lib_path = ''
+
+# os.environ['LD_LIBRARY_PATH'] = curr_ld_lib_path + ':/project/projectdirs/openmsi/jupyterhub_libs/boost_1_55_0/lib' + ':/project/projectdirs/openmsi/jupyterhub_libs/lib'
+
+# sys.path.insert(0, '/project/projectdirs/metatlas/python_pkgs/')
+sys.path.insert(0,'/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages' )
+
+from metatlas import metatlas_objects as metob
+from metatlas import h5_query as h5q
+sys.path.append('/global/project/projectdirs/openmsi/jupyterhub_libs/anaconda/lib/python2.7/site-packages')
+
+import qgrid
+
+from matplotlib import pyplot as plt
+import pandas as pd
+import os
+import tables
+import pickle
+
+
+import dill
+
+import numpy as np
+
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Chem import Draw
+# from rdkit.Chem.rdMolDescriptors import ExactMolWt
+from rdkit.Chem import Descriptors
+from rdkit.Chem import rdMolDescriptors
+from rdkit.Chem import AllChem
+from rdkit.Chem import Draw
+from rdkit.Chem import rdDepictor
+from rdkit.Chem.Draw import rdMolDraw2D
+from rdkit.Chem.Draw import IPythonConsole
+from IPython.display import SVG,display
+
+
+
+
 #import sys
 #from metatlas import metatlas_objects as metob
 #from metatlas import h5_query as h5q
@@ -30,6 +73,7 @@ import os.path
 from itertools import cycle
 
 
+    
 def getcommonletters(strlist):
     """
     Parameters
@@ -231,8 +275,6 @@ def plot_all_compounds_for_each_file(**kwargs):
 
 
     for file_idx,my_file in enumerate(file_names):
-        print my_file
-        
         ax = plt.subplot(111)#, aspect='equal')
         plt.setp(ax, 'frame_on', False)
         ax.set_ylim([0, nRows+4])
@@ -339,9 +381,6 @@ def plot_all_files_for_each_compound(**kwargs):
         os.makedirs(output_loc)
 
     for compound_idx,compound in enumerate(compound_names):
-        print compound
-
-        
         ax = plt.subplot(111)#, aspect='equal')
         plt.setp(ax, 'frame_on', False)
         ax.set_ylim([0, nRows+7])
@@ -374,7 +413,7 @@ def plot_all_files_for_each_compound(**kwargs):
                 ax.plot(new_x, y+row,'k-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
                 #ax.annotate('plot={}'.format(col+1),(max(new_x)/2+col*subrange,row-0.1), size=5,ha='center')
                 ax.annotate(xlbl,(min(new_x),row-0.1), size=2)
-                ax.annotate('{0},{1},{2},{3}'.format(my_file,rt_min, rt_peak, rt_max),(min(new_x),row-0.2), size=1)#,ha='center')
+                ax.annotate('{0},{1},{2},{3}'.format(my_file,rt_min, rt_peak, rt_max),(min(new_x),row-0.2), size=2)#,ha='center')
                 myWhere = np.logical_and(new_x>=rt_min_, new_x<=rt_max_ )
                 ax.fill_between(new_x,min(y)+row,y+row,myWhere, facecolor='c', alpha=0.3)
                 col += 1
@@ -394,86 +433,7 @@ def plot_all_files_for_each_compound(**kwargs):
 
 
         
-        
-
-def plot_chromatogram(d,file_name, ax=None):
-    import numpy as np
-    from textwrap import wrap
-    if ax is None:
-        ax = plt.gca()
-
-    plt.rcParams['pdf.fonttype']=42
-    plt.rcParams['pdf.use14corefonts'] = True
-    plt.rcParams['text.usetex'] = False
-    plt.rcParams.update({'font.size': 12})
-    plt.rcParams.update({'font.weight': 'bold'})
-    plt.rcParams['axes.linewidth'] = 2 # set the value globally
-
-    rt_min = d['identification'].rt_references[0].rt_min
-    rt_max = d['identification'].rt_references[0].rt_max
-    rt_peak = d['identification'].rt_references[0].rt_peak
-        
-    if len(d['data']['eic']['rt']) > 0:
-        x = d['data']['eic']['rt']
-        y = d['data']['eic']['intensity']
-        ax.plot(x,y,'k-',linewidth=2.0,alpha=1.0)  
-        myWhere = np.logical_and(x>=rt_min, x<=rt_max )
-        ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=0.3)
-
-    ax.axvline(rt_min, color='k',linewidth=2.0)
-    ax.axvline(rt_max, color='k',linewidth=2.0)
-    ax.axvline(rt_peak, color='r',linewidth=2.0)
-#     ax.set_xlabel('Time (min)',weight='bold')
-#     ax.set_ylabel('Intensity (au)',weight='bold')
-
-    ax.set_title("\n".join(wrap(file_name,54)),fontsize=12,weight='bold')
-
-def plot_all_chromatograms_all_files(data,nCols,export_file_names,export_compound_names,share_y,project_label):
-    import time
-    import os.path
-    d = 'data/%s/chromatograms/'%project_label
-    if not os.path.exists(d):
-        os.makedirs(d)
-    nRows = int(np.ceil(len(export_file_names)/float(nCols)))
-    for compound_idx,compound in enumerate(export_compound_names):
-        ##### disable this if you want to overwrite your old plots ######
-#         if not os.path.isfile('%s%s.pdf'%(d,export_compound_names[compound_idx])):
-            starttime = time.time()
-            f, ax = plt.subplots(nRows, nCols, sharey=share_y,figsize=(8*nCols,nRows * 6)) #original 8 x 6
-    #         plt.tight_layout()
-            print "figure created in ", time.time() - starttime, " seconds"
-            ax = ax.flatten()
-            parttime = time.time()
-            for i,fname in enumerate(export_file_names):
-                p = plot_chromatogram(data[i][compound_idx], fname, ax=ax[i])
-            print i, "subplots created in ", time.time() - parttime, " seconds"
-    #         parttime = time.time()
-    #         print "tight layout is ", time.time() - parttime, " seconds"
-            parttime = time.time()
-            f.savefig('%s%s.pdf'%(d,export_compound_names[compound_idx]))
-            print "time to save figure is ", time.time() - parttime, " seconds"
-            parttime = time.time()
-    #         f.clear()
-            plt.close('all')#f.clear()
-            print "time to clear and close figure is ", time.time() - parttime, " seconds"
-            print " "
-
-
-def plot_all_compounds_for_each_file(data,nCols,export_file_names,export_compound_names,share_y,project_label):
-    import time
-    d = 'data/%s/one_file_chromatograms/'%project_label
-    if not os.path.exists(d):
-        os.makedirs(d)
-    nRows = int(np.ceil(len(export_compound_names)/float(nCols)))
-    for file_idx,my_file in enumerate(export_file_names):
-        f, ax = plt.subplots(nRows, nCols, sharey=share_y,figsize=(8*nCols,nRows * 6)) #original 8 x 6
-#         plt.tight_layout()
-        ax = ax.flatten()
-        for i,compound in enumerate(export_compound_names):
-            p = plot_chromatogram(data[file_idx][i], compound, ax=ax[i])
-        f.savefig('%s%s.pdf'%(d,export_file_names[file_idx]))
-        plt.close('all')#f.clear()
-
+  
 
 
 """ contribution from Hans de Winter """
@@ -588,11 +548,40 @@ def get_ion_from_fragment(frag_info,spectrum):
 #print all chromatograms
 #structure
 
+def make_output_dataframe(**kwargs):
+    data = get_data(os.path.expandvars(kwargs['input_fname']))
+    compound_names = get_compound_names(data)[0]
+    file_names = get_file_names(data)
+    group_names = get_group_names(data)
+    output_loc = os.path.expandvars(kwargs['output_loc'])
+    fieldname = kwargs['fieldname']
+    
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+    
+    df = pd.DataFrame( index=compound_names, columns=file_names, dtype=float)
+
+    # peak_height['compound'] = compound_list
+    # peak_height.set_index('compound',drop=True)
+    for i,dd in enumerate(data):
+        for j,d in enumerate(dd):
+            if not d['data']['ms1_summary'][fieldname]:
+                df.ix[compound_names[j],file_names[i]] = 0
+            else:
+                df.ix[compound_names[j],file_names[i]] = d['data']['ms1_summary'][fieldname]  
+    columns = []
+    for i,f in enumerate(file_names):
+        columns.append((group_names[i],f))
+    df.columns = pd.MultiIndex.from_tuples(columns,names=['group', 'file'])
+
+    df.to_csv(os.path.join(output_loc, fieldname + '.tab'),sep='\t')
+    return df
+
 def file_with_max_precursor_intensity(data,compound_idx):
     idx = []
     my_max = 0
     for i,d in enumerate(data):
-        if d[compound_idx]['data']['msms']['data']:
+        if type(d[compound_idx]['data']['msms']['data']) != list:#.has_key('precursor_intensity'):
             temp = d[compound_idx]['data']['msms']['data']
             m = np.max(temp['precursor_intensity'])
             if m > my_max:
@@ -600,73 +589,158 @@ def file_with_max_precursor_intensity(data,compound_idx):
                 idx = i
     return idx,my_max
 
-
-def make_identification_figure(data,file_idx,compound_idx,export_name,project_label):
-    d = 'data/%s/identification/'%project_label
-    if not os.path.exists(d):
-        os.makedirs(d)
-    fig = plt.figure(figsize=(20,20))
-#     fig = plt.figure()
-    ax = fig.add_subplot(211)
-    ax.set_title(export_name,fontsize=12,weight='bold')
-    ax.set_xlabel('m/z',fontsize=12,weight='bold')
-    ax.set_ylabel('intensity',fontsize=12,weight='bold')
-
-    #TODO: iterate across all collision energies
-    precursor_intensity = data[idx][compound_idx]['data']['msms']['data']['precursor_intensity']
-    idx_max = np.argmax(precursor_intensity).flatten() 
+def plot_errorbar_plots(df,**kwargs):#df,compound_list,project_label):
     
-    mz = data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max]
-    zeros = np.zeros(data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max].shape)
-    intensity = data[idx][compound_idx]['data']['msms']['data']['i'][idx_max]
-
-    ax.vlines(mz,zeros,intensity,colors='r',linewidth = 2)
-    sx = np.argsort(intensity)[::-1]
-    labels = [1.001e9]
-    for i in sx:
-        if np.min(np.abs(mz[i] - labels)) > 0.1 and intensity[i] > 0.02 * np.max(intensity):
-            ax.annotate('%5.4f'%mz[i], xy=(mz[i], 1.01*intensity[i]),rotation = 90, horizontalalignment = 'center', verticalalignment = 'left')
-            labels.append(mz[i])
-
-    plt.tight_layout()
-    L = plt.ylim()
-    plt.ylim(L[0],L[1]*1.12)
-    if data[file_idx][compound_idx]['identification'].compound:
-        inchi =  data[file_idx][compound_idx]['identification'].compound[0].inchi
-        myMol = Chem.MolFromInchi(inchi.encode('utf-8'))
-        myMol,neutralised = NeutraliseCharges(myMol)
-        image = Draw.MolToImage(myMol, size = (300,300) )
-        ax2 = fig.add_subplot(223)
-        ax2.imshow(image)
-        ax2.axis('off')
-    #     SVG(moltosvg(myMol))
-
-    ax3 = fig.add_subplot(224)
-    ax3.set_xlim(0,1)
-    mz_theoretical = data[file_idx][compound_idx]['identification'].mz_references[0].mz
-    mz_measured = data[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']
-    if not mz_measured:
-        mz_measured = 0
-
-    delta_mz = abs(mz_theoretical - mz_measured)
-    delta_ppm = delta_mz / mz_theoretical * 1e6
+    data = get_data(os.path.expandvars(kwargs['input_fname']))
+    compound_names = get_compound_names(data)[0]
+    file_names = get_file_names(data)
+    output_loc = os.path.expandvars(kwargs['output_loc'])
     
-    rt_theoretical = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
-    rt_measured = data[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']
-    if not rt_measured:
-        rt_measured = 0
-    ax3.text(0,1,'%s'%os.path.basename(data[file_idx][compound_idx]['lcmsrun'].hdf5_file),fontsize=12)
-    ax3.text(0,0.95,'%s %s'%(export_name, data[file_idx][compound_idx]['identification'].mz_references[0].adduct),fontsize=12)
-    ax3.text(0,0.9,'m/z theoretical = %5.4f, measured = %5.4f, %5.4f ppm difference'%(mz_theoretical, mz_measured, delta_ppm),fontsize=12)
-    ax3.text(0,0.85,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=12)
-    ax3.set_ylim(0.2,1.01)
-    ax3.axis('off')
-#     plt.show()
-    fig.savefig('%sIdentifications_%s.pdf'%(d,export_name))
-    fig.clear()
-    plt.close('all')#f.clear()
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+        
+
+    for compound in compound_names:
+        m = df.ix[compound].groupby(level='group').mean()
+        e = df.ix[compound].groupby(level='group').std()
+        c = df.ix[compound].groupby(level='group').count()
+
+        for i in range(len(e)):
+            if c[i]>0:
+                e[i] = e[i] / c[i]**0.5
+
+        f, ax = plt.subplots(1, 1,figsize=(20,12))
+        m.plot(yerr=e, kind='bar',ax=ax)
+        ax.set_title(compound,fontsize=12,weight='bold')
+        plt.tight_layout()
+        f.savefig(os.path.join(output_loc, compound + '_errorbar.pdf'))
+
+        f.clear()
+        plt.close('all')#f.clear()
 
 
+def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name,project_label):
+    #  d = 'data/%s/identification/'%project_label
+    
+    data = get_data(os.path.expandvars(kwargs['input_fname']))
+    compound_names = get_compound_names(data)[0]
+    file_names = get_file_names(data)
+    output_loc = os.path.expandvars(kwargs['output_loc'])
+    
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+    
+    
+    for compound_idx in range(len(compound_names)):
+        file_idx, m = file_with_max_precursor_intensity(data,compound_idx)
+        if m:
+            fig = plt.figure(figsize=(20,20))
+        #     fig = plt.figure()
+            ax = fig.add_subplot(211)
+            ax.set_title(compound_names[compound_idx],fontsize=12,weight='bold')
+            ax.set_xlabel('m/z',fontsize=12,weight='bold')
+            ax.set_ylabel('intensity',fontsize=12,weight='bold')
+
+            #TODO: iterate across all collision energies
+            precursor_intensity = data[file_idx][compound_idx]['data']['msms']['data']['precursor_intensity']
+            idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten() 
+
+            mz = data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max]
+            zeros = np.zeros(data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max].shape)
+            intensity = data[file_idx][compound_idx]['data']['msms']['data']['i'][idx_max]
+
+            ax.vlines(mz,zeros,intensity,colors='r',linewidth = 2)
+            sx = np.argsort(intensity)[::-1]
+            labels = [1.001e9]
+            for i in sx:
+                if np.min(np.abs(mz[i] - labels)) > 0.1 and intensity[i] > 0.02 * np.max(intensity):
+                    ax.annotate('%5.4f'%mz[i], xy=(mz[i], 1.01*intensity[i]),rotation = 90, horizontalalignment = 'center', verticalalignment = 'left')
+                    labels.append(mz[i])
+
+            plt.tight_layout()
+            L = plt.ylim()
+            plt.ylim(L[0],L[1]*1.12)
+            if data[file_idx][compound_idx]['identification'].compound:
+                inchi =  data[file_idx][compound_idx]['identification'].compound[0].inchi
+                myMol = Chem.MolFromInchi(inchi.encode('utf-8'))
+                myMol,neutralised = NeutraliseCharges(myMol)
+                image = Draw.MolToImage(myMol, size = (300,300) )
+                ax2 = fig.add_subplot(223)
+                ax2.imshow(image)
+                ax2.axis('off')
+            #     SVG(moltosvg(myMol))
+
+            ax3 = fig.add_subplot(224)
+            ax3.set_xlim(0,1)
+            mz_theoretical = data[file_idx][compound_idx]['identification'].mz_references[0].mz
+            mz_measured = data[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']
+            if not mz_measured:
+                mz_measured = 0
+
+            delta_mz = abs(mz_theoretical - mz_measured)
+            delta_ppm = delta_mz / mz_theoretical * 1e6
+
+            rt_theoretical = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
+            rt_measured = data[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']
+            if not rt_measured:
+                rt_measured = 0
+            ax3.text(0,1,'%s'%os.path.basename(data[file_idx][compound_idx]['lcmsrun'].hdf5_file),fontsize=12)
+            ax3.text(0,0.95,'%s %s'%(compound_names[compound_idx], data[file_idx][compound_idx]['identification'].mz_references[0].adduct),fontsize=12)
+            ax3.text(0,0.9,'m/z theoretical = %5.4f, measured = %5.4f, %5.4f ppm difference'%(mz_theoretical, mz_measured, delta_ppm),fontsize=12)
+            ax3.text(0,0.85,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=12)
+            ax3.set_ylim(0.2,1.01)
+            ax3.axis('off')
+        #     plt.show()
+            fig.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
+            fig.clear()
+            plt.close('all')#f.clear()
+
+def export_atlas_to_spreadsheet(myAtlas,output_filename):
+    # myAtlases = [atlas[0],atlas[1]] #concatenate the atlases you want to use
+    # myAtlases = [atlas[0]]
+    compound_list = []
+    for i in range(len(myAtlas.compound_identifications)):
+        if myAtlas.compound_identifications[i].compound:
+            compound_list.append(myAtlas.compound_identifications[i].compound[0].name)
+        else:
+            compound_list.append(myAtlas.compound_identifications[i].name)
+
+    cols = ['inchi',
+     'mono_isotopic_molecular_weight',
+     'creation_time',
+     'description',
+     'formula',
+     'functional_sets',
+     'last_modified',
+     'reference_xrefs',
+     'synonyms',
+     'unique_id',
+     'url',
+     'username']
+
+        # print myAtlas[0].compound_identifications[0].compound
+    atlas_export = pd.DataFrame( index=compound_list, columns=cols)
+
+    atlas_export['name'] = compound_list
+    atlas_export.set_index('name',drop=True)
+    for i in range(len(myAtlas.compound_identifications)):
+        if myAtlas.compound_identifications[i].compound:
+            n = myAtlas.compound_identifications[i].compound[0].name
+        else:
+            n = myAtlas.compound_identifications[i].name
+        if myAtlas.compound_identifications[i].compound:
+            for c in cols:
+                    g = getattr(myAtlas.compound_identifications[i].compound[0],c)
+                    if g:
+                        atlas_export.ix[n,c] = getattr(myAtlas.compound_identifications[i].compound[0],c)
+        atlas_export.ix[n, 'label'] = myAtlas.compound_identifications[i].name
+        atlas_export.ix[n,'rt_min'] = myAtlas.compound_identifications[i].rt_references[0].rt_min
+        atlas_export.ix[n,'rt_max'] = myAtlas.compound_identifications[i].rt_references[0].rt_max
+        atlas_export.ix[n,'rt_peak'] = myAtlas.compound_identifications[i].rt_references[0].rt_peak
+        atlas_export.ix[n,'mz'] = myAtlas.compound_identifications[i].mz_references[0].mz
+        atlas_export.ix[n,'mz_tolerance'] = myAtlas.compound_identifications[i].mz_references[0].mz_tolerance
+        atlas_export.ix[n,'polarity'] = myAtlas.compound_identifications[i].mz_references[0].detected_polarity
+    atlas_export.to_csv(output_filename)
         
 if __name__ == '__main__':
     import sys
