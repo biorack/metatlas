@@ -741,7 +741,242 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename):
         atlas_export.ix[n,'mz_tolerance'] = myAtlas.compound_identifications[i].mz_references[0].mz_tolerance
         atlas_export.ix[n,'polarity'] = myAtlas.compound_identifications[i].mz_references[0].detected_polarity
     atlas_export.to_csv(output_filename)
+
+    
+def get_data_for_groups_and_atlas(group,myAtlas,output_filename):
+    data = []
+    for i,treatment_groups in enumerate(group):
+        for j in range(len(treatment_groups.items)):
+            myFile = treatment_groups.items[j].hdf5_file
+    #         try:
+    #             rt_reference_index = int(treatment_groups.name[-1]) - 1
+    #         except:
+    #             rt_reference_index = 3
+            print i,len(group),myFile
+            row = []
+            for compound in myAtlas.compound_identifications:
+                result = {}
+                result['lcmsrun'] = treatment_groups.items[j]
+                result['group'] = treatment_groups
+                temp_compound = copy.deepcopy(compound)
+                if '_Set1' in treatment_groups.name:
+                    temp_compound.rt_references[0].rt_min -= 0.2
+                    temp_compound.rt_references[0].rt_max -= 0.2
+                    temp_compound.rt_references[0].rt_peak -= 0.2
+                temp_compound.mz_references[0].mz_tolerance = 20
+                result['identification'] = temp_compound
+                result['data'] = ma_data.get_data_for_a_compound(temp_compound.mz_references[0],
+                                        temp_compound.rt_references[0],
+                                        [ 'ms1_summary', 'eic', 'msms' ],
+                                        myFile,0.2)
+    #                 print result['data']['ms1_summary']
+                row.append(result)
+            data.append(row)
+        with open(output_filename,'w') as f:
+            dill.dump(data,f)
+
+def filter_metatlas_objects_to_most_recent(object_list,field):
+    #from datetime import datetime, date
+    #remove from list if another copy exists that is newer
+    unique_values = []
+    for i,a in enumerate(object_list):
+        unique_values.append( getattr(a,field) )
+    unique_values = list(set(unique_values))
+    keep_object_list = []
+    for u in unique_values:
+        old_last_modified = 0
+        for i,a in enumerate(object_list):
+            if getattr(a,field) == u:
+                last_modified = getattr(a,'last_modified')
+                if last_modified > old_last_modified:
+                    keep_object = a
+                    old_last_modified = last_modified
+        keep_object_list.append(keep_object)
+    return keep_object_list
+#        print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
+    
+def get_metatlas_files(experiment = '%%',name = '%%',most_recent = True):
+    files = metob.retrieve('LcmsRun',experiment=experiment,name=name, username='*')
+    if most_recent:
+        files = filter_metatlas_objects_to_most_recent(files,'mzml_file')
+    return files
+
+def make_empty_fileinfo_sheet(filename,flist):
+    #dump all the files to a spreadheet, download it, and make a "filled in" one.
+    with open(filename,'w') as fid:
+        fid.write('mzml_file\tgroup\tdescription\n')
+        for f in flist:
+            fid.write('%s\t\t\n'%f.mzml_file)
+
+def make_groups_from_fileinfo_sheet(filename,filetype='tab',store=False):
+    '''
+    
+    '''
+    if filetype == 'tab':
+        df = pd.read_csv(filename,sep='\t')
+    elif filetype == 'csv':
+        df = pd.read_csv(filename,sep=',')
+    else:
+        df = pd.read_excel(filename)
+    grouped = df.groupby(by='group')
+    return_groups = []
+    for g in grouped.groups.keys():
+        indices = grouped.groups[g]
+        myGroup = metob.Group()
+        myGroup.name = '%s'%g
+        myGroup.description = df.loc[indices[0],'description']
+        file_set = []
+        for i in indices:
+            file_set.append(metob.retrieve('LcmsRun',mzml_file='%%%s'%df.loc[i,'mzml_file'],username='*')[0])
+        myGroup.items = file_set
+        return_groups.append(myGroup)
+        if store:
+            metob.store(myGroup)
+    return return_groups
+            
+    
+    
+def check_compound_names(df):
+    # compounds that have the wrong compound name will be listed
+    # Keep running this until no more compounds are listed
+    bad_names = []
+    for x in df.index:
+        if type(df.name[x]) != float or type(df.label[x]) != float:
+            if type(df.name[x]) != float:
+                    if not metob.retrieve('Compounds',name=df.name[x]):
+                        print df.name[x], "is not in database"
+                        bad_names.append(df.name[x])
+    return bad_names
+    
+def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='',polarity = 'positive', store=False):
+    '''
+    specify polarity as 'positive' or 'negative'
+    
+    '''
+    if ( filetype=='excel' ) and sheetname:
+        df = pd.read_excel(filename,sheetname=sheetname)
+    elif ( filetype=='excel' ):
+        df = pd.read_excel(filename)
+    elif filetype == 'tab':
+        df = pd.read_csv(filename,sep='\t')
+    else:
+        df = pd.read_csv(filename,sep=',')
+            
+    df.columns = [x.lower() for x in df.columns]
+
+    bad_names = check_compound_names(df)
+    
+    if bad_names:
+        return bad_names
+    
+    myCompounds = []
+    rt_min = []
+    rt_max = []
+    rt_peak = []
+    mz = []
+    mz_tolerance = []
+    compound_label = []
+    for x in df.index:
+        if type(df.name[x]) != float or type(df.label[x]) != float: #this logic is to skip empty rows
+            if type(df.name[x]) != float: # this logic is where a name has been specified
+                c = metob.retrieve('Compounds',name=df.name[x])[0] #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
+            else:
+                c = 'use_label'
+            if type(df.label[x]) != float:
+                compound_label.append(df.label[x]) #if no name, then use label as descriptor
+            else:
+                compound_label.append('no label')
+            myCompounds.append(c)
+            rt_min.append(df.rt_min[x])
+            rt_max.append(df.rt_max[x])
+            rt_peak.append(df.rt_peak[x])
+            mz.append(df.mz[x])
+    #     mz.append(c.mono_isotopic_molecular_weight + 1.007276)
+
+            mz_tolerance.append(df.mz_threshold[x])
+    #     if abs(dmz) > 100:
+    #         dmz = 1e6 * (c.MonoIsotopic_molecular_weight + 59.013851 - df.mz[x] ) / df.mz[x]
+    #         print c.MonoIsotopic_molecular_weight - df.mz[x]
+            #try:
+            #    dmz = 1e6 * (c.mono_isotopic_molecular_weight - 1.007276 - df.mz[x] ) / ( df.mz[x])
+            #    print '%5.2f'%abs(dmz), "\t", c.name,c.formula,c.mono_isotopic_molecular_weight,c.description, df.rt_min[x], df.rt_max[x], df.mz[x]#, c.InChI  
+            #except:
+            #    pass
+        #TODO: See above todo's.  this block needs to be rebuilt
+    #     myID.description = 'mz=%5.4f,ppm=%5.4f,RTmin=%5.4f,RTmax=%5.4f,RTpeak=%5.4f'%(mz[i],
+    #                                                                                  mz_tolerance[i],
+    #                                                                                  rt_min[i],
+    #                                                                                  rt_max[i],
+    #                                                                                  rt_peak[i])
+    #     print myID.references
+
+
+    all_identifications = []
+    for i,c in enumerate(myCompounds):
+        mzRef = metob.MzReference()
+
+        # take the mz value from the spreadsheet
+        mzRef.mz = mz[i]
+
+        #TODO: calculate the mz from theoretical adduct and modification if provided.
+    #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
+        mzRef.mz_tolerance = mz_tolerance[i]
+        mzRef.mz_tolerance_units = 'ppm'
+        mzRef.detected_polarity = polarity
+    #     mzRef.adduct = '[M-H]'
+
+        rtRef = metob.RtReference()
+        rtRef.rt_units = 'min'
+        rtRef.rt_min = rt_min[i]
+        rtRef.rt_max = rt_max[i]
+        rtRef.rt_peak = rt_peak[i]
+
+        myID = metob.CompoundIdentification()
+        if c != 'use_label':
+            myID.compound = [c]
+        myID.name = compound_label[i]
+        myID.mz_references = [mzRef]
+        myID.rt_references = [rtRef]
+
+        all_identifications.append(myID)
+
+    myAtlas = metob.Atlas()
+    #metob.Atlas() has "compound_identifications" and a "name"
+    myAtlas.name = atlas_name
+    myAtlas.compound_identifications = all_identifications
+    if store:
+        metob.store(myAtlas)
+
         
+def select_groups_for_analysis(name = '%%',most_recent = True, remove_empty = True, filter_list = []):
+    groups = metob.retrieve('Groups', name = name, username='*')
+    if most_recent:
+        groups = filter_metatlas_objects_to_most_recent(groups,'name')
+    
+    # temp_group = metob.retrieve('Groups', name = '%Replicate_Analysis_R2A_HILIC_neg%')
+    # print temp_group
+
+    group_filter = []
+
+    # group_filter = ['GBS_Med_Ctrl_Set1','GBS_Med_inc_Set1','JAD2_GBS_Set1',
+    #                 'GBS_4OE_Ctrl_Set1','JAD2_GBS_4OE_Set1','GBS_32OE_Ctrl_Set1',
+    #                 'GBS_32OE_Ctrl_Set2','GBS_32OE_inc_Set2','JAD2_GBS_32OE_Set1JAD2_GBS_32OE_Set2',
+    #                 'GBS_conc_inc_Set2']
+
+    if len(temp_group)==1:
+        group = temp_group
+    else:
+        group = []
+        for i,g in enumerate(temp_group):
+            if (len(g.items) > 0):# and ('RootCass' not in g.name) and ('_QC_' not in g.name):
+                if group_filter:
+                    if any(ext in g.name for ext in group_filter):
+                        group.append(g)
+                else:
+                    group.append(g)
+
+
+
 if __name__ == '__main__':
     import sys
 
