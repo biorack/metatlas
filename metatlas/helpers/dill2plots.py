@@ -460,41 +460,65 @@ def _InitialiseNeutralisationReactions():
         )
     return [(Chem.MolFromSmarts(x),Chem.MolFromSmiles(y,False)) for x,y in patts]
 
-_reactions=None
+
+def desalt(mol):
+    #input is an rdkit mol
+    #returns an rdkit mol keeping the biggest component
+    #returns original mol if only one component
+    #returns a boolean indicated if cleaning was necessary
+    d = Chem.rdmolops.GetMolFrags(mol) #these are atom indices
+    if len(d) == 1: #If there are fragments or multiple molecules this will be greater than 1 
+        return mol,False
+    my_smiles=Chem.MolToSmiles(mol)
+    parent_atom_count=0;
+    disconnected=my_smiles.split('.')
+    #With GetMolFrags, we've already established that there is more than one disconnected structure
+    for s in disconnected:
+        little_mol=Chem.MolFromSmiles(s)
+        count = little_mol.GetNumAtoms()
+        if count > parent_atom_count:
+            parent_atom_count = count
+            parent_mol = little_mol
+    return parent_mol,True
+
+""" contribution from Hans de Winter """
+def _InitialiseNeutralisationReactions():
+    patts= (
+        # Imidazoles
+        ('[n+;H]','n'),
+        # Amines
+        ('[N+;!H0]','N'),
+        # Carboxylic acids and alcohols
+        ('[$([O-]);!$([O-][#7])]','O'),
+        # Thiols
+        ('[S-;X1]','S'),
+        # Sulfonamides
+        ('[$([N-;X2]S(=O)=O)]','N'),
+        # Enamines
+        ('[$([N-;X2][C,N]=C)]','N'),
+        # Tetrazoles
+        ('[n-]','[nH]'),
+        # Sulfoxides
+        ('[$([S-]=O)]','S'),
+        # Amides
+        ('[$([N-]C=O)]','N'),
+        )
+    return [(Chem.MolFromSmarts(x),Chem.MolFromSmiles(y,False)) for x,y in patts]
+
 def NeutraliseCharges(mol, reactions=None):
-    global _reactions
-    if reactions is None:
-        if _reactions is None:
-            _reactions=_InitialiseNeutralisationReactions()
-        reactions=_reactions
-#     mol = Chem.MolFromSmiles(smiles)
+    reactions=_InitialiseNeutralisationReactions()
     replaced = False
     for i,(reactant, product) in enumerate(reactions):
         while mol.HasSubstructMatch(reactant):
             replaced = True
-            rms = AllChem.ReplaceSubstructs(mol, reactant, product)
+            rms = Chem.AllChem.ReplaceSubstructs(mol, reactant, product)
             rms_smiles = Chem.MolToSmiles(rms[0])
             mol = Chem.MolFromSmiles(rms_smiles)
     if replaced:
         return (mol, True) #Chem.MolToSmiles(mol,True)
     else:
         return (mol, False)
-def drawStructure_ShowingFragment(pactolus_tree,fragment_idx,myMol,myMol_w_Hs):
-
-    drawer = rdMolDraw2D.MolDraw2DSVG(600,300)
-
-    fragment_atoms = np.where(pactolus_tree[fragment_idx]['atom_bool_arr'])[0]
-    mark_atoms_no_H = []
-    for a_index in fragment_atoms:
-        if myMol_w_Hs.GetAtomWithIdx(a_index).GetSymbol() != 'H':
-            mark_atoms_no_H.append(a_index)
-
-    rdDepictor.Compute2DCoords(myMol)
-
-    drawer.DrawMolecule(myMol,highlightAtoms=mark_atoms_no_H)
-    drawer.FinishDrawing()
-    svg = drawer.GetDrawingText().replace('svg:','')
-    return svg
+    
 
 def drawStructure_Fragment(pactolus_tree,fragment_idx,myMol,myMol_w_Hs):
     fragment_atoms = np.where(pactolus_tree[fragment_idx]['atom_bool_arr'])[0]
@@ -695,6 +719,27 @@ def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name
             fig.clear()
             plt.close('all')#f.clear()
 
+    
+def match_inchi_key_to_lookup_table(df,compound_lookup = '/global/homes/b/bpb/notebooks/thoughts/uniquecompounds.csv'):
+    '''
+    Until the compound database is updated use this file to check for portable IDs and common names.
+    Takes as input a dataframe with inchi_key as a column and adds the columns from the compound lookup table
+    '''
+    import re
+    lookup_df = pd.read_csv(compound_lookup)
+    for i, row in df.iterrows():
+        if row['neutralized_inchi_key']:
+            idx = lookup_df.metatlas_inchi_key == row['neutralized_inchi_key']
+            for j,idx_val in enumerate(idx):
+                if idx_val:
+                    for k in lookup_df.keys():
+                        s = str(lookup_df.loc[j,k])
+                        s = re.sub('<[^>]*>', '', s)
+                        df.loc[i,k] = s
+    return df
+    
+    
+            
 def export_atlas_to_spreadsheet(myAtlas,output_filename):
     # myAtlases = [atlas[0],atlas[1]] #concatenate the atlases you want to use
     # myAtlases = [atlas[0]]
@@ -734,17 +779,39 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename):
                     if g:
                         atlas_export.ix[n,c] = getattr(myAtlas.compound_identifications[i].compound[0],c)
         atlas_export.ix[n, 'label'] = myAtlas.compound_identifications[i].name
+        
         atlas_export.ix[n,'rt_min'] = myAtlas.compound_identifications[i].rt_references[0].rt_min
         atlas_export.ix[n,'rt_max'] = myAtlas.compound_identifications[i].rt_references[0].rt_max
         atlas_export.ix[n,'rt_peak'] = myAtlas.compound_identifications[i].rt_references[0].rt_peak
         atlas_export.ix[n,'mz'] = myAtlas.compound_identifications[i].mz_references[0].mz
         atlas_export.ix[n,'mz_tolerance'] = myAtlas.compound_identifications[i].mz_references[0].mz_tolerance
         atlas_export.ix[n,'polarity'] = myAtlas.compound_identifications[i].mz_references[0].detected_polarity
-    atlas_export.to_csv(output_filename)
-
     
-def get_data_for_groups_and_atlas(group,myAtlas,output_filename):
+    for i,row in atlas_export.iterrows():
+        mol= []
+        if row['inchi']:
+            mol = Chem.MolFromInchi(row['inchi'].encode('utf-8'))
+        if mol:
+            ds = desalt(mol)
+            c = NeutraliseCharges(ds[0])
+            mol = c[0]
+            atlas_export.loc[i,'permanent_charge'] = Chem.GetFormalCharge(mol)
+            
+            neutral_string = Chem.MolToInchi(mol)
+            atlas_export.loc[i,'neutralized_inchi'] = neutral_string
+            
+            neutral_inchi_key = Chem.InchiToInchiKey(neutral_string)
+            atlas_export.loc[i,'neutralized_inchi_key'] = neutral_inchi_key
+            
+    atlas_export = match_inchi_key_to_lookup_table(atlas_export)
+            
+    
+    atlas_export.to_csv(output_filename)
+    return atlas_export
+    
+def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False):
     data = []
+    import copy as copy
     for i,treatment_groups in enumerate(group):
         for j in range(len(treatment_groups.items)):
             myFile = treatment_groups.items[j].hdf5_file
@@ -759,11 +826,12 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename):
                 result['lcmsrun'] = treatment_groups.items[j]
                 result['group'] = treatment_groups
                 temp_compound = copy.deepcopy(compound)
-                if '_Set1' in treatment_groups.name:
-                    temp_compound.rt_references[0].rt_min -= 0.2
-                    temp_compound.rt_references[0].rt_max -= 0.2
-                    temp_compound.rt_references[0].rt_peak -= 0.2
-                temp_compound.mz_references[0].mz_tolerance = 20
+                if use_set1:
+                    if '_Set1' in treatment_groups.name:
+                        temp_compound.rt_references[0].rt_min -= 0.2
+                        temp_compound.rt_references[0].rt_max -= 0.2
+                        temp_compound.rt_references[0].rt_peak -= 0.2
+                    temp_compound.mz_references[0].mz_tolerance = 20
                 result['identification'] = temp_compound
                 result['data'] = ma_data.get_data_for_a_compound(temp_compound.mz_references[0],
                                         temp_compound.rt_references[0],
@@ -794,7 +862,18 @@ def filter_metatlas_objects_to_most_recent(object_list,field):
         keep_object_list.append(keep_object)
     return keep_object_list
 #        print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
-    
+
+def get_metatlas_atlas(name = '%%',most_recent = True,do_print = True):
+    from datetime import datetime, date
+    atlas = metob.retrieve('Atlas',name = name,username='*')
+    if most_recent:
+        atlas = filter_metatlas_objects_to_most_recent(atlas,'name')
+    for i,a in enumerate(atlas):
+        print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
+
+    return atlas
+
+
 def get_metatlas_files(experiment = '%%',name = '%%',most_recent = True):
     files = metob.retrieve('LcmsRun',experiment=experiment,name=name, username='*')
     if most_recent:
@@ -947,35 +1026,31 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
     if store:
         metob.store(myAtlas)
 
-        
+def filter_empty_metatlas_objects(object_list,field):
+    filtered_list = []
+    for i,g in enumerate(object_list):
+        if (len(getattr(g,field)) > 0):
+            filtered_list.append(g)
+    return filtered_list
+
+def filter_metatlas_objects_by_list(object_list,field,filter_list):
+    filtered_list = []
+    for i,g in enumerate(object_list):
+        if any(ext in getattr(g,field) for ext in filter_list):
+            filtered_list.append(g)
+    return filtered_list
+      
 def select_groups_for_analysis(name = '%%',most_recent = True, remove_empty = True, filter_list = []):
     groups = metob.retrieve('Groups', name = name, username='*')
     if most_recent:
         groups = filter_metatlas_objects_to_most_recent(groups,'name')
     
-    # temp_group = metob.retrieve('Groups', name = '%Replicate_Analysis_R2A_HILIC_neg%')
-    # print temp_group
-
-    group_filter = []
-
-    # group_filter = ['GBS_Med_Ctrl_Set1','GBS_Med_inc_Set1','JAD2_GBS_Set1',
-    #                 'GBS_4OE_Ctrl_Set1','JAD2_GBS_4OE_Set1','GBS_32OE_Ctrl_Set1',
-    #                 'GBS_32OE_Ctrl_Set2','GBS_32OE_inc_Set2','JAD2_GBS_32OE_Set1JAD2_GBS_32OE_Set2',
-    #                 'GBS_conc_inc_Set2']
-
-    if len(temp_group)==1:
-        group = temp_group
-    else:
-        group = []
-        for i,g in enumerate(temp_group):
-            if (len(g.items) > 0):# and ('RootCass' not in g.name) and ('_QC_' not in g.name):
-                if group_filter:
-                    if any(ext in g.name for ext in group_filter):
-                        group.append(g)
-                else:
-                    group.append(g)
-
-
+    if filter_list:
+        groups = filter_metatlas_objects_by_list(groups,'name',filter_list)
+    
+    if remove_empty:
+        groups = filter_empty_metatlas_objects(groups,'items')
+    return groups
 
 if __name__ == '__main__':
     import sys
