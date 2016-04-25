@@ -948,7 +948,7 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
         df = pd.read_csv(filename,sep='\t')
     else:
         df = pd.read_csv(filename,sep=',')
-            
+    df.dropna(how="all", inplace=True)
     df.columns = [x.lower() for x in df.columns]
 
     bad_names = check_compound_names(df)
