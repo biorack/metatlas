@@ -930,7 +930,7 @@ def check_compound_names(df):
     for x in df.index:
         if type(df.name[x]) != float or type(df.label[x]) != float:
             if type(df.name[x]) != float:
-                    if not metob.retrieve('Compounds',name=df.name[x]):
+                    if not metob.retrieve('Compounds',name=df.name[x], username = '*'):
                         print df.name[x], "is not in database"
                         bad_names.append(df.name[x])
     return bad_names
@@ -966,7 +966,7 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
     for x in df.index:
         if type(df.name[x]) != float or type(df.label[x]) != float: #this logic is to skip empty rows
             if type(df.name[x]) != float: # this logic is where a name has been specified
-                c = metob.retrieve('Compounds',name=df.name[x])[0] #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
+                c = metob.retrieve('Compounds',name=df.name[x],username = '*')[0] #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
             else:
                 c = 'use_label'
             if type(df.label[x]) != float:
