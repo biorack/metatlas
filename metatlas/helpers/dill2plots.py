@@ -959,7 +959,6 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
     all_identifications = []
 
     for i,row in df.iterrows():
-        print row
         if type(row.name) != float or type(row.label) != float: #this logic is to skip empty rows
             if type(row.name) != float: # this logic is where a name has been specified
                 c = metob.retrieve('Compounds',name=df.loc[i,'name'],username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
