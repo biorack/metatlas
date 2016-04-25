@@ -1060,6 +1060,10 @@ def select_groups_for_analysis(name = '%%',most_recent = True, remove_empty = Tr
         groups = filter_empty_metatlas_objects(groups,'items')
     return groups
 
+    from datetime import datetime, date
+    for i,a in enumerate(groups):
+        print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
+
 if __name__ == '__main__':
     import sys
 
