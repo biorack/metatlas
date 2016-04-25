@@ -962,40 +962,42 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
         print row
         if type(row.name) != float or type(row.label) != float: #this logic is to skip empty rows
             if type(row.name) != float: # this logic is where a name has been specified
-                c = metob.retrieve('Compounds',name=df.loc[i,'name'],username = '*')[0] #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
+                c = metob.retrieve('Compounds',name=df.loc[i,'name'],username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
+                if c:
+                    c = c[0]
             else:
                 c = 'use_label'
             if type(row.label) != float:
                 compound_label = row.label #if no name, then use label as descriptor
             else:
                 compound_label = 'no label'
-            
-            mzRef = metob.MzReference()
-            # take the mz value from the spreadsheet
-            mzRef.mz = row.mz
-            #TODO: calculate the mz from theoretical adduct and modification if provided.
-            #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
-            mzRef.mz_tolerance = row.mz_threshold
-            mzRef.mz_tolerance_units = 'ppm'
-            mzRef.detected_polarity = polarity
-            #     mzRef.adduct = '[M-H]'   
-            
-            
-            
-            rtRef = metob.RtReference()
-            rtRef.rt_units = 'min'
-            rtRef.rt_min = row.rt_min
-            rtRef.rt_max = row.rt_max
-            rtRef.rt_peak = row.rt_peak
+            if c:
+                mzRef = metob.MzReference()
+                # take the mz value from the spreadsheet
+                mzRef.mz = row.mz
+                #TODO: calculate the mz from theoretical adduct and modification if provided.
+                #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
+                mzRef.mz_tolerance = row.mz_threshold
+                mzRef.mz_tolerance_units = 'ppm'
+                mzRef.detected_polarity = polarity
+                #     mzRef.adduct = '[M-H]'   
 
-            myID = metob.CompoundIdentification()
-            if c != 'use_label':
-                myID.compound = [c]
-            myID.name = compound_label
-            myID.mz_references = [mzRef]
-            myID.rt_references = [rtRef]
 
-            all_identifications.append(myID)
+
+                rtRef = metob.RtReference()
+                rtRef.rt_units = 'min'
+                rtRef.rt_min = row.rt_min
+                rtRef.rt_max = row.rt_max
+                rtRef.rt_peak = row.rt_peak
+
+                myID = metob.CompoundIdentification()
+                if c != 'use_label':
+                    myID.compound = [c]
+                myID.name = compound_label
+                myID.mz_references = [mzRef]
+                myID.rt_references = [rtRef]
+
+                all_identifications.append(myID)
 
     myAtlas = metob.Atlas()
     myAtlas.name = atlas_name
