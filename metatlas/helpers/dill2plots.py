@@ -958,25 +958,26 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
     
     all_identifications = []
 
-    for i,row in df.iterrows():
-        if type(row.name) != float or type(row.label) != float: #this logic is to skip empty rows
-            if type(row.name) != float: # this logic is where a name has been specified
-                c = metob.retrieve('Compounds',name=df.loc[i,'name'],username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
+#     for i,row in df.iterrows():
+    for x in df.index:
+        if type(df.name[x]) != float or type(df.label[x]) != float: #this logic is to skip empty rows
+            if type(df.name[x]) != float: # this logic is where a name has been specified
+                c = metob.retrieve('Compounds',name=df.name[x],username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
                 if c:
                     c = c[0]
             else:
                 c = 'use_label'
-            if type(row.label) != float:
-                compound_label = row.label #if no name, then use label as descriptor
+            if type(df.label[x]) != float:
+                compound_label = df.label[x] #if no name, then use label as descriptor
             else:
                 compound_label = 'no label'
             if c:
                 mzRef = metob.MzReference()
                 # take the mz value from the spreadsheet
-                mzRef.mz = row.mz
+                mzRef.mz = df.mz[x]
                 #TODO: calculate the mz from theoretical adduct and modification if provided.
                 #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
-                mzRef.mz_tolerance = row.mz_threshold
+                mzRef.mz_tolerance = df.mz_threshold[x]
                 mzRef.mz_tolerance_units = 'ppm'
                 mzRef.detected_polarity = polarity
                 #     mzRef.adduct = '[M-H]'   
@@ -985,9 +986,9 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
 
                 rtRef = metob.RtReference()
                 rtRef.rt_units = 'min'
-                rtRef.rt_min = row.rt_min
-                rtRef.rt_max = row.rt_max
-                rtRef.rt_peak = row.rt_peak
+                rtRef.rt_min = df.rt_min[x]
+                rtRef.rt_max = df.rt_max[x]
+                rtRef.rt_peak = df.rt_peak[x]
 
                 myID = metob.CompoundIdentification()
                 if c != 'use_label':
