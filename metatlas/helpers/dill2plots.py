@@ -12,6 +12,9 @@ from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
 sys.path.append('/global/project/projectdirs/openmsi/jupyterhub_libs/anaconda/lib/python2.7/site-packages')
 
+import metatlas_get_data_helper_fun as ma_data
+
+
 import qgrid
 
 from matplotlib import pyplot as plt
@@ -311,7 +314,7 @@ def plot_all_compounds_for_each_file(**kwargs):
                 ax.fill_between(new_x,min(y)+row,y+row,myWhere, facecolor='c', alpha=0.3)
                 col += 1
             else:
-                new_x = (x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
+                new_x = np.asarray([0,1])#(x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
                 ax.plot(new_x, new_x-new_x+row,'r-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
                 ax.annotate(compound,(min(new_x),row-0.1), size=2)
                 col += 1
@@ -418,8 +421,10 @@ def plot_all_files_for_each_compound(**kwargs):
                 ax.fill_between(new_x,min(y)+row,y+row,myWhere, facecolor='c', alpha=0.3)
                 col += 1
             else:
-                new_x = (x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
-                ax.plot(new_x, y-y+row,'r-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
+                new_x = np.asarray([0,1])
+                ax.plot(new_x, new_x-new_x+row,'r-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
+#                 y = [0,1]#(x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
+#                 ax.plot(new_x, y-y+row,'r-')#,ms=1, mew=0, mfc='b', alpha=1.0)]
                 ax.annotate(my_file,(min(new_x),row-0.1), size=1)
                 col += 1
             counter += 1
@@ -789,7 +794,7 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename):
     
     for i,row in atlas_export.iterrows():
         mol= []
-        if row['inchi']:
+        if row['inchi'] and (type(row['inchi']) != float):
             mol = Chem.MolFromInchi(row['inchi'].encode('utf-8'))
         if mol:
             ds = desalt(mol)
@@ -804,7 +809,10 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename):
             atlas_export.loc[i,'neutralized_inchi_key'] = neutral_inchi_key
             
     atlas_export = match_inchi_key_to_lookup_table(atlas_export)
-            
+    
+    
+    if not os.path.exists(os.path.dirname(output_filename)):
+        os.makedirs(os.path.dirname(output_filename))
     
     atlas_export.to_csv(output_filename)
     return atlas_export
