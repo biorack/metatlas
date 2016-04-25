@@ -956,79 +956,47 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
     if bad_names:
         return bad_names
     
-    myCompounds = []
-    rt_min = []
-    rt_max = []
-    rt_peak = []
-    mz = []
-    mz_tolerance = []
-    compound_label = []
-    for x in df.index:
-        if type(df.name[x]) != float or type(df.label[x]) != float: #this logic is to skip empty rows
-            if type(df.name[x]) != float: # this logic is where a name has been specified
-                c = metob.retrieve('Compounds',name=df.name[x],username = '*')[0] #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
+    all_identifications = []
+
+    for i,row in df.iterrows():
+        if type(row.name) != float or type(row.label) != float: #this logic is to skip empty rows
+            if type(row.name) != float: # this logic is where a name has been specified
+                c = metob.retrieve('Compounds',name=row.name,username = '*')[0] #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
             else:
                 c = 'use_label'
-            if type(df.label[x]) != float:
-                compound_label.append(df.label[x]) #if no name, then use label as descriptor
+            if type(row.label) != float:
+                compound_label = row.label #if no name, then use label as descriptor
             else:
-                compound_label.append('no label')
-            myCompounds.append(c)
-            rt_min.append(df.rt_min[x])
-            rt_max.append(df.rt_max[x])
-            rt_peak.append(df.rt_peak[x])
-            mz.append(df.mz[x])
-    #     mz.append(c.mono_isotopic_molecular_weight + 1.007276)
+                compound_label = 'no label'
+            
+            mzRef = metob.MzReference()
+            # take the mz value from the spreadsheet
+            mzRef.mz = row.mz
+            #TODO: calculate the mz from theoretical adduct and modification if provided.
+            #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
+            mzRef.mz_tolerance = row.mz_threshold
+            mzRef.mz_tolerance_units = 'ppm'
+            mzRef.detected_polarity = polarity
+            #     mzRef.adduct = '[M-H]'   
+            
+            
+            
+            rtRef = metob.RtReference()
+            rtRef.rt_units = 'min'
+            rtRef.rt_min = row.rt_min
+            rtRef.rt_max = row.rt_max
+            rtRef.rt_peak = row.rt_peak
 
-            mz_tolerance.append(df.mz_threshold[x])
-    #     if abs(dmz) > 100:
-    #         dmz = 1e6 * (c.MonoIsotopic_molecular_weight + 59.013851 - df.mz[x] ) / df.mz[x]
-    #         print c.MonoIsotopic_molecular_weight - df.mz[x]
-            #try:
-            #    dmz = 1e6 * (c.mono_isotopic_molecular_weight - 1.007276 - df.mz[x] ) / ( df.mz[x])
-            #    print '%5.2f'%abs(dmz), "\t", c.name,c.formula,c.mono_isotopic_molecular_weight,c.description, df.rt_min[x], df.rt_max[x], df.mz[x]#, c.InChI  
-            #except:
-            #    pass
-        #TODO: See above todo's.  this block needs to be rebuilt
-    #     myID.description = 'mz=%5.4f,ppm=%5.4f,RTmin=%5.4f,RTmax=%5.4f,RTpeak=%5.4f'%(mz[i],
-    #                                                                                  mz_tolerance[i],
-    #                                                                                  rt_min[i],
-    #                                                                                  rt_max[i],
-    #                                                                                  rt_peak[i])
-    #     print myID.references
+            myID = metob.CompoundIdentification()
+            if c != 'use_label':
+                myID.compound = [c]
+            myID.name = compound_label
+            myID.mz_references = [mzRef]
+            myID.rt_references = [rtRef]
 
-
-    all_identifications = []
-    for i,c in enumerate(myCompounds):
-        mzRef = metob.MzReference()
-
-        # take the mz value from the spreadsheet
-        mzRef.mz = mz[i]
-
-        #TODO: calculate the mz from theoretical adduct and modification if provided.
-    #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
-        mzRef.mz_tolerance = mz_tolerance[i]
-        mzRef.mz_tolerance_units = 'ppm'
-        mzRef.detected_polarity = polarity
-    #     mzRef.adduct = '[M-H]'
-
-        rtRef = metob.RtReference()
-        rtRef.rt_units = 'min'
-        rtRef.rt_min = rt_min[i]
-        rtRef.rt_max = rt_max[i]
-        rtRef.rt_peak = rt_peak[i]
-
-        myID = metob.CompoundIdentification()
-        if c != 'use_label':
-            myID.compound = [c]
-        myID.name = compound_label[i]
-        myID.mz_references = [mzRef]
-        myID.rt_references = [rtRef]
-
-        all_identifications.append(myID)
+            all_identifications.append(myID)
 
     myAtlas = metob.Atlas()
-    #metob.Atlas() has "compound_identifications" and a "name"
     myAtlas.name = atlas_name
     myAtlas.compound_identifications = all_identifications
     if store:
