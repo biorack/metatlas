@@ -1048,7 +1048,7 @@ def filter_metatlas_objects_by_list(object_list,field,filter_list):
             filtered_list.append(g)
     return filtered_list
       
-def select_groups_for_analysis(name = '%%',most_recent = True, remove_empty = True, filter_list = []):
+def select_groups_for_analysis(name = '%%',do_print = True, most_recent = True, remove_empty = True, filter_list = []):
     groups = metob.retrieve('Groups', name = name, username='*')
     if most_recent:
         groups = filter_metatlas_objects_to_most_recent(groups,'name')
@@ -1058,11 +1058,12 @@ def select_groups_for_analysis(name = '%%',most_recent = True, remove_empty = Tr
     
     if remove_empty:
         groups = filter_empty_metatlas_objects(groups,'items')
-    return groups
+    if do_print:
+        from datetime import datetime, date
+        for i,a in enumerate(groups):
+            print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
 
-    from datetime import datetime, date
-    for i,a in enumerate(groups):
-        print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
+    return groups
 
 if __name__ == '__main__':
     import sys
