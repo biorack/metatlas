@@ -748,12 +748,6 @@ def match_inchi_key_to_lookup_table(df,compound_lookup = '/global/homes/b/bpb/no
 def export_atlas_to_spreadsheet(myAtlas,output_filename):
     # myAtlases = [atlas[0],atlas[1]] #concatenate the atlases you want to use
     # myAtlases = [atlas[0]]
-    compound_list = []
-    for i in range(len(myAtlas.compound_identifications)):
-        if myAtlas.compound_identifications[i].compound:
-            compound_list.append(myAtlas.compound_identifications[i].compound[0].name)
-        else:
-            compound_list.append(myAtlas.compound_identifications[i].name)
 
     cols = ['inchi',
      'mono_isotopic_molecular_weight',
@@ -769,28 +763,28 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename):
      'username']
 
         # print myAtlas[0].compound_identifications[0].compound
-    atlas_export = pd.DataFrame( index=compound_list, columns=cols)
+    atlas_export = pd.DataFrame( )
 
-    atlas_export['name'] = compound_list
-    atlas_export.set_index('name',drop=True)
+#     atlas_export['name'] = compound_list
+#     atlas_export.set_index('name',drop=True)
     for i in range(len(myAtlas.compound_identifications)):
         if myAtlas.compound_identifications[i].compound:
             n = myAtlas.compound_identifications[i].compound[0].name
         else:
             n = myAtlas.compound_identifications[i].name
+        atlas_export.loc[i,'name'] = n
         if myAtlas.compound_identifications[i].compound:
             for c in cols:
-                    g = getattr(myAtlas.compound_identifications[i].compound[0],c)
-                    if g:
-                        atlas_export.ix[n,c] = getattr(myAtlas.compound_identifications[i].compound[0],c)
-        atlas_export.ix[n, 'label'] = myAtlas.compound_identifications[i].name
-        
-        atlas_export.ix[n,'rt_min'] = myAtlas.compound_identifications[i].rt_references[0].rt_min
-        atlas_export.ix[n,'rt_max'] = myAtlas.compound_identifications[i].rt_references[0].rt_max
-        atlas_export.ix[n,'rt_peak'] = myAtlas.compound_identifications[i].rt_references[0].rt_peak
-        atlas_export.ix[n,'mz'] = myAtlas.compound_identifications[i].mz_references[0].mz
-        atlas_export.ix[n,'mz_tolerance'] = myAtlas.compound_identifications[i].mz_references[0].mz_tolerance
-        atlas_export.ix[n,'polarity'] = myAtlas.compound_identifications[i].mz_references[0].detected_polarity
+                g = getattr(myAtlas.compound_identifications[i].compound[0],c)
+                if g:
+                    atlas_export.ix[i,c] = getattr(myAtlas.compound_identifications[i].compound[0],c)
+        atlas_export.loc[i, 'label'] = myAtlas.compound_identifications[i].name
+        atlas_export.loc[i,'rt_min'] = myAtlas.compound_identifications[i].rt_references[0].rt_min
+        atlas_export.loc[i,'rt_max'] = myAtlas.compound_identifications[i].rt_references[0].rt_max
+        atlas_export.loc[i,'rt_peak'] = myAtlas.compound_identifications[i].rt_references[0].rt_peak
+        atlas_export.loc[i,'mz'] = myAtlas.compound_identifications[i].mz_references[0].mz
+        atlas_export.loc[i,'mz_tolerance'] = myAtlas.compound_identifications[i].mz_references[0].mz_tolerance
+        atlas_export.loc[i,'polarity'] = myAtlas.compound_identifications[i].mz_references[0].detected_polarity
     
     for i,row in atlas_export.iterrows():
         mol= []
@@ -981,8 +975,6 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
                 mzRef.mz_tolerance_units = 'ppm'
                 mzRef.detected_polarity = polarity
                 #     mzRef.adduct = '[M-H]'   
-
-
 
                 rtRef = metob.RtReference()
                 rtRef.rt_units = 'min'
