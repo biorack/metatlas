@@ -971,7 +971,10 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
                 mzRef.mz = df.mz[x]
                 #TODO: calculate the mz from theoretical adduct and modification if provided.
                 #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
-                mzRef.mz_tolerance = df.mz_threshold[x]
+                try:
+                    mzRef.mz_tolerance = df.mz_tolerance[x]
+                except:
+                    mzRef.mz_tolerance = df.mz_threshold[x]                  
                 mzRef.mz_tolerance_units = 'ppm'
                 mzRef.detected_polarity = polarity
                 #     mzRef.adduct = '[M-H]'   
