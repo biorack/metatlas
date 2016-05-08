@@ -1,5 +1,6 @@
 import sys
-
+import os
+import os.path
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 curr_ld_lib_path = ''
 
@@ -14,66 +15,29 @@ sys.path.append('/global/project/projectdirs/openmsi/jupyterhub_libs/anaconda/li
 
 import metatlas_get_data_helper_fun as ma_data
 
-
-#import qgrid
-
-from matplotlib import pyplot as plt
+import qgrid
 import pandas as pd
 import os
 import tables
 import pickle
-
-
 import dill
-
 import numpy as np
+import re
 
+
+
+from matplotlib import pyplot as plt
 from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import Draw
-# from rdkit.Chem.rdMolDescriptors import ExactMolWt
-from rdkit.Chem import Descriptors
-from rdkit.Chem import rdMolDescriptors
-from rdkit.Chem import AllChem
-from rdkit.Chem import Draw
-from rdkit.Chem import rdDepictor
-from rdkit.Chem.Draw import rdMolDraw2D
-from rdkit.Chem.Draw import IPythonConsole
+from rdkit.Chem import Descriptors, rdMolDescriptors, AllChem, Draw, rdDepictor
+from rdkit.Chem.Draw import rdMolDraw2D, IPythonConsole
+from itertools import cycle
+from collections import defaultdict
 from IPython.display import SVG,display
 
 
 
 
-#import sys
-#from metatlas import metatlas_objects as metob
-#from metatlas import h5_query as h5q
-#import qgrid
-from matplotlib import pyplot as plt
-#import pandas as pd
-import re
-import os
-#import tables
-#import pickle
-import dill
-import numpy as np
-#from rdkit import Chem
-#from rdkit.Chem import AllChem
-#from rdkit.Chem import Draw
-## from rdkit.Chem.rdMolDescriptors import ExactMolWt
-#from rdkit.Chem import Descriptors
-#from rdkit.Chem import rdMolDescriptors
-#from rdkit.Chem import AllChem
-#from rdkit.Chem import Draw
-#from rdkit.Chem import rdDepictor
-#from rdkit.Chem.Draw import rdMolDraw2D
-#from rdkit.Chem.Draw import IPythonConsole
-#from IPython.display import SVG,display
-from collections import defaultdict
-#import time
-#from textwrap import wrap
-#from matplotlib.backends.backend_pdf import PdfPages
-import os.path
-from itertools import cycle
+
 
 
     
