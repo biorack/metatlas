@@ -15,7 +15,7 @@ sys.path.append('/global/project/projectdirs/openmsi/jupyterhub_libs/anaconda/li
 import metatlas_get_data_helper_fun as ma_data
 
 
-import qgrid
+#import qgrid
 
 from matplotlib import pyplot as plt
 import pandas as pd
@@ -112,107 +112,6 @@ def findcommonstart(strlist):
     return getcommonletters(strlist)
 
 
-def get_data(fname):
-    """
-    Parameters
-    ----------
-    fname
-
-    Returns
-    -------
-
-    """
-    with open(fname,'r') as f:
-        data = dill.load(f)
-
-    return data
-
-
-def get_group_names(data):
-    """
-    Parameters
-    ----------
-    data
-
-    Returns
-    -------
-
-    """
-    group_names = []
-    for i,d in enumerate(data):
-        newstr = d[0]['group'].name
-        group_names.append(newstr)
-
-    return group_names
-
-
-def get_file_names(data):
-    """
-    Parameters
-    ----------
-    data
-
-    Returns
-    -------
-
-    """
-    file_names = []
-    for i,d in enumerate(data):
-        newstr = os.path.basename(d[0]['lcmsrun'].hdf5_file)
-        file_names.append(newstr)
-   
-    return file_names
-
-
-def get_compound_names(data):
-    """
-    Parameters
-    ----------
-    data
-
-    Returns
-    -------
-
-    """
-    compound_names = []
-    compound_objects = []
-    for i,d in enumerate(data[0]):
-        # if label: use label
-        # else if compound: use compound name
-        # else no name
-        compound_objects.append(d['identification'])
-        if len(d['identification'].compound) > 0:
-            _str = d['identification'].compound[0].name
-        else:
-            _str = d['identification'].name
-        newstr = '%s_%s_%s_%5.2f'%(_str,d['identification'].mz_references[0].detected_polarity,
-                d['identification'].mz_references[0].adduct,d['identification'].rt_references[0].rt_peak)
-        newstr = re.sub('\.', 'p', newstr) #2 or more in regexp
-
-        newstr = re.sub('[\[\]]','',newstr)
-        newstr = re.sub('[^A-Za-z0-9+-]+', '_', newstr)
-        newstr = re.sub('i_[A-Za-z]+_i_', '', newstr)
-        if newstr[0] == '_':
-            newstr = newstr[1:]
-        if newstr[0] == '-':
-            newstr = newstr[1:]
-        if newstr[-1] == '_':
-            newstr = newstr[:-1]
-
-        newstr = re.sub('[^A-Za-z0-9]{2,}', '', newstr) #2 or more in regexp
-        compound_names.append(newstr)
-
-    #If duplicate compound names exist, then append them with a number
-    D = defaultdict(list)
-    for i,item in enumerate(compound_names):
-        D[item].append(i)
-    D = {k:v for k,v in D.items() if len(v)>1}
-    for k in D.keys():
-        for i,f in enumerate(D[k]):
-            compound_names[f] = '%s%d'%(compound_names[f],i)
-   
-    return (compound_names, compound_objects)
-
 
 def plot_all_compounds_for_each_file(**kwargs):
     """
@@ -224,9 +123,9 @@ def plot_all_compounds_for_each_file(**kwargs):
     -------
 
     """
-    data = get_data(os.path.expandvars(kwargs['input_fname']))
-    compound_names = get_compound_names(data)[0]
-    file_names = get_file_names(data)
+    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    compound_names = ma_data.get_compound_names(data)[0]
+    file_names = ma_data.get_file_names(data)
 
     nCols = kwargs['nCols']
     scale_y = kwargs['scale_y']
@@ -339,9 +238,9 @@ def plot_all_files_for_each_compound(**kwargs):
 
     """
 
-    data = get_data(os.path.expandvars(kwargs['input_fname']))
-    compound_names = get_compound_names(data)[0]
-    file_names = get_file_names(data)
+    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    compound_names = ma_data.get_compound_names(data)[0]
+    file_names = ma_data.get_file_names(data)
     nCols = kwargs['nCols']
     scale_y = kwargs['scale_y']
     output_loc = os.path.expandvars(kwargs['output_loc'])
@@ -526,6 +425,7 @@ def NeutraliseCharges(mol, reactions=None):
     
 
 def drawStructure_Fragment(pactolus_tree,fragment_idx,myMol,myMol_w_Hs):
+    from copy import deepcopy
     fragment_atoms = np.where(pactolus_tree[fragment_idx]['atom_bool_arr'])[0]
     depth_of_hit = np.sum(pactolus_tree[fragment_idx]['bond_bool_arr'])
     mol2 = deepcopy(myMol_w_Hs)
@@ -578,10 +478,10 @@ def get_ion_from_fragment(frag_info,spectrum):
 #structure
 
 def make_output_dataframe(**kwargs):
-    data = get_data(os.path.expandvars(kwargs['input_fname']))
-    compound_names = get_compound_names(data)[0]
-    file_names = get_file_names(data)
-    group_names = get_group_names(data)
+    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    compound_names = ma_data.get_compound_names(data)[0]
+    file_names = ma_data.get_file_names(data)
+    group_names = ma_data.get_group_names(data)
     output_loc = os.path.expandvars(kwargs['output_loc'])
     fieldname = kwargs['fieldname']
     
@@ -620,9 +520,9 @@ def file_with_max_precursor_intensity(data,compound_idx):
 
 def plot_errorbar_plots(df,**kwargs):#df,compound_list,project_label):
     
-    data = get_data(os.path.expandvars(kwargs['input_fname']))
-    compound_names = get_compound_names(data)[0]
-    file_names = get_file_names(data)
+    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    compound_names = ma_data.get_compound_names(data)[0]
+    file_names = ma_data.get_file_names(data)
     output_loc = os.path.expandvars(kwargs['output_loc'])
     
     if not os.path.exists(output_loc):
@@ -651,9 +551,9 @@ def plot_errorbar_plots(df,**kwargs):#df,compound_list,project_label):
 def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name,project_label):
     #  d = 'data/%s/identification/'%project_label
     
-    data = get_data(os.path.expandvars(kwargs['input_fname']))
-    compound_names = get_compound_names(data)[0]
-    file_names = get_file_names(data)
+    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    compound_names = ma_data.get_compound_names(data)[0]
+    file_names = ma_data.get_file_names(data)
     output_loc = os.path.expandvars(kwargs['output_loc'])
     
     if not os.path.exists(output_loc):

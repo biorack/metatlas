@@ -1,4 +1,6 @@
 import numpy as np
+import os.path
+import sys
 import tables
 def get_unique_scan_data(data):
     """
@@ -230,3 +232,125 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
             
     fid.close() #close the file
     return return_data
+
+
+
+def get_dill_data(fname):
+    """
+    Parameters
+    ----------
+    fname: dill file name
+
+    Returns a list containing the data present in the dill file
+    -------
+    """
+    import dill
+
+    if os.path.exists(fname):
+        with open(fname,'r') as f:
+            try:
+                data = dill.load(f)
+            except IOError as e:
+                print "I/O error({0}): {1}".format(e.errno, e.strerror)
+            except:  # handle other exceptions such as attribute errors
+                print "Unexpected error:", sys.exc_info()[0]
+
+
+    return data
+
+
+def get_group_names(data):
+    """
+    Parameters
+    ----------
+    data: either a file name (str) or a list generated from loading the dill file
+
+    Returns list containing the group names present in the dill file
+    -------
+    """
+
+    # if data is a string then it's a file name - get its data
+    if isinstance(data, basestring):
+        data = get_dill_data(data)
+
+    group_names = list()
+    for i,d in enumerate(data):
+        group_names.append(d[0]['group'].name)
+
+    return group_names
+
+
+def get_file_names(data):
+    """
+    Parameters
+    ----------
+    data: either a file name (str) or a list generated from loading the dill file
+
+    Returns list containing the hdf file names present in the dill file
+    -------
+    """
+    import os.path
+
+    # if data is a string then it's a file name - get its data
+    if isinstance(data, basestring):
+        data = get_dill_data(data)
+
+    file_names = list()
+    for i,d in enumerate(data):
+        file_names.append(os.path.basename(d[0]['lcmsrun'].hdf5_file))
+
+    return file_names
+
+
+def get_compound_names(data):
+    """
+    Parameters
+    ----------
+    data: either a file name (str) or a list generated from loading the dill file
+
+    Returns a tuple of lists containing the compound names and compound objects present in the dill file
+    -------
+    """
+    from collections import defaultdict
+    import re
+
+    # if data is a string then it's a file name - get its data
+    if isinstance(data, basestring):
+        data = get_dill_data(data)
+
+    compound_names = list()
+    compound_objects = list()
+
+    for i,d in enumerate(data[0]):
+        compound_objects.append(d['identification'])
+        if len(d['identification'].compound) > 0:
+            _str = d['identification'].compound[0].name
+        else:
+            _str = d['identification'].name
+        newstr = '%s_%s_%s_%5.2f'%(_str,d['identification'].mz_references[0].detected_polarity,
+                d['identification'].mz_references[0].adduct,d['identification'].rt_references[0].rt_peak)
+        newstr = re.sub('\.', 'p', newstr) #2 or more in regexp
+
+        newstr = re.sub('[\[\]]','',newstr)
+        newstr = re.sub('[^A-Za-z0-9+-]+', '_', newstr)
+        newstr = re.sub('i_[A-Za-z]+_i_', '', newstr)
+        if newstr[0] == '_':
+            newstr = newstr[1:]
+        if newstr[0] == '-':
+            newstr = newstr[1:]
+        if newstr[-1] == '_':
+            newstr = newstr[:-1]
+
+        newstr = re.sub('[^A-Za-z0-9]{2,}', '', newstr) #2 or more in regexp
+        compound_names.append(newstr)
+
+    # If duplicate compound names exist, then append them with a number
+    D = defaultdict(list)
+    for i,item in enumerate(compound_names):
+        D[item].append(i)
+    D = {k:v for k,v in D.items() if len(v)>1}
+    for k in D.keys():
+        for i,f in enumerate(D[k]):
+            compound_names[f] = '%s%d'%(compound_names[f],i)
+
+    return (compound_names, compound_objects)
