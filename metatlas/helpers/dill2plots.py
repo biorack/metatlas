@@ -13,7 +13,7 @@ from metatlas import h5_query as h5q
 sys.path.append('/global/project/projectdirs/openmsi/jupyterhub_libs/anaconda/lib/python2.7/site-packages')
 
 import metatlas_get_data_helper_fun as ma_data
-
+ma_data = reload(ma_data)
 
 import qgrid
 
@@ -647,6 +647,18 @@ def plot_errorbar_plots(df,**kwargs):#df,compound_list,project_label):
         f.clear()
         plt.close('all')#f.clear()
 
+def get_reference_msms_spectra(frag_refs, compound_name = '', polarity = '', precursor_mz = 0.0):
+    spectra = []
+    if polarity ==0:
+        polarity = 'negative'
+    else:
+        polarity = 'positive'
+    for fr in frag_refs:
+        if (fr.compound[0].name == compound_name) and (fr.frag_references[0].polarity == polarity ):# and (abs(fr.frag_references[0].precursor_mz - precursor_mz)<0.2):
+            spectra.append( [(m.mz, m.intensity) for m in fr.frag_references[0].mz_intensities] )
+    return spectra
+    
+        
 
 def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name,project_label):
     #  d = 'data/%s/identification/'%project_label
@@ -655,6 +667,11 @@ def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name
     compound_names = get_compound_names(data)[0]
     file_names = get_file_names(data)
     output_loc = os.path.expandvars(kwargs['output_loc'])
+
+    ids = metob.retrieve('CompoundIdentification')
+    frag_refs = [cid for cid in ids if cid.frag_references]
+    
+    
     
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
@@ -686,6 +703,31 @@ def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name
                     ax.annotate('%5.4f'%mz[i], xy=(mz[i], 1.01*intensity[i]),rotation = 90, horizontalalignment = 'center', verticalalignment = 'left')
                     labels.append(mz[i])
 
+            
+#             data[file_idx][compound_idx]['identification'].mz_references[0].polarity
+#             print data[file_idx][compound_idx]['data']['msms']
+            ref_spec = get_reference_msms_spectra(frag_refs, 
+                                       compound_name = data[file_idx][compound_idx]['identification'].compound[0].name, 
+                                       polarity = data[file_idx][compound_idx]['data']['msms']['polarity'])
+    #TODO: get the precursor_mz sorted out
+            
+#                                        precursor_mz = data[file_idx][compound_idx]['data']['msms']['precursor_mz'])
+#             print data[file_idx][compound_idx]['data']['msms']['polarity']
+            if ref_spec:
+                ref_mz = []
+                ref_intensity = []
+                ref_zeros = []
+                for s in ref_spec[0]:
+                    ref_mz.append(s[0])
+                    ref_intensity.append(s[1]*-1)
+                    ref_zeros.append(0)
+                s = -1* intensity[sx[0]] / min(ref_intensity)
+                print s
+#                 L = plt.ylim()
+#                 print data[file_idx][compound_idx]['identification'].compound[0].name, float(intensity[sx[0]]), float(min(ref_intensity))
+                ax.vlines(ref_mz,ref_zeros,[r*s for r in ref_intensity],colors='r',linewidth = 2)
+#                 print "we have reference spectra", len(ref_spec[0])
+            plt.axhline()
             plt.tight_layout()
             L = plt.ylim()
             plt.ylim(L[0],L[1]*1.12)
@@ -745,7 +787,7 @@ def match_inchi_key_to_lookup_table(df,compound_lookup = '/global/homes/b/bpb/no
     
     
             
-def export_atlas_to_spreadsheet(myAtlas,output_filename):
+def export_atlas_to_spreadsheet(myAtlas,output_filename,input_type = 'atlas'):
     # myAtlases = [atlas[0],atlas[1]] #concatenate the atlases you want to use
     # myAtlases = [atlas[0]]
 
@@ -767,24 +809,37 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename):
 
 #     atlas_export['name'] = compound_list
 #     atlas_export.set_index('name',drop=True)
-    for i in range(len(myAtlas.compound_identifications)):
-        if myAtlas.compound_identifications[i].compound:
-            n = myAtlas.compound_identifications[i].compound[0].name
+    if input_type != 'atlas':
+        num_compounds = len(myAtlas[0])
+    else:
+        num_compounds = len(myAtlas.compound_identifications)
+    for i in range(num_compounds):
+        if input_type != 'atlas':
+            my_id = myAtlas[0][i]['identification']
         else:
-            n = myAtlas.compound_identifications[i].name
-        atlas_export.loc[i,'name'] = n
+            my_id = myAtlas.compound_identifications[i]
+    
         if myAtlas.compound_identifications[i].compound:
+            n = my_id.compound[0].name
+        else:
+            n = my_id.name
+        atlas_export.loc[i,'name'] = n
+        if my_id.compound:
             for c in cols:
-                g = getattr(myAtlas.compound_identifications[i].compound[0],c)
+                g = getattr(my_id.compound[0],c)
                 if g:
-                    atlas_export.ix[i,c] = getattr(myAtlas.compound_identifications[i].compound[0],c)
-        atlas_export.loc[i, 'label'] = myAtlas.compound_identifications[i].name
-        atlas_export.loc[i,'rt_min'] = myAtlas.compound_identifications[i].rt_references[0].rt_min
-        atlas_export.loc[i,'rt_max'] = myAtlas.compound_identifications[i].rt_references[0].rt_max
-        atlas_export.loc[i,'rt_peak'] = myAtlas.compound_identifications[i].rt_references[0].rt_peak
-        atlas_export.loc[i,'mz'] = myAtlas.compound_identifications[i].mz_references[0].mz
-        atlas_export.loc[i,'mz_tolerance'] = myAtlas.compound_identifications[i].mz_references[0].mz_tolerance
-        atlas_export.loc[i,'polarity'] = myAtlas.compound_identifications[i].mz_references[0].detected_polarity
+                    atlas_export.ix[i,c] = getattr(my_id.compound[0],c)
+        atlas_export.loc[i, 'label'] = my_id.name
+        atlas_export.loc[i,'rt_min'] = my_id.rt_references[0].rt_min
+        atlas_export.loc[i,'rt_max'] = my_id.rt_references[0].rt_max
+        atlas_export.loc[i,'rt_peak'] = my_id.rt_references[0].rt_peak
+        atlas_export.loc[i,'mz'] = my_id.mz_references[0].mz
+        atlas_export.loc[i,'mz_tolerance'] = my_id.mz_references[0].mz_tolerance
+        atlas_export.loc[i,'polarity'] = my_id.mz_references[0].detected_polarity
+        if my_id.frag_references:
+            atlas_export.loc[i,'has_fragmentation_reference'] = True
+        else:
+            atlas_export.loc[i,'has_fragmentation_reference'] = False
     
     for i,row in atlas_export.iterrows():
         mol= []
@@ -928,33 +983,93 @@ def check_compound_names(df):
                         print df.name[x], "is not in database"
                         bad_names.append(df.name[x])
     return bad_names
-    
-def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='',polarity = 'positive', store=False):
+
+
+def check_file_names(df,field):
+    bad_files = []
+    for i,row in df.iterrows():
+        if not metob.retrieve('Lcmsruns',name = '%%%s%%'%row[field],username = '*'):
+            print row[field], "is not in the database"
+            bad_files.append(row[field])
+    return bad_files
+
+
+def get_formatted_atlas_from_google_sheet(polarity='POS',method='QE_HILIC',mz_tolerance=10):
+    sys.path.insert(0,'/project/projectdirs/metatlas/projects/ms_monitor_tools/' )
+    import ms_monitor_util as mmu
+    df = mmu.get_ms_monitor_reference_data()
+    df2 = pd.DataFrame(df[1:],columns=df[0])
+
+    fields_to_keep = [ 'name',
+                    'label',
+                    'mz_%s'%polarity,
+                    'rt_min_%s'%method,
+                    'rt_max_%s'%method,
+                    'rt_peak_%s'%method,
+                    'file_mz_%s_%s'%(method,polarity),
+                    'file_rt_%s_%s'%(method,polarity),
+                    'file_msms_%s_%s'%(method,polarity)]
+    df3 = df2.loc[:,fields_to_keep]
+
+    df3['mz_tolerance'] = mz_tolerance
+
+    if polarity == 'POS':
+        df3['polarity'] = 'polarity'
+    else:
+        df3['polarity'] = 'negative'
+
+    renamed_columns = [c.replace('_%s'%method,'').replace('_%s'%polarity,'') for c in df3.columns]
+    for i,c in enumerate(df3.columns):
+        df3 = df3.rename(columns = {c:renamed_columns[i]})
+    return df3
+
+
+def make_atlas_from_spreadsheet(filename=False,atlas_name='temp',filetype='excel',sheetname='',polarity = 'positive', store=False,mz_tolerance=False,dataframe=None):
     '''
     specify polarity as 'positive' or 'negative'
     
     '''
-    if ( filetype=='excel' ) and sheetname:
-        df = pd.read_excel(filename,sheetname=sheetname)
-    elif ( filetype=='excel' ):
-        df = pd.read_excel(filename)
-    elif filetype == 'tab':
-        df = pd.read_csv(filename,sep='\t')
+    if isinstance(dataframe,pd.DataFrame):
+        df = dataframe
     else:
-        df = pd.read_csv(filename,sep=',')
+        if ( filetype=='excel' ) and sheetname:
+            df = pd.read_excel(filename,sheetname=sheetname)
+        elif ( filetype=='excel' ):
+            df = pd.read_excel(filename)
+        elif filetype == 'tab':
+            df = pd.read_csv(filename,sep='\t')
+        else:
+            df = pd.read_csv(filename,sep=',')
     df.dropna(how="all", inplace=True)
     df.columns = [x.lower() for x in df.columns]
 
     bad_names = check_compound_names(df)
-    
     if bad_names:
         return bad_names
+    #Make sure all the files specified for references are actually there
+    if 'file_rt' in df.keys():
+        bad_files = check_file_names(df,'file_rt')
+        if bad_files:
+             return bad_files
+    if 'file_mz' in df.keys():
+        bad_files = check_file_names(df,'file_mz')
+        if bad_files:
+             return bad_files
+    if 'file_msms' in df.keys():
+        bad_files = check_file_names(df,'file_msms')
+        if bad_files:
+             return bad_files
+    
+
     
     all_identifications = []
 
 #     for i,row in df.iterrows():
     for x in df.index:
         if type(df.name[x]) != float or type(df.label[x]) != float: #this logic is to skip empty rows
+            
+            myID = metob.CompoundIdentification()
+            
             if type(df.name[x]) != float: # this logic is where a name has been specified
                 c = metob.retrieve('Compounds',name=df.name[x],username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
                 if c:
@@ -965,32 +1080,66 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
                 compound_label = df.label[x] #if no name, then use label as descriptor
             else:
                 compound_label = 'no label'
+            
             if c:
+                if c != 'use_label':
+                    myID.compound = [c]
+                myID.name = compound_label
+                
+                
                 mzRef = metob.MzReference()
                 # take the mz value from the spreadsheet
                 mzRef.mz = df.mz[x]
                 #TODO: calculate the mz from theoretical adduct and modification if provided.
                 #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
-                try:
-                    mzRef.mz_tolerance = df.mz_tolerance[x]
-                except:
-                    mzRef.mz_tolerance = df.mz_threshold[x]                  
+                if mz_tolerance:
+                    mzRef.mz_tolerance = mz_tolerance
+                else:
+                    try:
+                        mzRef.mz_tolerance = df.mz_tolerance[x]
+                    except:
+                        mzRef.mz_tolerance = df.mz_threshold[x]    
+                
                 mzRef.mz_tolerance_units = 'ppm'
                 mzRef.detected_polarity = polarity
+                if 'file_mz' in df.keys():
+                    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_mz[x],username = '*')[0]
+                    mzRef.lcms_run = f
                 #     mzRef.adduct = '[M-H]'   
+                myID.mz_references = [mzRef]
 
                 rtRef = metob.RtReference()
                 rtRef.rt_units = 'min'
                 rtRef.rt_min = df.rt_min[x]
                 rtRef.rt_max = df.rt_max[x]
                 rtRef.rt_peak = df.rt_peak[x]
-
-                myID = metob.CompoundIdentification()
-                if c != 'use_label':
-                    myID.compound = [c]
-                myID.name = compound_label
-                myID.mz_references = [mzRef]
+                if 'file_rt' in df.keys():
+                    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_rt[x],username = '*')[0]
+                    rtRef.lcms_run = f
                 myID.rt_references = [rtRef]
+                    
+                if 'file_msms' in df.keys():
+                    if type(df.file_msms[x]) != float:
+                        frag_ref = metob.FragmentationReference()
+                        f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_msms[x],username = '*')[0]
+                        frag_ref.lcms_run = f
+                        frag_ref.polarity = polarity
+                        frag_ref.precursor_mz = df.mz[x]
+                        
+                        data = ma_data.get_data_for_a_compound(mzRef, rtRef, [ 'msms' ],f.hdf5_file,0.3)
+                        if isinstance(data['msms']['data'], np.ndarray):
+                            precursor_intensity = data['msms']['data']['precursor_intensity']
+                            idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten() 
+                            mz = data['msms']['data']['mz'][idx_max]
+                            intensity = data['msms']['data']['i'][idx_max]
+                            spectrum = []
+                            for i in range(len(mz)):
+                                mzp = metob.MzIntensityPair()
+                                mzp.mz = mz[i]
+                                mzp.intensity = intensity[i]
+                                spectrum.append(mzp)
+                            frag_ref.mz_intensities = spectrum
+                            myID.frag_references = [frag_ref]
 
                 all_identifications.append(myID)
 
@@ -999,6 +1148,7 @@ def make_atlas_from_spreadsheet(filename,atlas_name,filetype='excel',sheetname='
     myAtlas.compound_identifications = all_identifications
     if store:
         metob.store(myAtlas)
+    return myAtlas
 
 def filter_empty_metatlas_objects(object_list,field):
     filtered_list = []
@@ -1013,14 +1163,25 @@ def filter_metatlas_objects_by_list(object_list,field,filter_list):
         if any(ext in getattr(g,field) for ext in filter_list):
             filtered_list.append(g)
     return filtered_list
+
+def remove_metatlas_objects_by_list(object_list,field,filter_list):
+    filtered_list = []
+    for i,g in enumerate(object_list):
+        if not any(ext in getattr(g,field) for ext in filter_list):
+            filtered_list.append(g)
+    return filtered_list
+
       
-def select_groups_for_analysis(name = '%%',do_print = True, most_recent = True, remove_empty = True, filter_list = []):
+def select_groups_for_analysis(name = '%%',do_print = True, most_recent = True, remove_empty = True, filter_list = [], exclude_list = []):
     groups = metob.retrieve('Groups', name = name, username='*')
     if most_recent:
         groups = filter_metatlas_objects_to_most_recent(groups,'name')
     
     if filter_list:
         groups = filter_metatlas_objects_by_list(groups,'name',filter_list)
+        
+    if exclude_list:
+        groups = remove_metatlas_objects_by_list(groups,'name',exclude_list)
     
     if remove_empty:
         groups = filter_empty_metatlas_objects(groups,'items')
