@@ -130,7 +130,7 @@ class Workspace(object):
         host_name = socket.getfqdn()
         print("you're running on %s at %s " %(host_name, socket.gethostbyname(socket.gethostname())))
 
-        if 'pyteknix' in host_name:
+        if 'yoga13' in host_name:
             local_config_file = os.path.join(metatlas_dir, 'local_config', 'local.yml')
             if os.path.isfile(local_config_file):
                 with open(local_config_file) as fid:
