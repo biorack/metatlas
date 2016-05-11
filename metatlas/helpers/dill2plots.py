@@ -790,8 +790,9 @@ def get_metatlas_atlas(name = '%%',most_recent = True,do_print = True):
     atlas = metob.retrieve('Atlas',name = name,username='*')
     if most_recent:
         atlas = filter_metatlas_objects_to_most_recent(atlas,'name')
-    for i,a in enumerate(atlas):
-        print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
+    if do_print:
+        for i,a in enumerate(atlas):
+            print i, len(a.compound_identifications),a.name,  datetime.utcfromtimestamp(a.last_modified)
 
     return atlas
 
