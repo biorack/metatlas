@@ -728,9 +728,6 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename,unique_compounds_lookup_
             
     atlas_export = match_inchi_key_to_lookup_table(atlas_export, unique_compounds_lookup_fname)
 
-    print 50*'-'
-    print os.path.dirname(output_filename)
-    print 50 * '-'
     if not os.path.exists(os.path.dirname(output_filename)):
         os.makedirs(os.path.dirname(output_filename))
     
