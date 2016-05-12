@@ -633,6 +633,7 @@ def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name
 
     
 def match_inchi_key_to_lookup_table(df,compound_lookup = '/global/homes/b/bpb/notebooks/thoughts/uniquecompounds.csv'):
+#def match_inchi_key_to_lookup_table(df,compound_lookup = '/home/jimmy/data/uniquecompounds.csv'):
     '''
     Until the compound database is updated use this file to check for portable IDs and common names.
     Takes as input a dataframe with inchi_key as a column and adds the columns from the compound lookup table
@@ -652,7 +653,7 @@ def match_inchi_key_to_lookup_table(df,compound_lookup = '/global/homes/b/bpb/no
     
     
             
-def export_atlas_to_spreadsheet(myAtlas,output_filename,input_type = 'atlas'):
+def export_atlas_to_spreadsheet(myAtlas,output_filename,unique_compounds_lookup_fname, input_type = 'atlas'):
     # myAtlases = [atlas[0],atlas[1]] #concatenate the atlases you want to use
     # myAtlases = [atlas[0]]
 
@@ -678,16 +679,19 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename,input_type = 'atlas'):
         num_compounds = len(myAtlas[0])
     else:
         num_compounds = len(myAtlas.compound_identifications)
+
+
     for i in range(num_compounds):
         if input_type != 'atlas':
             my_id = myAtlas[0][i]['identification']
+            n = my_id.name
         else:
             my_id = myAtlas.compound_identifications[i]
     
-        if myAtlas.compound_identifications[i].compound:
-            n = my_id.compound[0].name
-        else:
-            n = my_id.name
+            if myAtlas.compound_identifications[i].compound:
+                n = my_id.compound[0].name
+            else:
+                n = my_id.name
         atlas_export.loc[i,'name'] = n
         if my_id.compound:
             for c in cols:
@@ -722,9 +726,11 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename,input_type = 'atlas'):
             neutral_inchi_key = Chem.InchiToInchiKey(neutral_string)
             atlas_export.loc[i,'neutralized_inchi_key'] = neutral_inchi_key
             
-    atlas_export = match_inchi_key_to_lookup_table(atlas_export)
-    
-    
+    atlas_export = match_inchi_key_to_lookup_table(atlas_export, unique_compounds_lookup_fname)
+
+    print 50*'-'
+    print os.path.dirname(output_filename)
+    print 50 * '-'
     if not os.path.exists(os.path.dirname(output_filename)):
         os.makedirs(os.path.dirname(output_filename))
     
