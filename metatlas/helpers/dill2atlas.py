@@ -21,6 +21,8 @@ except ImportError:
 from ipywidgets import interact, interactive, fixed, FloatSlider
 
 
+import copy
+
 
 
 data = []
@@ -131,17 +133,26 @@ def plot_button_clicked(b):
     plt.clf()
     plt.close()
 
-    fvals = wfiles.value
+    fvals = list(wfiles.value)
     cval = wcompounds.value
     global rtmin_widget, rtmax_widget, rtpeak_widget
 
     min_x = list()
     max_x = list()
 
-    if all_files.value == True:
+    if len(fvals) == 1 and fvals[0] == 'all':
         fvals = file_names
-    else:
-        fvals = wfiles.value
+    elif len(fvals) > 1 and 'all' in fvals:
+        fvals.remove('all')
+
+
+
+
+
+    #if all_files.value == True:
+    #    fvals = file_names
+    #else:
+    #    fvals = wfiles.value
 
     for i in range(len(fvals)):
         d = data[files_idx[fvals[i]]][compound_idx[cval]]
@@ -197,12 +208,12 @@ def dill2atlas(fname):
 
     wcompounds.options=compound_names
 
-    wfiles.options=file_names
+    wfiles.options= ['all'] + file_names
 
 
 
     display(widgets.HBox((wfname, create_atlas_btn)))
-    display(widgets.HBox((wcompounds, widgets.VBox((all_files, wfiles)))))
+    display(widgets.HBox((wcompounds, wfiles)))
     display(plot_button)
 
 
