@@ -82,7 +82,7 @@ def plot_all_compounds_for_each_file(**kwargs):
     -------
 
     """
-    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
 
@@ -197,7 +197,7 @@ def plot_all_files_for_each_compound(**kwargs):
 
     """
 
-    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
     nCols = kwargs['nCols']
@@ -437,7 +437,7 @@ def get_ion_from_fragment(frag_info,spectrum):
 #structure
 
 def make_output_dataframe(**kwargs):
-    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
     group_names = ma_data.get_group_names(data)
@@ -479,7 +479,7 @@ def file_with_max_precursor_intensity(data,compound_idx):
 
 def plot_errorbar_plots(df,**kwargs):#df,compound_list,project_label):
     
-    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
     output_loc = os.path.expandvars(kwargs['output_loc'])
@@ -522,7 +522,7 @@ def get_reference_msms_spectra(frag_refs, compound_name = '', polarity = '', pre
 def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name,project_label):
     #  d = 'data/%s/identification/'%project_label
     
-    data = ma_data.get_data(os.path.expandvars(kwargs['input_fname']))
+    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
     output_loc = os.path.expandvars(kwargs['output_loc'])
