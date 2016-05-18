@@ -36,12 +36,6 @@ from collections import defaultdict
 from IPython.display import SVG,display
 
 
-
-
-
-
-
-    
 def getcommonletters(strlist):
     """
     Parameters
@@ -632,7 +626,8 @@ def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name
             plt.close('all')#f.clear()
 
     
-def match_inchi_key_to_lookup_table(df,compound_lookup = '/global/homes/b/bpb/notebooks/thoughts/uniquecompounds.csv'):
+def match_inchi_key_to_lookup_table(df,
+                                    compound_lookup = '/global/homes/b/bpb/notebooks/thoughts/uniquecompounds.csv'):
 #def match_inchi_key_to_lookup_table(df,compound_lookup = '/home/jimmy/data/uniquecompounds.csv'):
     '''
     Until the compound database is updated use this file to check for portable IDs and common names.
@@ -653,7 +648,10 @@ def match_inchi_key_to_lookup_table(df,compound_lookup = '/global/homes/b/bpb/no
     
     
             
-def export_atlas_to_spreadsheet(myAtlas,output_filename,unique_compounds_lookup_fname, input_type = 'atlas'):
+def export_atlas_to_spreadsheet(myAtlas,
+                                output_filename,
+                                compound_lookup='/global/homes/b/bpb/notebooks/thoughts/uniquecompounds.csv',
+                                input_type = 'atlas'):
     # myAtlases = [atlas[0],atlas[1]] #concatenate the atlases you want to use
     # myAtlases = [atlas[0]]
 
@@ -726,7 +724,7 @@ def export_atlas_to_spreadsheet(myAtlas,output_filename,unique_compounds_lookup_
             neutral_inchi_key = Chem.InchiToInchiKey(neutral_string)
             atlas_export.loc[i,'neutralized_inchi_key'] = neutral_inchi_key
             
-    atlas_export = match_inchi_key_to_lookup_table(atlas_export, unique_compounds_lookup_fname)
+    atlas_export = match_inchi_key_to_lookup_table(atlas_export, compound_lookup)
 
     if not os.path.exists(os.path.dirname(output_filename)):
         os.makedirs(os.path.dirname(output_filename))
@@ -863,7 +861,9 @@ def check_file_names(df,field):
     return bad_files
 
 
-def get_formatted_atlas_from_google_sheet(polarity='POS',method='QE_HILIC',mz_tolerance=10):
+def get_formatted_atlas_from_google_sheet(polarity='POS',
+                                          method='QE_HILIC',
+                                          mz_tolerance=10):
     sys.path.insert(0,'/project/projectdirs/metatlas/projects/ms_monitor_tools/' )
     import ms_monitor_util as mmu
     df = mmu.get_ms_monitor_reference_data()
@@ -893,7 +893,14 @@ def get_formatted_atlas_from_google_sheet(polarity='POS',method='QE_HILIC',mz_to
     return df3
 
 
-def make_atlas_from_spreadsheet(filename=False,atlas_name='temp',filetype='excel',sheetname='',polarity = 'positive', store=False,mz_tolerance=False,dataframe=None):
+def make_atlas_from_spreadsheet(filename=False,
+                                atlas_name='temp',
+                                filetype='excel',
+                                sheetname='',
+                                polarity = 'positive',
+                                store=False,
+                                mz_tolerance=False,
+                                dataframe=None):
     '''
     specify polarity as 'positive' or 'negative'
     
