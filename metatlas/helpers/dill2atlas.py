@@ -20,6 +20,21 @@ except ImportError:
 
 from ipywidgets import interact, interactive, fixed, FloatSlider
 
+
+
+
+data = []
+groups = []
+file_names = []
+compound_names = []
+compound_objects = []
+
+files_idx = dict()
+compound_idx = dict()
+groups_idx = dict()
+
+
+
 # one select for the compound
 wcompounds = widgets.Select(
     description="compounds",
@@ -60,6 +75,7 @@ def plot_intensity(cval, fvals, rt_min, rt_max, rt_peak):
             x = d['data']['eic']['rt']
             y = d['data']['eic']['intensity']
             plt.plot(x, y, 'k-', ms=1, mew=0, mfc='b', alpha=1.0)
+
     plt.axvline(rt_min, color='b', linewidth=2.0)
     plt.axvline(rt_max, color='g', linewidth=2.0)
     plt.axvline(rt_peak, color='r', linewidth=2.0)
@@ -159,6 +175,8 @@ def plot_button_clicked(b):
 
 
 def dill2atlas(fname):
+    global data, groups, file_names, compound_names, compound_objects, files_idx,  compound_idx, groups_idx
+
     data = ma_data.get_dill_data(fname)
     groups = ma_data.get_group_names(data)
     file_names = ma_data.get_file_names(data)
@@ -177,9 +195,6 @@ def dill2atlas(fname):
         groups_idx[grp_name] = grp_idx
 
 
-
-
-
     wcompounds.options=compound_names
 
     wfiles.options=file_names
@@ -191,7 +206,7 @@ def dill2atlas(fname):
     display(plot_button)
 
 
-
     plot_button.on_click(plot_button_clicked)
     create_atlas_btn.on_click(create_atlas)
     all_files.observe(select_files)
+
