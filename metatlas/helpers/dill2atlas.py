@@ -119,7 +119,7 @@ def create_atlas(b):
     identifications.append(identification)
 
     atlas.compound_identifications = identifications
-    metob.store(atlas)
+    #metob.store(atlas)
 
 
 def select_files(b):
