@@ -1,6 +1,4 @@
 import sys
-sys.path.insert(0,'/home/jimmy/dev/metatlas' )
-
 
 from metatlas import metatlas_objects as metob
 import metatlas.helpers.metatlas_get_data_helper_fun as ma_data

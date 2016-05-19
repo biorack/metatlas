@@ -127,10 +127,12 @@ class Workspace(object):
 
         #
         # get hostname to determine if you're on NERSCC
-        host_name = socket.getfqdn()
+        #host_name = socket.getfqdn()
+        host_name = socket.gethostname()
+
         print("you're running on %s at %s " %(host_name, socket.gethostbyname(socket.gethostname())))
 
-        if 'yoga13' in host_name or 'jimmy-VirtualBox' in host_name:
+        if 'yoga13' in host_name or 'jimmy-VirtualBox' in host_name or 'jimmytoumasMBP' in host_name:
             local_config_file = os.path.join(metatlas_dir, 'local_config', 'local.yml')
             if os.path.isfile(local_config_file):
                 with open(local_config_file) as fid:
