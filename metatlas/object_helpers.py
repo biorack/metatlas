@@ -4,6 +4,7 @@ import getpass
 import six
 import uuid
 from collections import defaultdict
+import functools
 
 import dataset
 import pandas as pd
@@ -518,7 +519,9 @@ class MetList(List):
         value = super(MetList, self).validate(obj, value)
         value = NotifyList(value)
 
-        value.register_callback(lambda: setattr(obj, '_changed', True))
+        #value.register_callback(lambda: setattr(obj, '_changed', True))
+        callback = functools.partial(setattr, obj, '_changed', True)
+        value.register_callback(callback)
         return value
 
 
