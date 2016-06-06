@@ -256,8 +256,8 @@ def display_atlases():
 def display_pkl_files_and_plot_data(location='$HOME'):
     import subprocess
 
-    if location == '$HOME$':
-        pkl_path = os.path.expandvars('location')
+    if location == '$HOME':
+        pkl_path = os.path.expandvars(location)
     else:
         pkl_path = os.path.expandvars(os.path.join('$HOME', location))
 
