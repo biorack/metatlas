@@ -1,30 +1,14 @@
-import os
-import sys
-from  os.path import expandvars
-from datetime import datetime, date
+from datetime import datetime
 from metatlas import metatlas_objects as metob
-from metatlas import h5_query as h5q
 import metatlas_get_data_helper_fun as ma_data
-from metatlas import  gui
+from metatlas import gui
 
-import matplotlib
-from matplotlib import pyplot as plt
 
 import pandas as pd
 import os
-import tables
-import pickle
-import qgrid
-import dill
-import numpy as np
-import csv
+import os.path
 
-from rdkit import Chem
-from rdkit.Chem import AllChem, Draw, Descriptors, rdMolDescriptors, AllChem, Draw, rdDepictor
-from rdkit.Chem.Draw import rdMolDraw2D, IPythonConsole
-from IPython.display import SVG, display
-
-from IPython.display import display, clear_output
+from IPython.display import display
 import matplotlib.pyplot as plt
 try:
     import ipywidgets as widgets
@@ -35,8 +19,8 @@ try:
 except ImportError:
     from IPython.utils import traitlets
 
-from ipywidgets import interact, interactive, fixed, FloatSlider
-from IPython.core.display import HTML
+from ipywidgets import interact, fixed, FloatSlider
+
 
 
 
@@ -53,13 +37,10 @@ grid2 = gui.create_qgrid([])
 compounds_list_dict = dict()
 
 
-my_file = expandvars('$HOME/data/RL_HM_6550_20160405_Pos_Hilic_Arkin_Ophelia.pkl')
-default_atlas_name = os.path.splitext(os.path.basename(my_file))[0]
-
-
 atlas_header = ['Atlas Name', 'No. Compounds', 'Last Modified']
 compound_header = ['Compound', 'rt_max', 'rt_min', 'rt_peak', 'rt_units', 'mz', 'mz_tolerance', 'mz_tolerance_units',
                    'lcms_run']
+
 # --------------------------------------------------------------------------------------------------------------------
 # --------------------- W I D G E T S ---------------- W I D G E T S -------------------- W I D G E T S --------------
 # --------------------------------------------------------------------------------------------------------------------
@@ -72,10 +53,6 @@ search_string = widgets.Text(description="")
 search_button = widgets.Button(description="Search for Atals")
 display_compounds_and_files = widgets.Button(description="Display Compounds & Files")
 
-# text widget that holds the new atlas name. defaults to the basename of the pkl file
-new_atlas_name = widgets.Text(description="Output Atlas Name")
-new_atlas_name.padding = '20pix'
-new_atlas_name.value = default_atlas_name
 
 # single select widget for the compound
 wcompounds = widgets.Select(
@@ -169,8 +146,6 @@ def atlas_grid(sender):
 
     wild_card = search_string.value
     atlas = metob.retrieve('Atlas', name=wild_card, username='*')
-
-    atlases_list = list()
 
     for i, a in enumerate(atlas):
         atlas_dict['Atlas Name'].append(a.name)
@@ -304,7 +279,6 @@ def display_pkl_files_and_plot_data(location='$HOME'):
 ###########################################################################
 ###
 def save_atlas(sender):
-    from IPython.core.display import HTML
     n = grid.get_selected_rows()
     m = grid2.get_selected_rows()
     if len(m) == 0 or len(n) == 0:
@@ -333,9 +307,6 @@ def save_atlas(sender):
 ###########################################################################
 ###
 def save_atlas_as(sender):
-    from IPython.core.display import HTML
-
-    from IPython.core.display import HTML
     n = grid.get_selected_rows()
     m = grid2.get_selected_rows()
     if len(m) == 0 or len(n) == 0 or len(save_atlas_as_txt.value) == 0:
@@ -361,19 +332,6 @@ def save_atlas_as(sender):
         print atlas
 
     else:
-        #         HTML('''
-        #             <div class="alert alert-danger">
-        # Blah blah blah
-        # </div>
-
-        #             ''')
-
-        #         HTML('''
-        #             <script>
-        #                 alert("I am an alert box!");
-        #             </script>
-
-        #             ''')
         print "cannot save atals"
 
 
