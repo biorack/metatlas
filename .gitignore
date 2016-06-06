@@ -70,5 +70,6 @@ docs/source/api/
 metatlas/local_config/
 
 4notebooks/
+scratch/
 
 .idea

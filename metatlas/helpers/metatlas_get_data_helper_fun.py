@@ -246,6 +246,8 @@ def get_dill_data(fname):
     """
     import dill
 
+    data = list()
+    
     if os.path.exists(fname):
         with open(fname,'r') as f:
             try:
