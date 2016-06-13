@@ -85,6 +85,7 @@ def get_data(h5file, **kwargs):
     if kwargs.get('verbose', None):
         print('Query complete')
 
+    # close the file if opened
     if is_h5_file:
         h5file.close()
 
@@ -239,6 +240,7 @@ def get_info(h5file):
         data['max_rt'] = table.col('rt').max()
         info[table_name] = data
 
+    # close the file if opened
     if is_h5_file:
         h5file.close()
 
@@ -287,6 +289,7 @@ if __name__ == '__main__':  # pragma: no cover
         data = get_heatmap(fid, 1000)
         plot_heatmap(data['arr'], data['rt_bins'], data['mz_bins'])
 
+    # close the file
     fid.close()
 
     plt.show()
