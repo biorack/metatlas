@@ -24,8 +24,11 @@ def get_data(h5file, **kwargs):
     out : dictionary
         Dictionary with arrays for 'i', 'mz', and 'rt' values meeting criteria.
     """
+    is_h5_file = False
     if not isinstance(h5file, tables.File):
+        is_h5_file = True
         h5file = tables.open_file(h5file)
+
 
     # Select the ms_level
     ms_level = kwargs.get('ms_level', None)
@@ -81,6 +84,9 @@ def get_data(h5file, **kwargs):
 
     if kwargs.get('verbose', None):
         print('Query complete')
+
+    if is_h5_file:
+        h5file.close()
 
     return data
 
@@ -214,7 +220,9 @@ def get_info(h5file):
     out : dict
         Number of rows for all of the tables in the file.
     """
+    is_h5_file = False
     if not isinstance(h5file, tables.File):
+        is_h5_file = True
         h5file = tables.open_file(h5file)
 
     info = dict()
@@ -231,10 +239,20 @@ def get_info(h5file):
         data['max_rt'] = table.col('rt').max()
         info[table_name] = data
 
+    if is_h5_file:
+        h5file.close()
+
+
     return info
 
 
 if __name__ == '__main__':  # pragma: no cover
+    from os.path import expandvars
+    import sys
+
+    # sys.path.insert(0,'/global/homes/b/bpb/metatlas/metatlas/helpers/' )
+    sys.path.insert(0, expandvars('$HOME/dev/metatlas'))
+
     import argparse
     import os
     import matplotlib.pyplot as plt
@@ -268,5 +286,7 @@ if __name__ == '__main__':  # pragma: no cover
     if args.heatmap:
         data = get_heatmap(fid, 1000)
         plot_heatmap(data['arr'], data['rt_bins'], data['mz_bins'])
+
+    fid.close()
 
     plt.show()
