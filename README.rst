@@ -44,7 +44,7 @@ See example notebook_.
 For version information, see the Revision History_.
 
 
-.. _online: http://metabolite-atlas.github.io/metatlas/index.rst
+.. _online: http://metabolite-atlas.github.io/metatlas/docs/index.rst
 
 .. _notebook: https://github.com/metabolite-atlas/metatlas/blob/master/docs/example_notebooks/data_access_examples_Methionine_QExactive.ipynb
 
