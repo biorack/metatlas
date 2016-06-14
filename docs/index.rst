@@ -17,25 +17,25 @@
 
 Documentation for the functions included in Metatlas.
 
-`Installation <source/installation.html>`_
+`Installation <source/installation.rst>`_
 ------------------------------------------------
 
 How to install Metatlas on Nersc.
 
 
-`Examples <source/examples.html>`_
+`Examples <source/examples.rst>`_
 ------------------------------------------------
 
 Introductory examples.
 
 
-`Information <source/info.html>`_
+`Information <source/info.rst>`_
 -----------------------------------------
 
 Other information about Metatlas.
 
 
-`Admin <source/admin.html>`_
+`Admin <source/admin.rst>`_
 -----------------------------------------
 
 Information about Metatlas administration.
