@@ -298,7 +298,8 @@ def save_atlas(sender):
 
         atlas = mod_atals_compound_RT_values(**kwargs)
 
-        print atlas
+        metob.store(atlas)
+
 
     else:
         print "cannot save atals"
@@ -329,7 +330,8 @@ def save_atlas_as(sender):
         if len(save_atlas_as_txt.value) > 1:
             atlas.name = save_atlas_as_txt.value
 
-        print atlas
+        metob.store(atlas)
+
 
     else:
         print "cannot save atals"
