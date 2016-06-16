@@ -461,7 +461,12 @@ class Group(MetatlasObject):
     items = MetList(MetInstance(MetatlasObject),
                  help='Can contain other groups or LCMS Runs')
 
+@set_docstring
+class Tree(MetatlasObject):
+    num_leaves = MetFloat()
+    num_branches = MetFloat()
 
+    
 @set_docstring
 class MzIntensityPair(MetatlasObject):
     mz = MetFloat()
