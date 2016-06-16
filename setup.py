@@ -5,7 +5,7 @@ DESCRIPTION = 'Metabolite Atlas'
 LONG_DESCRIPTION = open('README.rst', 'rb').read().decode('utf-8')
 MAINTAINER = 'Steven Silvester'
 MAINTAINER_EMAIL = 'steven.silvester@ieee.org'
-URL = 'http://github.com/metabolite-atlas/metatlas'
+URL = 'http://github.com/biorack/metatlas'
 LICENSE = 'MIT'
 REQUIRES = ["numpy", "pytables", "pymzml", "simplejson", "rpy2", "pandas",
             "dataset", "ipython", "traitlets", "six", "tabulate", "dill",
