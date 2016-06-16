@@ -153,6 +153,8 @@ def atlas_grid(sender):
         atlas_dict['Last Modified'].append(str(datetime.utcfromtimestamp(a.last_modified)))
 
     grid.df = pd.DataFrame.from_dict(atlas_dict)
+    grid.width = "100%"
+
 
 
 ###########################################################################
@@ -190,8 +192,9 @@ def plot_button_clicked(sender):
     data = ma_data.get_dill_data(pkl_fname)
     file_names = ma_data.get_file_names(data)
     (compound_names, compound_objects) = ma_data.get_compound_names(data)
-
+    
     # get the name of the compound as selected from the grid
+    print grid2.get_selected_rows()
     n = grid2.get_selected_rows()[0]
     atlas_compound = grid2.df.loc[n]['Compound']
 
@@ -253,19 +256,29 @@ def display_atlases():
 
 ###########################################################################
 ###
-def display_pkl_files_and_plot_data(location='$HOME'):
+def display_pkl_files_and_plot_data(pkl_path='$HOME',filter_str = '', extension = '*.pkl'):
     import subprocess
+    import fnmatch
 
-    if location == '$HOME':
-        pkl_path = os.path.expandvars(location)
-    else:
-        pkl_path = os.path.expandvars(os.path.join('$HOME', location))
-
-    pkl_file_list = subprocess.Popen(["find", pkl_path, "-iname", "*.pkl"],
-                                     stdout=subprocess.PIPE).communicate()[0]
-
-    pkl_file_list = pkl_file_list.split('\n')
-
+    find_params = filter_str + extension
+    # if location == '$HOME':
+    #     pkl_path = os.path.expandvars(location)
+    # else:
+    #     pkl_path = os.path.expandvars(os.path.join('$HOME', location))
+    # print pkl_path
+    # pkl_file_list = subprocess.Popen(["find", pkl_path,"-iname",filter_str, "-iname", extension],
+                                     # stdout=subprocess.PIPE).communicate()[0]
+# 
+    # pkl_file_list = pkl_file_list.split('\n')
+    pkl_file_list = []
+    for root, dirnames, filenames in os.walk(pkl_path):
+        for filename in fnmatch.filter(filenames, extension):
+            fname = os.path.join(root, filename)
+            if filter_str:
+                if filter_str.lower() in os.path.basename(fname).lower():
+                    pkl_file_list.append(fname)
+            else:
+                pkl_file_list.append(fname)
     wfiles.options = pkl_file_list
 
     display(widgets.HBox((plot_button, save_atlas_button, save_as_button, save_atlas_as_txt)))
