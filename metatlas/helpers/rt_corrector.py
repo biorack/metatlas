@@ -50,7 +50,7 @@ atlases_select = widgets.Select(description='Atlases:', options=[])
 
 # text widget to select for atlases in a database. accepts wild cards
 search_string = widgets.Text(description="")
-search_button = widgets.Button(description="Search for Atals")
+search_button = widgets.Button(description="Search for Atlas")
 display_compounds_and_files = widgets.Button(description="Display Compounds & Files")
 
 
@@ -104,7 +104,7 @@ rtmax_widget = FloatSlider()
 
 ###########################################################################
 ###
-def mod_atals_compound_RT_values(**kwargs):
+def mod_atlas_compound_RT_values(**kwargs):
     """
     Parameters
     ----------
@@ -296,13 +296,13 @@ def save_atlas(sender):
         kwargs['rt_max'] = rtmax_widget.value
         kwargs['rt_peak'] = rtpeak_widget.value
 
-        atlas = mod_atals_compound_RT_values(**kwargs)
+        atlas = mod_atlas_compound_RT_values(**kwargs)
 
         metob.store(atlas)
 
 
     else:
-        print "cannot save atals"
+        print "cannot save atlas"
 
 
 ###########################################################################
@@ -325,7 +325,7 @@ def save_atlas_as(sender):
         kwargs['rt_max'] = rtmax_widget.value
         kwargs['rt_peak'] = rtpeak_widget.value
 
-        atlas = mod_atals_compound_RT_values(**kwargs)
+        atlas = mod_atlas_compound_RT_values(**kwargs)
 
         if len(save_atlas_as_txt.value) > 1:
             atlas.name = save_atlas_as_txt.value
@@ -334,7 +334,7 @@ def save_atlas_as(sender):
 
 
     else:
-        print "cannot save atals"
+        print "cannot save atlas"
 
 
 ###########################################################################
@@ -351,7 +351,11 @@ def my_handler(widget, content, buffers=None):
             compound_vals_dict[i] = list()
 
         for x in atlas[0].compound_identifications:
-            compound_vals_dict['Compound'].append(str(x.compound[0].name))
+            if x.compound:
+                compound_vals_dict['Compound'].append(str(x.compound[0].name))
+            else:
+                compound_vals_dict['Compound'].append(str(x.name))
+
             compound_vals_dict['rt_max'].append(str(x.rt_references[0].rt_max))
             compound_vals_dict['rt_min'].append(str(x.rt_references[0].rt_min))
             compound_vals_dict['rt_peak'].append(str(x.rt_references[0].rt_peak))
