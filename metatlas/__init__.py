@@ -9,10 +9,11 @@ from .plotting import plot_heatmap, plot_spectrogram, plot_chromatogram
 from .h5_query import (
     get_data, get_chromatogram, get_heatmap, get_spectrogram, get_info)
 from .metatlas_objects import (
-    Method, Sample, LcmsRun, ReferenceDatabase, FunctionalSet,
+    Method, Sample, LcmsRun, FunctionalSet,
     Compound, Reference, IdentificationGrade, CompoundIdentification, Atlas,
     Group, MzIntensityPair, FragmentationReference, RtReference,
     MzReference, retrieve, store, remove, remove_objects, database,
     to_dataframe
 )
+#ReferenceDatabase, 
 from .gui import show_experiments, show_lcms_run, edit_objects

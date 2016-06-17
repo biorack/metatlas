@@ -390,6 +390,7 @@ class Compound(MetatlasObject):
     by inchi-key of neutralized and de-salted molecules.
     """
     #name is inherited by all metatlas objects and is the most commonly used name for each compound
+    #Description is a short text description of the compound
     iupac_name = MetUnicode(help='IUPAC International Chemical Identifier, optional')
     synonyms = MetUnicode()
     source=MetUnicode()
