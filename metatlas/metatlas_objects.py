@@ -561,6 +561,7 @@ class CompoundIdentification(MetatlasObject):
     mz_references = MetList(MetInstance(MzReference))
     rt_references = MetList(MetInstance(RtReference))
     frag_references = MetList(MetInstance(FragmentationReference))
+    intensity_references = MetList(MetInstance(IntensityReference))
 
 
 @set_docstring
