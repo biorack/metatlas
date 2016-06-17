@@ -13,13 +13,26 @@ from .object_helpers import (
     Stub
 )
 
+#Making a new table means adding a new class to metatlas_objects.py. 
+#Floats are set as single precision by default, unfortunately, so here is the best way to create a table containing floats:
+#Create a new table
+#1) Create a new class in metatlas_objects.py.
+#2) Create a new object of that class and store it.
+#3) Log into database
+#4) Run alter table TABLE_NAME modify COLUMN_NAME double; for each float column
+#Add a floating point object to a new table
+#1) Update the class in metatlas_objects.py.
+#2) Create an object with the updated class and store it.
+#3) Log into database
+#4) Run alter table TABLE_NAME modify COLUMN_NAME double; for each new float column
+
 
 # Whether to fetch stubs automatically, disabled when we want to display
 # a large number of objects.
 FETCH_STUBS = True
 
 POLARITY = ('positive', 'negative', 'alternating')
-
+FRAGMENTATION_TECHNIQUE = ('hcd','cid','etd','ecd','irmpd')
 
 def retrieve(object_type, **kwargs):
     """Get objects from the Metatlas object database.
@@ -345,15 +358,18 @@ class LcmsRun(MetatlasObject):
     experiment = MetUnicode(help='The name of the experiment')
     hdf5_file = MetUnicode(help='Path to the HDF5 file at NERSC')
     mzml_file = MetUnicode(help='Path to the MZML file at NERSC')
+    acquisition_time = MetInt(help='Unix timestamp when data was acquired creation')
     injection_volume = MetFloat()
-    injection_volume_units = MetEnum(('xxx', 'xx'), 'xx')
+    injection_volume_units = MetEnum(('uL', 'nL'), 'uL')
+    pass_qc = MetBool(help= 'True/False for if the LCMS Run has passed a quality control assessment')
     sample = MetInstance(Sample)
 
 
-@set_docstring
-class ReferenceDatabase(MetatlasObject):
-    """External databases (PubChem, KEGG, MetaCyc, KBase, etc)."""
-    enabled = MetBool(True)
+#This is no longer used.  These attributes are now part of compound objects
+#@set_docstring
+#class ReferenceDatabase(MetatlasObject):
+#    """External databases (PubChem, KEGG, MetaCyc, KBase, etc)."""
+#    enabled = MetBool(True)
 
 
 @set_docstring
@@ -368,29 +384,15 @@ class FunctionalSet(MetatlasObject):
 
 @set_docstring
 class Compound(MetatlasObject):
-    """A Compound as a name and description to capture incomplete IDs:
-    for example "hexose", "32:0 diacylglycerol".
-    For IDs that have high enough confidence for structural assignments an
-    InChi string is the ID.
+    """A Compound is a structurally distinct entry.  The majority of MetAtlas compounds are from a merge
+    of WikiData, miBIG, HMDB, ChEBI, LipidMaps, MetaCyc, GNPS, ENZO-Library, MSMLS-Library.  Compounds that 
+    had an unparseable structural identifier by RDKIT June, 2016, were ignored.  Distinct molecules are found
+    by inchi-key of neutralized and de-salted molecules.
     """
-    inchi = MetUnicode(help='IUPAC International Chemical Identifier, optional')
-    formula = MetUnicode()
-    mono_isotopic_molecular_weight = MetFloat()
+    #name is inherited by all metatlas objects and is the most commonly used name for each compound
+    iupac_name = MetUnicode(help='IUPAC International Chemical Identifier, optional')
     synonyms = MetUnicode()
-    pubchem_url = MetUnicode(help='Reference database table url')
-    wikipedia_url = MetUnicode(help='Reference database table url')
-    kegg_url = MetUnicode(help='Reference database table url')
-    hmdb_url = MetUnicode(help='Reference database table url')
-    chebi_url = MetUnicode(help='Reference database table url')
-    lipidmaps_url = MetUnicode(help='Reference database table url')
-
-    permanent_charge = MetInt()
-    inchi_key = MetUnicode()
-    number_components = MetInt(help='Must be one or greater')
-    neutralized_inchi = MetUnicode()
-    neutralized_inchi_key = MetUnicode()
-    neutralized_2d_inchi = MetUnicode()
-    neutralized_2d_inchi_key = MetUnicode()
+    source=MetUnicode()
     chebi_id=MetUnicode()
     hmdb_id=MetUnicode()
     img_abc_id=MetUnicode()
@@ -398,12 +400,29 @@ class Compound(MetatlasObject):
     lipidmaps_id=MetUnicode()
     metacyc_id=MetUnicode()
     pubchem_compound_id=MetUnicode()
-    source=MetUnicode()
-    iupac_name  = MetUnicode()
+    pubchem_url = MetUnicode(help='Reference database table url')
+    wikipedia_url = MetUnicode(help='Reference database table url')
+    kegg_url = MetUnicode(help='Reference database table url')
+    hmdb_url = MetUnicode(help='Reference database table url')
+    chebi_url = MetUnicode(help='Reference database table url')
+    lipidmaps_url = MetUnicode(help='Reference database table url')
+    
+    #RDKIT Calculates these with some helper functions
+    formula = MetUnicode()
+    mono_isotopic_molecular_weight = MetFloat()
+    permanent_charge = MetInt()
+    number_components = MetInt(help='Must be one or greater')
     num_free_radicals = MetInt()
-    reference_xrefs = MetList(MetInstance(ReferenceDatabase),
-                           help='Tag a compound with compound ids from ' +
-                                'external databases')
+    inchi = MetUnicode()
+    inchi_key = MetUnicode()
+    neutralized_inchi = MetUnicode()
+    neutralized_inchi_key = MetUnicode()
+    neutralized_2d_inchi = MetUnicode()
+    neutralized_2d_inchi_key = MetUnicode()
+    
+    #reference_xrefs = MetList(MetInstance(ReferenceDatabase),
+    #                       help='Tag a compound with compound ids from ' +
+    #                            'external databases')
     functional_sets = MetList(MetInstance(FunctionalSet))
 
 
@@ -412,7 +431,7 @@ class Reference(MetatlasObject):
     """Place holder for future reference sources.
     We expect many in silico methods will soon be robust enough to suggest
     retention times, m/z, and fragmentation.
-    MIDAS is a great example of this.
+    Pactolus is a great example of this.
     """
     lcms_run = MetInstance(LcmsRun)
     enabled = MetBool(True)
@@ -477,12 +496,7 @@ class Group(MetatlasObject):
     items = MetList(MetInstance(MetatlasObject),
                  help='Can contain other groups or LCMS Runs')
 
-@set_docstring
-#This is a tester object I made and not meant for Metabolite Atlas.  Only to test the creation of tables and attributes in the database
-class Tree(MetatlasObject):
-    num_leaves = MetFloat()
-    num_branches = MetFloat()
-    species = MetUnicode()
+
 
     
 @set_docstring
@@ -493,8 +507,12 @@ class MzIntensityPair(MetatlasObject):
 
 @set_docstring
 class FragmentationReference(Reference):
+    #This is specific for storing MS2 fragmentation spectra
+    #A Fragmentation Tree will be added as a datatype when MS^n is deposited
     polarity = MetEnum(POLARITY, 'positive')
     precursor_mz = MetFloat()
+    collision_energy = MetFloat()
+    technique = MetEnum(FRAGMENTATION_TECHNIQUE,'cid')
     mz_intensities = MetList(MetInstance(MzIntensityPair),
                           help='list of [mz, intesity] tuples that describe ' +
                                ' a fragmentation spectra')
@@ -521,6 +539,15 @@ class MzReference(Reference):
     modification = MetUnicode(help='Optional modification')
     observed_formula = MetUnicode(help='Optional observed formula')
 
+@set_docstring
+class IntensityReference(Reference):
+    """Source of the assertion that a compound has a given m/z and
+    other properties directly tied to m/z.
+    """
+    peak_height = MetFloat()
+    peak_area = MetFloat()
+    amount = MetFloat()
+    amount_units = MetEnum(('nmol', 'mol'), 'nmol')
 
 @set_docstring
 class CompoundIdentification(MetatlasObject):
