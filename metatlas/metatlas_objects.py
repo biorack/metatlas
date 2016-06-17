@@ -462,9 +462,11 @@ class Group(MetatlasObject):
                  help='Can contain other groups or LCMS Runs')
 
 @set_docstring
+#This is a tester object I made and not meant for Metabolite Atlas.  Only to test the creation of tables and attributes in the database
 class Tree(MetatlasObject):
     num_leaves = MetFloat()
     num_branches = MetFloat()
+    species = MetUnicode()
 
     
 @set_docstring
