@@ -218,8 +218,15 @@ We have an Anaconda instance at NERSC:
 libraries stored there. See the ``installation`` instructions for how to
 users are meant to use it. You can ``pip install`` and
 ``conda install``. The packages required for ``metatlas`` are listed the
-``setup.py``, except for qgrid, which was installed directly from the
-QGrid repo as ``pip install https://github.com/quantopian/qgrid/``.
+``setup.py``, except for 
+
+qgrid, which was installed directly from the
+QGrid repo as ``pip install https://github.com/quantopian/qgrid/``
+
+and
+
+RDKit, which was installed from the rdkit conda build as
+``conda install -c https://conda.anaconda.org/rdkit rdkit``
 
 R packages
 ==========
