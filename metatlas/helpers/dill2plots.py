@@ -2,19 +2,14 @@ import sys
 import os
 import os.path
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
-curr_ld_lib_path = ''
+#curr_ld_lib_path = ''
 
-# os.environ['LD_LIBRARY_PATH'] = curr_ld_lib_path + ':/project/projectdirs/openmsi/jupyterhub_libs/boost_1_55_0/lib' + ':/project/projectdirs/openmsi/jupyterhub_libs/lib'
-
-# sys.path.insert(0, '/project/projectdirs/metatlas/python_pkgs/')
-sys.path.insert(0,'/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages' )
 
 from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
-sys.path.append('/global/project/projectdirs/openmsi/jupyterhub_libs/anaconda/lib/python2.7/site-packages')
-
+from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
+from metatlas import gui
 import metatlas_get_data_helper_fun as ma_data
-ma_data = reload(ma_data)
 
 import qgrid
 import pandas as pd
@@ -24,16 +19,42 @@ import pickle
 import dill
 import numpy as np
 import re
-
-
-
 from matplotlib import pyplot as plt
+
 from rdkit import Chem
 from rdkit.Chem import Descriptors, rdMolDescriptors, AllChem, Draw, rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D, IPythonConsole
 from itertools import cycle
 from collections import defaultdict
 from IPython.display import SVG,display
+
+import getpass
+from ast import literal_eval# from datetime import datetimefrom matplotlib.widgets import Slider, Button, RadioButtons
+
+def replace_compound_id_with_name(x):    id_list = literal_eval(x)    found_compound = metob.retrieve('Compounds',unique_id=id_list[0])    return found_compound[-1].namedef make_compound_id_df(data):    ids = []    for d in data[0]:        ids.append(d['identification'])    df = metob.to_dataframe(ids)    df['compound'] = df['compound'].apply(replace_compound_id_with_name).astype('str')     df['rt_unique_id'] = df['rt_references'].apply(lambda x: literal_eval(x))#     df['mz_unique_id'] = df['mz_references'].apply(lambda x: literal_eval(x))#     df['frag_unique_id'] = df['frag_references'].apply(lambda x: literal_eval(x))    df = df[['compound','name','username','rt_unique_id']]#,'mz_unique_id','frag_unique_id']]    return dfdef show_compound_grid(datapath = '',data=[]):
+    """
+    Provide a valid path to data in or a dataset
+    """
+    if not data:
+        print "loading..."
+        data = ma_data.get_dill_data(datapath)    atlas_in_data = metob.retrieve('Atlas',unique_id = data[0][0]['atlas_unique_id'],username='*')    print "loaded file for username = ", atlas_in_data[0].username    username = getpass.getuser()    if username != atlas_in_data[0].username:        print "YOUR ARE",username,"YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"        return    compound_df = make_compound_id_df(data)    compound_grid = gui.create_qgrid([])    compound_grid.df = compound_df    display(compound_grid)    return compound_griddef adjust_rt_for_selected_compound(data,compound_grid, width = 12, height = 6,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite'):    """    width: specify a width value in inches for the plots and slides    height: specify a width value in inches for the plots and slides
+    min_max_color & peak_color: specify a valid matplotlib color string for the slider and vertical bars
+    slider_color: background color for the sliders. Must be a valid matplotlib color        """
+    compound_idx = compound_grid.get_selected_rows()
+    compound_df = compound_grid.df    if not compound_idx:        print 'you have to select a compound'        return    if len(compound_idx)>1:        print 'Only select one compound'        return    fig,ax = plt.subplots(figsize=(width, height))#     ax = plt.gca()    plt.subplots_adjust(left=0.25, bottom=0.275)    ax.set_title(compound_df.iloc[compound_idx]['compound'].tolist()[0].split('///')[0])
+    ax.set_ylabel('Intensity')
+    ax.set_xlabel('Retention Time')    my_rt = metob.retrieve('RTReference',unique_id = compound_df.loc[compound_idx[0],'rt_unique_id'][0])[-1]    for d in data:        if len(d[compound_idx[0]]['data']['eic']['rt']) > 0:            x = d[compound_idx[0]]['data']['eic']['rt']            y = d[compound_idx[0]]['data']['eic']['intensity']            ax.plot(x,y,'k-',linewidth=2.0,alpha=1.0)      min_x = ax.get_xlim()[0]    max_x = ax.get_xlim()[1]    min_line = ax.axvline(my_rt.rt_min, color=min_max_color,linewidth=4.0)    max_line = ax.axvline(my_rt.rt_max, color=min_max_color,linewidth=4.0)    peak_line = ax.axvline(my_rt.rt_peak, color=peak_color,linewidth=4.0)        axcolor = slider_color    rt_peak_ax = plt.axes([0.25, 0.05, 0.65, 0.03], axisbg=axcolor)    rt_max_ax = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg=axcolor)    rt_min_ax = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)        rt_min_slider = Slider(rt_min_ax, 'RT min', min_x, max_x, valinit=my_rt.rt_min,color=min_max_color)
+    rt_min_slider.vline.set_color('black')
+    rt_min_slider.vline.set_linewidth(4)    rt_max_slider = Slider(rt_max_ax, 'RT max', min_x, max_x, valinit=my_rt.rt_max,color=min_max_color)
+    rt_max_slider.vline.set_color('black')
+    rt_max_slider.vline.set_linewidth(4)    rt_peak_slider = Slider(rt_peak_ax,'RT peak', min_x, max_x, valinit=my_rt.rt_peak,color=peak_color)    rt_peak_slider.vline.set_color('black')
+    rt_peak_slider.vline.set_linewidth(4)
+
+    def update(val):        my_rt.rt_min = rt_min_slider.val        my_rt.rt_max = rt_max_slider.val        my_rt.rt_peak = rt_peak_slider.val
+        rt_min_slider.valinit = my_rt.rt_min        rt_max_slider.valinit = my_rt.rt_max        rt_peak_slider.valinit = my_rt.rt_peak
+        metob.store(my_rt)        min_line.set_xdata((my_rt.rt_min,my_rt.rt_min))        max_line.set_xdata((my_rt.rt_max,my_rt.rt_max))        peak_line.set_xdata((my_rt.rt_peak,my_rt.rt_peak))        fig.canvas.draw_idle()    rt_min_slider.on_changed(update)    rt_max_slider.on_changed(update)    rt_peak_slider.on_changed(update)    plt.show()
+
+
 
 
 def getcommonletters(strlist):
@@ -517,8 +538,6 @@ def get_reference_msms_spectra(frag_refs, compound_name = '', polarity = '', pre
             spectra.append( [(m.mz, m.intensity) for m in fr.frag_references[0].mz_intensities] )
     return spectra
     
-        
-
 def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name,project_label):
     #  d = 'data/%s/identification/'%project_label
     
@@ -626,58 +645,17 @@ def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name
             plt.close('all')#f.clear()
 
     
-def match_inchi_key_to_lookup_table(df,
-                                    compound_lookup = '/global/homes/b/bpb/notebooks/thoughts/uniquecompounds.csv'):
-#def match_inchi_key_to_lookup_table(df,compound_lookup = '/home/jimmy/data/uniquecompounds.csv'):
-    '''
-    Until the compound database is updated use this file to check for portable IDs and common names.
-    Takes as input a dataframe with inchi_key as a column and adds the columns from the compound lookup table
-    '''
-    import re
-    lookup_df = pd.read_csv(compound_lookup)
-    for i, row in df.iterrows():
-        if row['neutralized_inchi_key']:
-            idx = lookup_df.metatlas_inchi_key == row['neutralized_inchi_key']
-            for j,idx_val in enumerate(idx):
-                if idx_val:
-                    for k in lookup_df.keys():
-                        s = str(lookup_df.loc[j,k])
-                        s = re.sub('<[^>]*>', '', s)
-                        df.loc[i,k] = s
-    return df
-    
+
     
             
-def export_atlas_to_spreadsheet(myAtlas,
-                                output_filename,
-                                compound_lookup='/global/homes/b/bpb/notebooks/thoughts/uniquecompounds.csv',
-                                input_type = 'atlas'):
-    # myAtlases = [atlas[0],atlas[1]] #concatenate the atlases you want to use
-    # myAtlases = [atlas[0]]
-
-    cols = ['inchi',
-     'mono_isotopic_molecular_weight',
-     'creation_time',
-     'description',
-     'formula',
-     'functional_sets',
-     'last_modified',
-     'reference_xrefs',
-     'synonyms',
-     'unique_id',
-     'url',
-     'username']
-
-        # print myAtlas[0].compound_identifications[0].compound
+def export_atlas_to_spreadsheet(myAtlas, output_filename, input_type = 'atlas'):
+    cols = [c for c in metob.Compound.class_trait_names() if not c.startswith('_')]
     atlas_export = pd.DataFrame( )
 
-#     atlas_export['name'] = compound_list
-#     atlas_export.set_index('name',drop=True)
     if input_type != 'atlas':
         num_compounds = len(myAtlas[0])
     else:
         num_compounds = len(myAtlas.compound_identifications)
-
 
     for i in range(num_compounds):
         if input_type != 'atlas':
@@ -685,17 +663,12 @@ def export_atlas_to_spreadsheet(myAtlas,
             n = my_id.name
         else:
             my_id = myAtlas.compound_identifications[i]
-    
-            if myAtlas.compound_identifications[i].compound:
-                n = my_id.compound[0].name
-            else:
-                n = my_id.name
-        atlas_export.loc[i,'name'] = n
+   
         if my_id.compound:
             for c in cols:
                 g = getattr(my_id.compound[0],c)
                 if g:
-                    atlas_export.ix[i,c] = getattr(my_id.compound[0],c)
+                    atlas_export.loc[i,c] = g
         atlas_export.loc[i, 'label'] = my_id.name
         atlas_export.loc[i,'rt_min'] = my_id.rt_references[0].rt_min
         atlas_export.loc[i,'rt_max'] = my_id.rt_references[0].rt_max
@@ -708,23 +681,6 @@ def export_atlas_to_spreadsheet(myAtlas,
         else:
             atlas_export.loc[i,'has_fragmentation_reference'] = False
     
-    for i,row in atlas_export.iterrows():
-        mol= []
-        if row['inchi'] and (type(row['inchi']) != float):
-            mol = Chem.MolFromInchi(row['inchi'].encode('utf-8'))
-        if mol:
-            ds = desalt(mol)
-            c = NeutraliseCharges(ds[0])
-            mol = c[0]
-            atlas_export.loc[i,'permanent_charge'] = Chem.GetFormalCharge(mol)
-            
-            neutral_string = Chem.MolToInchi(mol)
-            atlas_export.loc[i,'neutralized_inchi'] = neutral_string
-            
-            neutral_inchi_key = Chem.InchiToInchiKey(neutral_string)
-            atlas_export.loc[i,'neutralized_inchi_key'] = neutral_inchi_key
-            
-    atlas_export = match_inchi_key_to_lookup_table(atlas_export, compound_lookup)
 
     if not os.path.exists(os.path.dirname(output_filename)):
         os.makedirs(os.path.dirname(output_filename))
@@ -746,6 +702,8 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
             row = []
             for compound in myAtlas.compound_identifications:
                 result = {}
+                result['atlas_name'] = myAtlas.name
+                result['atlas_unique_id'] = myAtlas.unique_id
                 result['lcmsrun'] = treatment_groups.items[j]
                 result['group'] = treatment_groups
                 temp_compound = copy.deepcopy(compound)
@@ -844,11 +802,12 @@ def check_compound_names(df):
     # Keep running this until no more compounds are listed
     bad_names = []
     for x in df.index:
-        if type(df.name[x]) != float or type(df.label[x]) != float:
-            if type(df.name[x]) != float:
-                    if not metob.retrieve('Compounds',name=df.name[x], username = '*'):
-                        print df.name[x], "is not in database"
-                        bad_names.append(df.name[x])
+        #if type(df.name[x]) != float or type(df.label[x]) != float:
+            #if type(df.name[x]) != float:
+        if df.inchi_key[x]:
+            if not metob.retrieve('Compounds',neutralized_inchi_key=df.inchi_key[x], username = '*'):
+                print df.name[x], "compound is not in database. Exiting Without Completing Task!"
+                bad_names.append(df.name[x])
     return bad_names
 
 
@@ -856,7 +815,7 @@ def check_file_names(df,field):
     bad_files = []
     for i,row in df.iterrows():
         if not metob.retrieve('Lcmsruns',name = '%%%s%%'%row[field],username = '*'):
-            print row[field], "is not in the database"
+            print row[field], "file is not in the database. Exiting Without Completing Task!"
             bad_files.append(row[field])
     return bad_files
 
@@ -871,6 +830,7 @@ def get_formatted_atlas_from_google_sheet(polarity='POS',
 
     fields_to_keep = [ 'name',
                     'label',
+                      'inchi_key',
                     'mz_%s'%polarity,
                     'rt_min_%s'%method,
                     'rt_max_%s'%method,
@@ -942,12 +902,12 @@ def make_atlas_from_spreadsheet(filename=False,
 
 #     for i,row in df.iterrows():
     for x in df.index:
-        if type(df.name[x]) != float or type(df.label[x]) != float: #this logic is to skip empty rows
+        if type(df.inchi_key[x]) != float or type(df.label[x]) != float: #this logic is to skip empty rows
             
             myID = metob.CompoundIdentification()
             
-            if type(df.name[x]) != float: # this logic is where a name has been specified
-                c = metob.retrieve('Compounds',name=df.name[x],username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
+            if df.inchi_key[x]: # this logic is where an identified metabolite has been specified
+                c = metob.retrieve('Compounds',neutralized_inchi_key=df.inchi_key[x],username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
                 if c:
                     c = c[0]
             else:

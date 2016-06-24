@@ -89,6 +89,7 @@ def retrieve_most_intense_msms_scan(data):
     msms_data['precursor_intensity'] = pintensity
     return msms_data
 
+
 def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     """
     A helper function to query the various metatlas data selection 
@@ -165,6 +166,7 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
             return_data['ms1_summary']['rt_peak'] = ms1_data['rt'][idx]        
             return_data['ms1_summary']['peak_height'] = ms1_data['i'][idx]
             return_data['ms1_summary']['peak_area'] = np.sum(ms1_data['i'])
+
         except:
             return_data['ms1_summary']['polarity'] = []
             return_data['ms1_summary']['mz_centroid'] = []
@@ -173,6 +175,7 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
             return_data['ms1_summary']['rt_peak'] = []
             return_data['ms1_summary']['peak_height'] = []
             return_data['ms1_summary']['peak_area'] = []
+
     
     if 'eic' in what_to_get:
         #Get Extracted Ion Chromatogram

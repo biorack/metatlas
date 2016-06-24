@@ -125,9 +125,11 @@ def get_chromatogram(h5file, min_mz, max_mz, aggregator=np.sum, **kwargs):
         return [], []
 
     rt = np.unique(data['rt'])
+    if len(rt)==1:
+        return [rt], [np.sum(data['i'])]
     if aggregator == np.sum:
         d = np.diff(rt) / 2
-        edges = np.hstack([rt[0] - d[1], rt[0:-1] + d, rt[-1] + d[-1]])
+        edges = np.hstack([rt[0] - d[0], rt[0:-1] + d, rt[-1] + d[-1]])
         i, _ = np.histogram(data['rt'], bins=edges, weights=data['i'])
     else:
         i = []
