@@ -508,7 +508,7 @@ def plot_errorbar_plots(df,**kwargs):#df,compound_list,project_label):
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
         
-
+    plt.ioff()
     for compound in compound_names:
         m = df.ix[compound].groupby(level='group').mean()
         e = df.ix[compound].groupby(level='group').std()
@@ -517,15 +517,15 @@ def plot_errorbar_plots(df,**kwargs):#df,compound_list,project_label):
         for i in range(len(e)):
             if c[i]>0:
                 e[i] = e[i] / c[i]**0.5
-
-        f, ax = plt.subplots(1, 1,figsize=(20,12))
+        
+        f, ax = plt.subplots(1, 1,figsize=(12,12))
         m.plot(yerr=e, kind='bar',ax=ax)
         ax.set_title(compound,fontsize=12,weight='bold')
         plt.tight_layout()
         f.savefig(os.path.join(output_loc, compound + '_errorbar.pdf'))
 
-        f.clear()
-        plt.close('all')#f.clear()
+        #f.clear()
+        plt.close(f)#f.clear()
 
 def get_reference_msms_spectra(frag_refs, compound_name = '', polarity = '', precursor_mz = 0.0):
     spectra = []

@@ -332,6 +332,7 @@ def get_compound_names(data):
             _str = d['identification'].compound[0].name
         else:
             _str = d['identification'].name
+        _str = _str.split('///')[0]
         newstr = '%s_%s_%s_%5.2f'%(_str,d['identification'].mz_references[0].detected_polarity,
                 d['identification'].mz_references[0].adduct,d['identification'].rt_references[0].rt_peak)
         newstr = re.sub('\.', 'p', newstr) #2 or more in regexp
