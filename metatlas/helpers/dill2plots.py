@@ -336,7 +336,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
                 ax.annotate(xlbl,(min(new_x),row-0.1), size=2)
                 ax.annotate('{0},{1},{2},{3}'.format(my_file,rt_min, rt_peak, rt_max),(min(new_x),row-0.2), size=2)#,ha='center')
                 myWhere = np.logical_and(new_x>=rt_min_, new_x<=rt_max_ )
-                ax.fill_between(new_x,min(y)+row,y+row,myWhere, facecolor='c', alpha=0.3)
+                #ax.fill_between(new_x,min(y)+row,y+row,myWhere, facecolor='c', alpha=0.3)
                 col += 1
             else:
                 new_x = np.asarray([0,1])
@@ -647,9 +647,12 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
             
 #             data[file_idx][compound_idx]['identification'].mz_references[0].polarity
 #             print data[file_idx][compound_idx]['data']['msms']
-            ref_spec = get_reference_msms_spectra(frag_refs, 
+            if data[file_idx][compound_idx]['identification'].compound:
+                ref_spec = get_reference_msms_spectra(frag_refs, 
                                        compound_name = data[file_idx][compound_idx]['identification'].compound[0].name, 
                                        polarity = data[file_idx][compound_idx]['data']['msms']['polarity'])
+            else:
+                ref_spec = []
     #TODO: get the precursor_mz sorted out
             
 #                                        precursor_mz = data[file_idx][compound_idx]['data']['msms']['precursor_mz'])
