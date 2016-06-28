@@ -59,8 +59,8 @@ def replace_compound_id_with_name(x):
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
 
     compound_idx = compound_grid.get_selected_rows()
-    compound_df = compound_grid.df    if not compound_idx:        print 'you have to select a compound'        return    if len(compound_idx)>1:        print 'Only select one compound'        return    fig,ax = plt.subplots(figsize=(width, height))#     ax = plt.gca()    plt.subplots_adjust(left=0.25, bottom=0.275)    ax.set_title(compound_df.iloc[compound_idx]['compound'].tolist()[0].split('///')[0])
-    ax.set_ylabel('Intensity')
+    compound_df = compound_grid.df    if not compound_idx:        print 'you have to select a compound'        return    if len(compound_idx)>1:        print 'Only select one compound'        return    fig,ax = plt.subplots(figsize=(width, height))#     ax = plt.gca()    plt.subplots_adjust(left=0.25, bottom=0.275)    compound_str = compound_df.iloc[compound_idx]['compound'].tolist()[0].split('///')[0]    ax.set_title('')
+    ax.set_ylabel('%s\nIntensity'%compound_str)
     ax.set_xlabel('Retention Time')    my_rt = metob.retrieve('RTReference',unique_id = compound_df.loc[compound_idx[0],'rt_unique_id'][0])[-1]    for d in data:        if len(d[compound_idx[0]]['data']['eic']['rt']) > 0:            x = d[compound_idx[0]]['data']['eic']['rt']            y = d[compound_idx[0]]['data']['eic']['intensity']
             x = np.asarray(x)
             y = np.asarray(y)
@@ -68,7 +68,7 @@ def replace_compound_id_with_name(x):
             y = y - minval
             
             x = x[y>0]
-            y = y[y>0]#y[y<0.0] = 0.0            ax.plot(x,y,'k-',linewidth=2.0,alpha=alpha)
+            y = y[y>0]#y[y<0.0] = 0.0            ax.plot(x,y,'k-',linewidth=2.0,alpha=alpha, picker=5, label = d[compound_idx[0]]['lcmsrun'].name)
     ax.set_yscale(y_scale)    min_x = ax.get_xlim()[0]    max_x = ax.get_xlim()[1]    min_line = ax.axvline(my_rt.rt_min, color=min_max_color,linewidth=4.0)    max_line = ax.axvline(my_rt.rt_max, color=min_max_color,linewidth=4.0)    peak_line = ax.axvline(my_rt.rt_peak, color=peak_color,linewidth=4.0)        axcolor = slider_color    rt_peak_ax = plt.axes([0.25, 0.05, 0.65, 0.03], axisbg=axcolor)    rt_max_ax = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg=axcolor)    rt_min_ax = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)        rt_min_slider = Slider(rt_min_ax, 'RT min', min_x, max_x, valinit=my_rt.rt_min,color=min_max_color)
     rt_min_slider.vline.set_color('black')
     rt_min_slider.vline.set_linewidth(4)    rt_max_slider = Slider(rt_max_ax, 'RT max', min_x, max_x, valinit=my_rt.rt_max,color=min_max_color)
@@ -76,9 +76,10 @@ def replace_compound_id_with_name(x):
     rt_max_slider.vline.set_linewidth(4)    rt_peak_slider = Slider(rt_peak_ax,'RT peak', min_x, max_x, valinit=my_rt.rt_peak,color=peak_color)    rt_peak_slider.vline.set_color('black')
     rt_peak_slider.vline.set_linewidth(4)
 
-    def update(val):        my_rt.rt_min = rt_min_slider.val        my_rt.rt_max = rt_max_slider.val        my_rt.rt_peak = rt_peak_slider.val
+    def on_pick(event):        thisline = event.artist        ax.set_title(thisline.get_label())    def update(val):        my_rt.rt_min = rt_min_slider.val        my_rt.rt_max = rt_max_slider.val        my_rt.rt_peak = rt_peak_slider.val
         rt_min_slider.valinit = my_rt.rt_min        rt_max_slider.valinit = my_rt.rt_max        rt_peak_slider.valinit = my_rt.rt_peak
-        metob.store(my_rt)        min_line.set_xdata((my_rt.rt_min,my_rt.rt_min))        max_line.set_xdata((my_rt.rt_max,my_rt.rt_max))        peak_line.set_xdata((my_rt.rt_peak,my_rt.rt_peak))        fig.canvas.draw_idle()    rt_min_slider.on_changed(update)    rt_max_slider.on_changed(update)    rt_peak_slider.on_changed(update)    plt.show()
+        metob.store(my_rt)        min_line.set_xdata((my_rt.rt_min,my_rt.rt_min))        max_line.set_xdata((my_rt.rt_max,my_rt.rt_max))        peak_line.set_xdata((my_rt.rt_peak,my_rt.rt_peak))        fig.canvas.draw_idle()    rt_min_slider.on_changed(update)    rt_max_slider.on_changed(update)    rt_peak_slider.on_changed(update)
+    fig.canvas.callbacks.connect('pick_event', on_pick)    #fig.canvas.mpl_connect('pick_event', onpick)    plt.show()
 
 
 
