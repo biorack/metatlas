@@ -862,7 +862,7 @@ def check_compound_names(df):
     for x in df.index:
         #if type(df.name[x]) != float or type(df.label[x]) != float:
             #if type(df.name[x]) != float:
-        if df.inchi_key[x]:
+        if pd.notnull(df.inchi_key[x]):# or type(df.inchi_key[x]) != float:
             if not metob.retrieve('Compounds',neutralized_inchi_key=df.inchi_key[x], username = '*'):
                 print df.name[x], "compound is not in database. Exiting Without Completing Task!"
                 bad_names.append(df.name[x])
@@ -964,7 +964,7 @@ def make_atlas_from_spreadsheet(filename=False,
             
             myID = metob.CompoundIdentification()
             
-            if df.inchi_key[x]: # this logic is where an identified metabolite has been specified
+            if pd.notnull(df.inchi_key[x]): # this logic is where an identified metabolite has been specified
                 c = metob.retrieve('Compounds',neutralized_inchi_key=df.inchi_key[x],username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
                 if c:
                     c = c[0]
@@ -1074,7 +1074,7 @@ def select_groups_for_analysis(name = '%%',do_print = True, most_recent = True, 
     if most_recent:
         groups = filter_metatlas_objects_to_most_recent(groups,'name')
     
-    if filter_list:
+    if include_list:
         groups = filter_metatlas_objects_by_list(groups,'name',include_list)
         
     if exclude_list:
