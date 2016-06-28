@@ -103,7 +103,8 @@ def findcommonstart(strlist):
 
 
 
-def plot_all_compounds_for_each_file(**kwargs):
+def plot_all_compounds_for_each_file(input_dataset = [], input_fname = '', include_lcmsruns = [],exclude_lcmsruns = [], nCols = 8, scale_y=True , output_loc=''):
+
     """
     Parameters
     ----------
@@ -113,24 +114,28 @@ def plot_all_compounds_for_each_file(**kwargs):
     -------
 
     """
-    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
+
+    if not input_dataset:
+        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
+    else:
+        data = input_dataset
+
+    # filter runs from the metatlas dataset
+    if include_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
+    if exclude_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
+
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
 
-    nCols = kwargs['nCols']
-    scale_y = kwargs['scale_y']
-    output_loc = os.path.expandvars(kwargs['output_loc'])
-#
-#    data = kwargs['data']
-#    nCols = kwargs['nCols']
-#    file_names = kwargs['file_names']
-#    compound_names = kwargs['compound_names']
-#    scale_y = kwargs['scale_y']
-#    output_fname = kwargs['output_fname']
+
+    output_loc = os.path.expandvars('output_loc')
 
     nRows = int(np.ceil(len(compound_names)/float(nCols)))
-    print nRows
-    print len(compound_names) 
+
     
     xmin = 0
     xmax = 210
@@ -158,9 +163,6 @@ def plot_all_compounds_for_each_file(**kwargs):
                     y_max.append(max(d['data']['eic']['intensity']))
     y_max = cycle(y_max)
 
-
-
-
     # create ouput dir
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
@@ -169,10 +171,10 @@ def plot_all_compounds_for_each_file(**kwargs):
     for file_idx,my_file in enumerate(file_names):
         ax = plt.subplot(111)#, aspect='equal')
         plt.setp(ax, 'frame_on', False)
-        ax.set_ylim([0, nRows+4])
+        ax.set_ylim([0, nRows+7])
       
         col = 0
-        row = nRows+3
+        row = nRows+6
         counter = 1
         
         for compound_idx,compound in enumerate(compound_names):  
@@ -211,13 +213,13 @@ def plot_all_compounds_for_each_file(**kwargs):
         
         plt.title(my_file)
         fig = plt.gcf()
-        fig.set_size_inches(11, 8.5)
-        #fig.savefig('/home/jimmy/ben2/neg/' + my_file + '-' + str(counter) + '.pdf')
+        fig.set_size_inches(nRows*1.0, nCols*4.0)
         fig.savefig(os.path.join(output_loc, my_file + '-' + str(counter) + '.pdf'))
         plt.clf()
 
 
-def plot_all_files_for_each_compound(**kwargs):
+def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', include_lcmsruns = [],exclude_lcmsruns = [], nCols = 8, scale_y=True , output_loc=''):
+
     """
     Parameters
     ----------
@@ -228,12 +230,22 @@ def plot_all_files_for_each_compound(**kwargs):
 
     """
 
-    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
+    if not input_dataset:
+        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
+    else:
+        data = input_dataset
+
+    # filter runs from the metatlas dataset
+    if include_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
+    if exclude_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
+
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
-    nCols = kwargs['nCols']
-    scale_y = kwargs['scale_y']
-    output_loc = os.path.expandvars(kwargs['output_loc'])
+    output_loc = os.path.expandvars(output_loc)
 
     nRows = int(np.ceil(len(file_names)/float(nCols)))
     print 'nrows = ', nRows 
@@ -271,7 +283,7 @@ def plot_all_files_for_each_compound(**kwargs):
     # create ouput dir
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
-
+    plt.ioff()
     for compound_idx,compound in enumerate(compound_names):
         ax = plt.subplot(111)#, aspect='equal')
         plt.setp(ax, 'frame_on', False)
@@ -320,10 +332,10 @@ def plot_all_files_for_each_compound(**kwargs):
         
         plt.title(compound)
         fig = plt.gcf()
-        fig.set_size_inches(11, 8.5)
-        #fig.savefig('/tmp/' + compound + '-' + str(counter) + '.pdf')
+        fig.set_size_inches(nRows*1.0,nCols*4.0)
+
         fig.savefig(os.path.join(output_loc, compound + '-' + str(counter) + '.pdf'))
-        plt.clf()
+        plt.close(fig)
 
 
         
@@ -487,7 +499,7 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
     group_names = ma_data.get_group_names(data)
-    output_loc = os.path.expandvars('output_loc')
+    output_loc = os.path.expandvars(output_loc)
     fieldname = fieldname
     
     df = pd.DataFrame( index=compound_names, columns=file_names, dtype=float)
@@ -524,21 +536,14 @@ def file_with_max_precursor_intensity(data,compound_idx):
                 idx = i
     return idx,my_max
 
-def plot_errorbar_plots(df,input_dataset = [], input_fname = '',output_loc):
-    if not input_dataset:
-        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
-    else:
-        data = input_dataset
-
-    compound_names = ma_data.get_compound_names(data)[0]
-    file_names = ma_data.get_file_names(data)
-    output_loc = os.path.expandvars(output_loc)
+def plot_errorbar_plots(df,output_loc=''):
     
+    output_loc = os.path.expandvars(output_loc)
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
         
     plt.ioff()
-    for compound in compound_names:
+    for compound in df.index:
         m = df.ix[compound].groupby(level='group').mean()
         e = df.ix[compound].groupby(level='group').std()
         c = df.ix[compound].groupby(level='group').count()
@@ -641,7 +646,7 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
                     ref_intensity.append(s[1]*-1)
                     ref_zeros.append(0)
                 s = -1* intensity[sx[0]] / min(ref_intensity)
-                print s
+
 #                 L = plt.ylim()
 #                 print data[file_idx][compound_idx]['identification'].compound[0].name, float(intensity[sx[0]]), float(min(ref_intensity))
                 ax.vlines(ref_mz,ref_zeros,[r*s for r in ref_intensity],colors='r',linewidth = 2)
