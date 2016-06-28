@@ -31,13 +31,21 @@ from IPython.display import SVG,display
 import getpass
 from ast import literal_eval# from datetime import datetimefrom matplotlib.widgets import Slider, Button, RadioButtons
 
-def replace_compound_id_with_name(x):    id_list = literal_eval(x)    found_compound = metob.retrieve('Compounds',unique_id=id_list[0])    return found_compound[-1].namedef make_compound_id_df(data):    ids = []    for d in data[0]:        ids.append(d['identification'])    df = metob.to_dataframe(ids)    df['compound'] = df['compound'].apply(replace_compound_id_with_name).astype('str')     df['rt_unique_id'] = df['rt_references'].apply(lambda x: literal_eval(x))#     df['mz_unique_id'] = df['mz_references'].apply(lambda x: literal_eval(x))#     df['frag_unique_id'] = df['frag_references'].apply(lambda x: literal_eval(x))    df = df[['compound','name','username','rt_unique_id']]#,'mz_unique_id','frag_unique_id']]    return dfdef show_compound_grid(input_fname = '',input_dataset=[]):
+def replace_compound_id_with_name(x):
+    id_list = literal_eval(x)
+    if id_list:
+        found_compound = metob.retrieve('Compounds',unique_id=id_list[0])
+        return found_compound[-1].name
+    else:
+        return ''def make_compound_id_df(data):    ids = []    for d in data[0]:        ids.append(d['identification'])    df = metob.to_dataframe(ids)    df['compound'] = df['compound'].apply(replace_compound_id_with_name).astype('str')     df['rt_unique_id'] = df['rt_references'].apply(lambda x: literal_eval(x))#     df['mz_unique_id'] = df['mz_references'].apply(lambda x: literal_eval(x))#     df['frag_unique_id'] = df['frag_references'].apply(lambda x: literal_eval(x))    df = df[['compound','name','username','rt_unique_id']]#,'mz_unique_id','frag_unique_id']]    return dfdef show_compound_grid(input_fname = '',input_dataset=[]):
     """
     Provide a valid path to data in or a dataset
     """
     if not input_dataset:
         print "loading..."
-        data = ma_data.get_dill_data(input_fname)    atlas_in_data = metob.retrieve('Atlas',unique_id = data[0][0]['atlas_unique_id'],username='*')    print "loaded file for username = ", atlas_in_data[0].username    username = getpass.getuser()    if username != atlas_in_data[0].username:        print "YOUR ARE",username,"YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"        return    compound_df = make_compound_id_df(data)    compound_grid = gui.create_qgrid([])    compound_grid.df = compound_df    display(compound_grid)    return data,compound_griddef adjust_rt_for_selected_compound(data,compound_grid, include_lcmsruns = [], exclude_lcmsruns = [], width = 12, height = 6,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite'):    """    width: specify a width value in inches for the plots and slides    height: specify a width value in inches for the plots and slides
+        data = ma_data.get_dill_data(input_fname)
+    else:
+        data = input_dataset    atlas_in_data = metob.retrieve('Atlas',unique_id = data[0][0]['atlas_unique_id'],username='*')    print "loaded file for username = ", atlas_in_data[0].username    username = getpass.getuser()    if username != atlas_in_data[0].username:        print "YOUR ARE",username,"YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"        return    compound_df = make_compound_id_df(data)    compound_grid = gui.create_qgrid([])    compound_grid.df = compound_df    display(compound_grid)    return data,compound_griddef adjust_rt_for_selected_compound(data,compound_grid, include_lcmsruns = [], exclude_lcmsruns = [], width = 12, height = 6,y_scale='linear', alpha = 0.5,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite'):    """    width: specify a width value in inches for the plots and slides    height: specify a width value in inches for the plots and slides
     min_max_color & peak_color: specify a valid matplotlib color string for the slider and vertical bars
     slider_color: background color for the sliders. Must be a valid matplotlib color        """
 
@@ -53,7 +61,15 @@ def replace_compound_id_with_name(x):    id_list = literal_eval(x)    found_co
     compound_idx = compound_grid.get_selected_rows()
     compound_df = compound_grid.df    if not compound_idx:        print 'you have to select a compound'        return    if len(compound_idx)>1:        print 'Only select one compound'        return    fig,ax = plt.subplots(figsize=(width, height))#     ax = plt.gca()    plt.subplots_adjust(left=0.25, bottom=0.275)    ax.set_title(compound_df.iloc[compound_idx]['compound'].tolist()[0].split('///')[0])
     ax.set_ylabel('Intensity')
-    ax.set_xlabel('Retention Time')    my_rt = metob.retrieve('RTReference',unique_id = compound_df.loc[compound_idx[0],'rt_unique_id'][0])[-1]    for d in data:        if len(d[compound_idx[0]]['data']['eic']['rt']) > 0:            x = d[compound_idx[0]]['data']['eic']['rt']            y = d[compound_idx[0]]['data']['eic']['intensity']            ax.plot(x,y,'k-',linewidth=2.0,alpha=1.0)      min_x = ax.get_xlim()[0]    max_x = ax.get_xlim()[1]    min_line = ax.axvline(my_rt.rt_min, color=min_max_color,linewidth=4.0)    max_line = ax.axvline(my_rt.rt_max, color=min_max_color,linewidth=4.0)    peak_line = ax.axvline(my_rt.rt_peak, color=peak_color,linewidth=4.0)        axcolor = slider_color    rt_peak_ax = plt.axes([0.25, 0.05, 0.65, 0.03], axisbg=axcolor)    rt_max_ax = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg=axcolor)    rt_min_ax = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)        rt_min_slider = Slider(rt_min_ax, 'RT min', min_x, max_x, valinit=my_rt.rt_min,color=min_max_color)
+    ax.set_xlabel('Retention Time')    my_rt = metob.retrieve('RTReference',unique_id = compound_df.loc[compound_idx[0],'rt_unique_id'][0])[-1]    for d in data:        if len(d[compound_idx[0]]['data']['eic']['rt']) > 0:            x = d[compound_idx[0]]['data']['eic']['rt']            y = d[compound_idx[0]]['data']['eic']['intensity']
+            x = np.asarray(x)
+            y = np.asarray(y)
+            minval = np.min(y[np.nonzero(y)])
+            y = y - minval
+            
+            x = x[y>0]
+            y = y[y>0]#y[y<0.0] = 0.0            ax.plot(x,y,'k-',linewidth=2.0,alpha=alpha)
+    ax.set_yscale(y_scale)    min_x = ax.get_xlim()[0]    max_x = ax.get_xlim()[1]    min_line = ax.axvline(my_rt.rt_min, color=min_max_color,linewidth=4.0)    max_line = ax.axvline(my_rt.rt_max, color=min_max_color,linewidth=4.0)    peak_line = ax.axvline(my_rt.rt_peak, color=peak_color,linewidth=4.0)        axcolor = slider_color    rt_peak_ax = plt.axes([0.25, 0.05, 0.65, 0.03], axisbg=axcolor)    rt_max_ax = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg=axcolor)    rt_min_ax = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)        rt_min_slider = Slider(rt_min_ax, 'RT min', min_x, max_x, valinit=my_rt.rt_min,color=min_max_color)
     rt_min_slider.vline.set_color('black')
     rt_min_slider.vline.set_linewidth(4)    rt_max_slider = Slider(rt_max_ax, 'RT max', min_x, max_x, valinit=my_rt.rt_max,color=min_max_color)
     rt_max_slider.vline.set_color('black')
