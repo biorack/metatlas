@@ -31,15 +31,25 @@ from IPython.display import SVG,display
 import getpass
 from ast import literal_eval# from datetime import datetimefrom matplotlib.widgets import Slider, Button, RadioButtons
 
-def replace_compound_id_with_name(x):    id_list = literal_eval(x)    found_compound = metob.retrieve('Compounds',unique_id=id_list[0])    return found_compound[-1].namedef make_compound_id_df(data):    ids = []    for d in data[0]:        ids.append(d['identification'])    df = metob.to_dataframe(ids)    df['compound'] = df['compound'].apply(replace_compound_id_with_name).astype('str')     df['rt_unique_id'] = df['rt_references'].apply(lambda x: literal_eval(x))#     df['mz_unique_id'] = df['mz_references'].apply(lambda x: literal_eval(x))#     df['frag_unique_id'] = df['frag_references'].apply(lambda x: literal_eval(x))    df = df[['compound','name','username','rt_unique_id']]#,'mz_unique_id','frag_unique_id']]    return dfdef show_compound_grid(datapath = '',data=[]):
+def replace_compound_id_with_name(x):    id_list = literal_eval(x)    found_compound = metob.retrieve('Compounds',unique_id=id_list[0])    return found_compound[-1].namedef make_compound_id_df(data):    ids = []    for d in data[0]:        ids.append(d['identification'])    df = metob.to_dataframe(ids)    df['compound'] = df['compound'].apply(replace_compound_id_with_name).astype('str')     df['rt_unique_id'] = df['rt_references'].apply(lambda x: literal_eval(x))#     df['mz_unique_id'] = df['mz_references'].apply(lambda x: literal_eval(x))#     df['frag_unique_id'] = df['frag_references'].apply(lambda x: literal_eval(x))    df = df[['compound','name','username','rt_unique_id']]#,'mz_unique_id','frag_unique_id']]    return dfdef show_compound_grid(input_fname = '',input_dataset=[]):
     """
     Provide a valid path to data in or a dataset
     """
-    if not data:
+    if not input_dataset:
         print "loading..."
-        data = ma_data.get_dill_data(datapath)    atlas_in_data = metob.retrieve('Atlas',unique_id = data[0][0]['atlas_unique_id'],username='*')    print "loaded file for username = ", atlas_in_data[0].username    username = getpass.getuser()    if username != atlas_in_data[0].username:        print "YOUR ARE",username,"YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"        return    compound_df = make_compound_id_df(data)    compound_grid = gui.create_qgrid([])    compound_grid.df = compound_df    display(compound_grid)    return data,compound_griddef adjust_rt_for_selected_compound(data,compound_grid, width = 12, height = 6,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite'):    """    width: specify a width value in inches for the plots and slides    height: specify a width value in inches for the plots and slides
+        data = ma_data.get_dill_data(input_fname)    atlas_in_data = metob.retrieve('Atlas',unique_id = data[0][0]['atlas_unique_id'],username='*')    print "loaded file for username = ", atlas_in_data[0].username    username = getpass.getuser()    if username != atlas_in_data[0].username:        print "YOUR ARE",username,"YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"        return    compound_df = make_compound_id_df(data)    compound_grid = gui.create_qgrid([])    compound_grid.df = compound_df    display(compound_grid)    return data,compound_griddef adjust_rt_for_selected_compound(data,compound_grid, include_lcmsruns = [], exclude_lcmsruns = [], width = 12, height = 6,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite'):    """    width: specify a width value in inches for the plots and slides    height: specify a width value in inches for the plots and slides
     min_max_color & peak_color: specify a valid matplotlib color string for the slider and vertical bars
     slider_color: background color for the sliders. Must be a valid matplotlib color        """
+
+
+    # filter runs from the metatlas dataset
+    if include_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
+    if exclude_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
+
     compound_idx = compound_grid.get_selected_rows()
     compound_df = compound_grid.df    if not compound_idx:        print 'you have to select a compound'        return    if len(compound_idx)>1:        print 'Only select one compound'        return    fig,ax = plt.subplots(figsize=(width, height))#     ax = plt.gca()    plt.subplots_adjust(left=0.25, bottom=0.275)    ax.set_title(compound_df.iloc[compound_idx]['compound'].tolist()[0].split('///')[0])
     ax.set_ylabel('Intensity')
@@ -457,16 +467,28 @@ def get_ion_from_fragment(frag_info,spectrum):
 #print all chromatograms
 #structure
 
-def make_output_dataframe(**kwargs):
-    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
+def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], output_loc = [], fieldname = 'peak_height'):
+    """
+    fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
+    """
+    if not input_dataset:
+        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
+    else:
+        data = input_dataset
+
+    # filter runs from the metatlas dataset
+    if include_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
+    if exclude_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
+
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
     group_names = ma_data.get_group_names(data)
-    output_loc = os.path.expandvars(kwargs['output_loc'])
-    fieldname = kwargs['fieldname']
-    
-    if not os.path.exists(output_loc):
-        os.makedirs(output_loc)
+    output_loc = os.path.expandvars('output_loc')
+    fieldname = fieldname
     
     df = pd.DataFrame( index=compound_names, columns=file_names, dtype=float)
 
@@ -483,7 +505,11 @@ def make_output_dataframe(**kwargs):
         columns.append((group_names[i],f))
     df.columns = pd.MultiIndex.from_tuples(columns,names=['group', 'file'])
 
-    df.to_csv(os.path.join(output_loc, fieldname + '.tab'),sep='\t')
+    if output_loc:    
+        if not os.path.exists(output_loc):
+            os.makedirs(output_loc)
+        df.to_csv(os.path.join(output_loc, fieldname + '.tab'),sep='\t')
+
     return df
 
 def file_with_max_precursor_intensity(data,compound_idx):
@@ -498,12 +524,15 @@ def file_with_max_precursor_intensity(data,compound_idx):
                 idx = i
     return idx,my_max
 
-def plot_errorbar_plots(df,**kwargs):#df,compound_list,project_label):
-    
-    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
+def plot_errorbar_plots(df,input_dataset = [], input_fname = '',output_loc):
+    if not input_dataset:
+        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
+    else:
+        data = input_dataset
+
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
-    output_loc = os.path.expandvars(kwargs['output_loc'])
+    output_loc = os.path.expandvars(output_loc)
     
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
@@ -538,19 +567,31 @@ def get_reference_msms_spectra(frag_refs, compound_name = '', polarity = '', pre
             spectra.append( [(m.mz, m.intensity) for m in fr.frag_references[0].mz_intensities] )
     return spectra
     
-def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name,project_label):
-    #  d = 'data/%s/identification/'%project_label
+def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], output_loc = []):
+
+    if not input_dataset:
+        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
+    else:
+        data = input_dataset
+
+    # filter runs from the metatlas dataset
+    if include_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
+    if exclude_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
     
-    data = ma_data.get_dill_data(os.path.expandvars(kwargs['input_fname']))
+
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
-    output_loc = os.path.expandvars(kwargs['output_loc'])
+
 
     ids = metob.retrieve('CompoundIdentification')
     frag_refs = [cid for cid in ids if cid.frag_references]
     
     
-    
+    output_loc = os.path.expandvars(output_loc)    
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
     
@@ -648,7 +689,11 @@ def make_identification_figure(**kwargs):#data,file_idx,compound_idx,export_name
 
     
             
-def export_atlas_to_spreadsheet(myAtlas, output_filename, input_type = 'atlas'):
+def export_atlas_to_spreadsheet(myAtlas, output_filename='', input_type = 'atlas'):
+    """
+    Return a pandas dataframe containing Atlas info.  Optionally save it.
+    This function can also work on a MetAtlas dataset (list of lists returned by get_data_for_atlas_and_groups).
+    """
     cols = [c for c in metob.Compound.class_trait_names() if not c.startswith('_')]
     atlas_export = pd.DataFrame( )
 
@@ -678,17 +723,21 @@ def export_atlas_to_spreadsheet(myAtlas, output_filename, input_type = 'atlas'):
         atlas_export.loc[i,'polarity'] = my_id.mz_references[0].detected_polarity
         if my_id.frag_references:
             atlas_export.loc[i,'has_fragmentation_reference'] = True
+            # TODO: Gather the frag reference information and export it
         else:
             atlas_export.loc[i,'has_fragmentation_reference'] = False
     
+    if output_filename:
+        if not os.path.exists(os.path.dirname(output_filename)):
+            os.makedirs(os.path.dirname(output_filename))
+        atlas_export.to_csv(output_filename)
 
-    if not os.path.exists(os.path.dirname(output_filename)):
-        os.makedirs(os.path.dirname(output_filename))
-    
-    atlas_export.to_csv(output_filename)
     return atlas_export
     
 def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False):
+    """
+    get and pickle everything This is MSMS, raw MS1 datapoints, compound, group info, and file info
+    """
     data = []
     import copy as copy
     for i,treatment_groups in enumerate(group):
@@ -757,6 +806,10 @@ def get_metatlas_atlas(name = '%%',most_recent = True,do_print = True):
 
 
 def get_metatlas_files(experiment = '%%',name = '%%',most_recent = True):
+    """
+    experiment is the folder name
+    name is the filename
+    """
     files = metob.retrieve('LcmsRun',experiment=experiment,name=name, username='*')
     if most_recent:
         files = filter_metatlas_objects_to_most_recent(files,'mzml_file')
@@ -1007,14 +1060,17 @@ def remove_metatlas_objects_by_list(object_list,field,filter_list):
             filtered_list.append(g)
     return filtered_list
 
+def filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,selector,include_list):    """    Returns a metatlas dataset containing LCMS runs or groups (denoted by selector) that have substrings listed in the include list    selector can be 'lcmsrun' or 'group'    include_list will look something like this: ['QC','Blank']    """    filtered_dataset = []    for d in metatlas_dataset:        if any(ext in d[0][selector].name for ext in include_list):            filtered_dataset.append(d)    return filtered_datasetdef filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset,selector,exclude_list):    """    Returns a metatlas dataset containing LCMS runs or groups (denoted by selector) that have substrings not listed in the include list    selector can be 'lcmsrun' or 'group'    exclude_list will look something like this: ['QC','Blank']    """    filtered_dataset = []    for d in metatlas_dataset:        if not any(ext in d[0][selector].name for ext in exclude_list):            filtered_dataset.append(d)    return filtered_dataset
+
+def filter_compounds_in_dataset_by_exclude_list(metatlas_dataset,exclude_list):    """    Since the rows of the dataset are expected to line up with an atlas export, this is probably not a good idea to use.    """    filtered_dataset = []    for d_row in metatlas_dataset:        filtered_row = []        for d in d_row:            if not any(ext in d['identification'].name for ext in exclude_list):                if not any(ext in d['identification'].compound[0].name for ext in exclude_list):                    filtered_row.append(d)        filtered_dataset.append(filtered_row)    return filtered_datasetdef filter_compounds_in_dataset_by_include_list(metatlas_dataset,include_list):    """    Since the rows of the dataset are expected to line up with an atlas export, this is probably not a good idea to use.    """    filtered_dataset = []    for d_row in metatlas_dataset:        filtered_row = []        for d in d_row:            if any(ext in d['identification'].name for ext in include_list):                if any(ext in d['identification'].compound[0].name for ext in include_list):                    filtered_row.append(d)        filtered_dataset.append(filtered_row)    return filtered_dataset
       
-def select_groups_for_analysis(name = '%%',do_print = True, most_recent = True, remove_empty = True, filter_list = [], exclude_list = []):
+def select_groups_for_analysis(name = '%%',do_print = True, most_recent = True, remove_empty = True, include_list = [], exclude_list = []):
     groups = metob.retrieve('Groups', name = name, username='*')
     if most_recent:
         groups = filter_metatlas_objects_to_most_recent(groups,'name')
     
     if filter_list:
-        groups = filter_metatlas_objects_by_list(groups,'name',filter_list)
+        groups = filter_metatlas_objects_by_list(groups,'name',include_list)
         
     if exclude_list:
         groups = remove_metatlas_objects_by_list(groups,'name',exclude_list)
@@ -1027,30 +1083,6 @@ def select_groups_for_analysis(name = '%%',do_print = True, most_recent = True, 
             print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
 
     return groups
-
-if __name__ == '__main__':
-    import sys
-
-    input_fname = os.path.expandvars(sys.argv[1])
-    output_loc = os.path.expandvars(sys.argv[2])
-
-
-
-    nCols = 10
-    argument = {'input_fname':input_fname,
-                'nCols': nCols,
-                'scale_y' : False,
-                'output_loc': output_loc
-               }
-
-    plot_all_compounds_for_each_file(**argument)
-    argument = {'input_fname':input_fname,
-                'nCols': 20,
-                'scale_y' : False,
-                'output_loc': '/home/jimmy/ben/neg/unscaled/allfiles'
-                }
-    plot_all_files_for_each_compound(**argument)
-
 
 
 
