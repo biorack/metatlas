@@ -31,6 +31,8 @@ from IPython.display import SVG,display
 import getpass
 from ast import literal_eval# from datetime import datetimefrom matplotlib.widgets import Slider, Button, RadioButtons
 
+from matplotlib.widgets import AxesWidgetclass VertSlider(AxesWidget):    """    A slider representing a floating point range    The following attributes are defined      *ax*        : the slider :class:`matplotlib.axes.Axes` instance      *val*       : the current slider value      *vline*     : a :class:`matplotlib.lines.Line2D` instance                     representing the initial value of the slider      *poly*      : A :class:`matplotlib.patches.Polygon` instance                     which is the slider knob      *valfmt*    : the format string for formatting the slider text      *label*     : a :class:`matplotlib.text.Text` instance                     for the slider label      *closedmin* : whether the slider is closed on the minimum      *closedmax* : whether the slider is closed on the maximum      *slidermin* : another slider - if not *None*, this slider must be                     greater than *slidermin*      *slidermax* : another slider - if not *None*, this slider must be                     less than *slidermax*      *dragging*  : allow for mouse dragging on slider    Call :meth:`on_changed` to connect to the slider event    """    def __init__(self, ax, label, valmin, valmax, valinit=0.5, valfmt='%1.2f',                 closedmin=True, closedmax=True, slidermin=None,                 slidermax=None, dragging=True, **kwargs):        """        Create a slider from *valmin* to *valmax* in axes *ax*        *valinit*            The slider initial position        *label*            The slider label        *valfmt*            Used to format the slider value        *closedmin* and *closedmax*            Indicate whether the slider interval is closed        *slidermin* and *slidermax*            Used to constrain the value of this slider to the values            of other sliders.        additional kwargs are passed on to ``self.poly`` which is the        :class:`matplotlib.patches.Rectangle` which draws the slider        knob.  See the :class:`matplotlib.patches.Rectangle` documentation        valid property names (e.g., *facecolor*, *edgecolor*, *alpha*, ...)        """        AxesWidget.__init__(self, ax)        self.valmin = valmin        self.valmax = valmax        self.val = valinit        self.valinit = valinit        self.poly = ax.axhspan(valmin, valinit, 0, 1, **kwargs)        self.vline = ax.axhline(valinit, 0, 1, color='r', lw=1)        self.valfmt = valfmt        ax.set_xticks([])        ax.set_ylim((valmin, valmax))        ax.set_yticks([])        ax.set_navigate(False)        self.connect_event('button_press_event', self._update)        self.connect_event('button_release_event', self._update)        if dragging:            self.connect_event('motion_notify_event', self._update)        self.label = ax.text(0.5, 1.03, label, transform=ax.transAxes,                             verticalalignment='center',                             horizontalalignment='center')        self.valtext = ax.text(0.5, -0.03, valfmt % valinit,                               transform=ax.transAxes,                               verticalalignment='center',                               horizontalalignment='center')        self.cnt = 0        self.observers = {}        self.closedmin = closedmin        self.closedmax = closedmax        self.slidermin = slidermin        self.slidermax = slidermax        self.drag_active = False    def _update(self, event):        """update the slider position"""        if self.ignore(event):            return        if event.button != 1:            return        if event.name == 'button_press_event' and event.inaxes == self.ax:            self.drag_active = True            event.canvas.grab_mouse(self.ax)        if not self.drag_active:            return        elif ((event.name == 'button_release_event') or              (event.name == 'button_press_event' and               event.inaxes != self.ax)):            self.drag_active = False            event.canvas.release_mouse(self.ax)            return        val = event.ydata        if val <= self.valmin:            if not self.closedmin:                return            val = self.valmin        elif val >= self.valmax:            if not self.closedmax:                return            val = self.valmax        if self.slidermin is not None and val <= self.slidermin.val:            if not self.closedmin:                return            val = self.slidermin.val        if self.slidermax is not None and val >= self.slidermax.val:            if not self.closedmax:                return            val = self.slidermax.val        self.set_val(val)    def set_val(self, val):        xy = self.poly.xy        xy[1] = 0, val        xy[2] = 1, val        self.poly.xy = xy        self.valtext.set_text(self.valfmt % val)        if self.drawon:            self.ax.figure.canvas.draw()        self.val = val        if not self.eventson:            return        for cid, func in self.observers.iteritems():            func(val)    def on_changed(self, func):        """        When the slider value is changed, call *func* with the new        slider position        A connection id is returned which can be used to disconnect        """        cid = self.cnt        self.observers[cid] = func        self.cnt += 1        return cid    def disconnect(self, cid):        """remove the observer with connection id *cid*"""        try:            del self.observers[cid]        except KeyError:            pass    def reset(self):        """reset the slider to the initial value if needed"""        if (self.val != self.valinit):            self.set_val(self.valinit)
+
 def replace_compound_id_with_name(x):
     id_list = literal_eval(x)
     if id_list:
@@ -45,7 +47,7 @@ def replace_compound_id_with_name(x):
         print "loading..."
         data = ma_data.get_dill_data(input_fname)
     else:
-        data = input_dataset    atlas_in_data = metob.retrieve('Atlas',unique_id = data[0][0]['atlas_unique_id'],username='*')    print "loaded file for username = ", atlas_in_data[0].username    username = getpass.getuser()    if username != atlas_in_data[0].username:        print "YOUR ARE",username,"YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"        return    compound_df = make_compound_id_df(data)    compound_grid = gui.create_qgrid([])    compound_grid.df = compound_df    display(compound_grid)    return data,compound_griddef adjust_rt_for_selected_compound(data,compound_grid, include_lcmsruns = [], exclude_lcmsruns = [], width = 12, height = 6,y_scale='linear', alpha = 0.5,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite'):    """    width: specify a width value in inches for the plots and slides    height: specify a width value in inches for the plots and slides
+        data = input_dataset    atlas_in_data = metob.retrieve('Atlas',unique_id = data[0][0]['atlas_unique_id'],username='*')    print "loaded file for username = ", atlas_in_data[0].username    username = getpass.getuser()    if username != atlas_in_data[0].username:        print "YOUR ARE",username,"YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"        return    compound_df = make_compound_id_df(data)    compound_grid = gui.create_qgrid([])    compound_grid.df = compound_df    display(compound_grid)    return data,compound_griddef adjust_rt_for_selected_compound(data,compound_grid, include_lcmsruns = [], exclude_lcmsruns = [], width = 12, height = 6,y_scale='linear', alpha = 0.5,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite',y_max = 'auto',y_min = 0):    """    width: specify a width value in inches for the plots and slides    height: specify a width value in inches for the plots and slides
     min_max_color & peak_color: specify a valid matplotlib color string for the slider and vertical bars
     slider_color: background color for the sliders. Must be a valid matplotlib color        """
 
@@ -59,7 +61,7 @@ def replace_compound_id_with_name(x):
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
 
     compound_idx = compound_grid.get_selected_rows()
-    compound_df = compound_grid.df    if not compound_idx:        print 'you have to select a compound'        return    if len(compound_idx)>1:        print 'Only select one compound'        return    fig,ax = plt.subplots(figsize=(width, height))#     ax = plt.gca()    plt.subplots_adjust(left=0.25, bottom=0.275)    compound_str = compound_df.iloc[compound_idx]['compound'].tolist()[0].split('///')[0]    ax.set_title('')
+    compound_df = compound_grid.df    if not compound_idx:        print 'you have to select a compound'        return    if len(compound_idx)>1:        print 'Only select one compound'        return    fig,ax = plt.subplots(figsize=(width, height))#     ax = plt.gca()    plt.subplots_adjust(left=0.06, bottom=0.275)    compound_str = compound_df.iloc[compound_idx]['compound'].tolist()[0].split('///')[0]    ax.set_title('')
     ax.set_ylabel('%s\nIntensity'%compound_str)
     ax.set_xlabel('Retention Time')    my_rt = metob.retrieve('RTReference',unique_id = compound_df.loc[compound_idx[0],'rt_unique_id'][0])[-1]    for d in data:        if len(d[compound_idx[0]]['data']['eic']['rt']) > 0:            x = d[compound_idx[0]]['data']['eic']['rt']            y = d[compound_idx[0]]['data']['eic']['intensity']
             x = np.asarray(x)
@@ -69,16 +71,33 @@ def replace_compound_id_with_name(x):
             
             x = x[y>0]
             y = y[y>0]#y[y<0.0] = 0.0            ax.plot(x,y,'k-',linewidth=2.0,alpha=alpha, picker=5, label = d[compound_idx[0]]['lcmsrun'].name)
-    ax.set_yscale(y_scale)    min_x = ax.get_xlim()[0]    max_x = ax.get_xlim()[1]    min_line = ax.axvline(my_rt.rt_min, color=min_max_color,linewidth=4.0)    max_line = ax.axvline(my_rt.rt_max, color=min_max_color,linewidth=4.0)    peak_line = ax.axvline(my_rt.rt_peak, color=peak_color,linewidth=4.0)        axcolor = slider_color    rt_peak_ax = plt.axes([0.25, 0.05, 0.65, 0.03], axisbg=axcolor)    rt_max_ax = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg=axcolor)    rt_min_ax = plt.axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)        rt_min_slider = Slider(rt_min_ax, 'RT min', min_x, max_x, valinit=my_rt.rt_min,color=min_max_color)
+    ax.set_yscale(y_scale)
+    if y_max != 'auto':
+        ax.set_ylim(y_min,y_max)
+    
+    (slider_y_min,slider_y_max) = ax.get_ylim()
+    slider_val = slider_y_max
+    min_x = ax.get_xlim()[0]    max_x = ax.get_xlim()[1]    min_line = ax.axvline(my_rt.rt_min, color=min_max_color,linewidth=4.0)    max_line = ax.axvline(my_rt.rt_max, color=min_max_color,linewidth=4.0)    peak_line = ax.axvline(my_rt.rt_peak, color=peak_color,linewidth=4.0)        axcolor = slider_color    rt_peak_ax = plt.axes([0.06, 0.05, 0.85, 0.03], axisbg=axcolor)    rt_max_ax = plt.axes([0.06, 0.1, 0.85, 0.03], axisbg=axcolor)    rt_min_ax = plt.axes([0.06, 0.15, 0.85, 0.03], axisbg=axcolor)        y_scale_ax = plt.axes([0.925, 0.275, 0.02, 0.63], axisbg=axcolor)
+    rt_min_slider = Slider(rt_min_ax, 'RT min', min_x, max_x, valinit=my_rt.rt_min,color=min_max_color)
     rt_min_slider.vline.set_color('black')
     rt_min_slider.vline.set_linewidth(4)    rt_max_slider = Slider(rt_max_ax, 'RT max', min_x, max_x, valinit=my_rt.rt_max,color=min_max_color)
     rt_max_slider.vline.set_color('black')
     rt_max_slider.vline.set_linewidth(4)    rt_peak_slider = Slider(rt_peak_ax,'RT peak', min_x, max_x, valinit=my_rt.rt_peak,color=peak_color)    rt_peak_slider.vline.set_color('black')
     rt_peak_slider.vline.set_linewidth(4)
 
+    y_scale_slider = VertSlider(y_scale_ax,'Y-Scale',slider_y_min,slider_y_max, valinit=slider_y_max,color=peak_color)    y_scale_slider.vline.set_color('black')
+    y_scale_slider.vline.set_linewidth(8)
+
     def on_pick(event):        thisline = event.artist        ax.set_title(thisline.get_label())    def update(val):        my_rt.rt_min = rt_min_slider.val        my_rt.rt_max = rt_max_slider.val        my_rt.rt_peak = rt_peak_slider.val
+        slider_val = y_scale_slider.val
+
         rt_min_slider.valinit = my_rt.rt_min        rt_max_slider.valinit = my_rt.rt_max        rt_peak_slider.valinit = my_rt.rt_peak
-        metob.store(my_rt)        min_line.set_xdata((my_rt.rt_min,my_rt.rt_min))        max_line.set_xdata((my_rt.rt_max,my_rt.rt_max))        peak_line.set_xdata((my_rt.rt_peak,my_rt.rt_peak))        fig.canvas.draw_idle()    rt_min_slider.on_changed(update)    rt_max_slider.on_changed(update)    rt_peak_slider.on_changed(update)
+        y_scale_slider.valinit = slider_val
+
+        ax.set_ylim(slider_y_min,slider_val)
+        metob.store(my_rt)        min_line.set_xdata((my_rt.rt_min,my_rt.rt_min))        max_line.set_xdata((my_rt.rt_max,my_rt.rt_max))        peak_line.set_xdata((my_rt.rt_peak,my_rt.rt_peak))        fig.canvas.draw_idle()
+    rt_min_slider.on_changed(update)    rt_max_slider.on_changed(update)    rt_peak_slider.on_changed(update)
+    y_scale_slider.on_changed(update)
     fig.canvas.callbacks.connect('pick_event', on_pick)    #fig.canvas.mpl_connect('pick_event', onpick)    plt.show()
 
 
@@ -1067,8 +1086,13 @@ def make_atlas_from_spreadsheet(filename=False,
 def filter_empty_metatlas_objects(object_list,field):
     filtered_list = []
     for i,g in enumerate(object_list):
-        if (len(getattr(g,field)) > 0):
-            filtered_list.append(g)
+        try:
+            #This bare try/accept is to handle the invalid groups left over in the database from the original objects.
+            #These groups don't conform to the current schema and will throw an error when you query their attributes.
+            if (len(getattr(g,field)) > 0):
+                filtered_list.append(g)
+        except:
+            pass
     return filtered_list
 
 def filter_metatlas_objects_by_list(object_list,field,filter_list):
@@ -1089,7 +1113,7 @@ def filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,selector,include
 
 def filter_compounds_in_dataset_by_exclude_list(metatlas_dataset,exclude_list):    """    Since the rows of the dataset are expected to line up with an atlas export, this is probably not a good idea to use.    """    filtered_dataset = []    for d_row in metatlas_dataset:        filtered_row = []        for d in d_row:            if not any(ext in d['identification'].name for ext in exclude_list):                if not any(ext in d['identification'].compound[0].name for ext in exclude_list):                    filtered_row.append(d)        filtered_dataset.append(filtered_row)    return filtered_datasetdef filter_compounds_in_dataset_by_include_list(metatlas_dataset,include_list):    """    Since the rows of the dataset are expected to line up with an atlas export, this is probably not a good idea to use.    """    filtered_dataset = []    for d_row in metatlas_dataset:        filtered_row = []        for d in d_row:            if any(ext in d['identification'].name for ext in include_list):                if any(ext in d['identification'].compound[0].name for ext in include_list):                    filtered_row.append(d)        filtered_dataset.append(filtered_row)    return filtered_dataset
       
-def select_groups_for_analysis(name = '%%',do_print = True, most_recent = True, remove_empty = True, include_list = [], exclude_list = []):
+def select_groups_for_analysis(name = '%',do_print = True, most_recent = True, remove_empty = True, include_list = [], exclude_list = []):
     groups = metob.retrieve('Groups', name = name, username='*')
     if most_recent:
         groups = filter_metatlas_objects_to_most_recent(groups,'name')
@@ -1099,7 +1123,9 @@ def select_groups_for_analysis(name = '%%',do_print = True, most_recent = True, 
         
     if exclude_list:
         groups = remove_metatlas_objects_by_list(groups,'name',exclude_list)
-    
+
+    print len(groups)
+
     if remove_empty:
         groups = filter_empty_metatlas_objects(groups,'items')
     if do_print:
