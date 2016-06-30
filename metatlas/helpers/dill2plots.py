@@ -28,6 +28,9 @@ from itertools import cycle
 from collections import defaultdict
 from IPython.display import SVG,display
 
+
+from ipywidgets import interact, interactive, fixedimport ipywidgets as widgetsfrom IPython.display import display
+
 import getpass
 from ast import literal_eval# from datetime import datetimefrom matplotlib.widgets import Slider, Button, RadioButtons
 
@@ -847,6 +850,8 @@ def get_metatlas_atlas(name = '%%',most_recent = True,do_print = True):
             print i, len(a.compound_identifications),a.name,  datetime.utcfromtimestamp(a.last_modified)
 
     return atlas
+
+class interact_get_metatlas_files():    def __init__(self, experiment = '%violacein%', name = '%_%', most_recent = True):        self.experiment = experiment        self.name = name        self.most_recent = most_recent#         http://ipywidgets.readthedocs.io/en/latest/examples/Using%20Interact.html        self.w = interact(self.Task, experiment=self.experiment, name=self.name,most_recent = self.most_recent,__manual=True)#continuous_update=False)#           def Task(self,experiment,name,most_recent):        self.experiment = experiment        self.name = name        self.most_recent = most_recent        self.files = get_metatlas_files(experiment = experiment,name = name,most_recent = most_recent)#self.most_recent)        txt = widgets.Text()        txt.value = '%d Files were found matching that pattern'%len(self.files)        display(txt)
 
 
 def get_metatlas_files(experiment = '%%',name = '%%',most_recent = True):
