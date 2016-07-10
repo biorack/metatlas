@@ -7,7 +7,8 @@ export GHP_MSG="Generated gh-pages for `git log master -1 --pretty=short --abbre
 export VERSION=`python -c "import $(NAME); print($(NAME).__version__)"`
 
 all: clean
-	python setup.py install
+    pip install -e .
+	#python setup.py install
 
 clean:
 	rm -rf build
