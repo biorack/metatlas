@@ -9,7 +9,7 @@ URL = 'http://github.com/biorack/metatlas'
 LICENSE = 'MIT'
 REQUIRES = ["numpy", "pytables", "pymzml", "simplejson", "rpy2", "pandas",
             "dataset", "ipython", "traitlets", "six", "tabulate", "dill",
-            "gspread"]
+            "gspread","pymysql"]
 CLASSIFIERS = """\
 Development Status :: 2 - Pre-Alpha
 Intended Audience :: Developers
