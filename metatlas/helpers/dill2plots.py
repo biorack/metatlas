@@ -259,13 +259,16 @@ def show_compound_grid(input_fname = '',input_dataset=[]):
         print "YOUR ARE",username,"YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"
         return
     compound_df = make_compound_id_df(data)
-    compound_grid = gui.create_qgrid([])
-    compound_grid.df = compound_df
-    display(compound_grid)
+    #compound_grid = gui.create_qgrid([])
+    #compound_grid.df = compound_df
+    compound_grid = qgrid.QGridWidget(df=compound_df)#,set_grid_option={'show_toolbar',True})
+    #qgrid.show_grid(compound_df,show_toolbar=True)
+    compound_grid.export()
+    #display(compound_grid)
     return data,compound_grid
 
 
-def adjust_rt_for_selected_compound(data,compound_grid, include_lcmsruns = [], exclude_lcmsruns = [], width = 12, height = 6,y_scale='linear', alpha = 0.5,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite',y_max = 'auto',y_min = 0):
+def adjust_rt_for_selected_compound(data,compound_grid, compound_idx = [], include_lcmsruns = [], exclude_lcmsruns = [], width = 12, height = 6,y_scale='linear', alpha = 0.5,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite',y_max = 'auto',y_min = 0):
     """
     width: specify a width value in inches for the plots and slides
     height: specify a width value in inches for the plots and slides
@@ -283,27 +286,30 @@ def adjust_rt_for_selected_compound(data,compound_grid, include_lcmsruns = [], e
     if exclude_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
-
-    compound_idx = compound_grid.get_selected_rows()
     compound_df = compound_grid.df
     if not compound_idx:
-        print 'you have to select a compound'
-        return
-    if len(compound_idx)>1:
-        print 'Only select one compound'
-        return
+        compound_idx = compound_grid.get_selected_rows()
+        if not compound_idx:
+            print 'you have to select a compound'
+            return
+        if len(compound_idx)>1:
+            print 'Only select one compound'
+            return
+        compound_idx = compound_idx[0]
+    
+
     fig,ax = plt.subplots(figsize=(width, height))
 #     ax = plt.gca()
     plt.subplots_adjust(left=0.06, bottom=0.275)
-    compound_str = compound_df.iloc[compound_idx]['compound'].tolist()[0].split('///')[0]
+    compound_str = compound_df.iloc[compound_idx]['compound'].split('///')[0]
     ax.set_title('')
     ax.set_ylabel('%s\nIntensity'%compound_str)
     ax.set_xlabel('Retention Time')
-    my_rt = metob.retrieve('RTReference',unique_id = compound_df.loc[compound_idx[0],'rt_unique_id'][0])[-1]
+    my_rt = metob.retrieve('RTReference',unique_id = compound_df.loc[compound_idx,'rt_unique_id'][0])[-1]
     for d in data:
-        if len(d[compound_idx[0]]['data']['eic']['rt']) > 0:
-            x = d[compound_idx[0]]['data']['eic']['rt']
-            y = d[compound_idx[0]]['data']['eic']['intensity']
+        if len(d[compound_idx]['data']['eic']['rt']) > 0:
+            x = d[compound_idx]['data']['eic']['rt']
+            y = d[compound_idx]['data']['eic']['intensity']
             x = np.asarray(x)
             y = np.asarray(y)
             minval = np.min(y[np.nonzero(y)])
@@ -311,7 +317,7 @@ def adjust_rt_for_selected_compound(data,compound_grid, include_lcmsruns = [], e
             
             x = x[y>0]
             y = y[y>0]#y[y<0.0] = 0.0
-            ax.plot(x,y,'k-',linewidth=2.0,alpha=alpha, picker=5, label = d[compound_idx[0]]['lcmsrun'].name)
+            ax.plot(x,y,'k-',linewidth=2.0,alpha=alpha, picker=5, label = d[compound_idx]['lcmsrun'].name)
     ax.set_yscale(y_scale)
     if y_max != 'auto':
         ax.set_ylim(y_min,y_max)
@@ -349,7 +355,9 @@ def adjust_rt_for_selected_compound(data,compound_grid, include_lcmsruns = [], e
 
     def on_pick(event):
         thisline = event.artist
+        thisline.set_color('red')
         ax.set_title(thisline.get_label())
+
 
     def update(val):
         my_rt.rt_min = rt_min_slider.val
