@@ -920,7 +920,7 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
     file_names = ma_data.get_file_names(data)
 
 
-    ids = metob.retrieve('CompoundIdentification')
+    ids = metob.retrieve('CompoundIdentification',username='*')
     frag_refs = [cid for cid in ids if cid.frag_references]
     
     
