@@ -11,8 +11,12 @@ cd /project/projectdirs/metatlas/projects/metatlas
 git pull
 pip install .
 
+#Install qgrid from https://github.com/quantopian/qgrid
+# clone to ../metatlas/projects
+# pip install .
+# run the pip command from the qgrid folder.
+
 #The remaining packages are installed like this:
-#pip install git+https://github.com/quantopian/qgrid
 #/project/projectdirs/metatlas/anaconda/bin/conda install -c https://conda.anaconda.org/rdkit rdkit
 
 #Set permissions for metatlas users
