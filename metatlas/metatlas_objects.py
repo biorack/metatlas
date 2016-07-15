@@ -424,7 +424,7 @@ class Compound(MetatlasObject):
     #reference_xrefs = MetList(MetInstance(ReferenceDatabase),
     #                       help='Tag a compound with compound ids from ' +
     #                            'external databases')
-    functional_sets = MetList(MetInstance(FunctionalSet))
+    #functional_sets = MetList(MetInstance(FunctionalSet))
 
 
 @set_docstring
