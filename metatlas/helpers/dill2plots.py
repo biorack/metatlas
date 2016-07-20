@@ -291,11 +291,12 @@ def adjust_rt_for_selected_compound(data,compound_grid, compound_idx = [], inclu
         compound_idx = compound_grid.get_selected_rows()
         if not compound_idx:
             print 'you have to select a compound'
-            return
-        if len(compound_idx)>1:
-            print 'Only select one compound'
-            return
-        compound_idx = compound_idx[0]
+            compound_idx = 0
+        #if len(compound_idx)>1:
+        #    print 'Only select one compound'
+        #
+        #compound_idx = 0
+        #compound_idx = compound_idx[0]
     
 
     fig,ax = plt.subplots(figsize=(width, height))
@@ -959,9 +960,13 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
 #             data[file_idx][compound_idx]['identification'].mz_references[0].polarity
 #             print data[file_idx][compound_idx]['data']['msms']
             if data[file_idx][compound_idx]['identification'].compound:
+                if data[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity == 'positive':
+                    my_polarity = 1
+                else:
+                    my_polarity = 0
                 ref_spec = get_reference_msms_spectra(frag_refs, 
                                        compound_name = data[file_idx][compound_idx]['identification'].compound[0].name, 
-                                       polarity = data[file_idx][compound_idx]['data']['msms']['polarity'])
+                                       polarity = my_polarity)
             else:
                 ref_spec = []
     #TODO: get the precursor_mz sorted out
