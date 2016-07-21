@@ -26,9 +26,10 @@ def plot_chromatogram(d,file_name, ax=None):
     rt_max = d['identification'].rt_references[0].rt_max
     rt_peak = d['identification'].rt_references[0].rt_peak
         
-    if len(d['data']['eic']['rt']) > 0:
+    if len(d['data']['eic']['rt']) > 1:
         x = d['data']['eic']['rt']
         y = d['data']['eic']['intensity']
+        #print len(x), len(y), len(d['data']['eic']['rt'])#, rt_min, rt_max, rt_peak
         ax.plot(x,y,'k-',linewidth=2.0,alpha=1.0)  
         myWhere = np.logical_and(x>=rt_min, x<=rt_max )
         ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=0.3)
@@ -41,6 +42,7 @@ def plot_chromatogram(d,file_name, ax=None):
 
     
 def plot_compounds_and_filesMP(kwargs):
+    print mp.current_process()
     my_data= kwargs['data'] # data for all compounds for one file
     file_name  = kwargs['file_name'] # full path of output file name
     nRows, nCols = kwargs['rowscols']
@@ -91,7 +93,7 @@ def plot_compounds_and_files(info):
         nprocs = min(processes, len(file_names))
         pool = mp.Pool(processes=nprocs)
         pool.map(plot_compounds_and_filesMP, args_list)
-        print len(args_list), nprocs
+        print "processed ", len(args_list), " files"
     if 'compounds' in plot_types:
         nRows = int(np.ceil(len(file_names)/float(nCols)))
         args_list = []
@@ -110,7 +112,7 @@ def plot_compounds_and_files(info):
         nprocs = min(processes, len(compound_names))
         pool = mp.Pool(processes=nprocs)
         pool.map(plot_compounds_and_filesMP, args_list)
-        print len(args_list), nprocs
+        print "processed ", len(args_list), " compounds"
 
 
 if __name__ == '__main__':
@@ -118,4 +120,9 @@ if __name__ == '__main__':
     with open(sys.argv[1], 'r') as fin:
         info = yaml.load(fin)
 
+    print "\n"
+    print 50*'-'
+    print "Using ", info['processes'], " out of ", mp.cpu_count(), " available cores"
+    print 50*'-'
+    print "\n"
     plot_compounds_and_files(info)
