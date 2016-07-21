@@ -282,6 +282,14 @@ class Method(MetatlasObject):
     mobile_phase_b = MetUnicode(help='Solvent or solvent mixture.')
     temporal_parameters = MetUnicode('List of temporal changes to the' +
         'mixing of mobile_phase_a and mobile_phase_b.')
+    #Time = MetList()
+    #Flow = MetList()
+    #A_percent = MetList()
+    #B_percent = MetList()
+    #Chromatography Stack
+    #Model
+    #Serial Number
+    #Modules
     column_model = MetUnicode(help='Brand and catalog number of the column')
     column_type = MetUnicode(help='Class of column used.')
     scan_mz_range = MetUnicode(help='Minimum and ' +
