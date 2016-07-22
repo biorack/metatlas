@@ -72,6 +72,11 @@ def plot_compounds_and_files(info):
     processes = info['processes']
     plot_types = info['plot_types']
 
+
+    # create directory if necessary
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     data = ma_data.get_dill_data(pkl_file)
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
