@@ -86,19 +86,16 @@ def plot_compounds_and_files(output_dir,
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    print('Number of files: ', len(file_names))
-    print('Number of compounds:', len(compound_names))
-
     # setup the parameters according to the request
     if 'files' in plot_types.lower() or 'both' in plot_types.lower():
         nRows = int(np.ceil(len(compound_names)/float(nCols)))
         args_list = []
-        for file_idx,my_file in enumerate(file_names):
-            kwargs = {'data':data[file_idx], 
-                      'file_name': os.path.join(output_dir,my_file+'.pdf'),
-                      'rowscols':(nRows, nCols),
-                      'share_y':share_y,
-                      'names':compound_names}
+        for file_idx, my_file in enumerate(file_names):
+            kwargs = {'data': data[file_idx],
+                      'file_name': os.path.join(output_dir, my_file +'.pdf'),
+                      'rowscols': (nRows, nCols),
+                      'share_y': share_y,
+                      'names': compound_names}
             args_list.append(kwargs)
 
         nprocs = min(processes, len(file_names))
@@ -109,16 +106,16 @@ def plot_compounds_and_files(output_dir,
     if 'compounds' in plot_types.lower() or 'both' in plot_types.lower():
         nRows = int(np.ceil(len(file_names)/float(nCols)))
         args_list = []
-        for compound_idx,my_compound in enumerate(compound_names):
+        for compound_idx, my_compound in enumerate(compound_names):
             my_data = list()
             for file_idx, my_file in enumerate(file_names):
                 my_data.append(data[file_idx][compound_idx])
 
-            kwargs = {'data':my_data,
+            kwargs = {'data': my_data,
                       'file_name': os.path.join(output_dir, my_compound+'.pdf'),
-                      'rowscols':(nRows, nCols),
-                      'share_y':share_y,
-                      'names':file_names}
+                      'rowscols': (nRows, nCols),
+                      'share_y': share_y,
+                      'names': file_names}
             args_list.append(kwargs)
 
         nprocs = min(processes, len(compound_names))
@@ -129,21 +126,27 @@ def plot_compounds_and_files(output_dir,
 
 if __name__ == '__main__':
     sys.path.insert(0, '/global/homes/j/jtouma/metatlas')
+    import pickle
     from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 
-    with open(sys.argv[1], 'r') as fin:
-        info = yaml.load(fin)
-
+    # load pickled data
+    info = pickle.load(open(sys.argv[1], "rb"))
     data = ma_data.get_dill_data(info['pkl_file'])
     file_names = ma_data.get_file_names(data)
-    compound_names = ma_data.get_compound_names(data)
+    compound_names = ma_data.get_compound_names(data)[0]
 
     print("\n")
     print(50*'-')
+    print("Number of file: ", len(file_names))
+    print("Number of compounds: ", len(compound_names))
+    if info['plot_types'].lower() == 'both':
+        print("Processing both files and compounds")
+    else:
+        print("processing ", info['plot_types'].lower(), " only")
     print("Using ", info['processes'], " out of ", mp.cpu_count(), " available cores")
     print(50*'-')
     print("\n")
-
+    print type(info['plot_types'])
     plot_compounds_and_files(output_dir=info['output_dir'],
                              data=data,
                              compound_names=compound_names,

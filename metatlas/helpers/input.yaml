@@ -6,4 +6,4 @@ output_dir: '/global/homes/j/jtouma/scratch'
 
 processes: 25
 
-plot_types: 'both'
+plot_types: 'files'
