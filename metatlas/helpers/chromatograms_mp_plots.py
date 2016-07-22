@@ -137,16 +137,15 @@ if __name__ == '__main__':
 
     print("\n")
     print(50*'-')
-    print("Number of file: ", len(file_names))
-    print("Number of compounds: ", len(compound_names))
+    print("Number of file: " + str(len(file_names)))
+    print("Number of compounds: " + str(len(compound_names)))
     if info['plot_types'].lower() == 'both':
         print("Processing both files and compounds")
     else:
-        print("processing ", info['plot_types'].lower(), " only")
-    print("Using ", info['processes'], " out of ", mp.cpu_count(), " available cores")
+        print("processing " + info['plot_types'].lower() + " only")
+    print("Using " + str(info['processes']) + " out of " + str(mp.cpu_count()) + " available cores")
     print(50*'-')
     print("\n")
-    print type(info['plot_types'])
     plot_compounds_and_files(output_dir=info['output_dir'],
                              data=data,
                              compound_names=compound_names,
