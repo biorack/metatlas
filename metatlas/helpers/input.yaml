@@ -1,9 +1,0 @@
-nCols: 8
-share_y: false
-
-pkl_file: '/global/homes/j/jtouma/data/x.pkl'
-output_dir: '/global/homes/j/jtouma/scratch'
-
-processes: 25
-
-plot_types: 'files'
