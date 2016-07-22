@@ -66,7 +66,7 @@ def plot_compounds_and_files(output_dir,
                              nCols = 8,
                              share_y = False,
                              processes=25,
-                             plot_types=('files', 'compounds')):
+                             plot_types='both'):
     '''
 
     Parameters
@@ -90,7 +90,7 @@ def plot_compounds_and_files(output_dir,
     print('Number of compounds:', len(compound_names))
 
     # setup the parameters according to the request
-    if 'files' in plot_types:
+    if 'files' in plot_types.lower() or 'both' in plot_types.lower():
         nRows = int(np.ceil(len(compound_names)/float(nCols)))
         args_list = []
         for file_idx,my_file in enumerate(file_names):
@@ -106,7 +106,7 @@ def plot_compounds_and_files(output_dir,
         pool.map(plot_compounds_and_files_mp, args_list)
         print("processed ", len(args_list), " files")
 
-    if 'compounds' in plot_types:
+    if 'compounds' in plot_types.lower() or 'both' in plot_types.lower():
         nRows = int(np.ceil(len(file_names)/float(nCols)))
         args_list = []
         for compound_idx,my_compound in enumerate(compound_names):
