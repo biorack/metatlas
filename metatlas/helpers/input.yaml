@@ -4,6 +4,6 @@ share_y: false
 pkl_file: '/global/homes/j/jtouma/data/x.pkl'
 output_dir: '/global/homes/j/jtouma/scratch'
 
-processes: 55
+processes: 25
 
-plot_types: ['files', 'compounds']
+plot_types: ('files', 'compounds')
