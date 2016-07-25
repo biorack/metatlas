@@ -2,6 +2,240 @@ import numpy as np
 import os.path
 import sys
 import tables
+
+def df_container_from_metatlas_file(my_file):
+    data_df = pd.DataFrame()
+    pd_h5_file  = pd.HDFStore(my_file.hdf5_file)
+    keys = pd_h5_file.keys()
+    pd_h5_file.close()
+    df_container = {}
+    for k in keys:
+        if ('ms' in k) and not ('_mz' in k):
+            new_df = pd.read_hdf(my_file.hdf5_file,k)
+            df_container[k[1:]] = new_df
+    return df_container
+
+def fast_nearest_interp(xi, x, y):
+    """Assumes that x is monotonically increasing!!."""
+    # Shift x points to centers
+    spacing = np.diff(x) / 2
+    x = x + np.hstack([spacing, spacing[-1]])
+    # Append the last point in y twice for ease of use
+    y = np.hstack([y, y[-1]])
+    return y[np.searchsorted(x, xi)]
+
+def remove_ms1_data_not_in_atlas(atlas,data):
+    things_to_do = [('positive','ms1_pos'),('negative','ms1_neg')]
+    for thing in things_to_do:
+        if sum(atlas_df.detected_polarity == thing[0])>0:
+            atlas_mz = atlas_df[atlas_df.detected_polarity == thing[0]].mz.copy()
+            atlas_mz = atlas_mz.sort_values().as_matrix()
+            max_mz_tolerance = atlas_df[atlas_df.detected_polarity == thing[0]].mz_tolerance.max()
+            if data[thing[1]].shape[0]>1:
+                original_mz = data[thing[1]].mz.as_matrix()
+                nearest_mz = fast_nearest_interp(original_mz,atlas_mz,atlas_mz)
+                data[thing[1]]['ppm_difference'] = abs(original_mz - nearest_mz) / original_mz * 1e6
+                query_str = 'ppm_difference < %f'%(max_mz_tolerance)
+                data[thing[1]] = data[thing[1]].query(query_str)
+    return data
+
+def make_atlas_df(atlas):
+    mz = []
+    rt = []
+    atlas_compound = []
+    label = []
+    for compound in atlas.compound_identifications:
+        if compound.mz_references:
+            mz.append(compound.mz_references[0])
+        else:
+            mz.append(metob.MzReference)
+        if compound.rt_references:
+            rt.append(compound.rt_references[0])
+        else:
+            rt.append(metob.RtReference)
+        if compound.compound:
+            atlas_compound.append(compound.compound[0])
+        else:
+            atlas_compound.append(metob.Compound())
+        label.append(compound.name)
+    compound_df = metob.to_dataframe(atlas_compound)
+    compound_df.rename(columns = {'name':'compound_name','description':'compound_description'},inplace=True)
+    #.rename(columns = {'name':'compound_name'}, inplace = True)
+    atlas_df = pd.concat([metob.to_dataframe(rt),metob.to_dataframe(mz), compound_df],axis=1)
+    # atlas_df['label'] = label
+
+    atlas_keys = [u'rt_max', u'rt_min', u'rt_peak',u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units']
+
+    # atlas_keys = [u'label','compound_name','compound_description',u'synonyms', u'num_free_radicals', u'number_components', u'permanent_charge', u'rt_max', u'rt_min', u'rt_peak',
+    #        u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units',
+    #         u'inchi', u'inchi_key', u'neutralized_2d_inchi', u'neutralized_2d_inchi_key', u'neutralized_inchi',
+    #        u'neutralized_inchi_key',u'chebi_id', u'hmdb_id', u'img_abc_id', u'kegg_id',u'lipidmaps_id', u'metacyc_id',
+    #        u'mono_isotopic_molecular_weight', u'pubchem_compound_id', u'kegg_url', u'chebi_url', u'hmdb_url', u'lipidmaps_url', u'pubchem_url',u'wikipedia_url',  u'source']
+
+    atlas_df = atlas_df[atlas_keys]
+    return atlas_df
+
+def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.3,use_mz = 'mz',extra_mz = 0.0):
+    min_mz = '(%s >= %5.4f & '%(use_mz,row.mz - row.mz*row.mz_tolerance / 1e6 - extra_mz)
+    rt_min = 'rt >= %5.4f & '%(row.rt_min - extra_time)
+    rt_max = 'rt <= %5.4f & '%(row.rt_max + extra_time)
+    max_mz = '%s <= %5.4f)'%(use_mz,row.mz + row.mz*row.mz_tolerance / 1e6 + extra_mz)
+    ms1_query_str = '%s%s%s%s'%(min_mz,rt_min,rt_max,max_mz)
+    if row.detected_polarity == 'positive':
+        if len(data_df_pos)>0:
+            all_df = data_df_pos.query(ms1_query_str)
+        else:
+            return pd.Series()
+    else:
+        if len(data_df_neg)>0:
+            all_df = data_df_neg.query(ms1_query_str)
+        else:
+            return pd.Series()
+    return_df = pd.Series({'padded_feature_data':all_df.T.to_dense(),'in_feature':(all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
+    return return_df
+
+def get_ms1_summary(row):
+    #A DataFrame of all points typically padded by "extra time"
+    all_df = row.padded_feature_data.T
+    
+    #slice out ms1 data that is NOT padded by extra_time
+    ms1_df = all_df[(row.in_feature == True)]#[['i','mz','polarity','rt']]
+
+    num_ms1_datapoints = ms1_df.shape[0]
+    if num_ms1_datapoints > 0:
+        idx = ms1_df.i.idxmax()
+        ms1_peak_df = ms1_df.ix[ms1_df['i'].idxmax()]
+        mz_peak = ms1_peak_df.mz
+        rt_peak = ms1_peak_df.rt
+        mz_centroid = sum(ms1_df.mz * ms1_df.i) / sum(ms1_df.i)
+        rt_centroid = sum(ms1_df.rt * ms1_df.i) / sum(ms1_df.i)
+        peak_height = ms1_peak_df.i
+        peak_area = sum(ms1_df.i)
+    else:
+        mz_peak = np.nan
+        rt_peak = np.nan
+        mz_centroid = np.nan
+        rt_centroid = np.nan
+        peak_height = np.nan
+        peak_area = np.nan
+        
+    return_df = pd.Series({ 'num_ms1_datapoints':num_ms1_datapoints,
+                            'mz_peak':mz_peak,
+                            'rt_peak':rt_peak,
+                            'mz_centroid':mz_centroid,
+                            'rt_centroid':rt_centroid,
+                            'peak_height':peak_height,
+                            'peak_area':peak_area})
+    
+    return return_df
+
+def get_ms2_data(row):
+    #A DataFrame of all points typically padded by "extra time"
+    all_df = row.padded_feature_data.T
+    
+    #slice out ms2 data that is NOT padded by extra_time
+    ms2_df = all_df[(row.in_feature == True)]#[['collision_energy','i','mz','polarity','precursor_MZ','precursor_intensity','rt']]
+
+    num_ms2_datapoints = ms2_df.shape[0]
+        
+    return_df = pd.Series({'ms2_datapoints':ms2_df.T.to_dense(),
+                            'num_ms2_datapoints':num_ms2_datapoints})
+    return return_df
+
+
+def prefilter_ms1_dataframe_with_boundaries(data_df,rt_max,rt_min,mz_min,mz_max,extra_time = 1, extra_mz = 1):
+    print rt_max
+    if (data_df.shape[0]==0) & (rt_min > 0):
+        return []
+    prefilter_query_str = 'rt < %5.4f & rt > %5.4f & mz > %5.4f & mz < %5.4f'%(rt_max+extra_time,rt_min-extra_time,mz_min - extra_mz, mz_max+extra_mz)
+    new_df = data_df.query(prefilter_query_str)
+    return new_df
+
+def get_ms1_eic(row):
+    #A DataFrame of all points typically padded by "extra time"
+    all_df = row.padded_feature_data.T
+    ms1_df = all_df[['i','mz','rt']]
+    ms1_df = ms1_df.sort_values('rt',ascending=True)
+    return pd.Series({'eic':ms1_df.T.to_dense()})
+
+
+def retrieve_most_intense_msms_scan(data):
+    import numpy as np
+    urt,idx = np.unique(data['rt'],return_index=True)
+    sx = np.argsort(data['precursor_intensity'][idx])[::-1]
+    prt = data['rt'][idx[sx]]
+    pmz = data['precursor_MZ'][idx[sx]]
+    pintensity = data['precursor_intensity'][idx[sx]]
+    #setup data format for searching
+    msms_data = {}
+    msms_data['spectra'] = []
+    msms_data['precursor_mz'] = []
+    msms_data['precursor_intensity'] = []
+    idx = np.argwhere((data['precursor_MZ'] == pmz[0]) & (data['rt'] == prt[0] )).flatten()
+    arr = np.array([data['mz'][idx], data['i'][idx]]).T
+    msms_data['spectra'] = arr
+    msms_data['precursor_mz'] = pmz
+    msms_data['precursor_intensity'] = pintensity
+    return msms_data
+
+def get_data_for_atlas_and_lcmsrun(atlas_df,df_container):
+    '''
+    Accepts 
+    an atlas dataframe made by make_atlas_df
+    a metatlas lcms file dataframe made by df_container_from_metatlas_file
+    
+    Returns python dictionaries of ms1, eic, and ms2 results for each compound in the atlas dataframe.
+    '''
+    
+    #filtered the ms2 and ms1 pos and neg frames in the container by rt and mz extreme points.
+    filtered_ms1_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_pos'],
+                                                               atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
+                                                               atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
+                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.min(),
+                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.max())
+    filtered_ms1_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_neg'],
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.min(),
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max())
+    filtered_ms2_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_pos'],
+                                                           atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
+                                                           atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
+                                                           0,
+                                                           atlas_df[atlas_df.detected_polarity == 'positive'].mz.max())
+    filtered_ms2_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_neg'],
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
+                                                           0,
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max())
+    
+
+    ms1_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms1_pos,filtered_ms1_neg),axis=1)
+    ms1_summary = ms1_feature_data.apply(get_ms1_summary,axis=1)
+    ms1_eic = ms1_feature_data.apply(get_ms1_eic,axis=1)    
+    
+    ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ',extra_mz = 0.01),axis=1)
+    ms2_data = ms2_feature_data.apply(get_ms2_data,axis=1)
+    
+    dict_ms1_summary = [dict(row) for i,row in ms1_summary.iterrows()]
+    dict_eic = [row.eic.T.to_dict(orient='list') for i,row in ms1_eic.iterrows()]
+    #rename the "i" to "intensity".
+    for i,d in enumerate(dict_eic):
+        dict_eic[i]['intensity'] = dict_eic[i].pop('i')
+    
+    dict_ms2 = []
+    for i,row in ms2_data.iterrows():
+        print row.keys()
+        if 'ms2_datapoints' in row.keys():
+            dict_ms2.append(row.ms2_datapoints.T.to_dict(orient='list'))
+        else:
+            dict_ms2.append([])
+    
+    return dict_ms1_summary,dict_eic,dict_ms2
+
+
+
+
 def get_unique_scan_data(data):
     """
     Input:

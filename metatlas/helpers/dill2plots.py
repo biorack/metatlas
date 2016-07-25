@@ -1134,9 +1134,9 @@ def filter_metatlas_objects_to_most_recent(object_list,field):
     return keep_object_list
 #        print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
 
-def get_metatlas_atlas(name = '%%',most_recent = True,do_print = True):
+def get_metatlas_atlas(name = '%%',username = '*', most_recent = True,do_print = True):
     from datetime import datetime, date
-    atlas = metob.retrieve('Atlas',name = name,username='*')
+    atlas = metob.retrieve('Atlas',name = name,username=username)
     if most_recent:
         atlas = filter_metatlas_objects_to_most_recent(atlas,'name')
     if do_print:
@@ -1477,8 +1477,11 @@ def filter_compounds_in_dataset_by_include_list(metatlas_dataset,include_list):
         filtered_dataset.append(filtered_row)
     return filtered_dataset
       
-def select_groups_for_analysis(name = '%',do_print = True, most_recent = True, remove_empty = True, include_list = [], exclude_list = []):
-    groups = metob.retrieve('Groups', name = name, username='*')
+def select_groups_for_analysis(name = '%', description = [], username = '*', do_print = True, most_recent = True, remove_empty = True, include_list = [], exclude_list = []):
+    if description:
+        groups = metob.retrieve('Groups', name = name, description = description, username=username)
+    else:
+        groups = metob.retrieve('Groups', name = name, username=username)
     if most_recent:
         groups = filter_metatlas_objects_to_most_recent(groups,'name')
     
