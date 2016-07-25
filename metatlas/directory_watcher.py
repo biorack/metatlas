@@ -8,6 +8,7 @@ import time
 import random
 import smtplib
 import traceback
+import time
 
 from collections import defaultdict
 from subprocess import check_output
@@ -41,6 +42,20 @@ Subject: %s
             sys.stderr.write("Error: unable to send email to %s\n" % username)
             sys.stdout.flush()
 
+def get_acqtime_from_mzml(mzml_file):
+    startTimeStamp=None
+    with open(mzml_file) as mzml:
+        for line in mzml:
+            if 'startTimeStamp' in line:
+                startTimeStamp = line.split('startTimeStamp="')[1].split('"')[0].replace('T',' ').rstrip('Z')
+                break
+#     print startTimeStamp
+    if not '-infinity' in startTimeStamp:
+        date_object = datetime.strptime(startTimeStamp, '%Y-%m-%d %H:%M:%S')
+        utc_timestamp = int(time.mktime(date_object.timetuple()))
+    else:
+        utc_timestamp = int(0)
+    return utc_timestamp
 
 def update_metatlas(directory):
     readonly_files = defaultdict(set)
@@ -126,6 +141,9 @@ def update_metatlas(directory):
         # Convert to HDF and store the entry in the database.
         try:
             hdf5_file = fname.replace('mzML', 'h5')
+            
+            #Get Acquisition Time Here
+            acquisition_time = get_acqtime_from_mzml(fname)
             mzml_to_hdf(fname, hdf5_file, True)
             os.chmod(hdf5_file, 0o660)
             description = info['experiment'] + ' ' + info['path']
@@ -140,7 +158,7 @@ def update_metatlas(directory):
                               username=info['username'],
                               experiment=info['experiment'],
                               creation_time=ctime, last_modified=ctime,
-                              mzml_file=fname, hdf5_file=hdf5_file)
+                              mzml_file=fname, hdf5_file=hdf5_file, acquisition_time = acquisition_time)
                 store(run)
         except Exception as e:
             if 'exists but it can not be written' in str(e):
