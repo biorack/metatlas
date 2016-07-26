@@ -2,6 +2,9 @@ import numpy as np
 import os.path
 import sys
 import tables
+from metatlas import metatlas_objects as metob
+import pandas as pd
+
 
 def df_container_from_metatlas_file(my_file):
     data_df = pd.DataFrame()
@@ -24,7 +27,7 @@ def fast_nearest_interp(xi, x, y):
     y = np.hstack([y, y[-1]])
     return y[np.searchsorted(x, xi)]
 
-def remove_ms1_data_not_in_atlas(atlas,data):
+def remove_ms1_data_not_in_atlas(atlas_df,data):
     things_to_do = [('positive','ms1_pos'),('negative','ms1_neg')]
     for thing in things_to_do:
         if sum(atlas_df.detected_polarity == thing[0])>0:
@@ -144,8 +147,8 @@ def get_ms2_data(row):
 
 
 def prefilter_ms1_dataframe_with_boundaries(data_df,rt_max,rt_min,mz_min,mz_max,extra_time = 1, extra_mz = 1):
-    print rt_max
-    if (data_df.shape[0]==0) & (rt_min > 0):
+    import math
+    if (data_df.shape[0]==0) | (math.isnan(rt_max)):
         return []
     prefilter_query_str = 'rt < %5.4f & rt > %5.4f & mz > %5.4f & mz < %5.4f'%(rt_max+extra_time,rt_min-extra_time,mz_min - extra_mz, mz_max+extra_mz)
     new_df = data_df.query(prefilter_query_str)
@@ -225,7 +228,6 @@ def get_data_for_atlas_and_lcmsrun(atlas_df,df_container):
     
     dict_ms2 = []
     for i,row in ms2_data.iterrows():
-        print row.keys()
         if 'ms2_datapoints' in row.keys():
             dict_ms2.append(row.ms2_datapoints.T.to_dict(orient='list'))
         else:
