@@ -906,17 +906,20 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
-
+    print len(data)
+    print len(data[0])
     # filter runs from the metatlas dataset
     if include_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
         data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
-
+    print len(data)
+    print len(data[0])
     if exclude_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
+        #data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
     
-
+    print len(data)
+    print len(data[0])
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
 
@@ -1023,8 +1026,11 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
             ax3.axis('off')
         #     plt.show()
             fig.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
-            fig.clear()
+            #fig.clear()
+            plt.cla()
+            del fig
             plt.close('all')#f.clear()
+
 
     
 
@@ -1296,14 +1302,20 @@ def make_atlas_from_spreadsheet(filename=False,
         return bad_names
     #Make sure all the files specified for references are actually there
     if 'file_rt' in df.keys():
+        #strip '.mzmL' from cells
+        df.file_rt = df.file_rt.str.replace('\..+', '')
         bad_files = check_file_names(df,'file_rt')
         if bad_files:
              return bad_files
     if 'file_mz' in df.keys():
+        #strip '.mzmL' from cells
+        df.file_mz = df.file_mz.str.replace('\..+', '')
         bad_files = check_file_names(df,'file_mz')
         if bad_files:
              return bad_files
     if 'file_msms' in df.keys():
+        #strip '.mzmL' from cells
+        df.file_msms = df.file_msms.str.replace('\..+', '')
         bad_files = check_file_names(df,'file_msms')
         if bad_files:
              return bad_files
