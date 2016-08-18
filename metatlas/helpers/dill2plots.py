@@ -1232,9 +1232,10 @@ def check_compound_names(df):
 def check_file_names(df,field):
     bad_files = []
     for i,row in df.iterrows():
-        if not metob.retrieve('Lcmsruns',name = '%%%s%%'%row[field],username = '*'):
-            print row[field], "file is not in the database. Exiting Without Completing Task!"
-            bad_files.append(row[field])
+        if row[field] != '':
+            if not metob.retrieve('Lcmsruns',name = '%%%s%%'%row[field],username = '*'):
+                print row[field], "file is not in the database. Exiting Without Completing Task!"
+                bad_files.append(row[field])
     return bad_files
 
 
@@ -1257,17 +1258,19 @@ def get_formatted_atlas_from_google_sheet(polarity='POS',
                     'file_rt_%s_%s'%(method,polarity),
                     'file_msms_%s_%s'%(method,polarity)]
     df3 = df2.loc[:,fields_to_keep]
-
+    
     df3['mz_tolerance'] = mz_tolerance
 
     if polarity == 'POS':
-        df3['polarity'] = 'polarity'
+        df3['polarity'] = 'positive'
     else:
         df3['polarity'] = 'negative'
 
     renamed_columns = [c.replace('_%s'%method,'').replace('_%s'%polarity,'') for c in df3.columns]
     for i,c in enumerate(df3.columns):
         df3 = df3.rename(columns = {c:renamed_columns[i]})
+    df3 = df3[df3['mz'] != '']
+
     return df3
 
 
@@ -1301,18 +1304,18 @@ def make_atlas_from_spreadsheet(filename=False,
     if bad_names:
         return bad_names
     #Make sure all the files specified for references are actually there
-    if 'file_rt' in df.keys():
+    #if 'file_rt' in df.keys():
         #strip '.mzmL' from cells
-        df.file_rt = df.file_rt.str.replace('\..+', '')
-        bad_files = check_file_names(df,'file_rt')
-        if bad_files:
-             return bad_files
-    if 'file_mz' in df.keys():
-        #strip '.mzmL' from cells
-        df.file_mz = df.file_mz.str.replace('\..+', '')
-        bad_files = check_file_names(df,'file_mz')
-        if bad_files:
-             return bad_files
+        #df.file_rt = df.file_rt.str.replace('\..+', '')
+        #bad_files = check_file_names(df,'file_rt')
+        #if bad_files:
+        #     return bad_files
+    #if 'file_mz' in df.keys():
+    #    #strip '.mzmL' from cells
+    #    df.file_mz = df.file_mz.str.replace('\..+', '')
+    #    bad_files = check_file_names(df,'file_mz')
+    #    if bad_files:
+    #         return bad_files
     if 'file_msms' in df.keys():
         #strip '.mzmL' from cells
         df.file_msms = df.file_msms.str.replace('\..+', '')
@@ -1362,24 +1365,24 @@ def make_atlas_from_spreadsheet(filename=False,
                 
                 mzRef.mz_tolerance_units = 'ppm'
                 mzRef.detected_polarity = polarity
-                if 'file_mz' in df.keys():
-                    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_mz[x],username = '*')[0]
-                    mzRef.lcms_run = f
+                #if 'file_mz' in df.keys():
+                #    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_mz[x],username = '*')[0]
+                #    mzRef.lcms_run = f
                 #     mzRef.adduct = '[M-H]'   
-                myID.mz_references = [mzRef]
+                #myID.mz_references = [mzRef]
 
                 rtRef = metob.RtReference()
                 rtRef.rt_units = 'min'
                 rtRef.rt_min = df.rt_min[x]
                 rtRef.rt_max = df.rt_max[x]
                 rtRef.rt_peak = df.rt_peak[x]
-                if 'file_rt' in df.keys():
-                    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_rt[x],username = '*')[0]
-                    rtRef.lcms_run = f
-                myID.rt_references = [rtRef]
+                #if 'file_rt' in df.keys():
+                #    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_rt[x],username = '*')[0]
+                #    rtRef.lcms_run = f
+                #myID.rt_references = [rtRef]
                     
-                if 'file_msms' in df.keys():
-                    if type(df.file_msms[x]) != float:
+                if ('file_msms' in df.keys()) and (c != 'use_label'):
+                    if (type(df.file_msms[x]) != float) and (df.file_msms[x] != ''):
                         frag_ref = metob.FragmentationReference()
                         f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_msms[x],username = '*')[0]
                         frag_ref.lcms_run = f
@@ -1400,6 +1403,8 @@ def make_atlas_from_spreadsheet(filename=False,
                                 spectrum.append(mzp)
                             frag_ref.mz_intensities = spectrum
                             myID.frag_references = [frag_ref]
+                            print ''
+                            print 'found reference msms spectrum for ',myID.compound[0].name, 'in file',df.file_msms[x]
 
                 all_identifications.append(myID)
 
