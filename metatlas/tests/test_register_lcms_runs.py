@@ -31,7 +31,7 @@ def test_interact_get_metatlas_files():
 
     experiment = '%violacein%'
     name = '%_%'
-    most_recent = False
+    most_recent = True
     files = dp.get_metatlas_files(experiment=experiment, name=name, most_recent=most_recent)
     assert len(files) == 1350
 
@@ -67,6 +67,15 @@ def test_make_empty_fileinfo_sheet():
     name = '%_%'
     most_recent = False
     f = dp.get_metatlas_files(experiment=experiment, name=name, most_recent=most_recent)
-    dp.make_empty_fileinfo_sheet('/global/homes/b/bpb/Downloads/empty_violacein_384_finfo.tab', f.files)
+    temp_file_name = '/global/homes/b/bpb/Downloads/empty_violacein_384_finfo.tab'
+    dp.make_empty_fileinfo_sheet(temp_file_name, f.files)
 
     # see if the file exits
+    assert os.path.exists(temp_file_name)
+
+    # let's read a line or two and prform a test on the content
+    with open(temp_file_name, 'r') as fin:
+
+
+
+
