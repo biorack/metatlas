@@ -1370,7 +1370,7 @@ def make_atlas_from_spreadsheet(filename=False,
                 #    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_mz[x],username = '*')[0]
                 #    mzRef.lcms_run = f
                 #     mzRef.adduct = '[M-H]'   
-                #myID.mz_references = [mzRef]
+                myID.mz_references = [mzRef]
 
                 rtRef = metob.RtReference()
                 rtRef.rt_units = 'min'
@@ -1380,7 +1380,7 @@ def make_atlas_from_spreadsheet(filename=False,
                 #if 'file_rt' in df.keys():
                 #    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_rt[x],username = '*')[0]
                 #    rtRef.lcms_run = f
-                #myID.rt_references = [rtRef]
+                myID.rt_references = [rtRef]
                     
                 if ('file_msms' in df.keys()) and (c != 'use_label'):
                     if (type(df.file_msms[x]) != float) and (df.file_msms[x] != ''):
