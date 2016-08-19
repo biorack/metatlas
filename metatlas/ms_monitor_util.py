@@ -194,8 +194,9 @@ def get_ms_monitor_reference_data(notebook_name = "20160203 ms-monitor reference
 #     blank_data = wks.worksheet('BLANK').get_all_values()
     headers = istd_qc_data.pop(0)
     df = pd.DataFrame(istd_qc_data,columns=headers)
-
-    df = df[df['mz'] != '']
+    print 'keys',df.keys()
+    print 'shape',df.shape
+    df = df[(df['mz_POS'] != '') | (df['mz_NEG'] != '')]
 
     return df#, blank_data
 
@@ -225,9 +226,11 @@ def make_dict_of_vals(method, df,rt_minutes_tolerance,my_fields = ['COMMON-HILIC
     pos_method_specific_cols = [col for col in df.columns if col.lower().endswith(pat+'_pos')]
     neg_method_specific_cols = [col for col in df.columns if col.lower().endswith(pat+'_neg')]
     my_dict = {}
-    float_fields = ['rt_min','rt_max','rt_peak','pos_mz','neg_mz','peak-height_pos','peak-height_neg']
+    float_fields = ['rt_min','rt_max','rt_peak','pos_mz','neg_mz']#,'peak-height_pos','peak-height_neg']
     for field in my_fields:
         renamed_field = field.split('-')[0].lower()
+        #The first field tells you if you are an ISTD or QC
+        #The second field is the join of strings to equal column headings
         my_dict[renamed_field] =  df[df[field] == '1'][base_keys + method_specific_cols + pos_method_specific_cols + neg_method_specific_cols]
         my_dict[renamed_field].rename(columns={'mz_POS':'pos_mz','mz_NEG':'neg_mz'},inplace=True)
         my_dict[renamed_field].rename(columns=lambda x: x.lower(), inplace=True)
@@ -271,45 +274,44 @@ def construct_result_table_for_files(files,qc_str,blank_str,neg_str,pos_str,meth
             if is_pos:
                 mz_ref.mz = atlas.loc[cidx,'pos_mz']
                 mz_ref.detected_polarity = 'positive'
-                ref_intensity = float(atlas.loc[cidx,'peak-height_pos'])
+                ref_intensity = 1000.0 #float(atlas.loc[cidx,'peak-height_pos'])
             else:
                 mz_ref.mz = atlas.loc[cidx,'neg_mz']
                 mz_ref.detected_polarity = 'negative'
-                ref_intensity = float(atlas.loc[cidx,'peak-height_neg'])
+                ref_intensity = 1000.0 #float(atlas.loc[cidx,'peak-height_neg'])
             if not np.isfinite(ref_intensity):
                 ref_intensity = 1
                 
-            if ref_intensity>=0:
-                result = ma_data.get_data_for_a_compound(mz_ref,
-                                        rt_ref,[ 'ms1_summary' ],
-                                        my_file.hdf5_file,0.3) #extra_time is not used by ms1_summary
-                if result['ms1_summary']['rt_peak']:
-                    if result['ms1_summary']['peak_height'] > reference_data['parameters']['peak_height_minimum']:
-                        df.loc[counter,'expected_rt'] = 1
-                        df.loc[counter,'expected_rt'] = rt_ref.rt_peak
-                        df.loc[counter,'expected_mz'] = mz_ref.mz
-                        df.loc[counter,'expected_intensity'] = ref_intensity
-                        df.loc[counter,'delta_rt'] = result['ms1_summary']['rt_peak'] - rt_ref.rt_peak
-                        df.loc[counter,'delta_mz'] = (result['ms1_summary']['mz_centroid'] - mz_ref.mz)/mz_ref.mz*1e6
-                        df.loc[counter,'delta_intensity'] = (result['ms1_summary']['peak_height'] - ref_intensity) / ref_intensity
-                        df.loc[counter,'measured_rt'] = result['ms1_summary']['rt_peak']
-                        df.loc[counter,'measured_mz'] = result['ms1_summary']['mz_centroid']
-                        df.loc[counter,'measured_intensity'] = result['ms1_summary']['peak_height']
-                        df.loc[counter,'filetype'] = filetype
-                        df.loc[counter, 'name has blank'] = blank_str.value.upper() in my_file.name.upper()
-                        df.loc[counter, 'name has QC'] = qc_str.value.upper() in my_file.name.upper()
-                        df.loc[counter, 'name has pos'] = pos_str.value.upper() in my_file.name.upper()
-                        df.loc[counter, 'name has neg'] = neg_str.value.upper() in my_file.name.upper()
-                        df.loc[counter, 'experiment'] = my_file.experiment
-                        df.loc[counter, 'filename'] = my_file.name
-                        df.loc[counter, 'datestamp'] = my_file.creation_time
-                        df.loc[counter, 'utc time'] = datetime.utcfromtimestamp(my_file.creation_time)
-                        df.loc[counter, 'lcms method'] = my_file.method #TODO: get instrument and lcms from the method object
-                        df.loc[counter, 'sample'] = my_file.sample
-                        df.loc[counter, 'username'] = my_file.username
-                        df.loc[counter, 'method'] = method.value
-                        df.loc[counter,'Compound name'] = atlas.loc[cidx,'label']
-                        counter = counter + 1
+            result = ma_data.get_data_for_a_compound(mz_ref,
+                                    rt_ref,[ 'ms1_summary' ],
+                                    my_file.hdf5_file,0.3) #extra_time is not used by ms1_summary
+            if result['ms1_summary']['rt_peak']:
+                if result['ms1_summary']['peak_height'] > reference_data['parameters']['peak_height_minimum']:
+                    df.loc[counter,'expected_rt'] = 1
+                    df.loc[counter,'expected_rt'] = rt_ref.rt_peak
+                    df.loc[counter,'expected_mz'] = mz_ref.mz
+                    df.loc[counter,'expected_intensity'] = ref_intensity
+                    df.loc[counter,'delta_rt'] = result['ms1_summary']['rt_peak'] - rt_ref.rt_peak
+                    df.loc[counter,'delta_mz'] = (result['ms1_summary']['mz_centroid'] - mz_ref.mz)/mz_ref.mz*1e6
+                    df.loc[counter,'delta_intensity'] = (result['ms1_summary']['peak_height'] - ref_intensity) / ref_intensity
+                    df.loc[counter,'measured_rt'] = result['ms1_summary']['rt_peak']
+                    df.loc[counter,'measured_mz'] = result['ms1_summary']['mz_centroid']
+                    df.loc[counter,'measured_intensity'] = result['ms1_summary']['peak_height']
+                    df.loc[counter,'filetype'] = filetype
+                    df.loc[counter, 'name has blank'] = blank_str.value.upper() in my_file.name.upper()
+                    df.loc[counter, 'name has QC'] = qc_str.value.upper() in my_file.name.upper()
+                    df.loc[counter, 'name has pos'] = pos_str.value.upper() in my_file.name.upper()
+                    df.loc[counter, 'name has neg'] = neg_str.value.upper() in my_file.name.upper()
+                    df.loc[counter, 'experiment'] = my_file.experiment
+                    df.loc[counter, 'filename'] = my_file.name
+                    df.loc[counter, 'datestamp'] = my_file.creation_time
+                    df.loc[counter, 'utc time'] = datetime.utcfromtimestamp(my_file.creation_time)
+                    df.loc[counter, 'lcms method'] = my_file.method #TODO: get instrument and lcms from the method object
+                    df.loc[counter, 'sample'] = my_file.sample
+                    df.loc[counter, 'username'] = my_file.username
+                    df.loc[counter, 'method'] = method.value
+                    df.loc[counter,'Compound name'] = atlas.loc[cidx,'label']
+                    counter = counter + 1
     timestr = time.strftime("%Y%m%d-%H%M%S")
     df.to_excel('%s_%s_%s.xls'%( timestr, clean_string(experiment.value), clean_string(method.value) ) )
     df.to_excel('%s/%s_%s_%s.xls'%( '/project/projectdirs/metatlas/projects/ms_monitor_tools/ms_monitor_logs', timestr,clean_string(experiment.value), clean_string(method.value) ) )
