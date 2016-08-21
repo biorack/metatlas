@@ -188,7 +188,7 @@ def test_user_preserve():
     assert test.unique_id == orig_id
     mo.store(test)
     assert test.unique_id != orig_id
-    items = mo.retrieve('reference', username='*', name='hello')
+    items = mo.retrieve('references', username='*', name='hello')
     username = getpass.getuser()
     assert items[-2].username == 'foo'
     assert items[-1].username == username
@@ -196,7 +196,7 @@ def test_user_preserve():
     assert items[-1].lcms_run.username == 'foo'
     run.name = 'hello'
     mo.store(test)
-    items = mo.retrieve('reference', username='*',
+    items = mo.retrieve('references', username='*',
                         creation_time=test.creation_time)
     return
     assert items[0].lcms_run.username == 'foo'
@@ -216,7 +216,8 @@ def test_store_all():
 def test_stub_instance():
     run = mo.LcmsRun(username='foo')
     test = mo.Reference(name='hello', lcms_run=run)
-    mo.store(test)
+    print(test.lcms_run)
+    mo.store(test, _override=True)
     item = mo.retrieve('reference', name='hello')[0]
     assert isinstance(item.lcms_run, mo.LcmsRun)
 
@@ -231,30 +232,28 @@ def test_floating_point():
 
 
 def test_remove():
-    compound = mo.Compound(name='foo', mono_isotopic_molecular_weight=1.0,
-                           reference_xrefs=[mo.ReferenceDatabase(name='baz')])
-    sub_id = compound.reference_xrefs[0].unique_id
-    mo.store(compound)
-    db = mo.retrieve('referencedatabase', unique_id=sub_id)[0]
+    group = mo.Group(name='foo', items=[mo.Group(name='baz', description='hello')])
+    sub_id = group.items[0].unique_id
+    mo.store(group)
+    db = mo.retrieve('groups', unique_id=sub_id)[0]
     assert db.unique_id == sub_id
-    mo.remove('compound', name='foo', _override=True)
-    test = mo.retrieve('compound', name='foo')
+    mo.remove('groups', name='foo', _override=True)
+    test = mo.retrieve('groups', name='foo')
     assert not test
-    test_sub = mo.retrieve('compounds_reference_xrefs', target_id=sub_id)
+    test_sub = mo.retrieve('groups_items', target_id=sub_id)
     assert not test_sub
 
 
 def test_remove_objects():
-    compound = mo.Compound(name='foo', MonoIsotopic_molecular_weight=1.0,
-                           reference_xrefs=[mo.ReferenceDatabase(name='baz')])
-    sub_id = compound.reference_xrefs[0].unique_id
-    mo.store(compound)
-    db = mo.retrieve('referencedatabase', unique_id=sub_id)[0]
+    group = mo.Group(name='foo', items=[mo.Group(name='baz', description='hello')])
+    sub_id = group.items[0].unique_id
+    mo.store(group)
+    db = mo.retrieve('groups', unique_id=sub_id)[0]
     assert db.unique_id == sub_id
-    mo.remove_objects(compound, _override=True)
-    test = mo.retrieve('compound', name='foo')
+    mo.remove_objects(group, _override=True)
+    test = mo.retrieve('groups', name='foo')
     assert not test
-    test_sub = mo.retrieve('compounds_reference_xrefs', target_id=sub_id)
+    test_sub = mo.retrieve('groups_items', target_id=sub_id)
     assert not test_sub
 
 
