@@ -17,7 +17,6 @@ from metatlas.helpers import dill2plots as dp
 
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas import metatlas_objects as metob
-from metatlas.helpers import rt_corrector as rt_corrector
 from ipywidgets import interact, interactive, fixed
 
 
