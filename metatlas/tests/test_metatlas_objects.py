@@ -143,7 +143,6 @@ def test_preserve_provenance():
     test2.items = []
     mo.store([test, test2])
     assert len(test.items) == 0
-    print(test.unique_id)
     previous = mo.retrieve('group', unique_id=test.prev_uid)[0]
     assert len(previous.items) == 2, repr(previous)
 
@@ -216,7 +215,6 @@ def test_store_all():
 def test_stub_instance():
     run = mo.LcmsRun(username='foo')
     test = mo.Reference(name='hello', lcms_run=run)
-    print(test.lcms_run)
     mo.store(test, _override=True)
     item = mo.retrieve('reference', name='hello')[0]
     assert isinstance(item.lcms_run, mo.LcmsRun)
