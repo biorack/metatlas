@@ -35,8 +35,8 @@ install:
 - export PYTHONWARNINGS=all
 - pip install -e .
 script:
-- if [[ $PYTHON == python=3.4* ]]; then nosetests --exe -v --with-doctest --with-cov
-  --cover-package metatlas; else nosetests --exe -v metatlas; fi
+- if [[ $PYTHON == python=3.4* ]]; then nosetests -v --with-doctest --with-cov
+  --cover-package metatlas; else nosetests -v metatlas; fi
 - make docs
 # after_success:
 # - coveralls
