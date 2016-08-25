@@ -22,8 +22,10 @@ except ImportError:
         HasTraits, CUnicode, List, CInt, Instance, Enum,
         CFloat, CBool)
 
-# this will eventually enter into the local config file
-#db_passwd_file = '/project/projectdirs/metatlas/mysql_user.txt'
+
+# Whether we are running from NERSC
+ON_NERSC = 'NERSC_HOST' in os.environ
+
 
 # Observable List from
 # http://stackoverflow.com/a/13259435
@@ -127,7 +129,7 @@ class Workspace(object):
         host_name = socket.gethostname()
         print("you're running on %s at %s " % (host_name, socket.gethostbyname(socket.gethostname())))
 
-        if 'NERSC_HOST' in os.environ:
+        if ON_NERSC:
             with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
                 nersc_info = yaml.load(fid)
 
