@@ -1,6 +1,6 @@
 from datetime import datetime
 from metatlas import metatlas_objects as metob
-import metatlas_get_data_helper_fun as ma_data
+from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas import gui
 
 
