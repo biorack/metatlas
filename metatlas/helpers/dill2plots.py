@@ -1243,10 +1243,10 @@ def check_file_names(df,field):
 def get_formatted_atlas_from_google_sheet(polarity='POS',
                                           method='QE_HILIC',
                                           mz_tolerance=10):
-    sys.path.insert(0,'/project/projectdirs/metatlas/projects/ms_monitor_tools/' )
-    import ms_monitor_util as mmu
-    df = mmu.get_ms_monitor_reference_data()
-    df2 = pd.DataFrame(df[1:],columns=df[0])
+    import metatlas.ms_monitor_util as mmu
+    df2 = mmu.get_ms_monitor_reference_data()
+    #print df.head()
+    #df2 = pd.DataFrame(df[1:],columns=df[0])
 
     fields_to_keep = [ 'name',
                     'label',
@@ -1258,7 +1258,13 @@ def get_formatted_atlas_from_google_sheet(polarity='POS',
                     'file_mz_%s_%s'%(method,polarity),
                     'file_rt_%s_%s'%(method,polarity),
                     'file_msms_%s_%s'%(method,polarity)]
-    df3 = df2.loc[:,fields_to_keep]
+    
+    fields_there = []
+    for f in fields_to_keep:
+         if f in df2.keys():
+                fields_there.append(f)
+    
+    df3 = df2.loc[:,fields_there]
     
     df3['mz_tolerance'] = mz_tolerance
 
