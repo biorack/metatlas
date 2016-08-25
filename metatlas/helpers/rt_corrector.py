@@ -195,7 +195,7 @@ def plot_button_clicked(sender):
     (compound_names, compound_objects) = ma_data.get_compound_names(data)
     
     # get the name of the compound as selected from the grid
-    print grid2.get_selected_rows()
+    print(grid2.get_selected_rows())
     n = grid2.get_selected_rows()[0]
     atlas_compound = grid2.df.loc[n]['Compound']
 
@@ -204,7 +204,7 @@ def plot_button_clicked(sender):
 
     # see if selected atlas compound is in the pickle file
     if atlas_compound not in compound_names:
-        print "Compound not found"
+        print("Compound not found")
         return
 
     compound_idx = compound_names.index(atlas_compound)
@@ -314,7 +314,7 @@ def save_atlas(sender):
 
 
     else:
-        print "cannot save atlas"
+        print("cannot save atlas")
 
 
 ###########################################################################
@@ -346,7 +346,7 @@ def save_atlas_as(sender):
 
 
     else:
-        print "cannot save atlas"
+        print("cannot save atlas")
 
 
 ###########################################################################
