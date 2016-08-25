@@ -22,6 +22,12 @@ except ImportError:
 from ipywidgets import interact, fixed, FloatSlider
 
 
+try:
+    foo = widgets.Select()
+except Exception as e:
+    print(e)
+    sys.exit(0)
+
 
 
 data = []
