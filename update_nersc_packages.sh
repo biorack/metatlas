@@ -9,7 +9,11 @@
 #Install to anaconda/lib/python2.7/site-packages all metatlas file and all the "REQUIRES" in setup.py
 cd /project/projectdirs/metatlas/projects/metatlas
 git pull
-pip install .
+pip uninstall metatlas
+pip install . --upgrade
+
+## these might be necessary
+#pip install gspread
 
 #Install qgrid from https://github.com/quantopian/qgrid
 # clone to ../metatlas/projects
