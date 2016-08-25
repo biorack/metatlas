@@ -7,6 +7,7 @@ from metatlas import gui
 import pandas as pd
 import os
 import os.path
+import sys
 
 from IPython.display import display
 import matplotlib.pyplot as plt
