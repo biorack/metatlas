@@ -38,6 +38,6 @@ script:
 - if [[ $PYTHON == python=3.4* ]]; then nosetests --exe -v --with-doctest --with-cov
   --cover-package metatlas; else nosetests --exe -v metatlas; fi
 - make docs
-# after_success:
-# - coveralls
-# - if [[ $PYTHON == python=3.4* ]]; then bash scripts/travis_after_success.sh; fi
+after_success:
+- coveralls
+- if [[ $PYTHON == python=3.4* ]]; then bash scripts/travis_after_success.sh; fi
