@@ -28,7 +28,10 @@ from datetime import datetime
 import pandas as pd
 import json
 import gspread
-from oauth2client.client import SignedJwtAssertionCredentials
+
+# this behaviour was removed
+#from oauth2client.client import SignedJwtAssertionCredentials
+from oauth2client.service_account import ServiceAccountCredentials
 
 from matplotlib import pyplot as plt
 import re
@@ -185,8 +188,13 @@ def get_ms_monitor_reference_data(notebook_name = "20160203 ms-monitor reference
     json_key = json.load(open(token))
     scope = ['https://spreadsheets.google.com/feeds']
 
-    credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
-
+    #this is deprecated as of january
+    #see https://github.com/google/oauth2client/issues/401
+    #credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
+    
+    #here is the new way
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
+    
     gc = gspread.authorize(credentials)
 
     wks = gc.open(notebook_name)
