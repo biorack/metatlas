@@ -1156,8 +1156,7 @@ class interact_get_metatlas_files():
         self.name = name
         self.most_recent = most_recent
 #         http://ipywidgets.readthedocs.io/en/latest/examples/Using%20Interact.html
-        self.w = interact(self.Task, experiment=self.experiment, name=self.name, most_recent = self.most_recent,
-                          manual=True)#continuous_update=False)#
+        self.w = interact(self.Task, experiment=self.experiment, name=self.name, most_recent = self.most_recent,__manual=True)#continuous_update=False)#
        
     def Task(self,experiment,name,most_recent):
         self.experiment = experiment
