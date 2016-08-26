@@ -492,9 +492,9 @@ def get_dill_data(fname):
             try:
                 data = dill.load(f)
             except IOError as e:
-                print "I/O error({0}): {1}".format(e.errno, e.strerror)
+                print("I/O error({0}): {1}".format(e.errno, e.strerror))
             except:  # handle other exceptions such as attribute errors
-                print "Unexpected error:", sys.exc_info()[0]
+                print("Unexpected error:", sys.exc_info()[0])
 
 
     return data

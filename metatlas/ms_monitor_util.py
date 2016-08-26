@@ -202,8 +202,8 @@ def get_ms_monitor_reference_data(notebook_name = "20160203 ms-monitor reference
 #     blank_data = wks.worksheet('BLANK').get_all_values()
     headers = istd_qc_data.pop(0)
     df = pd.DataFrame(istd_qc_data,columns=headers)
-    #print 'keys',df.keys()
-    #print 'shape',df.shape
+    print('keys',df.keys())
+    print('shape',df.shape)
     df = df[(df['mz_POS'] != '') | (df['mz_NEG'] != '')]
 
     return df#, blank_data

@@ -37,10 +37,14 @@ def create_qgrid(objects, options=None):
         options = defaults.update(options)
     else:
         options = qgrid.grid.defaults.grid_options
-    grid = qgrid.grid.QGridWidget(df=dataframe,
-                                  precision=6,
-                                  grid_options=options,
-                                  remote_js=True)
+    try:
+        grid = qgrid.grid.QGridWidget(df=dataframe,
+                                      precision=6,
+                                      grid_options=options,
+                                      remote_js=True)
+    except Exception as e:
+        print(e)
+        return
 
     def handle_msg(widget, content, buffers=None):
         if content['type'] == 'cell_change':

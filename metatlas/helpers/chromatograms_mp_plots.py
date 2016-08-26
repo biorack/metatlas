@@ -117,7 +117,7 @@ def plot_compounds_and_files(output_dir,
                       'share_y': share_y,
                       'names': file_names}
             args_list.append(kwargs)
-        print args_list
+        print(args_list)
         nprocs = min(processes, len(compound_names))
         pool = mp.Pool(processes=nprocs)
         pool.map(plot_compounds_and_files_mp, args_list)

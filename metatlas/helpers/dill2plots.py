@@ -9,7 +9,6 @@ from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas import gui
-import metatlas_get_data_helper_fun as ma_data
 
 import qgrid
 import pandas as pd
@@ -248,15 +247,15 @@ def show_compound_grid(input_fname = '',input_dataset=[]):
     Provide a valid path to data in or a dataset
     """
     if not input_dataset:
-        print "loading..."
+        print("loading...")
         data = ma_data.get_dill_data(input_fname)
     else:
         data = input_dataset
     atlas_in_data = metob.retrieve('Atlas',unique_id = data[0][0]['atlas_unique_id'],username='*')
-    print "loaded file for username = ", atlas_in_data[0].username
+    print("loaded file for username = ", atlas_in_data[0].username)
     username = getpass.getuser()
     if username != atlas_in_data[0].username:
-        print "YOUR ARE",username,"YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"
+        print("YOUR ARE", username, "YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME")
         return
     compound_df = make_compound_id_df(data)
     #compound_grid = gui.create_qgrid([])
@@ -290,7 +289,7 @@ def adjust_rt_for_selected_compound(data,compound_grid, compound_idx = [], inclu
     if not compound_idx:
         compound_idx = compound_grid.get_selected_rows()
         if not compound_idx:
-            print 'you have to select a compound'
+            print('you have to select a compound')
             compound_idx = 0
         #if len(compound_idx)>1:
         #    print 'Only select one compound'
@@ -575,7 +574,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
     output_loc = os.path.expandvars(output_loc)
 
     nRows = int(np.ceil(len(file_names)/float(nCols)))
-    print 'nrows = ', nRows 
+    print('nrows = ', nRows)
     
     xmin = 0
     xmax = 210
@@ -602,7 +601,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
                 if len(d['data']['eic']['rt']) > 0:
                     y_max.append(max(d['data']['eic']['intensity']))
 
-    print "length of ymax is ", len(y_max)
+    print("length of ymax is ", len(y_max))
     y_max = cycle(y_max)
 
 
@@ -906,20 +905,20 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
-    print len(data)
-    print len(data[0])
+    print(len(data))
+    print(len(data[0]))
     # filter runs from the metatlas dataset
     if include_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
         data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
-    print len(data)
-    print len(data[0])
+    print(len(data))
+    print(len(data[0]))
     if exclude_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
         #data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
     
-    print len(data)
-    print len(data[0])
+    print(len(data))
+    print(len(data[0]))
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
 
@@ -1094,7 +1093,7 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
     #             rt_reference_index = int(treatment_groups.name[-1]) - 1
     #         except:
     #             rt_reference_index = 3
-            print i,len(group),myFile
+            print(i, len(group), myFile)
             row = []
             for compound in myAtlas.compound_identifications:
                 result = {}
@@ -1147,7 +1146,7 @@ def get_metatlas_atlas(name = '%%',username = '*', most_recent = True,do_print =
         atlas = filter_metatlas_objects_to_most_recent(atlas,'name')
     if do_print:
         for i,a in enumerate(atlas):
-            print i, len(a.compound_identifications),a.name,  datetime.utcfromtimestamp(a.last_modified)
+            print(i, len(a.compound_identifications),a.name,  datetime.utcfromtimestamp(a.last_modified))
 
     return atlas
 
@@ -1225,7 +1224,7 @@ def check_compound_names(df):
             #if type(df.name[x]) != float:
         if pd.notnull(df.inchi_key[x]):# or type(df.inchi_key[x]) != float:
             if not metob.retrieve('Compounds',neutralized_inchi_key=df.inchi_key[x], username = '*'):
-                print df.name[x], "compound is not in database. Exiting Without Completing Task!"
+                print(df.name[x], "compound is not in database. Exiting Without Completing Task!")
                 bad_names.append(df.name[x])
     return bad_names
 
@@ -1235,7 +1234,7 @@ def check_file_names(df,field):
     for i,row in df.iterrows():
         if row[field] != '':
             if not metob.retrieve('Lcmsruns',name = '%%%s%%'%row[field],username = '*'):
-                print row[field], "file is not in the database. Exiting Without Completing Task!"
+                print(row[field], "file is not in the database. Exiting Without Completing Task!")
                 bad_files.append(row[field])
     return bad_files
 
@@ -1410,8 +1409,8 @@ def make_atlas_from_spreadsheet(filename=False,
                                 spectrum.append(mzp)
                             frag_ref.mz_intensities = spectrum
                             myID.frag_references = [frag_ref]
-                            print ''
-                            print 'found reference msms spectrum for ',myID.compound[0].name, 'in file',df.file_msms[x]
+                            print('')
+                            print('found reference msms spectrum for ',myID.compound[0].name, 'in file',df.file_msms[x])
 
                 all_identifications.append(myID)
 
@@ -1515,14 +1514,14 @@ def select_groups_for_analysis(name = '%', description = [], username = '*', do_
     if exclude_list:
         groups = remove_metatlas_objects_by_list(groups,'name',exclude_list)
 
-    print len(groups)
+    print(len(groups))
 
     if remove_empty:
         groups = filter_empty_metatlas_objects(groups,'items')
     if do_print:
         from datetime import datetime, date
         for i,a in enumerate(groups):
-            print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
+            print(i, a.name,  datetime.utcfromtimestamp(a.last_modified))
 
     return groups
 

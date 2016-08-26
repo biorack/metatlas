@@ -373,13 +373,6 @@ class LcmsRun(MetatlasObject):
     sample = MetInstance(Sample)
 
 
-#This is no longer used.  These attributes are now part of compound objects
-#@set_docstring
-#class ReferenceDatabase(MetatlasObject):
-#    """External databases (PubChem, KEGG, MetaCyc, KBase, etc)."""
-#    enabled = MetBool(True)
-
-
 @set_docstring
 class FunctionalSet(MetatlasObject):
     """Functional sets of compounds.  For example set called "hexose" would
