@@ -29,9 +29,10 @@ import pandas as pd
 import json
 import gspread
 
-# this behaviour was removed
-#from oauth2client.client import SignedJwtAssertionCredentials
-from oauth2client.service_account import ServiceAccountCredentials
+# this behaviour is why we have pinned the version of oauth2client
+from oauth2client.client import SignedJwtAssertionCredentials
+#new version uses this
+#from oauth2client.service_account import ServiceAccountCredentials
 
 from matplotlib import pyplot as plt
 import re
@@ -188,12 +189,12 @@ def get_ms_monitor_reference_data(notebook_name = "20160203 ms-monitor reference
     json_key = json.load(open(token))
     scope = ['https://spreadsheets.google.com/feeds']
 
-    #this is deprecated as of january
+    #this is deprecated as of january, but we have pinned the version of oauth2.
     #see https://github.com/google/oauth2client/issues/401
-    #credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
+    credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
     
-    #here is the new way
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
+    #here is the new way incase the version pin is removed
+    #credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
     
     gc = gspread.authorize(credentials)
 
