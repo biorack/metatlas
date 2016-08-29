@@ -28,7 +28,11 @@ from datetime import datetime
 import pandas as pd
 import json
 import gspread
+
+# this behaviour is why we have pinned the version of oauth2client
 from oauth2client.client import SignedJwtAssertionCredentials
+#new version uses this
+#from oauth2client.service_account import ServiceAccountCredentials
 
 from matplotlib import pyplot as plt
 import re
@@ -185,8 +189,13 @@ def get_ms_monitor_reference_data(notebook_name = "20160203 ms-monitor reference
     json_key = json.load(open(token))
     scope = ['https://spreadsheets.google.com/feeds']
 
+    #this is deprecated as of january, but we have pinned the version of oauth2.
+    #see https://github.com/google/oauth2client/issues/401
     credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
-
+    
+    #here is the new way incase the version pin is removed
+    #credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
+    
     gc = gspread.authorize(credentials)
 
     wks = gc.open(notebook_name)
@@ -194,8 +203,8 @@ def get_ms_monitor_reference_data(notebook_name = "20160203 ms-monitor reference
 #     blank_data = wks.worksheet('BLANK').get_all_values()
     headers = istd_qc_data.pop(0)
     df = pd.DataFrame(istd_qc_data,columns=headers)
-    print 'keys',df.keys()
-    print 'shape',df.shape
+    print('keys',df.keys())
+    print('shape',df.shape)
     df = df[(df['mz_POS'] != '') | (df['mz_NEG'] != '')]
 
     return df#, blank_data
