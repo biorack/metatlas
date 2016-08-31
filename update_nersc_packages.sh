@@ -16,8 +16,22 @@ pip install . --upgrade
 #pip install cobra
 #pip install python-libsbml
 # I don't know which solvers are bunded with pip install cobra, but the github clone of cobrapy will not install any solvers.
-# this solver can be installed at nersc: https://github.com/jonls/qsopt-ex
 # when you do "pip install cobra" solvers are bundled with this installation.
+
+#installing qsopt
+# this solver can be installed at nersc: https://github.com/jonls/qsopt-ex
+# clone the repo from there:
+# cd projects/qsopt-ex/
+# ./bootstrap 
+# mkdir build
+# cd build/
+# ../configure --prefix=/project/projectdirs/metatlas/
+# make -j4
+# make install
+# add this to the path:
+# import os
+# os.environ['PATH'] = os.environ['PATH']+':/project/projectdirs/metatlas/bin'
+# you can choose a solver when running a command in cobra: https://cobrapy.readthedocs.io/en/stable/solvers.html
 
 ## these might be necessary
 #pip install gspread
