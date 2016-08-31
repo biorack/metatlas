@@ -32,6 +32,7 @@ pip install . --upgrade
 # import os
 # os.environ['PATH'] = os.environ['PATH']+':/project/projectdirs/metatlas/bin'
 # you can choose a solver when running a command in cobra: https://cobrapy.readthedocs.io/en/stable/solvers.html
+# specify "esolver" as your solver
 
 ## these might be necessary
 #pip install gspread
