@@ -48,3 +48,7 @@ pip install . --upgrade
 #Set permissions for metatlas users
 chmod -R 750 /project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages/
 chgrp -R metatlas /project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages/
+
+#Set permissions for binaries:
+chmod -R 750 /project/projectdirs/metatlas/bin/
+chgrp -R metatlas /project/projectdirs/metatlas/bin/
