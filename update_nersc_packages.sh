@@ -12,6 +12,10 @@ git pull
 pip uninstall metatlas
 pip install . --upgrade
 
+#install cobrapy
+#pip install cobra
+#pip install python-libsbml
+
 ## these might be necessary
 #pip install gspread
 
