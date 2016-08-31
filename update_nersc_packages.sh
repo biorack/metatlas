@@ -12,6 +12,28 @@ git pull
 pip uninstall metatlas
 pip install . --upgrade
 
+#install cobrapy
+#pip install cobra
+#pip install python-libsbml
+# I don't know which solvers are bunded with pip install cobra, but the github clone of cobrapy will not install any solvers.
+# when you do "pip install cobra" solvers are bundled with this installation.
+
+#installing qsopt
+# this solver can be installed at nersc: https://github.com/jonls/qsopt-ex
+# clone the repo from there:
+# cd projects/qsopt-ex/
+# ./bootstrap 
+# mkdir build
+# cd build/
+# ../configure --prefix=/project/projectdirs/metatlas/
+# make -j4
+# make install
+# add this to the path:
+# import os
+# os.environ['PATH'] = os.environ['PATH']+':/project/projectdirs/metatlas/bin'
+# you can choose a solver when running a command in cobra: https://cobrapy.readthedocs.io/en/stable/solvers.html
+# specify "esolver" as your solver
+
 ## these might be necessary
 #pip install gspread
 
@@ -26,3 +48,7 @@ pip install . --upgrade
 #Set permissions for metatlas users
 chmod -R 750 /project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages/
 chgrp -R metatlas /project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages/
+
+#Set permissions for binaries:
+chmod -R 750 /project/projectdirs/metatlas/bin/
+chgrp -R metatlas /project/projectdirs/metatlas/bin/
