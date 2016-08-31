@@ -15,6 +15,9 @@ pip install . --upgrade
 #install cobrapy
 #pip install cobra
 #pip install python-libsbml
+# I don't know which solvers are bunded with pip install cobra, but the github clone of cobrapy will not install any solvers.
+# this solver can be installed at nersc: https://github.com/jonls/qsopt-ex
+# when you do "pip install cobra" solvers are bundled with this installation.
 
 ## these might be necessary
 #pip install gspread
