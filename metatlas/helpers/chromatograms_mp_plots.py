@@ -117,7 +117,7 @@ def plot_compounds_and_files(output_dir,
                       'share_y': share_y,
                       'names': file_names}
             args_list.append(kwargs)
-        print(args_list)
+        #print(args_list)
         nprocs = min(processes, len(compound_names))
         pool = mp.Pool(processes=nprocs)
         pool.map(plot_compounds_and_files_mp, args_list)
@@ -127,11 +127,11 @@ def plot_compounds_and_files(output_dir,
 if __name__ == '__main__':
     #sys.path.insert(0, '/global/homes/j/jtouma/metatlas')
     import pickle
-    from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 
     # load pickled data
     info = pickle.load(open(sys.argv[1], "rb"))
     sys.path.insert(info['path_idx'], info['path'])
+    from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
     data = ma_data.get_dill_data(info['pkl_file'])
     file_names = ma_data.get_file_names(data)
     compound_names = ma_data.get_compound_names(data)[0]
