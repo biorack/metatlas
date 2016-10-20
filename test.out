@@ -1,0 +1,46 @@
+..
+Mzml error: 
+...................................SS.EE
+======================================================================
+ERROR: Failure: ImportError (No module named requests_toolbelt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/jimmy/anaconda2/lib/python2.7/site-packages/nose/loader.py", line 418, in loadTestsFromName
+    addr.filename, addr.module)
+  File "/home/jimmy/anaconda2/lib/python2.7/site-packages/nose/importer.py", line 47, in importFromPath
+    return self.importFromDir(dir_path, fqname)
+  File "/home/jimmy/anaconda2/lib/python2.7/site-packages/nose/importer.py", line 94, in importFromDir
+    mod = load_module(part_fqname, fh, filename, desc)
+  File "/home/jimmy/dev/metatlas/metatlas/tests/test_transform.py", line 7, in <module>
+    from metatlas.kbase.trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo \
+  File "/home/jimmy/dev/metatlas/metatlas/kbase/trns_transform_mzML_LCMS_to_MetaboliteAtlas2_MAFileInfo.py", line 15, in <module>
+    from . import kbase_utils as script_utils
+  File "/home/jimmy/dev/metatlas/metatlas/kbase/kbase_utils.py", line 13, in <module>
+    from requests_toolbelt import MultipartEncoder
+ImportError: No module named requests_toolbelt
+
+======================================================================
+ERROR: Failure: ImportError (/home/jimmy/anaconda2/lib/libreadline.so.6: undefined symbol: PC)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/jimmy/anaconda2/lib/python2.7/site-packages/nose/loader.py", line 418, in loadTestsFromName
+    addr.filename, addr.module)
+  File "/home/jimmy/anaconda2/lib/python2.7/site-packages/nose/importer.py", line 47, in importFromPath
+    return self.importFromDir(dir_path, fqname)
+  File "/home/jimmy/anaconda2/lib/python2.7/site-packages/nose/importer.py", line 94, in importFromDir
+    mod = load_module(part_fqname, fh, filename, desc)
+  File "/home/jimmy/dev/metatlas/metatlas/tests/test_xcms.py", line 3, in <module>
+    from metatlas.xcms import get_xmcs_set, group, peak_table
+  File "/home/jimmy/dev/metatlas/metatlas/xcms.py", line 3, in <module>
+    from rpy2 import robjects
+  File "/home/jimmy/anaconda2/lib/python2.7/site-packages/rpy2/robjects/__init__.py", line 15, in <module>
+    import rpy2.rinterface as rinterface
+  File "/home/jimmy/anaconda2/lib/python2.7/site-packages/rpy2/rinterface/__init__.py", line 99, in <module>
+    from rpy2.rinterface._rinterface import *
+ImportError: /home/jimmy/anaconda2/lib/libreadline.so.6: undefined symbol: PC
+
+----------------------------------------------------------------------
+Ran 42 tests in 66.695s
+
+FAILED (SKIP=2, errors=2)
+Closing remaining open files:test_loader.h5...donemix32_64.h5...donetest_loader_main.h5...donems_ms.h5...done

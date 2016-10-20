@@ -11,7 +11,7 @@ fi
 
 LOGFILE="/global/project/projectdirs/metatlas/dirwatch2.log"
 MET_PATH=/global/project/projectdirs/metatlas
-"$MET_PATH/anaconda/bin/python" -m metatlas.directory_watcher "$MET_PATH/raw_data/lpsilva/20150504_LPSilva_Actino_HILIC_POS_51isolates" &> ${LOGFILE} &
+"$MET_PATH/anaconda/bin/python" -m metatlas.directory_watcher "$MET_PATH/raw_data/" &> ${LOGFILE} &
 
 echo $! > "${PIDFILE}"
 chmod 644 "${PIDFILE}"

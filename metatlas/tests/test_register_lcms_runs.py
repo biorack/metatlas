@@ -75,5 +75,5 @@ def test_make_empty_fileinfo_sheet():
     # see if the file exits
     assert os.path.exists(temp_file_name)
 
-
-
+    # let's read a line or two and prform a test on the content
+    #with open(temp_file_name, 'r') as fin:
