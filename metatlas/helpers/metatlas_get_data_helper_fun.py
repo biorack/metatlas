@@ -1,10 +1,53 @@
 import numpy as np
 import os.path
 import sys
+import copy
 import tables
 from metatlas import metatlas_objects as metob
 import pandas as pd
 
+def get_data_for_atlas_df_and_file(input_tuple):
+    my_file = input_tuple[0]
+    my_group = input_tuple[1]
+    atlas_df = input_tuple[2]
+    myAtlas = input_tuple[3]
+    
+    df_container = df_container_from_metatlas_file(my_file)
+    df_container = remove_ms1_data_not_in_atlas(atlas_df,df_container)
+    dict_ms1_summary,dict_eic,dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df,df_container)
+    row = []
+    for i in range(atlas_df.shape[0]):
+        result = {}
+        result['atlas_name'] = myAtlas.name
+        result['atlas_unique_id'] = myAtlas.unique_id
+        result['lcmsrun'] = my_file
+        result['group'] = my_group
+        temp_compound = copy.deepcopy(myAtlas.compound_identifications[i])
+        result['identification'] = temp_compound
+        result['data'] = {}
+        if dict_eic:
+            result['data']['eic'] = dict_eic[i]
+        else:
+            result['data']['eic'] = None
+        if dict_ms1_summary:
+            result['data']['ms1_summary'] = dict_ms1_summary[i]
+        else:
+            result['data']['ms1_summary'] = None
+
+        result['data']['msms'] = {}
+        if dict_ms2:
+            if len(dict_ms2[i])>0:#dict_ms2[i]['mz']:
+                for k in dict_ms2[0].keys():
+                    dict_ms2[i][k] = np.asarray(dict_ms2[i][k])
+        #                 if temp_compound.mz_references[0].observed_polarity == 'positive':
+        #                     dict_ms2[i]['polarity'] = dict_ms2[i]['mz'] * 0.0 + 1.0
+        #                 else:
+        #                     dict_ms2[i]['polarity'] = dict_ms2[i]['mz'] * 0.0
+                result['data']['msms']['data'] = dict_ms2[i]
+        else:
+            result['data']['msms']['data'] = []
+        row.append(result)
+    return row
 
 def df_container_from_metatlas_file(my_file):
     data_df = pd.DataFrame()
@@ -67,7 +110,7 @@ def make_atlas_df(atlas):
     atlas_df = pd.concat([metob.to_dataframe(rt),metob.to_dataframe(mz), compound_df],axis=1)
     # atlas_df['label'] = label
 
-    atlas_keys = [u'rt_max', u'rt_min', u'rt_peak',u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units']
+    atlas_keys = [u'inchi_key','compound_name',u'rt_max', u'rt_min', u'rt_peak',u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units','mono_isotopic_molecular_weight','pubchem_compound_id','synonyms','inchi']
 
     # atlas_keys = [u'label','compound_name','compound_description',u'synonyms', u'num_free_radicals', u'number_components', u'permanent_charge', u'rt_max', u'rt_min', u'rt_peak',
     #        u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units',
@@ -159,6 +202,8 @@ def get_ms1_eic(row):
     all_df = row.padded_feature_data.T
     ms1_df = all_df[['i','mz','rt']]
     ms1_df = ms1_df.sort_values('rt',ascending=True)
+    if ms1_df.shape[1] == 0:
+        ms1_df = pd.DataFrame({'i','mz','rt'})
     return pd.Series({'eic':ms1_df.T.to_dense()})
 
 
@@ -215,13 +260,21 @@ def get_data_for_atlas_and_lcmsrun(atlas_df,df_container):
 
     ms1_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms1_pos,filtered_ms1_neg),axis=1)
     ms1_summary = ms1_feature_data.apply(get_ms1_summary,axis=1)
-    ms1_eic = ms1_feature_data.apply(get_ms1_eic,axis=1)    
+    #if ms1_summary.size == 0:
+    #    return [],[],[]
+    if ms1_feature_data.shape[1] == 0:
+        return None,None,None
+    else:
+        ms1_eic = ms1_feature_data.apply(get_ms1_eic,axis=1)
+    #print ms1_eic
+        ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ',extra_mz = 0.01),axis=1)
+        ms2_data = ms2_feature_data.apply(get_ms2_data,axis=1)
+        dict_ms1_summary = [dict(row) for i,row in ms1_summary.iterrows()]
     
-    ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ',extra_mz = 0.01),axis=1)
-    ms2_data = ms2_feature_data.apply(get_ms2_data,axis=1)
-    
-    dict_ms1_summary = [dict(row) for i,row in ms1_summary.iterrows()]
-    dict_eic = [row.eic.T.to_dict(orient='list') for i,row in ms1_eic.iterrows()]
+    dict_eic = []
+    for i,row in ms1_eic.iterrows():
+        dict_eic.append(row.eic.T.to_dict(orient='list'))
+            
     #rename the "i" to "intensity".
     for i,d in enumerate(dict_eic):
         dict_eic[i]['intensity'] = dict_eic[i].pop('i')

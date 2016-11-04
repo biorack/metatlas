@@ -75,7 +75,7 @@ class VertSlider(AxesWidget):
 
     Call :meth:`on_changed` to connect to the slider event
     """
-    def __init__(self, ax, label, valmin, valmax, valinit=0.5, valfmt='%1.2f',
+    def __init__(self, ax, label, valmin, valmax, valinit=0.5, valfmt='%.1e',
                  closedmin=True, closedmax=True, slidermin=None,
                  slidermax=None, dragging=True, **kwargs):
         """
@@ -222,6 +222,211 @@ class VertSlider(AxesWidget):
         if (self.val != self.valinit):
             self.set_val(self.valinit)
 
+
+class adjust_rt_for_selected_compound(object):
+    def __init__(self,
+                 data,
+                 include_lcmsruns = None, 
+                 exclude_lcmsruns = None, 
+                 include_groups = None, 
+                 exclude_groups = None, 
+                 compound_idx = 0,
+                 width = 12,
+                 height = 6,
+                 y_scale='linear',
+                 alpha = 0.5,
+                 min_max_color = 'sage',
+                 peak_color = 'darkviolet',
+                 slider_color = 'ghostwhite',
+                 y_max = 'auto',
+                 y_min = 0):
+        """
+        data: a metatlas_dataset where files and compounds are stored.
+        for example, 
+        self.metatlas_dataset[file_idx][compound_idx]['identification'].rt_references[-1].unique_id
+        is the unique id to the retention time reference for a compound in a file.
+        
+        width: specify a width value in inches for the plots and slides
+        height: specify a width value in inches for the plots and slides
+        min_max_color & peak_color: specify a valid matplotlib color string for the slider and vertical bars
+        slider_color: background color for the sliders. Must be a valid matplotlib color
+
+        Press Left and Right arrow keys to move to the next or previous compound
+        """
+        
+        self.compound_idx = compound_idx
+        self.width = width
+        self.height = height
+        self.y_scale = y_scale
+        self.alpha = alpha
+        self.min_max_color = min_max_color
+        self.peak_color = peak_color
+        self.slider_color = slider_color
+        self.y_max = y_max
+        self.y_min = y_min
+        
+        # filter runs from the metatlas dataset
+        if include_lcmsruns:
+            data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
+        
+        if include_groups:
+            data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
+        if exclude_lcmsruns:
+            data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+        if exclude_groups:
+            data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)     
+        self.data = data
+        
+        # create figure and first axes
+        self.fig,self.ax = plt.subplots(figsize=(width, height))
+        plt.subplots_adjust(left=0.09, bottom=0.275)
+#         plt.ticklabel_format(style='plain', axis='x')
+#         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+        
+        # warn the user if they do not own the atlas; and can not edit its values
+        self.enable_edit = True
+        self.atlas = metob.retrieve('Atlas',unique_id = self.data[0][0]['atlas_unique_id'],username='*')[-1]
+        print("loaded file for username = ", self.atlas.username)
+        if getpass.getuser() != self.atlas.username:
+            self.ax.set_title("YOUR ARE %s YOU ARE NOT ALLOWED TO EDIT VALUES THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"%getpass.getuser())
+            self.enable_edit = False
+            
+        #create all event handlers
+        self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
+        self.fig.canvas.mpl_connect('key_press_event', self.press)
+
+        #create the plot
+        self.set_plot_data()
+        
+
+    def set_plot_data(self):
+        #set y-scale and bounds if provided
+        self.ax.set_yscale(self.y_scale)
+        if self.y_max != 'auto':
+            self.ax.set_ylim(self.y_min,self.y_max)
+            
+        self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+        
+        default_data = self.data[0][self.compound_idx]
+        if default_data['identification'].name:
+            compound_str = default_data['identification'].name.split('///')[0]
+        elif default_data['identification'].compound[-1].name:
+            compound_str = default_data['identification'].compound[-1].name
+        else:
+            compound_str = 'nameless compound'
+            
+        compound_str = '%d, %s'%(self.compound_idx, compound_str)
+        
+        self.ax.set_title('')
+        self.ax.set_ylabel('%s'%compound_str)
+        self.ax.set_xlabel('Retention Time')
+        self.my_rt = metob.retrieve('RTReference',
+                               unique_id = default_data['identification'].rt_references[-1].unique_id)[-1]
+        for d in self.data: #this loops through the files
+            if d[self.compound_idx]['data']['eic']:
+                if len(d[self.compound_idx]['data']['eic']['rt']) > 0:
+                    x = d[self.compound_idx]['data']['eic']['rt']
+                    y = d[self.compound_idx]['data']['eic']['intensity']
+                    x = np.asarray(x)
+                    y = np.asarray(y)
+                    minval = np.min(y[np.nonzero(y)])
+                    y = y - minval
+                    x = x[y>0]
+                    y = y[y>0]#y[y<0.0] = 0.0
+                    self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                    
+        min_x = self.ax.get_xlim()[0]
+        max_x = self.ax.get_xlim()[1]
+        self.min_line = self.ax.axvline(self.my_rt.rt_min, color=self.min_max_color,linewidth=4.0)
+        self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color,linewidth=4.0)
+        self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color,linewidth=4.0)
+
+        self.rt_peak_ax = plt.axes([0.09, 0.05, 0.82, 0.03], axisbg=self.slider_color)
+        self.rt_max_ax = plt.axes([0.09, 0.1, 0.82, 0.03], axisbg=self.slider_color)
+        self.rt_min_ax = plt.axes([0.09, 0.15, 0.82, 0.03], axisbg=self.slider_color)
+
+        self.y_scale_ax = plt.axes([0.925, 0.275, 0.02, 0.63], axisbg=self.slider_color)
+
+        self.rt_min_slider = Slider(self.rt_min_ax, 'RT min', min_x, max_x, valinit=self.my_rt.rt_min,color=self.min_max_color)
+        self.rt_min_slider.vline.set_color('black')
+        self.rt_min_slider.vline.set_linewidth(4)
+        self.rt_max_slider = Slider(self.rt_max_ax, 'RT max', min_x, max_x, valinit=self.my_rt.rt_max,color=self.min_max_color)
+        self.rt_max_slider.vline.set_color('black')
+        self.rt_max_slider.vline.set_linewidth(4)
+        self.rt_peak_slider = Slider(self.rt_peak_ax,'RT peak', min_x, max_x, valinit=self.my_rt.rt_peak,color=self.peak_color)
+        self.rt_peak_slider.vline.set_color('black')
+        self.rt_peak_slider.vline.set_linewidth(4)
+        if self.enable_edit:
+            self.rt_min_slider.on_changed(self.update_rt)
+            self.rt_max_slider.on_changed(self.update_rt)
+            self.rt_peak_slider.on_changed(self.update_rt)
+
+
+
+        (self.slider_y_min,self.slider_y_max) = self.ax.get_ylim()
+        self.slider_val = self.slider_y_max            
+        self.y_scale_slider = VertSlider(self.y_scale_ax,'',self.slider_y_min,self.slider_y_max, valfmt = '', valinit=self.slider_y_max,color=self.peak_color)
+        self.y_scale_slider.vline.set_color('black')
+        self.y_scale_slider.vline.set_linewidth(8)
+        self.y_scale_slider.on_changed(self.update_yscale)
+        
+        self.lin_log_ax = plt.axes([0.1, 0.75, 0.1, 0.15])#, axisbg=axcolor)
+        self.lin_log_ax.axis('off')
+        self.lin_log_radio = RadioButtons(self.lin_log_ax, ('linear', 'log'))
+        self.lin_log_radio.on_clicked(self.set_lin_log)
+        
+    def set_lin_log(self,label):
+        self.ax.set_yscale(label)
+        self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+        self.fig.canvas.draw_idle()
+        
+    def on_pick(self,event):
+        thisline = event.artist
+        thisline.set_color('red')
+        self.ax.set_title(thisline.get_label())        
+    
+    def press(self,event):
+        if event.key == 'right':
+            if self.compound_idx + 1 < len(self.data[0]):
+                self.compound_idx += 1
+                self.ax.cla()
+                self.rt_peak_ax.cla()
+                self.rt_min_ax.cla()
+                self.rt_max_ax.cla()
+                self.y_scale_ax.cla()
+                self.set_plot_data()
+        if event.key == 'left':
+            if self.compound_idx > 0:
+                self.compound_idx -= 1
+                self.ax.cla()
+                self.rt_peak_ax.cla()
+                self.rt_min_ax.cla()
+                self.rt_max_ax.cla()
+                self.y_scale_ax.cla()
+                self.set_plot_data()
+    
+    def update_yscale(self,val):
+        self.y_scale_slider.valinit = self.slider_val
+        self.slider_val = self.y_scale_slider.val
+        self.ax.set_ylim(self.slider_y_min,self.slider_val)
+        self.fig.canvas.draw_idle()
+        
+    def update_rt(self,val):
+        self.my_rt.rt_min = self.rt_min_slider.val
+        self.my_rt.rt_max = self.rt_max_slider.val
+        self.my_rt.rt_peak = self.rt_peak_slider.val
+        
+        self.rt_min_slider.valinit = self.my_rt.rt_min
+        self.rt_max_slider.valinit = self.my_rt.rt_max
+        self.rt_peak_slider.valinit = self.my_rt.rt_peak
+        
+        metob.store(self.my_rt)
+        self.min_line.set_xdata((self.my_rt.rt_min,self.my_rt.rt_min))
+        self.max_line.set_xdata((self.my_rt.rt_max,self.my_rt.rt_max))
+        self.peak_line.set_xdata((self.my_rt.rt_peak,self.my_rt.rt_peak))
+        self.fig.canvas.draw_idle()
+        
+        
 def replace_compound_id_with_name(x):
     id_list = literal_eval(x)
     if id_list:
@@ -255,8 +460,8 @@ def show_compound_grid(input_fname = '',input_dataset=[]):
     print("loaded file for username = ", atlas_in_data[0].username)
     username = getpass.getuser()
     if username != atlas_in_data[0].username:
-        print("YOUR ARE", username, "YOU ARE NOT ALLOWED TO USE THE RT CORRECTOR. USERNAMES ARE NOT THE SAME")
-        return
+        print("YOUR ARE", username, "YOU ARE NOT ALLOWED TO EDIT VALUES THE RT CORRECTOR. USERNAMES ARE NOT THE SAME")
+        #return
     compound_df = make_compound_id_df(data)
     #compound_grid = gui.create_qgrid([])
     #compound_grid.df = compound_df
@@ -265,129 +470,6 @@ def show_compound_grid(input_fname = '',input_dataset=[]):
     compound_grid.export()
     #display(compound_grid)
     return data,compound_grid
-
-
-def adjust_rt_for_selected_compound(data,compound_grid, compound_idx = [], include_lcmsruns = [], exclude_lcmsruns = [], width = 12, height = 6,y_scale='linear', alpha = 0.5,min_max_color = 'sage',peak_color = 'darkviolet',slider_color = 'ghostwhite',y_max = 'auto',y_min = 0):
-    """
-    width: specify a width value in inches for the plots and slides
-    height: specify a width value in inches for the plots and slides
-    min_max_color & peak_color: specify a valid matplotlib color string for the slider and vertical bars
-    slider_color: background color for the sliders. Must be a valid matplotlib color
-    
-    """
-
-
-    # filter runs from the metatlas dataset
-    if include_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
-
-    if exclude_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
-    compound_df = compound_grid.df
-    if not compound_idx:
-        compound_idx = compound_grid.get_selected_rows()
-        if not compound_idx:
-            print('you have to select a compound')
-            compound_idx = 0
-        #if len(compound_idx)>1:
-        #    print 'Only select one compound'
-        #
-        #compound_idx = 0
-        #compound_idx = compound_idx[0]
-    
-
-    fig,ax = plt.subplots(figsize=(width, height))
-#     ax = plt.gca()
-    plt.subplots_adjust(left=0.06, bottom=0.275)
-    compound_str = compound_df.iloc[compound_idx]['compound'].split('///')[0]
-    ax.set_title('')
-    ax.set_ylabel('%s\nIntensity'%compound_str)
-    ax.set_xlabel('Retention Time')
-    my_rt = metob.retrieve('RTReference',unique_id = compound_df.loc[compound_idx,'rt_unique_id'][0])[-1]
-    for d in data:
-        if len(d[compound_idx]['data']['eic']['rt']) > 0:
-            x = d[compound_idx]['data']['eic']['rt']
-            y = d[compound_idx]['data']['eic']['intensity']
-            x = np.asarray(x)
-            y = np.asarray(y)
-            minval = np.min(y[np.nonzero(y)])
-            y = y - minval
-            
-            x = x[y>0]
-            y = y[y>0]#y[y<0.0] = 0.0
-            ax.plot(x,y,'k-',linewidth=2.0,alpha=alpha, picker=5, label = d[compound_idx]['lcmsrun'].name)
-    ax.set_yscale(y_scale)
-    if y_max != 'auto':
-        ax.set_ylim(y_min,y_max)
-    
-    (slider_y_min,slider_y_max) = ax.get_ylim()
-    slider_val = slider_y_max
-
-    min_x = ax.get_xlim()[0]
-    max_x = ax.get_xlim()[1]
-    min_line = ax.axvline(my_rt.rt_min, color=min_max_color,linewidth=4.0)
-    max_line = ax.axvline(my_rt.rt_max, color=min_max_color,linewidth=4.0)
-    peak_line = ax.axvline(my_rt.rt_peak, color=peak_color,linewidth=4.0)
-    
-    axcolor = slider_color
-
-    rt_peak_ax = plt.axes([0.06, 0.05, 0.85, 0.03], axisbg=axcolor)
-    rt_max_ax = plt.axes([0.06, 0.1, 0.85, 0.03], axisbg=axcolor)
-    rt_min_ax = plt.axes([0.06, 0.15, 0.85, 0.03], axisbg=axcolor)
-    
-    y_scale_ax = plt.axes([0.925, 0.275, 0.02, 0.63], axisbg=axcolor)
-
-    rt_min_slider = Slider(rt_min_ax, 'RT min', min_x, max_x, valinit=my_rt.rt_min,color=min_max_color)
-    rt_min_slider.vline.set_color('black')
-    rt_min_slider.vline.set_linewidth(4)
-    rt_max_slider = Slider(rt_max_ax, 'RT max', min_x, max_x, valinit=my_rt.rt_max,color=min_max_color)
-    rt_max_slider.vline.set_color('black')
-    rt_max_slider.vline.set_linewidth(4)
-    rt_peak_slider = Slider(rt_peak_ax,'RT peak', min_x, max_x, valinit=my_rt.rt_peak,color=peak_color)
-    rt_peak_slider.vline.set_color('black')
-    rt_peak_slider.vline.set_linewidth(4)
-
-    y_scale_slider = VertSlider(y_scale_ax,'Y-Scale',slider_y_min,slider_y_max, valinit=slider_y_max,color=peak_color)
-    y_scale_slider.vline.set_color('black')
-    y_scale_slider.vline.set_linewidth(8)
-
-    def on_pick(event):
-        thisline = event.artist
-        thisline.set_color('red')
-        ax.set_title(thisline.get_label())
-
-
-    def update(val):
-        my_rt.rt_min = rt_min_slider.val
-        my_rt.rt_max = rt_max_slider.val
-        my_rt.rt_peak = rt_peak_slider.val
-        slider_val = y_scale_slider.val
-
-        rt_min_slider.valinit = my_rt.rt_min
-        rt_max_slider.valinit = my_rt.rt_max
-        rt_peak_slider.valinit = my_rt.rt_peak
-        y_scale_slider.valinit = slider_val
-
-        ax.set_ylim(slider_y_min,slider_val)
-
-        metob.store(my_rt)
-        min_line.set_xdata((my_rt.rt_min,my_rt.rt_min))
-        max_line.set_xdata((my_rt.rt_max,my_rt.rt_max))
-        peak_line.set_xdata((my_rt.rt_peak,my_rt.rt_peak))
-        fig.canvas.draw_idle()
-
-    rt_min_slider.on_changed(update)
-    rt_max_slider.on_changed(update)
-    rt_peak_slider.on_changed(update)
-    y_scale_slider.on_changed(update)
-
-    fig.canvas.callbacks.connect('pick_event', on_pick)
-    #fig.canvas.mpl_connect('pick_event', onpick)
-
-    plt.show()
-
 
 
 
@@ -805,7 +887,7 @@ def get_ion_from_fragment(frag_info,spectrum):
 #print all chromatograms
 #structure
 
-def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], output_loc = [], fieldname = 'peak_height'):
+def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height'):
     """
     fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
     """
@@ -817,11 +899,13 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
     # filter runs from the metatlas dataset
     if include_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
+    if include_groups:
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
 
     if exclude_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
+    if exclude_groups:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
 
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
@@ -835,7 +919,7 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
     # peak_height.set_index('compound',drop=True)
     for i,dd in enumerate(data):
         for j,d in enumerate(dd):
-            if not d['data']['ms1_summary'][fieldname]:
+            if (not d['data']['ms1_summary']) or (not d['data']['ms1_summary'][fieldname]):
                 df.ix[compound_names[j],file_names[i]] = 0
             else:
                 df.ix[compound_names[j],file_names[i]] = d['data']['ms1_summary'][fieldname]  
@@ -855,12 +939,14 @@ def file_with_max_precursor_intensity(data,compound_idx):
     idx = []
     my_max = 0
     for i,d in enumerate(data):
-        if type(d[compound_idx]['data']['msms']['data']) != list:#.has_key('precursor_intensity'):
-            temp = d[compound_idx]['data']['msms']['data']
-            m = np.max(temp['precursor_intensity'])
-            if m > my_max:
-                my_max = m
-                idx = i
+        if 'data' in d[compound_idx]['data']['msms'].keys():
+            if type(d[compound_idx]['data']['msms']['data']) != list:#.has_key('precursor_intensity'):
+                temp = d[compound_idx]['data']['msms']['data']['precursor_intensity']
+                if len(temp)>0:
+                    m = max(temp)
+                    if m > my_max:
+                        my_max = m
+                        idx = i
     return idx,my_max
 
 def plot_errorbar_plots(df,output_loc=''):
@@ -899,8 +985,12 @@ def get_reference_msms_spectra(frag_refs, compound_name = '', polarity = '', pre
             spectra.append( [(m.mz, m.intensity) for m in fr.frag_references[0].mz_intensities] )
     return spectra
     
-def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], output_loc = []):
-
+def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [],include_groups = [],exclude_groups = [], output_loc = []):
+    output_loc = os.path.expandvars(output_loc)    
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+    
+    
     if not input_dataset:
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
@@ -910,11 +1000,15 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
     # filter runs from the metatlas dataset
     if include_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
+    if include_groups:
+        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
+        
     print(len(data))
     print(len(data[0]))
     if exclude_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+    if exclude_groups:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_groups)
         #data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
     
     print(len(data))
@@ -922,14 +1016,12 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
 
+    print 'loading preexisting compound identifications'
 
     ids = metob.retrieve('CompoundIdentification',username='*')
     frag_refs = [cid for cid in ids if cid.frag_references]
     
-    
-    output_loc = os.path.expandvars(output_loc)    
-    if not os.path.exists(output_loc):
-        os.makedirs(output_loc)
+    print 'getting spectra from files'
     
     
     for compound_idx in range(len(compound_names)):
@@ -1218,13 +1310,13 @@ def check_compound_names(df):
     # compounds that have the wrong compound name will be listed
     # Keep running this until no more compounds are listed
     bad_names = []
-    for x in df.index:
+    for i,row in df.iterrows():
         #if type(df.name[x]) != float or type(df.label[x]) != float:
             #if type(df.name[x]) != float:
-        if pd.notnull(df.inchi_key[x]):# or type(df.inchi_key[x]) != float:
-            if not metob.retrieve('Compounds',neutralized_inchi_key=df.inchi_key[x], username = '*'):
-                print(df.name[x], "compound is not in database. Exiting Without Completing Task!")
-                bad_names.append(df.name[x])
+        if not pd.isnull(row.inchi_key):# or type(df.inchi_key[x]) != float:
+            if not metob.retrieve('Compounds',neutralized_inchi_key=row.inchi_key, username = '*'):
+                print(row.inchi_key, "compound is not in database. Exiting Without Completing Task!")
+                bad_names.append(row.inchi_key)
     return bad_names
 
 
@@ -1279,20 +1371,19 @@ def get_formatted_atlas_from_google_sheet(polarity='POS',
     return df3
 
 
-def make_atlas_from_spreadsheet(filename=False,
-                                atlas_name='temp',
-                                filetype='excel',
-                                sheetname='',
-                                polarity = 'positive',
+def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
+                                atlas_name='20161007_MP3umZHILIC_BPB_NEG_ExampleAtlasName',
+                                filetype=('excel','csv','tab','dataframe'),
+                                sheetname='only for excel type input',
+                                polarity = ('positive','negative'),
                                 store=False,
-                                mz_tolerance=False,
-                                dataframe=None):
+                                mz_tolerance=10):
     '''
     specify polarity as 'positive' or 'negative'
     
     '''
-    if isinstance(dataframe,pd.DataFrame):
-        df = dataframe
+    if isinstance(filename,pd.DataFrame):
+        df = filename
     else:
         if ( filetype=='excel' ) and sheetname:
             df = pd.read_excel(filename,sheetname=sheetname)
@@ -1333,19 +1424,19 @@ def make_atlas_from_spreadsheet(filename=False,
     all_identifications = []
 
 #     for i,row in df.iterrows():
-    for x in df.index:
-        if type(df.inchi_key[x]) != float or type(df.label[x]) != float: #this logic is to skip empty rows
+    for i,row in df.iterrows():
+        if type(row.inchi_key) != float or type(row.label) != float: #this logic is to skip empty rows
             
             myID = metob.CompoundIdentification()
             
-            if pd.notnull(df.inchi_key[x]): # this logic is where an identified metabolite has been specified
-                c = metob.retrieve('Compounds',neutralized_inchi_key=df.inchi_key[x],username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
+            if not pd.isnull(row.inchi_key): # this logic is where an identified metabolite has been specified
+                c = metob.retrieve('Compounds',neutralized_inchi_key=row.inchi_key,username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
                 if c:
                     c = c[0]
             else:
                 c = 'use_label'
-            if type(df.label[x]) != float:
-                compound_label = df.label[x] #if no name, then use label as descriptor
+            if type(row.label) != float:
+                compound_label = row.label #if no name, then use label as descriptor
             else:
                 compound_label = 'no label'
             
@@ -1357,16 +1448,16 @@ def make_atlas_from_spreadsheet(filename=False,
                 
                 mzRef = metob.MzReference()
                 # take the mz value from the spreadsheet
-                mzRef.mz = df.mz[x]
+                mzRef.mz = row.mz
                 #TODO: calculate the mz from theoretical adduct and modification if provided.
                 #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
                 if mz_tolerance:
                     mzRef.mz_tolerance = mz_tolerance
                 else:
                     try:
-                        mzRef.mz_tolerance = df.mz_tolerance[x]
+                        mzRef.mz_tolerance = row.mz_tolerance
                     except:
-                        mzRef.mz_tolerance = df.mz_threshold[x]    
+                        mzRef.mz_tolerance = row.mz_threshold    
                 
                 mzRef.mz_tolerance_units = 'ppm'
                 mzRef.detected_polarity = polarity
@@ -1378,21 +1469,21 @@ def make_atlas_from_spreadsheet(filename=False,
 
                 rtRef = metob.RtReference()
                 rtRef.rt_units = 'min'
-                rtRef.rt_min = df.rt_min[x]
-                rtRef.rt_max = df.rt_max[x]
-                rtRef.rt_peak = df.rt_peak[x]
+                rtRef.rt_min = row.rt_min
+                rtRef.rt_max = row.rt_max
+                rtRef.rt_peak = row.rt_peak
                 #if 'file_rt' in df.keys():
                 #    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_rt[x],username = '*')[0]
                 #    rtRef.lcms_run = f
                 myID.rt_references = [rtRef]
                     
                 if ('file_msms' in df.keys()) and (c != 'use_label'):
-                    if (type(df.file_msms[x]) != float) and (df.file_msms[x] != ''):
+                    if (type(row.file_msms) != float) and (row.file_msms != ''):
                         frag_ref = metob.FragmentationReference()
-                        f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_msms[x],username = '*')[0]
+                        f = metob.retrieve('Lcmsruns',name = '%%%s%%'%row.file_msms,username = '*')[0]
                         frag_ref.lcms_run = f
                         frag_ref.polarity = polarity
-                        frag_ref.precursor_mz = df.mz[x]
+                        frag_ref.precursor_mz = row.mz
                         
                         data = ma_data.get_data_for_a_compound(mzRef, rtRef, [ 'msms' ],f.hdf5_file,0.3)
                         if isinstance(data['msms']['data'], np.ndarray):
@@ -1409,7 +1500,7 @@ def make_atlas_from_spreadsheet(filename=False,
                             frag_ref.mz_intensities = spectrum
                             myID.frag_references = [frag_ref]
                             print('')
-                            print('found reference msms spectrum for ',myID.compound[0].name, 'in file',df.file_msms[x])
+                            print('found reference msms spectrum for ',myID.compound[0].name, 'in file',row.file_msms)
 
                 all_identifications.append(myID)
 
