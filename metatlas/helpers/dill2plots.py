@@ -321,7 +321,7 @@ class adjust_rt_for_selected_compound(object):
         self.ax.set_ylabel('%s'%compound_str)
         self.ax.set_xlabel('Retention Time')
         self.my_rt = metob.retrieve('RTReference',
-                               unique_id = default_data['identification'].rt_references[-1].unique_id)[-1]
+                               unique_id = default_data['identification'].rt_references[-1].unique_id, username='*')[-1]
         for d in self.data: #this loops through the files
             if d[self.compound_idx]['data']['eic']:
                 if len(d[self.compound_idx]['data']['eic']['rt']) > 0:
