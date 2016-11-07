@@ -335,18 +335,20 @@ class adjust_rt_for_selected_compound(object):
                     y = y[y>0]#y[y<0.0] = 0.0
                     self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     
-        min_x = self.ax.get_xlim()[0]
-        max_x = self.ax.get_xlim()[1]
+
         self.min_line = self.ax.axvline(self.my_rt.rt_min, color=self.min_max_color,linewidth=4.0)
         self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color,linewidth=4.0)
         self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color,linewidth=4.0)
-
-        self.rt_peak_ax = plt.axes([0.09, 0.05, 0.82, 0.03], axisbg=self.slider_color)
-        self.rt_max_ax = plt.axes([0.09, 0.1, 0.82, 0.03], axisbg=self.slider_color)
-        self.rt_min_ax = plt.axes([0.09, 0.15, 0.82, 0.03], axisbg=self.slider_color)
+      
+        self.rt_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.03], axisbg=self.slider_color)
+        self.rt_max_ax = plt.axes([0.09, 0.1, 0.81, 0.03], axisbg=self.slider_color)
+        self.rt_min_ax = plt.axes([0.09, 0.15, 0.81, 0.03], axisbg=self.slider_color)
 
         self.y_scale_ax = plt.axes([0.925, 0.275, 0.02, 0.63], axisbg=self.slider_color)
 
+        min_x = self.ax.get_xlim()[0]
+        max_x = self.ax.get_xlim()[1]
+        
         self.rt_min_slider = Slider(self.rt_min_ax, 'RT min', min_x, max_x, valinit=self.my_rt.rt_min,color=self.min_max_color)
         self.rt_min_slider.vline.set_color('black')
         self.rt_min_slider.vline.set_linewidth(4)
@@ -426,7 +428,190 @@ class adjust_rt_for_selected_compound(object):
         self.peak_line.set_xdata((self.my_rt.rt_peak,self.my_rt.rt_peak))
         self.fig.canvas.draw_idle()
         
+class adjust_mz_for_selected_compound(object):
+    def __init__(self,
+                 data,
+                 include_lcmsruns = None, 
+                 exclude_lcmsruns = None, 
+                 include_groups = None, 
+                 exclude_groups = None, 
+                 compound_idx = 0,
+                 width = 12,
+                 height = 6,
+                 y_scale='linear',
+                 alpha = 0.5,
+                 min_max_color = 'sage',
+                 peak_color = 'darkviolet',
+                 slider_color = 'ghostwhite',
+                 y_max = 'auto',
+                 y_min = 0):
+        """
+        data: a metatlas_dataset where files and compounds are stored.
+        for example, 
+        self.metatlas_dataset[file_idx][compound_idx]['identification'].rt_references[-1].unique_id
+        is the unique id to the retention time reference for a compound in a file.
         
+        width: specify a width value in inches for the plots and slides
+        height: specify a width value in inches for the plots and slides
+        min_max_color & peak_color: specify a valid matplotlib color string for the slider and vertical bars
+        slider_color: background color for the sliders. Must be a valid matplotlib color
+
+        Press Left and Right arrow keys to move to the next or previous compound
+        """
+        
+        self.compound_idx = compound_idx
+        self.width = width
+        self.height = height
+        self.y_scale = y_scale
+        self.alpha = alpha
+        self.min_max_color = min_max_color
+        self.peak_color = peak_color
+        self.slider_color = slider_color
+        self.y_max = y_max
+        self.y_min = y_min
+        
+        # filter runs from the metatlas dataset
+        if include_lcmsruns:
+            data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
+        
+        if include_groups:
+            data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
+        if exclude_lcmsruns:
+            data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+        if exclude_groups:
+            data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)     
+        self.data = data
+        
+        # create figure and first axes
+        self.fig,self.ax = plt.subplots(figsize=(width, height))
+        plt.subplots_adjust(left=0.09, bottom=0.275)
+#         plt.ticklabel_format(style='plain', axis='x')
+#         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+        
+        # warn the user if they do not own the atlas; and can not edit its values
+        self.enable_edit = True
+        self.atlas = metob.retrieve('Atlas',unique_id = self.data[0][0]['atlas_unique_id'],username='*')[-1]
+        print("loaded file for username = ", self.atlas.username)
+        if getpass.getuser() != self.atlas.username:
+            self.ax.set_title("YOUR ARE %s YOU ARE NOT ALLOWED TO EDIT VALUES THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"%getpass.getuser())
+            self.enable_edit = False
+            
+        #create all event handlers
+        self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
+        self.fig.canvas.mpl_connect('key_press_event', self.press)
+
+        #create the plot
+        self.set_plot_data()
+        
+
+    def set_plot_data(self):
+        self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+        self.ax.ticklabel_format(useOffset=False, style='plain', axis='x')
+        
+        default_data = self.data[0][self.compound_idx]
+        if default_data['identification'].name:
+            compound_str = default_data['identification'].name.split('///')[0]
+        elif default_data['identification'].compound[-1].name:
+            compound_str = default_data['identification'].compound[-1].name
+        else:
+            compound_str = 'nameless compound'
+            
+        compound_str = '%d, %s'%(self.compound_idx, compound_str)
+        
+        self.ax.set_title('')
+        self.ax.set_ylabel('%s'%compound_str)
+        self.ax.set_xlabel('Retention Time')
+        self.my_mz = metob.retrieve('MZReference',
+                               unique_id = default_data['identification'].mz_references[-1].unique_id, username='*')[-1]
+        for i,d in enumerate(self.data): #this loops through the files
+            if d[self.compound_idx]['data']['ms1_summary']:
+#                 if len(d[self.compound_idx]['data']['ms1_summary']['rt']) > 0:
+                    x = d[self.compound_idx]['data']['ms1_summary']['mz_centroid']
+                    y = d[self.compound_idx]['data']['ms1_summary']['peak_height']
+                    x = np.asarray(x)
+                    y = np.asarray(y)
+                    self.ax.plot(x,y,'k.',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                    
+
+        mz_delta = self.my_mz.mz_tolerance*self.my_mz.mz/1e6
+
+        self.min_line = self.ax.axvline(self.my_mz.mz-mz_delta, color=self.min_max_color,linewidth=4.0)
+        self.max_line = self.ax.axvline(self.my_mz.mz+mz_delta, color=self.min_max_color,linewidth=4.0)
+        self.peak_line = self.ax.axvline(self.my_mz.mz, color=self.peak_color,linewidth=4.0)
+
+        min_x = self.ax.get_xlim()[0]
+        max_x = self.ax.get_xlim()[1]
+        print min_x,max_x
+        
+        self.mz_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.03], axisbg=self.slider_color)
+        self.mz_max_ax = plt.axes([0.09, 0.1, 0.81, 0.03], axisbg=self.slider_color)
+        self.mz_min_ax = plt.axes([0.09, 0.15, 0.81, 0.03], axisbg=self.slider_color)
+
+        self.mz_min_slider = Slider(self.mz_min_ax, 'mz min', min_x, max_x, valinit=self.my_mz.mz-mz_delta,color=self.min_max_color,valfmt='%1.4f')
+        self.mz_min_slider.vline.set_color('black')
+        self.mz_min_slider.vline.set_linewidth(4)
+        
+        self.mz_max_slider = Slider(self.mz_max_ax, 'mz max', min_x, max_x, valinit=self.my_mz.mz+mz_delta,color=self.min_max_color,valfmt='%1.4f')
+        self.mz_max_slider.vline.set_color('black')
+        self.mz_max_slider.vline.set_linewidth(4)
+        
+        self.mz_peak_slider = Slider(self.mz_peak_ax,'mz peak', min_x, max_x, valinit=self.my_mz.mz,color=self.peak_color,valfmt='%1.4f')
+        self.mz_peak_slider.vline.set_color('black')
+        self.mz_peak_slider.vline.set_linewidth(4)
+#         if self.enable_edit:
+#             self.rt_min_slider.on_changed(self.update_rt)
+#             self.rt_max_slider.on_changed(self.update_rt)
+#             self.rt_peak_slider.on_changed(self.update_rt)
+
+        self.lin_log_ax = plt.axes([0.1, 0.75, 0.1, 0.15])#, axisbg=axcolor)
+        self.lin_log_ax.axis('off')
+        self.lin_log_radio = RadioButtons(self.lin_log_ax, ('linear', 'log'))
+        self.lin_log_radio.on_clicked(self.set_lin_log)
+        
+    def set_lin_log(self,label):
+        self.ax.set_yscale(label)
+        self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+        self.fig.canvas.draw_idle()
+        
+    def on_pick(self,event):
+        thisline = event.artist
+        thisline.set_color('red')
+        self.ax.set_title(thisline.get_label())        
+    
+    def press(self,event):
+        if event.key == 'right':
+            if self.compound_idx + 1 < len(self.data[0]):
+                self.compound_idx += 1
+                self.ax.cla()
+                self.mz_peak_ax.cla()
+                self.mz_min_ax.cla()
+                self.mz_max_ax.cla()
+                self.set_plot_data()
+        if event.key == 'left':
+            if self.compound_idx > 0:
+                self.compound_idx -= 1
+                self.ax.cla()
+                self.mz_peak_ax.cla()
+                self.mz_min_ax.cla()
+                self.mz_max_ax.cla()
+                self.set_plot_data()
+        
+#     def update_rt(self,val):
+#         self.my_rt.rt_min = self.rt_min_slider.val
+#         self.my_rt.rt_max = self.rt_max_slider.val
+#         self.my_rt.rt_peak = self.rt_peak_slider.val
+        
+#         self.rt_min_slider.valinit = self.my_rt.rt_min
+#         self.rt_max_slider.valinit = self.my_rt.rt_max
+#         self.rt_peak_slider.valinit = self.my_rt.rt_peak
+        
+#         metob.store(self.my_rt)
+#         self.min_line.set_xdata((self.my_rt.rt_min,self.my_rt.rt_min))
+#         self.max_line.set_xdata((self.my_rt.rt_max,self.my_rt.rt_max))
+#         self.peak_line.set_xdata((self.my_rt.rt_peak,self.my_rt.rt_peak))
+#         self.fig.canvas.draw_idle()
+
+
 def replace_compound_id_with_name(x):
     id_list = literal_eval(x)
     if id_list:
