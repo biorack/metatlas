@@ -19,8 +19,9 @@ Local Installation
 ------------------
 
 .. code-block:: bash
-
-    $ pip install metatlas
+    $ git clone https://github.com/biorack/metatlas.git
+    $ cd metatlas
+    $ pip install .
 
 
 Installation at NERSC
