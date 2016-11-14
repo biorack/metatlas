@@ -19,6 +19,7 @@ Local Installation
 ------------------
 
 .. code-block:: bash
+
     $ git clone https://github.com/biorack/metatlas.git
     $ cd metatlas
     $ pip install .
