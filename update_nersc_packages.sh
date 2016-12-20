@@ -45,6 +45,9 @@ pip install . --upgrade
 #The remaining packages are installed like this:
 #/project/projectdirs/metatlas/anaconda/bin/conda install -c https://conda.anaconda.org/rdkit rdkit
 
+# install molvs for sanitation and validation of structures
+#pip install molvs
+
 #Set permissions for metatlas users
 chmod -R 750 /project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages/
 chgrp -R metatlas /project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages/
