@@ -66,6 +66,11 @@ Create a user
 
 Alternatively, you can create a user using myphpadmin and give him/her full access to the database.
 
+Add in index and specify type for inchi keys
+::
+
+    ALTER TABLE compounds MODIFY inchi_key VARCHAR(27);
+    ALTER TABLE `compounds` ADD INDEX `inchi_key` (`inchi_key`);
 
 CRON
 ----
