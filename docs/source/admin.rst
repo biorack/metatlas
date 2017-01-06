@@ -72,6 +72,9 @@ Add in index and specify type for inchi keys
     ALTER TABLE compounds MODIFY inchi_key VARCHAR(27);
     ALTER TABLE `compounds` ADD INDEX `inchi_key` (`inchi_key`);
     CREATE INDEX index_name ON compounds (name(30));
+    ALTER TABLE lcmsruns MODIFY username VARCHAR(32);
+    ALTER TABLE `lcmsruns` ADD INDEX `username` (`username`);
+
 
 
 CRON
