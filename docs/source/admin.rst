@@ -74,7 +74,32 @@ Add in index and specify type for inchi keys
     CREATE INDEX index_name ON compounds (name(30));
     ALTER TABLE lcmsruns MODIFY username VARCHAR(32);
     ALTER TABLE `lcmsruns` ADD INDEX `username` (`username`);
+    
+    
+Add index for many-to-many tables
+::
+    ALTER TABLE compoundidentifications_compound MODIFY source_id VARCHAR(32);
+    ALTER TABLE compoundidentifications_compound ADD INDEX source_id (source_id);
+    ALTER TABLE compoundidentifications_compound MODIFY target_id VARCHAR(32);
+    ALTER TABLE compoundidentifications_compound ADD INDEX target_id (target_id);
 
+    ALTER TABLE compoundidentifications_rt_references MODIFY source_id VARCHAR(32);
+    ALTER TABLE compoundidentifications_rt_references ADD INDEX source_id (source_id);
+    ALTER TABLE compoundidentifications_rt_references MODIFY target_id VARCHAR(32);
+    ALTER TABLE compoundidentifications_rt_references ADD INDEX target_id (target_id);
+
+Example query that has subqueries
+::
+    #select rtreferences.*   
+    select rtreferences.rt_peak, rtreferences.rt_min, rtreferences.rt_max, rtreferences.rt_units, rtreferences.last_modified, rtreferences.username
+    from rtreferences, compoundidentifications, compoundidentifications_rt_references, compoundidentifications_compound, compounds  
+    where    
+    #compoundidentifications.username = 'bpb' and
+    rtreferences.unique_id = compoundidentifications_rt_references.target_id and
+    compoundidentifications.unique_id = compoundidentifications_rt_references.source_id and 
+    compoundidentifications.unique_id = compoundidentifications_compound.source_id and    
+    compounds.unique_id = compoundidentifications_compound.target_id and   
+    compounds.inchi_key = 'MTCFGRXMJLQNBG-REOHCLBHSA-N'
 
 
 CRON
