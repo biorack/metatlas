@@ -74,6 +74,8 @@ Add in index and specify type for inchi keys
     CREATE INDEX index_name ON compounds (name(30));
     ALTER TABLE lcmsruns MODIFY username VARCHAR(32);
     ALTER TABLE `lcmsruns` ADD INDEX `username` (`username`);
+    ALTER TABLE lcmsruns MODIFY name VARCHAR(1279);
+    ALTER TABLE `lcmsruns` ADD INDEX `username` (`username`);
     
     
 Add index for many-to-many tables
