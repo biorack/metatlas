@@ -7,24 +7,17 @@ import os
 from matplotlib import pyplot as plt
 import numpy as np
 import warnings
+from textwrap import wrap
 warnings.filterwarnings("ignore")
 
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 
 def plot_chromatogram(d,file_name, ax=None):
-    import numpy as np
-    from textwrap import wrap
+    """
+    
+    """
     if ax is None:
         ax = plt.gca()
-
-    plt.rcParams['pdf.fonttype']=42
-    plt.rcParams['pdf.use14corefonts'] = True
-#    matplotlib.rc('font', family='sans-serif') 
-#    matplotlib.rc('font', serif='Helvetica') 
-    plt.rcParams['text.usetex'] = False
-    plt.rcParams.update({'font.size': 12})
-    plt.rcParams.update({'font.weight': 'bold'})
-    plt.rcParams['axes.linewidth'] = 2 # set the value globally
 
     rt_min = d['identification'].rt_references[0].rt_min
     rt_max = d['identification'].rt_references[0].rt_max
@@ -41,7 +34,6 @@ def plot_chromatogram(d,file_name, ax=None):
     ax.axvline(rt_min, color='k',linewidth=2.0)
     ax.axvline(rt_max, color='k',linewidth=2.0)
     ax.axvline(rt_peak, color='r',linewidth=2.0)
-
     ax.set_title("\n".join(wrap(file_name,54)),fontsize=12,weight='bold')
 
 
@@ -53,10 +45,18 @@ def plot_compounds_and_files_mp(kwargs):
     nRows, nCols = kwargs['rowscols']
     names = kwargs['names']
     share_y = kwargs['share_y']
-    plt.ioff()
+    # plt.ioff()
 
     f,ax = plt.subplots(nRows, nCols, sharey=share_y,figsize=(8*nCols,nRows*6))
     ax = ax.flatten()
+    plt.rcParams['pdf.fonttype']=42
+    plt.rcParams['pdf.use14corefonts'] = True
+#    matplotlib.rc('font', family='sans-serif') 
+#    matplotlib.rc('font', serif='Helvetica') 
+    plt.rcParams['text.usetex'] = False
+    plt.rcParams.update({'font.size': 12})
+    plt.rcParams.update({'font.weight': 'bold'})
+    plt.rcParams['axes.linewidth'] = 2 # set the value globally
     
     for i,name in enumerate(names):
         plot_chromatogram(my_data[i], name, ax=ax[i])
@@ -72,7 +72,6 @@ def plot_compounds_and_files(output_dir,
                              pool=None,
                              plot_types='both'):
     '''
-
     Parameters
     ----------
     output_dir location of saved pdf plots

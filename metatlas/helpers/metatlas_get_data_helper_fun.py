@@ -5,6 +5,32 @@ import copy
 import tables
 from metatlas import metatlas_objects as metob
 import pandas as pd
+from textwrap import wrap
+import matplotlib.pyplot as plt
+
+def compare_EIC_to_BPC_for_file(metatlas_dataset,file_index,yscale = 'linear'):
+    """
+    Plot the base peak chromatogram overlaid with extracted
+    ion chromatograms for features
+    Input
+    metatlas_dataset: a list of lists containing all atlas, file, and feature information
+    file_index: the integer index of which file to plot
+    """
+    full_file_names = get_file_names(metatlas_dataset,full_path=True)
+    base_file_names = get_file_names(metatlas_dataset,full_path=False)
+    bpc = get_bpc(full_file_names[file_index])
+    plt.ioff()
+    fig = plt.figure()
+    plt.plot(bpc.rt,bpc.i,'k-')
+    for d in metatlas_dataset[file_index]:
+        plt.plot(d['data']['eic']['rt'],d['data']['eic']['intensity'],'r.',alpha=0.2)
+    ax = plt.gca()
+    ax.set_yscale(yscale)
+    ax.set_title('\n'.join(wrap(base_file_names[file_index],50)))
+    ax.set_xlabel('Retention Time (min)')
+    ax.set_ylabel('Intensity')
+    plt.close(fig)
+    return fig
 
 def get_data_for_atlas_df_and_file(input_tuple):
     my_file = input_tuple[0]
@@ -49,15 +75,44 @@ def get_data_for_atlas_df_and_file(input_tuple):
         row.append(result)
     return row
 
+def get_bpc(filename,dataset='ms1_pos'):
+    """
+    Gets the basepeak chromatogram for a file. 
+    filename: File can be either a metatlas lcmsrun object or a full path to an hdf5file
+    dataset: ms1_pos, ms1_neg, ms2_pos, ms2_neg
+    
+    Returns:
+    A pandas dataframe with the value at the maximum intensity at each retention time
+    """
+    df_container = df_container_from_metatlas_file(filename)
+    bpc = df_container[dataset].sort('i', ascending=False).groupby('rt', as_index=False).first().sort('rt',ascending=True)
+    return bpc
+
 def df_container_from_metatlas_file(my_file):
+    """
+    
+    """
     data_df = pd.DataFrame()
-    pd_h5_file  = pd.HDFStore(my_file.hdf5_file)
+
+    # if my_file is a string then it's a file name - get its data
+    if isinstance(my_file, basestring):
+        filename = my_file
+    else:
+    # assume its a metatlas lcmsrun object
+        filename = my_file.hdf5_file
+        
+    pd_h5_file  = pd.HDFStore(filename)
+        
     keys = pd_h5_file.keys()
     pd_h5_file.close()
     df_container = {}
     for k in keys:
         if ('ms' in k) and not ('_mz' in k):
-            new_df = pd.read_hdf(my_file.hdf5_file,k)
+            new_df = pd.read_hdf(filename,k)
+            # print new_df.keys()
+            # if 'rt' in new_df.keys():
+                # print 'rounding'
+            # new_df.rt = new_df.rt.round() 
             df_container[k[1:]] = new_df
     return df_container
 
@@ -251,6 +306,7 @@ def get_data_for_atlas_and_lcmsrun(atlas_df,df_container):
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
                                                            0,
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].mz.max())
+    
     filtered_ms2_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_neg'],
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
@@ -574,12 +630,12 @@ def get_group_names(data):
     return group_names
 
 
-def get_file_names(data):
+def get_file_names(data,full_path=False):
     """
     Parameters
     ----------
     data: either a file name (str) or a list generated from loading the dill file
-
+    full_path: True/False returns full path to hdf5 file or just base filename
     Returns list containing the hdf file names present in the dill file
     -------
     """
@@ -591,7 +647,10 @@ def get_file_names(data):
 
     file_names = list()
     for i,d in enumerate(data):
-        file_names.append(os.path.basename(d[0]['lcmsrun'].hdf5_file))
+        if full_path:
+            file_names.append(d[0]['lcmsrun'].hdf5_file)
+        else:
+            file_names.append(os.path.basename(d[0]['lcmsrun'].hdf5_file))
 
     return file_names
 
