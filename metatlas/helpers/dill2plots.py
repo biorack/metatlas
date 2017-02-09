@@ -1499,7 +1499,7 @@ def check_compound_names(df):
         #if type(df.name[x]) != float or type(df.label[x]) != float:
             #if type(df.name[x]) != float:
         if not pd.isnull(row.inchi_key):# or type(df.inchi_key[x]) != float:
-            if not metob.retrieve('Compounds',neutralized_inchi_key=row.inchi_key, username = '*'):
+            if not metob.retrieve('Compounds',inchi_key=row.inchi_key, username = '*'):
                 print(row.inchi_key, "compound is not in database. Exiting Without Completing Task!")
                 bad_names.append(row.inchi_key)
     return bad_names
