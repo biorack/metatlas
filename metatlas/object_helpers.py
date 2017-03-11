@@ -145,7 +145,6 @@ class Workspace(object):
             else:
                 self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
 
-        self._db = None
         self.tablename_lut = dict()
         self.subclass_lut = dict()
         from .metatlas_objects import MetatlasObject
@@ -164,19 +163,10 @@ class Workspace(object):
 
     @property
     def db(self):
-        if self._db:
-            try:
-                if self._db.engine.name == 'mysql':
-                    self._db.query('show tables')
-                else:
-                    self._db.query('SELECT name FROM sqlite_master WHERE type = "table"')
-                return self._db
-            except Exception:
-                print('Reconnecting to database')
-        self._db = dataset.connect(self.path)
+        db = dataset.connect(self.path)
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
-        return self._db
+        return db
 
     def convert_to_double(self, table, entry):
         try:
@@ -201,7 +191,7 @@ class Workspace(object):
                 for (uid, prev_uid) in updates:
                     db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, updates) in self._updates.items():
-            if '_' not in table_name and table_name not in self.db:
+            if '_' not in table_name and table_name not in db:
                 db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
                 self.fix_table(table_name)
