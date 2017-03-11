@@ -161,16 +161,16 @@ class Workspace(object):
         self.seen = dict()
         Workspace.instance = self
 
-    @property
-    def db(self):
+    def connect(self):
         db = dataset.connect(self.path)
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
         return db
 
     def convert_to_double(self, table, entry):
+        db = self.connect()
         try:
-            self.db.query('alter table `%s` modify `%s` double' % (table, entry))
+            db.query('alter table `%s` modify `%s` double' % (table, entry))
         except Exception as e:
             print(e)
 
@@ -181,7 +181,7 @@ class Workspace(object):
         self._link_updates = defaultdict(list)
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
-        db = self.db
+        db = self.connect()
         for obj in objects:
             self._save(obj, _override)
         for (table_name, updates) in self._link_updates.items():
@@ -207,7 +207,7 @@ class Workspace(object):
 
     def create_link_tables(self, klass):
         name = self.table_name[klass]
-        db = self.db
+        db = self.connect()
         for (tname, trait) in klass.class_traits().items():
             if isinstance(trait, MetList):
                 table_name = '_'.join([name, tname])
@@ -287,7 +287,7 @@ class Workspace(object):
     def retrieve(self, object_type, **kwargs):
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
-        db = self.db
+        db = self.connect()
         if object_type not in db:
             if not klass:
                 raise ValueError('Unknown object type: %s' % object_type)
@@ -401,7 +401,7 @@ class Workspace(object):
                 clauses.append('%s = "%s"' % (key, value))
         query += ' and '.join(clauses)
         query += ')'
-        db = self.db
+        db = self.connect()
         if not clauses:
             query = query.replace(' where ()', '')
         # check for lists items that need removal
@@ -450,7 +450,7 @@ class Workspace(object):
         ids = defaultdict(list)
         username = getpass.getuser()
         attr = 'head_id' if all_versions else 'unique_id'
-        db = self.db
+        db = self.connect()
         for obj in objects:
             if not override and obj.username != username:
                 continue
