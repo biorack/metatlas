@@ -595,7 +595,6 @@ def find_invalid_runs(**kwargs):
 # Must be instantiated after all of the Metatlas Objects
 # are defined so we can get all of the subclasses.
 WORKSPACE = Workspace()
-database = WORKSPACE.db
 
 
 def to_dataframe(objects):
