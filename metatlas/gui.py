@@ -132,7 +132,7 @@ def show_experiments(username=None):
     """Create a gui to browse the available experiments.
     """
     query = 'SELECT DISTINCT username, experiment FROM lcmsruns'
-    db = workspace.connect()
+    db = workspace.get_connection()
     entries = [e for e in db.query(query)]
     experiments = defaultdict(set)
     for entry in entries:
