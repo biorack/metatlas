@@ -163,7 +163,7 @@ class Workspace(object):
 
     def get_connection(self):
         """Get a single-use connection to the database."""
-        db = dataset.get_connection(self.path)
+        db = dataset.connect(self.path)
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
         return db
