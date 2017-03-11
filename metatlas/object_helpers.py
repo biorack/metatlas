@@ -24,7 +24,7 @@ except ImportError:
 
 
 # Whether we are running from NERSC
-ON_NERSC = 'METATLAS_LOCAL_TEST' not in os.environ
+ON_NERSC = 'METATLAS_LOCAL' not in os.environ
 
 
 # Observable List from
