@@ -95,9 +95,12 @@ create_atlas_btn = widgets.Button(description="Create Atlas from Dill")
 modify_atlas_btn = widgets.Button(description="Modify Selected Atlas")
 
 # text box that holds the selected atlas' RT values for the selected compound. displays
-atlas_ref_vals = widgets.Text(description="RT values for compound in Atlas")
-atlas_ref_vals.value = "RT values for compound in Atlas go here"
-atlas_ref_vals.color = 'red'
+atlas_ref_vals = widgets.Text(
+    description="RT values for compound in Atlas",
+    value = "RT values for compound in Atlas go here",
+    color = 'red'
+)
+
 
 # sliders for the user to change the RT values
 rtmin_widget = FloatSlider()
