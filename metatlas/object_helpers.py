@@ -13,8 +13,6 @@ import socket
 import os.path
 import yaml
 
-import requests
-
 try:
     from traitlets import (
         HasTraits, CUnicode, List, CInt, Instance, Enum,
@@ -26,12 +24,7 @@ except ImportError:
 
 
 # Whether we are running from NERSC
-# the first works from cori and edison, the second works at nersc broadly
-#r = requests.get(r'http://jsonip.com')
-#your_ip= r.json()['ip']
-#ON_NERSC = ('NERSC_HOST' in os.environ) or your_ip.startswith('128.55.')
-ON_NERSC = True
-#as a backup plan, you could use os.path.exists('/project/projectdirs/metatlas')
+ON_NERSC = 'METATLAS_LOCAL_TEST' not in os.environ
 
 
 # Observable List from
