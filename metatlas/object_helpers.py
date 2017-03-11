@@ -162,14 +162,14 @@ class Workspace(object):
         Workspace.instance = self
 
     def connect(self):
-        """Get a single use connection to the database."""
+        """Get a single-use connection to the database."""
         db = dataset.connect(self.path)
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
         return db
 
     def convert_to_double(self, table, entry):
-        """Convert a table to double type."""
+        """Convert a table column to double type."""
         db = self.connect()
         try:
             db.query('alter table `%s` modify `%s` double' % (table, entry))
@@ -224,6 +224,7 @@ class Workspace(object):
                     db[table_name].insert(link)
 
     def _save(self, obj, override=False):
+        """Save an object to the database"""
         if obj.unique_id in self._seen:
             return
         if isinstance(obj, Stub):
