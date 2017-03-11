@@ -184,9 +184,9 @@ class Workspace(object):
         self._link_updates = defaultdict(list)
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
-        db = self.connect()
         for obj in objects:
-            self._save(obj, _override)
+            self._get_save_data(obj, _override)
+        db = self.connect()
         for (table_name, updates) in self._link_updates.items():
             if table_name not in db:
                 continue
@@ -223,8 +223,8 @@ class Workspace(object):
                                 target_table=uuid.uuid4().hex)
                     db[table_name].insert(link)
 
-    def _save(self, obj, override=False):
-        """Save an object to the database"""
+    def _get_save_data(self, obj, override=False):
+        """Get the data that will be used to save an object to the database"""
         if obj.unique_id in self._seen:
             return
         if isinstance(obj, Stub):
@@ -250,7 +250,7 @@ class Workspace(object):
                 # create an entry in the table for each item
                 # store the item in its own table
                 for subvalue in value:
-                    self._save(subvalue, override)
+                    self._get_save_data(subvalue, override)
                     link = dict(source_id=obj.unique_id,
                                 head_id=obj.head_id,
                                 target_id=subvalue.unique_id,
@@ -267,7 +267,7 @@ class Workspace(object):
                 # itself
                 else:
                     state[tname] = value.unique_id
-                    self._save(value, override)
+                    self._get_save_data(value, override)
             elif changed:
                 value = getattr(obj, tname)
                 # store the raw value in this table
