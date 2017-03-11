@@ -56,7 +56,7 @@ def retrieve(object_type, **kwargs):
       List of Metatlas Objects meeting the criteria.  Will return the
       latest version of each object.
     """
-    return WORKSPACE.retrieve(object_type, **kwargs)
+    return workspace.retrieve(object_type, **kwargs)
 
 
 def remove(object_type, **kwargs):
@@ -74,7 +74,7 @@ def remove(object_type, **kwargs):
     if not isinstance(object_type, str):
         print('remove() expects a string argument, use remove_objects() to'
               'delete actual objects.')
-    return WORKSPACE.remove(object_type, **kwargs)
+    return workspace.remove(object_type, **kwargs)
 
 
 def remove_objects(objects, all_versions=True, **kwargs):
@@ -89,7 +89,7 @@ def remove_objects(objects, all_versions=True, **kwargs):
     if isinstance(objects, str):
         print('remove_objects() expects actual objects, use remove() to'
               'remove objects by type.')
-    return WORKSPACE.remove_objects(objects, all_versions, **kwargs)
+    return workspace.remove_objects(objects, all_versions, **kwargs)
 
 
 def store(objects, **kwargs):
@@ -100,7 +100,7 @@ def store(objects, **kwargs):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
-    WORKSPACE.save_objects(objects, **kwargs)
+    workspace.save_objects(objects, **kwargs)
 
 
 @set_docstring
@@ -478,7 +478,7 @@ class _IdGradeTrait(MetInstance):
         elif isinstance(value, str):
             if value.upper() in ID_GRADES:
                 return ID_GRADES[value.upper()]
-            objects = WORKSPACE.retrieve('identificationgrade', name=value.upper())
+            objects = workspace.retrieve('identificationgrade', name=value.upper())
             if objects:
                 ID_GRADES[value.upper()] = objects[-1]
                 return objects[-1]
@@ -594,7 +594,7 @@ def find_invalid_runs(**kwargs):
 # Singleton Workspace object
 # Must be instantiated after all of the Metatlas Objects
 # are defined so we can get all of the subclasses.
-WORKSPACE = Workspace()
+workspace = Workspace()
 
 
 def to_dataframe(objects):
