@@ -162,12 +162,14 @@ class Workspace(object):
         Workspace.instance = self
 
     def connect(self):
+        """Get a single use connection to the database."""
         db = dataset.connect(self.path)
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
         return db
 
     def convert_to_double(self, table, entry):
+        """Convert a table to double type."""
         db = self.connect()
         try:
             db.query('alter table `%s` modify `%s` double' % (table, entry))
@@ -175,6 +177,7 @@ class Workspace(object):
             print(e)
 
     def save_objects(self, objects, _override=False):
+        """Save objects to the database"""
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
@@ -206,6 +209,7 @@ class Workspace(object):
             db[table_name].insert_many(inserts)
 
     def create_link_tables(self, klass):
+        """Create a link table in the database of the given trait klass"""
         name = self.table_name[klass]
         db = self.connect()
         for (tname, trait) in klass.class_traits().items():
@@ -285,6 +289,7 @@ class Workspace(object):
                 self.convert_to_double(table_name, tname)
 
     def retrieve(self, object_type, **kwargs):
+        """Retrieve an object from the database."""
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
         db = self.connect()
@@ -367,6 +372,7 @@ class Workspace(object):
         return items
 
     def remove(self, object_type, **kwargs):
+        """Remove an object from the database"""
         override = kwargs.pop('_override', False)
         if not override:
             msg = 'Are you sure you want to delete the entries? (Y/N)'
@@ -431,6 +437,7 @@ class Workspace(object):
         print('Removed')
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
+        """Remove a list of objects from the database."""
         if not isinstance(objects, (list, set)):
             objects = [objects]
         if not objects:
