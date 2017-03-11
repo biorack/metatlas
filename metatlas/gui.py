@@ -14,7 +14,7 @@ try:
 except ImportError:
     from IPython.utils import traitlets
 from . import (
-    retrieve, LcmsRun, to_dataframe, database, get_chromatogram,
+    retrieve, LcmsRun, to_dataframe, workspace, get_chromatogram,
     get_spectrogram, get_info
 )
 from .object_helpers import format_timestamp
@@ -132,7 +132,8 @@ def show_experiments(username=None):
     """Create a gui to browse the available experiments.
     """
     query = 'SELECT DISTINCT username, experiment FROM lcmsruns'
-    entries = [e for e in database.query(query)]
+    db = workspace.connect()
+    entries = [e for e in db.query(query)]
     experiments = defaultdict(set)
     for entry in entries:
         if entry['experiment']:
