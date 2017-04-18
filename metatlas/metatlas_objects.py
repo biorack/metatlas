@@ -301,6 +301,7 @@ class Method(MetatlasObject):
     polarity = MetEnum(POLARITY, 'positive', help='polarity for the run')
 
 
+
 @set_docstring
 class Sample(MetatlasObject):
     """A Sample is the material that is processed with a Method."""
@@ -572,6 +573,50 @@ class Atlas(MetatlasObject):
         MetInstance(CompoundIdentification),
         help='List of Compound Identification objects')
 
+
+# @set_docstring
+# class SampleSet(MetatlasObject):
+#     lcmsruns = MetList(MetInstance(LcmsRun))
+
+
+
+@set_docstring
+class MZMineTask(MetatlasObject):
+    """
+    For a collection of lcms runs, perform untargeted analysis with a scriptable binary
+    Store the run parameters in the database for reuse later
+    """
+    lcmsruns = MetList(MetInstance(LcmsRun))
+    output_csv = MetUnicode(help='Path to the output csv file at NERSC')
+    input_xml = MetUnicode(help='Path to the input xml file at NERSC')
+    mz_tolerance = MetFloat(8.0)
+    mz_tolerance_units = MetEnum(('ppm', 'Da'), 'ppm')
+    polarity = MetEnum(POLARITY, 'positive')
+
+    min_peak_duration = MetFloat(0.015)
+    max_peak_duration = MetFloat(30)
+    rt_tol_perfile = MetFloat(0.015)
+    rt_tol_multifile = MetFloat(0.15)
+    rt_units = MetEnum(('sec', 'min'), 'min')
+
+    noise_floor = MetFloat(40000.0,help='Signals below this value are not considered')
+    min_peak_height = MetFloat(100000.0,help='max of eic must be at least this big')
+
+    mzmine_launcher = MetUnicode(help='Path to the shell script that launches mzmine file at NERSC')
+
+# @set_docstring
+# class PactolusTask(MetatlasObject):
+#     """
+#     For an LCMS Run, search its msms spectra against pactolus trees
+#     """
+#     lcmsrun = MetInstance(LcmsRun)
+#     output_file = MetUnicode(help='Path to the output hdf5 file at NERSC')
+#     input_file = MetUnicode(help='Path to the input hdf5 container file at NERSC')
+#     mz_tol = MetFloat(help='mz tolerance in Daltons')
+#     polarity = MetEnum(POLARITY, 'positive')
+#     min_intensity = MetFloat(help='minimum precursor ion intensity')
+#     pactolus_tree_directory = MetUnicode(help='Path to the directory containing pactolus trees at NERSC')
+#     pactolus_launcher = MetUnicode(help='Path to the shell script that launches pactolus search at NERSC')
 
 def find_invalid_runs(**kwargs):
     """Find invalid runs.

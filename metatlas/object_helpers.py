@@ -89,7 +89,6 @@ class NotifyList(list):
         else:
             return None
 
-
 def set_docstring(cls):
     """Set the docstring for a MetatlasObject object"""
     doc = cls.__doc__
@@ -123,7 +122,6 @@ def _get_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__()
                                    for g in _get_subclasses(s)]
 
-
 class Workspace(object):
 
     def __init__(self):
@@ -131,10 +129,10 @@ class Workspace(object):
         # from other locations
         # this directory contains the config files
         metatlas_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
-        print("Metatlas live in ", metatlas_dir)
+        #print("Metatlas live in ", metatlas_dir)
 
         host_name = socket.gethostname()
-        print("you're running on %s at %s " % (host_name, socket.gethostbyname(socket.gethostname())))
+        #print("asdf you're running on %s at %s " % (host_name, socket.gethostbyname(socket.gethostname())))
 
         if ON_NERSC:
             with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
@@ -174,13 +172,13 @@ class Workspace(object):
         if self._db:
             try:
                 if self._db.engine.name == 'mysql':
-                    self._db.query('show tables')
+                    r = self._db.query('show tables')
                 else:
                     self._db.query('SELECT name FROM sqlite_master WHERE type = "table"')
                 return self._db
             except Exception:
                 print('Reconnecting to database')
-        self._db = dataset.connect(self.path)
+        self._db = dataset.connect(self.path)#,engine_kwargs={'implicit_returning':False})
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
         return self._db
@@ -198,6 +196,7 @@ class Workspace(object):
         self._link_updates = defaultdict(list)
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
+        self._db = None
         db = self.db
         for obj in objects:
             self._save(obj, _override)
@@ -221,8 +220,13 @@ class Workspace(object):
                                      primary_type='String(32)')
                 self.fix_table(table_name)
             db[table_name].insert_many(inserts)
+            # print(table_name,inserts)
+        # adding self._db = None fixes but lots of connections get openened
 
     def create_link_tables(self, klass):
+        """
+
+        """
         name = self.table_name[klass]
         db = self.db
         for (tname, trait) in klass.class_traits().items():
@@ -352,6 +356,9 @@ class Workspace(object):
                 raise ValueError('Invalid column name, valid columns: %s' % keys)
             else:
                 raise(e)
+
+        # print('tables:')
+        # print([t for t in db.query('show tables')])
         items = [klass(**i) for i in items]
         uids = [i.unique_id for i in items]
         if not items:
@@ -366,6 +373,7 @@ class Workspace(object):
                     continue
                 querystr = 'select * from `%s` where source_id in ("' % table_name
                 querystr += '" , "'.join(uids)
+                # print(querystr)
                 result = db.query(querystr + '")')
                 sublist = defaultdict(list)
                 for r in result:
