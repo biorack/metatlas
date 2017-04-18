@@ -159,24 +159,24 @@ class Workspace(object):
         self.seen = dict()
         Workspace.instance = self
 
-<<<<<<< HEAD
-    @property
-    def db(self):
-        if self._db:
-            try:
-                if self._db.engine.name == 'mysql':
-                    r = self._db.query('show tables')
-                else:
-                    self._db.query('SELECT name FROM sqlite_master WHERE type = "table"')
-                return self._db
-            except Exception:
-                print('Reconnecting to database')
-        self._db = dataset.connect(self.path)#,engine_kwargs={'implicit_returning':False})
-=======
+# <<<<<<< HEAD
+#     @property
+#     def db(self):
+#         if self._db:
+#             try:
+#                 if self._db.engine.name == 'mysql':
+#                     r = self._db.query('show tables')
+#                 else:
+#                     self._db.query('SELECT name FROM sqlite_master WHERE type = "table"')
+#                 return self._db
+#             except Exception:
+#                 print('Reconnecting to database')
+#         self._db = dataset.connect(self.path)#,engine_kwargs={'implicit_returning':False})
+# =======
     def get_connection(self):
         """Get a single-use connection to the database."""
         db = dataset.connect(self.path)
->>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
+# >>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
         return db
@@ -197,11 +197,11 @@ class Workspace(object):
         self._link_updates = defaultdict(list)
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
-<<<<<<< HEAD
-        self._db = None
-        db = self.db
-=======
->>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
+# <<<<<<< HEAD
+#         self._db = None
+#         db = self.db
+# =======
+# >>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
         for obj in objects:
             self._get_save_data(obj, _override)
         db = self.get_connection()
@@ -229,13 +229,13 @@ class Workspace(object):
         # adding self._db = None fixes but lots of connections get openened
 
     def create_link_tables(self, klass):
-<<<<<<< HEAD
-        """
+# <<<<<<< HEAD
+#         """
 
-        """
-=======
+#         """
+# =======
         """Create a link table in the database of the given trait klass"""
->>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
+# >>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
         name = self.table_name[klass]
         db = self.get_connection()
         for (tname, trait) in klass.class_traits().items():
