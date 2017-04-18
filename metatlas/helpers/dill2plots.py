@@ -541,7 +541,7 @@ class adjust_mz_for_selected_compound(object):
 
         min_x = self.ax.get_xlim()[0]
         max_x = self.ax.get_xlim()[1]
-        print min_x,max_x
+        print(min_x,max_x)
         
         self.mz_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.03], axisbg=self.slider_color)
         self.mz_max_ax = plt.axes([0.09, 0.1, 0.81, 0.03], axisbg=self.slider_color)
@@ -1201,12 +1201,12 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
 
-    print 'loading preexisting compound identifications'
+    print('loading preexisting compound identifications')
 
     ids = metob.retrieve('CompoundIdentification',username='*')
     frag_refs = [cid for cid in ids if cid.frag_references]
     
-    print 'getting spectra from files'
+    print('getting spectra from files')
     
     
     for compound_idx in range(len(compound_names)):

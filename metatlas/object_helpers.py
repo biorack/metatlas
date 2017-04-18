@@ -13,8 +13,6 @@ import socket
 import os.path
 import yaml
 
-import requests
-
 try:
     from traitlets import (
         HasTraits, CUnicode, List, CInt, Instance, Enum,
@@ -26,12 +24,7 @@ except ImportError:
 
 
 # Whether we are running from NERSC
-# the first works from cori and edison, the second works at nersc broadly
-#r = requests.get(r'http://jsonip.com')
-#your_ip= r.json()['ip']
-#ON_NERSC = ('NERSC_HOST' in os.environ) or your_ip.startswith('128.55.')
-ON_NERSC = True
-#as a backup plan, you could use os.path.exists('/project/projectdirs/metatlas')
+ON_NERSC = 'METATLAS_LOCAL' not in os.environ
 
 
 # Observable List from
@@ -150,7 +143,6 @@ class Workspace(object):
             else:
                 self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
 
-        self._db = None
         self.tablename_lut = dict()
         self.subclass_lut = dict()
         from .metatlas_objects import MetatlasObject
@@ -167,6 +159,7 @@ class Workspace(object):
         self.seen = dict()
         Workspace.instance = self
 
+<<<<<<< HEAD
     @property
     def db(self):
         if self._db:
@@ -179,27 +172,39 @@ class Workspace(object):
             except Exception:
                 print('Reconnecting to database')
         self._db = dataset.connect(self.path)#,engine_kwargs={'implicit_returning':False})
+=======
+    def get_connection(self):
+        """Get a single-use connection to the database."""
+        db = dataset.connect(self.path)
+>>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
         if 'sqlite' in self.path:
             os.chmod(self.path[10:], 0o775)
-        return self._db
+        return db
 
     def convert_to_double(self, table, entry):
+        """Convert a table column to double type."""
+        db = self.get_connection()
         try:
-            self.db.query('alter table `%s` modify `%s` double' % (table, entry))
+            db.query('alter table `%s` modify `%s` double' % (table, entry))
         except Exception as e:
             print(e)
 
     def save_objects(self, objects, _override=False):
+        """Save objects to the database"""
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
         self._link_updates = defaultdict(list)
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
+<<<<<<< HEAD
         self._db = None
         db = self.db
+=======
+>>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
         for obj in objects:
-            self._save(obj, _override)
+            self._get_save_data(obj, _override)
+        db = self.get_connection()
         for (table_name, updates) in self._link_updates.items():
             if table_name not in db:
                 continue
@@ -207,7 +212,7 @@ class Workspace(object):
                 for (uid, prev_uid) in updates:
                     db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, updates) in self._updates.items():
-            if '_' not in table_name and table_name not in self.db:
+            if '_' not in table_name and table_name not in db:
                 db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
                 self.fix_table(table_name)
@@ -224,11 +229,15 @@ class Workspace(object):
         # adding self._db = None fixes but lots of connections get openened
 
     def create_link_tables(self, klass):
+<<<<<<< HEAD
         """
 
         """
+=======
+        """Create a link table in the database of the given trait klass"""
+>>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
         name = self.table_name[klass]
-        db = self.db
+        db = self.get_connection()
         for (tname, trait) in klass.class_traits().items():
             if isinstance(trait, MetList):
                 table_name = '_'.join([name, tname])
@@ -240,7 +249,8 @@ class Workspace(object):
                                 target_table=uuid.uuid4().hex)
                     db[table_name].insert(link)
 
-    def _save(self, obj, override=False):
+    def _get_save_data(self, obj, override=False):
+        """Get the data that will be used to save an object to the database"""
         if obj.unique_id in self._seen:
             return
         if isinstance(obj, Stub):
@@ -266,7 +276,7 @@ class Workspace(object):
                 # create an entry in the table for each item
                 # store the item in its own table
                 for subvalue in value:
-                    self._save(subvalue, override)
+                    self._get_save_data(subvalue, override)
                     link = dict(source_id=obj.unique_id,
                                 head_id=obj.head_id,
                                 target_id=subvalue.unique_id,
@@ -283,7 +293,7 @@ class Workspace(object):
                 # itself
                 else:
                     state[tname] = value.unique_id
-                    self._save(value, override)
+                    self._get_save_data(value, override)
             elif changed:
                 value = getattr(obj, tname)
                 # store the raw value in this table
@@ -306,9 +316,10 @@ class Workspace(object):
                 self.convert_to_double(table_name, tname)
 
     def retrieve(self, object_type, **kwargs):
+        """Retrieve an object from the database."""
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
-        db = self.db
+        db = self.get_connection()
         if object_type not in db:
             if not klass:
                 raise ValueError('Unknown object type: %s' % object_type)
@@ -392,6 +403,7 @@ class Workspace(object):
         return items
 
     def remove(self, object_type, **kwargs):
+        """Remove an object from the database"""
         override = kwargs.pop('_override', False)
         if not override:
             msg = 'Are you sure you want to delete the entries? (Y/N)'
@@ -426,7 +438,7 @@ class Workspace(object):
                 clauses.append('%s = "%s"' % (key, value))
         query += ' and '.join(clauses)
         query += ')'
-        db = self.db
+        db = self.get_connection()
         if not clauses:
             query = query.replace(' where ()', '')
         # check for lists items that need removal
@@ -456,6 +468,7 @@ class Workspace(object):
         print('Removed')
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
+        """Remove a list of objects from the database."""
         if not isinstance(objects, (list, set)):
             objects = [objects]
         if not objects:
@@ -475,7 +488,7 @@ class Workspace(object):
         ids = defaultdict(list)
         username = getpass.getuser()
         attr = 'head_id' if all_versions else 'unique_id'
-        db = self.db
+        db = self.get_connection()
         for obj in objects:
             if not override and obj.username != username:
                 continue

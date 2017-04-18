@@ -41,7 +41,7 @@ deploy: gh-pages
 docs: clean
 	export SPHINXOPTS=-W
 	pip install sphinx-bootstrap-theme numpydoc sphinx ghp-import
-	make -C docs html
+	export METATLAS_LOCAL=1; make -C docs html
 
 gh-pages:
 	git checkout master

@@ -469,7 +469,6 @@ def make_mzmine_scripts(mzml_files,
     base_qsub_text = base_qsub_text + '\n\n%s %s'%(mzmine_runner,new_batch_file)
     with open(new_qsub_file,'w') as fid:
         fid.write(base_qsub_text)
-    
     print('qsub',new_qsub_file)
 
     # 3. submit job with NEWT
