@@ -12,7 +12,7 @@ from .metatlas_objects import (
     Method, Sample, LcmsRun, FunctionalSet,
     Compound, Reference, IdentificationGrade, CompoundIdentification, Atlas,
     Group, MzIntensityPair, FragmentationReference, RtReference,
-    MzReference, retrieve, store, remove, remove_objects, database,
+    MzReference, retrieve, store, remove, remove_objects, workspace,
     to_dataframe
 )
 #ReferenceDatabase, 

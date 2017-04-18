@@ -80,6 +80,7 @@ Add in index and specify type for inchi keys
     
 Add index for many-to-many tables
 ::
+
     ALTER TABLE compoundidentifications_compound MODIFY source_id VARCHAR(32);
     ALTER TABLE compoundidentifications_compound ADD INDEX source_id (source_id);
     ALTER TABLE compoundidentifications_compound MODIFY target_id VARCHAR(32);
@@ -92,6 +93,7 @@ Add index for many-to-many tables
 
 Example query that has subqueries
 ::
+
     #select rtreferences.*   
     select rtreferences.rt_peak, rtreferences.rt_min, rtreferences.rt_max, rtreferences.rt_units, rtreferences.last_modified, rtreferences.username
     from rtreferences, compoundidentifications, compoundidentifications_rt_references, compoundidentifications_compound, compounds  
