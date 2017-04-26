@@ -70,7 +70,7 @@ def merge_sheets(my_sheets,score_cutoff=0.1,mz_cutoff=0.1):
     df_all_files = pd.concat(dfs)
     #print 'making key'
     #df_all_files['inchi_key'] = df_all_files.inchi.apply(lambda x: Chem.InchiToInchiKey(str(x)))
-    print df_all_files.keys()
+    print(df_all_files.keys())
     #df_all_files.set_index(['inchi','inchi_key','metatlas name'],inplace=True)
     df_all_files.set_index(['inchi_key','mass'],inplace=True)
     return df_all_files
@@ -348,11 +348,11 @@ def check_for_failed_jobs(target_dir):
     if not failed_jobs:
         print("no failed jobs exist")
     else:
-        print "failed jobs:"
+        print("failed jobs:")
         for f in failed_jobs:
-            print f
+            print(f)
         for j in failed_jobs:
-            print "sbatch",sbatch_files_full_path[index_containing_substring(sbatch_files_full_path,j)]
+            print("sbatch",sbatch_files_full_path[index_containing_substring(sbatch_files_full_path,j)])
 
 def index_containing_substring(the_list, substring):
     for i, s in enumerate(the_list):
@@ -369,9 +369,9 @@ def check_job_status(do_print=True,computer = 'edison'):
     my_jobs = r.json()
     # print my_jobs
     if do_print:
-        print "You have",len(my_jobs),"jobs running or in the queue to run"
+        print("You have",len(my_jobs),"jobs running or in the queue to run")
         for i,j in enumerate(my_jobs):
-            print i,'\t',j['status'], j['name'],j['memory'],j['nodes'], j['procs'], j['timeuse']
+            print(i,'\t',j['status'], j['name'],j['memory'],j['nodes'], j['procs'], j['timeuse'])
     return my_jobs
 
 def create_pactolus_msms_data_container(myfiles,target_directory,min_intensity,min_rt = 1,max_rt = 22,make_container=True):
