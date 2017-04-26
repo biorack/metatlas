@@ -145,7 +145,7 @@ def join_pactolus_tables(my_sheets,score_cutoff=0.001,mz_cutoff=0.02):#,use_fiel
     #pull group info from metob
     for sheet in my_sheets:
         df = pd.read_excel(sheet)
-        print df.shape
+        print(df.shape)
         df = df.drop( df[df['score'] < score_cutoff].index )
 
         mass = df['mass'][df['polarity'] == 1]
@@ -159,7 +159,7 @@ def join_pactolus_tables(my_sheets,score_cutoff=0.001,mz_cutoff=0.02):#,use_fiel
         adduct = 1.007276
         if len(mz)>0:
             df = df.drop( df[abs( mass - adduct - mz ) > mz_cutoff].index )
-        print df.shape
+        print(df.shape)
         for index, row in input_df.iterrows():
             if type(row['name']) != float:
                 try:
@@ -173,7 +173,7 @@ def join_pactolus_tables(my_sheets,score_cutoff=0.001,mz_cutoff=0.02):#,use_fiel
 def is_pactolus_result_file(output_file):
     my_keys = output_file.keys()
     counter = 0
-    print 'checking file',output_file
+    print('checking file',output_file)
     for k in my_keys:
         if 'match_matrix' not in k:
             counter = counter +1
@@ -251,7 +251,7 @@ def make_output_tables(target_dir,score_cutoff = 0.0,to_csv=True):
                     #df = pd.merge(df,df_lookup,on='inchi_key',how='outer')#ignore_index=True,axis=0)
                     do_process = True
             if do_process:
-                print os.path.basename(outfile)
+                print(os.path.basename(outfile))
                 if df.shape[0]>0:
                     all_dfs.append(df)
                     if to_csv:
@@ -346,7 +346,7 @@ def check_for_failed_jobs(target_dir):
 #     print len(err_files),len(sbatch_files),len(hdf5_files)
     failed_jobs = list(set(sbatch_files) - set(hdf5_files))
     if not failed_jobs:
-        print "no failed jobs exist"
+        print("no failed jobs exist")
     else:
         print "failed jobs:"
         for f in failed_jobs:

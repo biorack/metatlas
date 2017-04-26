@@ -588,7 +588,10 @@ class MZMineTask(MetatlasObject):
     """
     lcmsruns = MetList(MetInstance(LcmsRun))
     output_csv = MetUnicode(help='Path to the output csv file at NERSC')
+    output_project = MetUnicode(help='Path to the output project file at NERSC')
     input_xml = MetUnicode(help='Path to the input xml file at NERSC')
+    input_xml_text = MetUnicode(help='Text of the batch xml file')
+
     mz_tolerance = MetFloat(8.0)
     mz_tolerance_units = MetEnum(('ppm', 'Da'), 'ppm')
     polarity = MetEnum(POLARITY, 'positive')
@@ -601,7 +604,7 @@ class MZMineTask(MetatlasObject):
 
     noise_floor = MetFloat(40000.0,help='Signals below this value are not considered')
     min_peak_height = MetFloat(100000.0,help='max of eic must be at least this big')
-
+    
     mzmine_launcher = MetUnicode(help='Path to the shell script that launches mzmine file at NERSC')
 
 # @set_docstring
