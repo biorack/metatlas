@@ -75,7 +75,7 @@ def merge_sheets(my_sheets,score_cutoff=0.1,mz_cutoff=0.1):
     df_all_files.set_index(['inchi_key','mass'],inplace=True)
     return df_all_files
 
-def read_pacolus_results(pactolus_file):
+def read_pacolus_results(pactolus_file,min_score=0.0):
     """
     This is a new 20161213 version of the pactolus file readers.
     The hope is to circumvent all the copies from the original hdf5 file.
@@ -103,7 +103,7 @@ def read_pacolus_results(pactolus_file):
         m = fid['score_matrix'][:]
         hits = []
         for mm in m:
-            idx = np.where(mm>0.1)[0]
+            idx = np.where(mm>min_score)[0]
             hits.append(sorted([(mm[i],i) for i in idx])[::-1])
         df = pd.DataFrame({'scores':hits})
         b_flat = pd.DataFrame([[i, x[0], x[1]] 
@@ -112,7 +112,7 @@ def read_pacolus_results(pactolus_file):
         scan_df = scan_df.merge(b_flat, how = 'outer',left_index=True, right_index=True)
 
         #get a list of True/False if any hits for a compound:
-        f = np.any(m.T>0,axis=1)
+        f = np.any(m.T>min_score,axis=1)
         #only do this for ones that get a hit
         idx = np.where(f)[0]#range(fid['score_matrix'].shape[1])
         lookup = fid['tree_file_lookup_table'][:]
@@ -125,7 +125,7 @@ def read_pacolus_results(pactolus_file):
         d['inchi_key'] = [os.path.basename(a).split('.')[0].split('_')[-1] for a in fid['tree_file_lookup_table']['filename'][idx]]
 
         tree_df = pd.DataFrame(d)
-        tree_df.set_index('index',drop=True,inplace=True)
+        # tree_df.set_index('index',drop=True,inplace=True)
 
     return scan_df,tree_df
 
@@ -374,7 +374,7 @@ def check_job_status(do_print=True,computer = 'edison'):
             print i,'\t',j['status'], j['name'],j['memory'],j['nodes'], j['procs'], j['timeuse']
     return my_jobs
 
-def create_pactolus_msms_data_container(myfiles,target_directory,min_intensity,min_rt = 1,max_rt = 22):
+def create_pactolus_msms_data_container(myfiles,target_directory,min_intensity,min_rt = 1,max_rt = 22,make_container=True):
     # peak_arrayindex: This is a 2D array with the shape (num_spectra, 3). 
     # The dataset contains an index that tells us: 
     # i) the x location of each spectrum [:,0], 
@@ -406,37 +406,38 @@ def create_pactolus_msms_data_container(myfiles,target_directory,min_intensity,m
                 do_polarity.append(0)
             scan_polarity = []
             for my_polarity in do_polarity:
-                data = h5q.get_data(fid,ms_level=2,polarity=my_polarity,min_rt = min_rt,max_rt=max_rt,min_precursor_intensity=min_intensity)#TODO: filter by intensity,)
-                prt,pmz,pintensity = mgd.get_unique_scan_data(data)
-                for i in range(len(pintensity)):
-                    scan_polarity.append(my_polarity)
-                msms_data = mgd.organize_msms_scan_data(data,prt,pmz,pintensity)
-                fpl = {}
-                # peak_mz : This is a 1D arrays with m/z values for all the spectra stored as spectrum_1, spectrum_2 etc.
-                fpl['peak_mz'] = np.concatenate(tuple( s[:,0] for s in msms_data['spectra']), axis = -1)
-                # peak_value: This is a 1D arrays with the intensity values corresponding to the m/z values stored in peak_mz
-                fpl['peak_value'] = np.concatenate(tuple( s[:,1] for s in msms_data['spectra']), axis = -1)
-                fpl['precursor_mz'] = np.asarray(msms_data['precursor_mz'])
-                fpl['peak_arrayindex'] = np.asarray([[0, i, 0] for i,rt in enumerate(prt)]) 
-                fpl['peak_arrayindex'][:,2] = np.cumsum([0] + [ s[:,0].shape[0] for s in msms_data['spectra'] ])[:-1]
                 container_file = os.path.join(target_directory,'container_file_polarity_%d.h5'%(my_polarity))
-                with h5py.File(container_file,'a') as output_file:
-                    group_name = os.path.basename(myfile)
-                    if group_name in output_file.keys():
-                        output_file.__delitem__(group_name)
-            #         if group_name not in output_file.keys():
-                    output_group = output_file.create_group(group_name)
-            #         else:
-            #             output_group = output_file[group_name]
-                    for key, value in fpl.iteritems():
-                        output_group[key] = value
-                    experiment_group = output_group.create_group('experiment_metadata')
-                    experiment_group['filename'] = group_name
-                    scan_group = output_group.create_group('scan_metadata')
-                    scan_group['peak_mz'] = np.asarray(msms_data['precursor_mz'])
-                    scan_group['peak_rt'] = np.asarray(msms_data['precursor_rt'])
-                    scan_group['peak_intensity'] = np.asarray(msms_data['precursor_intensity'])
-                    scan_group['polarity'] = np.asarray(scan_polarity) # 1 for pos and 0 for neg
+                if make_container:
+                    data = h5q.get_data(fid,ms_level=2,polarity=my_polarity,min_rt = min_rt,max_rt=max_rt,min_precursor_intensity=min_intensity)#TODO: filter by intensity,)
+                    prt,pmz,pintensity = mgd.get_unique_scan_data(data)
+                    for i in range(len(pintensity)):
+                        scan_polarity.append(my_polarity)
+                    msms_data = mgd.organize_msms_scan_data(data,prt,pmz,pintensity)
+                    fpl = {}
+                    # peak_mz : This is a 1D arrays with m/z values for all the spectra stored as spectrum_1, spectrum_2 etc.
+                    fpl['peak_mz'] = np.concatenate(tuple( s[:,0] for s in msms_data['spectra']), axis = -1)
+                    # peak_value: This is a 1D arrays with the intensity values corresponding to the m/z values stored in peak_mz
+                    fpl['peak_value'] = np.concatenate(tuple( s[:,1] for s in msms_data['spectra']), axis = -1)
+                    fpl['precursor_mz'] = np.asarray(msms_data['precursor_mz'])
+                    fpl['peak_arrayindex'] = np.asarray([[0, i, 0] for i,rt in enumerate(prt)]) 
+                    fpl['peak_arrayindex'][:,2] = np.cumsum([0] + [ s[:,0].shape[0] for s in msms_data['spectra'] ])[:-1]
+                    with h5py.File(container_file,'a') as output_file:
+                        group_name = os.path.basename(myfile)
+                        if group_name in output_file.keys():
+                            output_file.__delitem__(group_name)
+                #         if group_name not in output_file.keys():
+                        output_group = output_file.create_group(group_name)
+                #         else:
+                #             output_group = output_file[group_name]
+                        for key, value in fpl.iteritems():
+                            output_group[key] = value
+                        experiment_group = output_group.create_group('experiment_metadata')
+                        experiment_group['filename'] = group_name
+                        scan_group = output_group.create_group('scan_metadata')
+                        scan_group['peak_mz'] = np.asarray(msms_data['precursor_mz'])
+                        scan_group['peak_rt'] = np.asarray(msms_data['precursor_rt'])
+                        scan_group['peak_intensity'] = np.asarray(msms_data['precursor_intensity'])
+                        scan_group['polarity'] = np.asarray(scan_polarity) # 1 for pos and 0 for neg
                 write_pactolus_job_file(myfile,container_file,my_polarity)
     return container_file
 
@@ -446,7 +447,7 @@ def create_pactolus_msms_data_container(myfiles,target_directory,min_intensity,m
 def write_pactolus_job_file(myfile,
                             container_file,
                             my_polarity,
-                            new_tree_file = '/global/cscratch1/sd/bpb/level_3_trees/tree_lookup.npy',
+                            new_tree_file = '/project/projectdirs/metatlas/projects/clean_pactolus_trees/tree_lookup.npy',
                             base_script_name = '/project/projectdirs/openmsi/projects/ben_run_pactolus/do_not_modify_template_pactolus_script.sh'):
     #regexp the fpl_data path to create lots of jobs:
     # /project/projectdirs/openmsi/projects/ben_run_pactolus/Pactolus_NERSC_BASTet_C18_POS_Archetypes.h5:/20150510_C18_POS_MSMS_HA13-1.h5
