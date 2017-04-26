@@ -1,10 +1,10 @@
+from __future__ import print_function
+
 import sys
-sys.path.insert(0,'/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages' )
 from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
 import qgrid
 
-# sys.path.append('/project/projectdirs/metatlas/projects/ms_monitor_tools')
 import metatlas_get_data_helper_fun as mgd
 
 from matplotlib import pyplot as plt
@@ -21,7 +21,7 @@ import os.path
 import glob as glob
 import json
 
-# sys.path.append('/global/project/projectdirs/openmsi/jupyterhub_libs/anaconda/lib/python2.7/site-packages')
+
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import Draw
@@ -38,7 +38,7 @@ from IPython.display import SVG,display
 def import_network(network_file='network_v1p0.cyjs'):
     with open(network_file) as data_file:    
         data = json.load(data_file)
-    print data['elements']['nodes'][0]['data'].keys()
+    print(data['elements']['nodes'][0]['data'].keys())
     network = {}
     network['data'] = data
     network['x'] = []
