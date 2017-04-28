@@ -278,7 +278,7 @@ ENV MZMINE_VERSIONS /home/$NB_USER/work/mzmine_components/versions
 RUN mkdir -p $MZMINE_VERSIONS && \
     cd $MZMINE_VERSIONS && \
     wget $(curl -s https://api.github.com/repos/mzmine/mzmine2/releases/latest | grep 'browser_' | cut -d\" -f4) -O mzmine_latest.zip && \
-    unzip mzmine_latest.zip && \
+    unzip mzmine_latest.zip
     #cp ../MZmine-2.23/startMZmine_NERSC_* .
 
 USER $NB_USER
