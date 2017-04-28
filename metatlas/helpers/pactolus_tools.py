@@ -5,7 +5,7 @@ from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
 import qgrid
 
-import metatlas_get_data_helper_fun as mgd
+from metatlas.helpers import metatlas_get_data_helper_fun as mgd
 
 from matplotlib import pyplot as plt
 import pandas as pd
