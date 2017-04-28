@@ -21,7 +21,7 @@ before_install:
 - conda config --set always_yes yes
 - conda update conda
 - conda info -a
-- travis_retry conda create -n test $PYTHON pip nose pytables matplotlib pandas jupyter
+- travis_retry conda create -n test $PYTHON pip nose pytables matplotlib pandas jupyter h5py
 - source activate test
 - rm /home/travis/miniconda/envs/test/lib/libreadline.so.6
 - travis_retry pip install coveralls requests_toolbelt rpy2
