@@ -43,11 +43,61 @@ ssh denovo
 module load shifter
 to create the jupyter session:
 shifterimg pull benbowen/metatlas:latest
+started at 1:40 PM.
+shifterimg images | grep metatlas
+
+```
+Ctrl-C out 
+```
+
 #shifter --image=benbowen/metatlas:latest --volume=/global/common/shared/das/:/das /das/start-jupyter-shifter.sh
 #shifter --image=benbowen/metatlas:latest --volume=/global/project/projectdirs/metatlas/:/metatlas /das/start-jupyter-shifter.sh
 shifter --image=benbowen/metatlas:latest ./start-jupyter-shifter.sh
 
+### start-jupyter-shifter.sh
+
+```
+#!/bin/sh
+
+# Get the HOME directory after startup
+IP=$(ip addr show dev ib0|grep 128.55|awk '{print $2}'|sed 's|/.*||')
+echo "*****************************************************"
+echo "From your laptop do: "
+echo "ssh -L 8888:$IP:8888 genepool.nersc.gov"
+echo "*****************************************************"
+echo ""
+
+HOME=$PWD 
+jupyter-notebook --ip='*' --no-browser $@
+```
+
+# for interactive bash experience with shifter
+shifter --image=benbowen/metatlas:latest /bin/bash
+
+### notebook running scripts are here:
+* /usr/local/bin/start.sh
+* /usr/local/bin/start-notebook.sh
+* /usr/local/bin/start-singleuser.sh
+* /home/$NB_USER/.jupyter/jupyter_notebook_config.py
+* chown -R $NB_USER:users /home/$NB_USER/.jupyter
+
 shifter doesn't allow you to volume-mount /global/common. You'll have to copy the start-jupyter-shifter.sh script somewhere it will allow mounting from (e.g. /global/projectb) and mount it from there.
+
+# Shifter at nersc
+
+You are still your nersc username inside the container.  Therefore, you are using the config files in the $USERNAME are used by the notebook by default:
+
+```
+$USERNAME/.ipython
+README  extensions  kernels  nbextensions  profile_default
+$USERNAME/.jupyter
+custom  migrated  nbconfig
+```
+
+We want everyone to have the same experience in the container and for these not to be used or to be optionally added after invoking a default experience.
+
+
+
 
 from terminal:
 ssh -L 8888:<IP>:8888 genepool.nersc.gov
@@ -64,3 +114,8 @@ docker run -p <port>:<port> <imagename>
 
 Docker 'run' command to start an interactive BaSH session
 docker run -it <image> /bin/bash
+
+
+This file needs to be deleted sometimes:
+  623  ls -lah ~/Library/Containers/com.docker.docker/Data/com.docker.driver.amd64-linux/Docker.qcow2 
+  624  rm /Users/bpb/Library/Containers/com.docker.docker/Data/com.docker.driver.amd64-linux/Docker.qcow2
