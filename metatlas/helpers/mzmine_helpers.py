@@ -328,6 +328,7 @@ def etree_to_dict(t):
 def metatlas_formatted_atlas_from_mzmine_output(filename,polarity,make_atlas=True,atlas_name=None,
     do_store=False,min_rt=None,max_rt=None,min_mz=None,mz_tolerance=8,
     max_mz=None,remove_adducts=False,remove_fragments=False,remove_clusters=False):
+    # 
     '''
     Turn mzmine output into conforming metatlas_atlas input
     
@@ -353,11 +354,11 @@ def metatlas_formatted_atlas_from_mzmine_output(filename,polarity,make_atlas=Tru
     if max_mz:
         mzmine_df = mzmine_df[mzmine_Df['row m/z']<max_mz]
     if remove_adducts:
-        mzmine_df = mzmine_df[~mzmine_df['Name'].str.contains('Adduct',na=False)]
+        mzmine_df = mzmine_df[~mzmine_df['row identity'].str.contains('Adduct',na=False)]
     if remove_fragments:
-        mzmine_df = mzmine_df[~mzmine_df['Name'].str.contains('Fragment',na=False)]
+        mzmine_df = mzmine_df[~mzmine_df['row identity'].str.contains('Fragment',na=False)]
     if remove_clusters:
-        mzmine_df = mzmine_df[~mzmine_df['Name'].str.contains('Complex',na=False)]
+        mzmine_df = mzmine_df[~mzmine_df['row identity'].str.contains('Complex',na=False)]
 
 
     def clean_adducts(x):
@@ -369,8 +370,8 @@ def metatlas_formatted_atlas_from_mzmine_output(filename,polarity,make_atlas=Tru
 
     metatlas_atlas = pd.DataFrame()
     metatlas_atlas['label'] = mzmine_df.apply(lambda x: '%.4f@%.2f'%(x['row m/z'],x['row retention time']),axis=1)
-    mzmine_df['Name'].fillna('',inplace=True)
-    metatlas_atlas['adduct_assignments'] = mzmine_df['Name']#.apply(clean_adducts)
+    mzmine_df['row identity'].fillna('',inplace=True)
+    metatlas_atlas['adduct_assignments'] = mzmine_df['row identity']#.apply(clean_adducts)
     metatlas_atlas['mz'] = mzmine_df.apply(lambda x: x['row m/z'],axis=1)
     metatlas_atlas['mz_tolerance'] = mz_tolerance#metatlas_atlas.mz.apply(lambda x: mz_tolerance*float(x)/1e6)
     metatlas_atlas['rt_peak'] = mzmine_df.apply(lambda x: x['row retention time'],axis=1)

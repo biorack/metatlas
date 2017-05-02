@@ -407,6 +407,8 @@ def create_pactolus_msms_data_container(myfiles,target_directory,min_intensity,m
             scan_polarity = []
             for my_polarity in do_polarity:
                 container_file = os.path.join(target_directory,'container_file_polarity_%d.h5'%(my_polarity))
+                if not os.path.isfile(container_file):
+                    make_container=True
                 if make_container:
                     data = h5q.get_data(fid,ms_level=2,polarity=my_polarity,min_rt = min_rt,max_rt=max_rt,min_precursor_intensity=min_intensity)#TODO: filter by intensity,)
                     prt,pmz,pintensity = mgd.get_unique_scan_data(data)
