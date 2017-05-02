@@ -23,15 +23,15 @@ db = metob.database
 compounds = db['compounds']
 
 def update_compound_table(input_dict):
-    print 'updating compound'
+    print('updating compound')
     L = compounds.update(input_dict, ['inchi_key'])
-    print 'done updating'
+    print('done updating')
 
 #pool = mp.Pool(processes=2)
 t0 = time.time()
-print 'updating first compounds now'
+print('updating first compounds now')
 #data = pool.map(update_compound_table, list_of_updates[:4])
 for i in range(100):
     update_compound_table(list_of_updates[i])
-    print time.time() - t0
+    print(time.time() - t0)
 
