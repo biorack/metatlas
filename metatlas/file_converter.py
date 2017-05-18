@@ -23,7 +23,7 @@ NPROC = 32
 manager = mp.Manager()
 readonly_files = manager.dict() # username | a set of files associated with them
 other_errors = manager.dict() # info with user | list of error messages
-
+patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
 def get_acqtime_from_mzml(mzml_file):
     startTimeStamp=None
@@ -171,7 +171,6 @@ def update_metatlas(directory):
         if mzml_file.replace('.mzML', '.h5') not in valid_files:
             new_files.append(mzml_file)
 
-    patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
     sys.stdout.write('Found %s files\n' % len(new_files))
     sys.stdout.flush()
