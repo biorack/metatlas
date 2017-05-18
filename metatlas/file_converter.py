@@ -20,6 +20,11 @@ from metatlas.system_utils import send_mail
 
 NPROC = 32
 
+manager = mp.Manager()
+readonly_files = manager.dict() # username | a set of files associated with them
+other_errors = manager.dict() # info with user | list of error messages
+
+
 def get_acqtime_from_mzml(mzml_file):
     startTimeStamp=None
     with open(mzml_file) as mzml:
@@ -35,6 +40,106 @@ def get_acqtime_from_mzml(mzml_file):
         utc_timestamp = int(0)
     return utc_timestamp
 
+# Helper function, converts a single file
+def convert(file):
+    ind = file[0]
+    fname = file[1]
+
+    sys.stdout.write('(%s): %s\n' % (ind + 1, fname))
+    sys.stdout.flush()
+
+    # Get relevant information about the file.
+    info = patt.match(os.path.abspath(fname))
+    if info:
+        info = info.groupdict()
+    else:
+        sys.stdout.write("Invalid path name: %s\n" % fname)
+        sys.stdout.flush()
+        return
+    dirname = os.path.dirname(fname)
+    try:
+        username = pwd.getpwuid(os.stat(fname).st_uid).pw_name
+    except OSError:
+        try:
+            username = pwd.getpwuid(os.stat(dirname).st_uid).pw_name
+        except Exception:
+            username = info['username']
+
+    # Change to read only.
+    try:
+        os.chmod(fname, 0o660)
+    except Exception as e:
+        sys.stderr.write(str(e) + '\n')
+        sys.stderr.flush()
+
+    # Copy the original file to a pasteur backup.
+    if os.environ['USER'] == 'pasteur':
+        pasteur_path = fname.replace('raw_data', 'pasteur_backup')
+        dname = os.path.dirname(pasteur_path)
+        if not os.path.exists(dname):
+            os.makedirs(dname)
+        try:
+            shutil.copy(fname, pasteur_path)
+        except IOError as e:
+            if (username not in readonly_files):
+                readonly_files[username] = set()
+            readonly_files[username].add(dirname)
+            return
+
+    # Get a lock on the mzml file to prevent interference.
+    try:
+        fid = open(fname, 'r')
+        fcntl.flock(fid, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError:
+        fid.close()
+        msg = '%s already converting in another process\n' % fname
+        sys.stderr.write(msg)
+        sys.stderr.flush()
+        return
+
+    # Convert to HDF and store the entry in the database.
+    try:
+        hdf5_file = fname.replace('mzML', 'h5')
+        
+        #Get Acquisition Time Here
+        acquisition_time = get_acqtime_from_mzml(fname)
+        mzml_to_hdf(fname, hdf5_file, True)
+        os.chmod(hdf5_file, 0o660)
+        description = info['experiment'] + ' ' + info['path']
+        ctime = os.stat(fname).st_ctime
+        # Add this to the database unless it is already there
+        try:
+            runs = retrieve('lcmsrun', username='*', mzml_file=fname)
+        except Exception:
+            runs = list()
+        if not len(runs):
+            run = LcmsRun(name=info['path'], description=description,
+                          username=info['username'],
+                          experiment=info['experiment'],
+                          creation_time=ctime, last_modified=ctime,
+                          mzml_file=fname, hdf5_file=hdf5_file, acquisition_time = acquisition_time)
+            store(run)
+    except Exception as e:
+        if 'exists but it can not be written' in str(e):
+            if (username not in readonly_files):
+                readonly_files[username] = set()
+            readonly_files[username].add(dirname)
+        else:
+            msg = traceback.format_exception(*sys.exc_info())
+            msg.insert(0, 'Cannot convert %s' % fname)
+            dat = info['username']
+            if (dat not in other_errors):
+                other_errors[info['username']] = list()
+            other_errors[info['username']].append('\n'.join(msg))
+        sys.stderr.write(str(e) + '\n')
+        sys.stderr.flush()
+        try:
+            os.remove(hdf5_file)
+        except:
+            pass
+    finally:
+        fid.close()
+
 
 def update_metatlas(directory):
     """
@@ -45,110 +150,9 @@ def update_metatlas(directory):
     # need to have processes sync files and errors through a manager
     # readonly_files = defaultdict(set)
     # other_errors = defaultdict(list)
-    directory = os.path.abspath(directory)
-    manager = mp.Manager()
-    readonly_files = manager.dict() # username | a set of files associated with them
-    other_errors = manager.dict() # info with user | list of error messages
-
-    # Helper function, converts a single file
-    def convert(file):
-        ind = file[0]
-        fname = file[1]
-
-        sys.stdout.write('(%s of %s): %s\n' % (ind + 1, len(new_files), fname))
-        sys.stdout.flush()
-
-        # Get relevant information about the file.
-        info = patt.match(os.path.abspath(fname))
-        if info:
-            info = info.groupdict()
-        else:
-            sys.stdout.write("Invalid path name: %s\n" % fname)
-            sys.stdout.flush()
-            return
-        dirname = os.path.dirname(fname)
-        try:
-            username = pwd.getpwuid(os.stat(fname).st_uid).pw_name
-        except OSError:
-            try:
-                username = pwd.getpwuid(os.stat(dirname).st_uid).pw_name
-            except Exception:
-                username = info['username']
-
-        # Change to read only.
-        try:
-            os.chmod(fname, 0o660)
-        except Exception as e:
-            sys.stderr.write(str(e) + '\n')
-            sys.stderr.flush()
-
-        # Copy the original file to a pasteur backup.
-        if os.environ['USER'] == 'pasteur':
-            pasteur_path = fname.replace('raw_data', 'pasteur_backup')
-            dname = os.path.dirname(pasteur_path)
-            if not os.path.exists(dname):
-                os.makedirs(dname)
-            try:
-                shutil.copy(fname, pasteur_path)
-            except IOError as e:
-                if (username not in readonly_files):
-                    readonly_files[username] = set()
-                readonly_files[username].add(dirname)
-                return
-
-        # Get a lock on the mzml file to prevent interference.
-        try:
-            fid = open(fname, 'r')
-            fcntl.flock(fid, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except IOError:
-            fid.close()
-            msg = '%s already converting in another process\n' % fname
-            sys.stderr.write(msg)
-            sys.stderr.flush()
-            return
-
-        # Convert to HDF and store the entry in the database.
-        try:
-            hdf5_file = fname.replace('mzML', 'h5')
-            
-            #Get Acquisition Time Here
-            acquisition_time = get_acqtime_from_mzml(fname)
-            mzml_to_hdf(fname, hdf5_file, True)
-            os.chmod(hdf5_file, 0o660)
-            description = info['experiment'] + ' ' + info['path']
-            ctime = os.stat(fname).st_ctime
-            # Add this to the database unless it is already there
-            try:
-                runs = retrieve('lcmsrun', username='*', mzml_file=fname)
-            except Exception:
-                runs = list()
-            if not len(runs):
-                run = LcmsRun(name=info['path'], description=description,
-                              username=info['username'],
-                              experiment=info['experiment'],
-                              creation_time=ctime, last_modified=ctime,
-                              mzml_file=fname, hdf5_file=hdf5_file, acquisition_time = acquisition_time)
-                store(run)
-        except Exception as e:
-            if 'exists but it can not be written' in str(e):
-                if (username not in readonly_files):
-                    readonly_files[username] = set()
-                readonly_files[username].add(dirname)
-            else:
-                msg = traceback.format_exception(*sys.exc_info())
-                msg.insert(0, 'Cannot convert %s' % fname)
-                dat = info['username']
-                if (dat not in other_errors):
-                    other_errors[info['username']] = list()
-                other_errors[info['username']].append('\n'.join(msg))
-            sys.stderr.write(str(e) + '\n')
-            sys.stderr.flush()
-            try:
-                os.remove(hdf5_file)
-            except:
-                pass
-        finally:
-            fid.close()
+    #directory = os.path.abspath(directory)
+    
+    
 
     # Sleep a random amount of time to avoid running at the same time as
     # other processes.
