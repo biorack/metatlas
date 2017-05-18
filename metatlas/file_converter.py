@@ -100,7 +100,7 @@ def convert(file):
     # Convert to HDF and store the entry in the database.
     try:
         hdf5_file = fname.replace('mzML', 'h5')
-        
+        sys.stderr.write('hdf5file is: %s'%hdf5_file)
         #Get Acquisition Time Here
         acquisition_time = get_acqtime_from_mzml(fname)
         mzml_to_hdf(fname, hdf5_file, True)
@@ -171,32 +171,32 @@ def update_metatlas(directory):
         if mzml_file.replace('.mzML', '.h5') not in valid_files:
             new_files.append(mzml_file)
 
+    if len(new_files) > 0:
+        sys.stdout.write('Found %s files\n' % len(new_files))
+        sys.stdout.flush()
+        files = list(enumerate(new_files))
 
-    sys.stdout.write('Found %s files\n' % len(new_files))
-    sys.stdout.flush()
-    files = list(enumerate(new_files))
-
-    if sys.version_info[0] < 3: 
-        pool = mp.Pool(min(NPROC,len(new_files)))
-        pool.map(convert, files)
-        pool.close()
-        pool.join()
-    else:
-        # #Python3
-        with mp.Pool(min(NPROC,len(new_files))) as pool:
+        if sys.version_info[0] < 3: 
+            pool = mp.Pool(min(NPROC,len(new_files)))
             pool.map(convert, files)
+            pool.close()
+            pool.join()
+        else:
+            # #Python3
+            with mp.Pool(min(NPROC,len(new_files))) as pool:
+                pool.map(convert, files)
 
 
-    if readonly_files:
-        for (username, dirnames) in readonly_files.items():
-            body = ("Please log in to NERSC and run 'chmod 777' on the "
-                   "following directories:\n%s" % ('\n'.join(dirnames)))
-            send_mail('Metatlas Files are Inaccessible', username, body)
+        if readonly_files:
+            for (username, dirnames) in readonly_files.items():
+                body = ("Please log in to NERSC and run 'chmod 777' on the "
+                       "following directories:\n%s" % ('\n'.join(dirnames)))
+                send_mail('Metatlas Files are Inaccessible', username, body)
 
-    if other_errors:
-        for (username, errors) in other_errors.items():
-            body = 'Errored files found while loading in Metatlas files:\n\n%s' % '\n********************************\n'.join(errors)
-            send_mail('Errors loading Metatlas files', username, body)
+        if other_errors:
+            for (username, errors) in other_errors.items():
+                body = 'Errored files found while loading in Metatlas files:\n\n%s' % '\n********************************\n'.join(errors)
+                send_mail('Errors loading Metatlas files', username, body)
     sys.stdout.write('Done!\n')
     sys.stdout.flush()
 
