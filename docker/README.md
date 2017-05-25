@@ -1,5 +1,13 @@
 These notes are a rambling work in progress.  Both how to run container, run at NERSC, and learning Docker.
 
+
+To run an interactive job on Cori, simply use "salloc" as normal, with the addition of "--qos=interactive" to indicate the interactive partition. You can use the usual "-C haswell" or "-C KNL" flags to select node type, as well as all other regular salloc flags ("-t", etc.). Currently only quad cache mode is available on the KNL node type.
+
+```
+salloc --qos=interactive -C haswell -t 04:00:00 --account=m2650
+```
+
+
 from a denovo login node
 ssh denovo
 module load shifter
