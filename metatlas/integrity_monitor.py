@@ -44,7 +44,15 @@ def check_metatlas():
     Checks for invalid runs.
     """
     invalid_runs = find_invalid_runs(_override=True)
-
+    # Currently there exists a bug (?) where it shows empty files.
+    # It could be a result of the database remembering invalid files
+    # that were removed. Since there is no file associated with these runs,
+    # there will not be any filename.
+    # This can technically be fixed by running:
+    # grouped = grouped.filter(False, str_list)
+    # followed by a run to remove all usernames without any files,
+    # but does not directly solve the problem.
+    # Leaving this to someone in the future to resolve.
     if invalid_runs:
         grouped = defaultdict(list)
         for run in invalid_runs:
