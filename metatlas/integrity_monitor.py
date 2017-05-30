@@ -343,7 +343,7 @@ def run_checker():
         directory = s[-2]
         files[usr].add(directory)
 
-    print 'detected a total of %d files!\n' % len(valid_files)
+    print 'detected a total of %d file(s)!\n' % len(valid_files)
 
     for username in files.keys():
         print 'observing files from', username
@@ -363,7 +363,7 @@ def run_checker():
             csvs.append(info[0])
             html_tables.append((info[1][0], info[1][1]))
         print 'attempting to send email'
-        send_run_email('mtrinh', csvs, html_tables)
+        send_run_email(username, csvs, html_tables)
         print '\n'  # for formatting purposes
 
     print 'finished task in %s seconds' % (time.time() - start_time)
