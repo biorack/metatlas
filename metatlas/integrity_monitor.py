@@ -280,7 +280,7 @@ def send_run_email(username, run_file, tables, standard='ABMBA'):
 
     template = "Hello %s,\n\n" % username
     template += "Here is a daily summary of your runs with %s from the last 3 days.\n" % standard
-    template += "0's in the table indicate that the particular value was not detected."
+    template += "0's in the table indicate that the particular value was not detected.\n"
     template += "Attached is a more verbose summary of the run in a .csv file.\n"
     # add more to the template if needed?
 
