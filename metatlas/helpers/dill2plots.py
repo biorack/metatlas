@@ -1169,7 +1169,13 @@ def get_reference_msms_spectra(frag_refs, compound_name = '', polarity = '', pre
         if (fr.compound[0].name == compound_name) and (fr.frag_references[0].polarity == polarity ):# and (abs(fr.frag_references[0].precursor_mz - precursor_mz)<0.2):
             spectra.append( [(m.mz, m.intensity) for m in fr.frag_references[0].mz_intensities] )
     return spectra
+
+# def get_idenficications_with_fragrefs():
+#     """
+#     Select all CompoundIdentifications that have a fragmentation reference
+#     """
     
+
 def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [],include_groups = [],exclude_groups = [], output_loc = []):
     output_loc = os.path.expandvars(output_loc)    
     if not os.path.exists(output_loc):

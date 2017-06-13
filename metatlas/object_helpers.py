@@ -159,33 +159,29 @@ class Workspace(object):
         self.seen = dict()
         Workspace.instance = self
 
-# <<<<<<< HEAD
-#     @property
-#     def db(self):
-#         if self._db:
-#             try:
-#                 if self._db.engine.name == 'mysql':
-#                     r = self._db.query('show tables')
-#                 else:
-#                     self._db.query('SELECT name FROM sqlite_master WHERE type = "table"')
-#                 return self._db
-#             except Exception:
-#                 print('Reconnecting to database')
-#         self._db = dataset.connect(self.path)#,engine_kwargs={'implicit_returning':False})
-# =======
     def get_connection(self):
-        """Get a single-use connection to the database."""
-        db = dataset.connect(self.path)
-# >>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
-        if 'sqlite' in self.path:
-            os.chmod(self.path[10:], 0o775)
-        return db
+        """
+        Get a re-useable connection to the database.
+
+        Each activity that queries the database needs to have this function preceeding it.
+
+        """
+        try:
+            if self.db.engine.name == 'mysql':
+                r = self.db.query('show tables')
+            else:
+                self.db.query('SELECT name FROM sqlite_master WHERE type = "table"')
+        except Exception:
+            print('Reconnecting to database')
+            self.db = dataset.connect(self.path)
+            if 'sqlite' in self.path:
+                os.chmod(self.path[10:], 0o775)
 
     def convert_to_double(self, table, entry):
         """Convert a table column to double type."""
-        db = self.get_connection()
+        self.get_connection()
         try:
-            db.query('alter table `%s` modify `%s` double' % (table, entry))
+            self.db.query('alter table `%s` modify `%s` double' % (table, entry))
         except Exception as e:
             print(e)
 
@@ -197,31 +193,26 @@ class Workspace(object):
         self._link_updates = defaultdict(list)
         self._updates = defaultdict(list)
         self._inserts = defaultdict(list)
-# <<<<<<< HEAD
-#         self._db = None
-#         db = self.db
-# =======
-# >>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
         for obj in objects:
             self._get_save_data(obj, _override)
-        db = self.get_connection()
+        self.get_connection()
         for (table_name, updates) in self._link_updates.items():
-            if table_name not in db:
+            if table_name not in self.db:
                 continue
-            with db:
+            with self.db:
                 for (uid, prev_uid) in updates:
-                    db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
+                    self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, updates) in self._updates.items():
             if '_' not in table_name and table_name not in db:
-                db.create_table(table_name, primary_id='unique_id',
+                self.db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
                 self.fix_table(table_name)
-            with db:
+            with self.db:
                 for (uid, prev_uid) in updates:
-                    db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
+                    self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, inserts) in self._inserts.items():
             if '_' not in table_name and table_name not in db:
-                db.create_table(table_name, primary_id='unique_id',
+                self.db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
                 self.fix_table(table_name)
             db[table_name].insert_many(inserts)
@@ -229,20 +220,16 @@ class Workspace(object):
         # adding self._db = None fixes but lots of connections get openened
 
     def create_link_tables(self, klass):
-# <<<<<<< HEAD
-#         """
-
-#         """
-# =======
-        """Create a link table in the database of the given trait klass"""
-# >>>>>>> 9772421833f2dfd2060de53cf739b44df943acfd
+        """
+        Create a link table in the database of the given trait klass
+        """
         name = self.table_name[klass]
-        db = self.get_connection()
+        self.get_connection()
         for (tname, trait) in klass.class_traits().items():
             if isinstance(trait, MetList):
                 table_name = '_'.join([name, tname])
                 if table_name not in db:
-                    db.create_table(table_name)
+                    self.db.create_table(table_name)
                     link = dict(source_id=uuid.uuid4().hex,
                                 head_id=uuid.uuid4().hex,
                                 target_id=uuid.uuid4().hex,
@@ -319,8 +306,10 @@ class Workspace(object):
         """Retrieve an object from the database."""
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
-        db = self.get_connection()
-        if object_type not in db:
+        # with dataset.connect(self.path) as db:
+        # self.db = 
+        self.get_connection()
+        if object_type not in self.db:
             if not klass:
                 raise ValueError('Unknown object type: %s' % object_type)
             object_type = self.tablename_lut[klass]
@@ -359,7 +348,7 @@ class Workspace(object):
         if not clauses:
             query = query.replace(' where ()', '')
         try:
-            items = [i for i in db.query(query)]
+            items = [i for i in self.db.query(query)]
         except Exception as e:
             if 'Unknown column' in str(e):
                 keys = [k for k in klass.class_traits().keys()
@@ -367,7 +356,7 @@ class Workspace(object):
                 raise ValueError('Invalid column name, valid columns: %s' % keys)
             else:
                 raise(e)
-
+        #print(query+'\n')
         # print('tables:')
         # print([t for t in db.query('show tables')])
         items = [klass(**i) for i in items]
@@ -378,14 +367,14 @@ class Workspace(object):
         for (tname, trait) in items[0].traits().items():
             if isinstance(trait, List):
                 table_name = '_'.join([object_type, tname])
-                if table_name not in db:
+                if table_name not in self.db:
                     for i in items:
                         setattr(i, tname, [])
                     continue
                 querystr = 'select * from `%s` where source_id in ("' % table_name
                 querystr += '" , "'.join(uids)
-                # print(querystr)
-                result = db.query(querystr + '")')
+                #print(querystr+'\n')
+                result = self.db.query(querystr + '")')
                 sublist = defaultdict(list)
                 for r in result:
                     stub = Stub(unique_id=r['target_id'],
@@ -400,6 +389,7 @@ class Workspace(object):
                 i.prev_uid = 'origin'
             i._changed = False
         items.sort(key=lambda x: x.last_modified)
+        
         return items
 
     def remove(self, object_type, **kwargs):
@@ -438,7 +428,7 @@ class Workspace(object):
                 clauses.append('%s = "%s"' % (key, value))
         query += ' and '.join(clauses)
         query += ')'
-        db = self.get_connection()
+        self.get_connection()
         if not clauses:
             query = query.replace(' where ()', '')
         # check for lists items that need removal
@@ -448,16 +438,16 @@ class Workspace(object):
             sub_query = 'delete from `%s` where source_id in ("%s")'
             for (tname, trait) in klass.class_traits().items():
                 table_name = '%s_%s' % (object_type, tname)
-                if not uids or table_name not in db:
+                if not uids or table_name not in self.db:
                     continue
                 if isinstance(trait, MetList):
                     table_query = sub_query % (table_name, '", "'.join(uids))
                     try:
-                        db.query(table_query)
+                        self.db.query(table_query)
                     except Exception as e:
                         print(e)
         try:
-            db.query(query)
+            self.db.query(query)
         except Exception as e:
             if 'Unknown column' in str(e):
                 keys = [k for k in klass.class_traits().keys()
@@ -488,7 +478,7 @@ class Workspace(object):
         ids = defaultdict(list)
         username = getpass.getuser()
         attr = 'head_id' if all_versions else 'unique_id'
-        db = self.get_connection()
+        self.get_connection()
         for obj in objects:
             if not override and obj.username != username:
                 continue
@@ -500,7 +490,7 @@ class Workspace(object):
                     subname = '%s_%s' % (name, tname)
                     ids[subname].append(getattr(obj, attr))
         for (table_name, uids) in ids.items():
-            if table_name not in db:
+            if table_name not in self.db:
                 continue
             query = 'delete from `%s` where %s in ("'
             query = query % (table_name, attr)
