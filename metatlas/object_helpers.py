@@ -203,7 +203,7 @@ class Workspace(object):
                 for (uid, prev_uid) in updates:
                     self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, updates) in self._updates.items():
-            if '_' not in table_name and table_name not in db:
+            if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
                 self.fix_table(table_name)
@@ -211,13 +211,12 @@ class Workspace(object):
                 for (uid, prev_uid) in updates:
                     self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
         for (table_name, inserts) in self._inserts.items():
-            if '_' not in table_name and table_name not in db:
+            if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
                                      primary_type='String(32)')
                 self.fix_table(table_name)
-            db[table_name].insert_many(inserts)
+            self.db[table_name].insert_many(inserts)
             # print(table_name,inserts)
-        # adding self._db = None fixes but lots of connections get openened
 
     def create_link_tables(self, klass):
         """
@@ -228,13 +227,13 @@ class Workspace(object):
         for (tname, trait) in klass.class_traits().items():
             if isinstance(trait, MetList):
                 table_name = '_'.join([name, tname])
-                if table_name not in db:
+                if table_name not in self.db:
                     self.db.create_table(table_name)
                     link = dict(source_id=uuid.uuid4().hex,
                                 head_id=uuid.uuid4().hex,
                                 target_id=uuid.uuid4().hex,
                                 target_table=uuid.uuid4().hex)
-                    db[table_name].insert(link)
+                    self.db[table_name].insert(link)
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
@@ -358,7 +357,7 @@ class Workspace(object):
                 raise(e)
         #print(query+'\n')
         # print('tables:')
-        # print([t for t in db.query('show tables')])
+        # print([t for t in self.db.query('show tables')])
         items = [klass(**i) for i in items]
         uids = [i.unique_id for i in items]
         if not items:
@@ -434,7 +433,7 @@ class Workspace(object):
         # check for lists items that need removal
         if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
             uid_query = query.replace('delete ', 'select unique_id ')
-            uids = [i['unique_id'] for i in db.query(uid_query)]
+            uids = [i['unique_id'] for i in self.db.query(uid_query)]
             sub_query = 'delete from `%s` where source_id in ("%s")'
             for (tname, trait) in klass.class_traits().items():
                 table_name = '%s_%s' % (object_type, tname)
@@ -496,7 +495,7 @@ class Workspace(object):
             query = query % (table_name, attr)
             query += '" , "'.join(uids)
             query += '")'
-            db.query(query)
+            self.db.query(query)
         print('Removed %s object(s)' % len(objects))
 
 
