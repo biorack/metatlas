@@ -1,6 +1,12 @@
 These notes are a rambling work in progress.  Both how to run container, run at NERSC, and learning Docker.
 
 
+To run an interactive on Genepool (until UGE is discontinued) do
+
+```
+qlogin -l exclusive.c -l h_rt=12:00:00 -l ram.c=416G
+```
+
 To run an interactive job on Cori, simply use "salloc" as normal, with the addition of "--qos=interactive" to indicate the interactive partition. You can use the usual "-C haswell" or "-C KNL" flags to select node type, as well as all other regular salloc flags ("-t", etc.). Currently only quad cache mode is available on the KNL node type.
 
 ```
