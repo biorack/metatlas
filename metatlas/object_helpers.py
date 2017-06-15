@@ -172,7 +172,6 @@ class Workspace(object):
             else:
                 self.db.query('SELECT name FROM sqlite_master WHERE type = "table"')
         except Exception:
-            print('Reconnecting to database')
             self.db = dataset.connect(self.path)
             if 'sqlite' in self.path:
                 os.chmod(self.path[10:], 0o775)
@@ -217,6 +216,7 @@ class Workspace(object):
                 self.fix_table(table_name)
             self.db[table_name].insert_many(inserts)
             # print(table_name,inserts)
+        self.db = None
 
     def create_link_tables(self, klass):
         """
@@ -234,6 +234,7 @@ class Workspace(object):
                                 target_id=uuid.uuid4().hex,
                                 target_table=uuid.uuid4().hex)
                     self.db[table_name].insert(link)
+        self.db = None
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
@@ -455,6 +456,7 @@ class Workspace(object):
             else:
                 raise(e)
         print('Removed')
+        self.db = None
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
         """Remove a list of objects from the database."""
@@ -497,6 +499,7 @@ class Workspace(object):
             query += '")'
             self.db.query(query)
         print('Removed %s object(s)' % len(objects))
+        self.db = None
 
 
 def format_timestamp(tstamp):
