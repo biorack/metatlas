@@ -736,22 +736,30 @@ class PactolusPlotter():
         # everything
         plt.show()
 
-    # updates internal depth value
     def radio_update(self):
+        """
+        Updates internal depth value.
+        """
         a = int(self.depth_button.value_selected)
         self.depth_limit = a
         self.pact_spectrum.set_depth_limit(a)
 
-    # helper function if the values are not normalized to [0, 1]
     def normalize(self):
+        """
+        A helper function for colors if the color values are not normalized to [0, 1].
+        Matplotlib prefers a range from [0, 1] instead of the usual 256 range which
+        is why we need this.
+        """
         norm = []
         normalizer = matcolors.Normalize(vmin=0, vmax=255)
         for color in self.border_colors:
             norm.append(tuple(normalizer(color)))
         return norm
 
-    # updates internal neutralization values
     def check_update(self):
+        """
+        Updates internal neutralization values.
+        """
         # Hacky way of obtaining the status of the buttons
         self.neutralizations = []
         for i in self.neut_buttons.lines:
@@ -792,10 +800,8 @@ class PactolusPlotter():
 
 class PactolusSpectrum():
     """
-    A big ol' graph containing a bunch of information.
-    Will update this doc string so it's actually usable
-    Give me a retention time, a tree file, raw data, and a depth limit and
-    I'll go to town.
+    A PactolusSpectrum contains information on what to plot, the graph itself, and
+    images of the various compounds.
     Some values are not initialized until plot is called.
     """
     def __init__(self, rt, tree, ds, colors, border_colors, fig, ax,
@@ -890,6 +896,8 @@ class PactolusSpectrum():
         # Figure out the neutralizations used
         if not any(self.neutralizations):
             self.frag_text.set_text("No neutralizations selected!")
+
+        # Start 
         tmp_selected = np.ones(len(self.depth[0]))
         for i in range(len(self.depth)):
             if self.neutralizations[i]:
@@ -905,7 +913,7 @@ class PactolusSpectrum():
 
     def plot(self, quantile=True, quantile_param=.85, nlarge = 10):
         """
-        Plot the information I was given.
+        Plot the data I was given.
         If quantile, grabs peak by quantile_param.
         Otherwise, grab n largest values by nlarge.
         """
@@ -978,11 +986,13 @@ class PactolusSpectrum():
         self.fig.canvas.callbacks.connect('pick_event', lambda event: self.on_pick(event))
         self.recolor()
 
-    # Event to connect to the figure.
-    # Displays fragments found in a peak and retains them after clicking others.
-    # Supports deselecting.
-    # Can filter by neutralization and depth.
     def on_pick(self, event):
+        """
+        Event to connect to the figure.
+        Displays fragments found in a peak and retains them after clicking others.
+        Supports deselecting.
+        Can filter by neutralization and depth.
+        """
         try:
             thisline = event.artist
             ind = event.ind[0]
