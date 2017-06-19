@@ -52,6 +52,12 @@ pip install . --upgrade
 chmod -R 750 /project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages/
 chgrp -R metatlas /project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages/
 
+#some helpful tools for converting openmsi files
+# pip install pyimzml
+# pip install pyteomics
+# pip install lxml
+# pip install h5py --upgrade
+
 #Set permissions for binaries:
 chmod -R 750 /project/projectdirs/metatlas/bin/
 chgrp -R metatlas /project/projectdirs/metatlas/bin/
