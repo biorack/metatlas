@@ -8,6 +8,8 @@ import qgrid
 from metatlas.helpers import metatlas_get_data_helper_fun as mgd
 
 from matplotlib import pyplot as plt
+from matplotlib import colors as matcolors
+from matplotlib.widgets import RadioButtons, CheckButtons
 import pandas as pd
 import os
 import tables
@@ -15,7 +17,6 @@ import pickle
 import h5py
 import dill
 import numpy as np
-import h5py
 from requests import Session
 import os.path
 import glob as glob
@@ -34,6 +35,9 @@ from rdkit.Chem import rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
 from rdkit.Chem.Draw import IPythonConsole
 from IPython.display import SVG,display
+
+from PIL import Image
+
 
 def import_network(network_file='network_v1p0.cyjs'):
     with open(network_file) as data_file:    
@@ -530,3 +534,498 @@ def submit_all_jobs(target_directory,computer='edison',usr=None,pwd=None):
         r = s.post("https://newt.nersc.gov/newt/queue/%s/"%computer, {"jobfile": a})
     return s
 #############################    
+
+
+#############################
+# Pactolus Plotter Code
+#############################
+
+
+class FragmentManager:
+    """
+    A Fragment Manager contains methods that make finding and drawing fragments easier.
+    """
+    def __init__(self, data_masses, tree, mass_tol, border_colors):
+        self.data_masses = data_masses
+        self.tree = tree
+        self.mass_tol = mass_tol
+        self.border_colors = border_colors
+        
+        # hard coded neut vals
+        self.neut_vals = [2.0151015067699998,1.00727646677,-0.00054857990946,
+             -2.0151015067699998,-1.00727646677,0.00054857990946]
+
+    def find_matching_neutralized_frags(self):
+        """
+        Returns a list of fragments found for all possible neutralizations.
+        """
+        # map function to subtract items in array by b
+        shift = np.vectorize(lambda a, b: a - b)
+        list_frags = []
+        # 6 different neutralizations
+        for i in range(len(self.neut_vals)):
+            peaks = shift(self.data_masses, self.neut_vals[i])
+            frags = self.find_matching_fragments(peaks, self.tree, self.mass_tol)
+            list_frags.append(frags[0]) # only care about the first element aka sets of matching fragments
+        return list_frags
+
+    # For now, lifting code from pactolus
+    def find_matching_fragments(self, data_masses, tree, mass_tol):
+        """
+        Find node sets in a tree whose mass is within mass_tol of a data_mz value
+
+        :param data_masses: numpy 1D array, float, *neutralized* m/z values of data from an MS2 or MSn scan
+        :param tree: numpy structured array as output by FragDag
+        :param mass_tol: precursor m/z mass tolerance
+
+        :return: matching_frag_sets, list of lists; len is same as data_mzs; sublists are idxs to rows of tree that match
+        :return: unique_matching_frags, numpy 1d array, a flattened numpy version of unique idxs in matching_frag_sets
+        """
+        # start_idx is element for which inserting data_mz directly ahead of it maintains sort order
+        start_idxs = np.searchsorted(tree['mass_vec'], data_masses-mass_tol)
+
+        # end_idx is element for which inserting data_mz directly after it maintains sort order
+        #  found by searching negative reversed list since np.searchshorted requires increasing order
+        length = len(tree)
+        end_idxs = length - np.searchsorted(-tree['mass_vec'][::-1], -(data_masses+mass_tol))
+
+        # if the start and end idx is the same, the peak is too far away in mass from the data and will be empty
+        matching_frag_sets = [range(start, end) for start, end in zip(start_idxs, end_idxs)]  # if range(start, end)]
+
+        # flattening the list
+        unique_matching_frags = np.unique(np.concatenate(matching_frag_sets))
+
+        # Returning both the flat index array and the sets of arrays is good:
+        #       matching_frag_sets makes maximizing the MIDAS score easy
+        #       unique_matching_frags makes calculating the plausibility score easy
+        return matching_frag_sets, unique_matching_frags
+    
+    def borderize(self, imgs, neut_i):
+        """
+        Given a list of PILs, add a border to all of them.
+        The border color indicates what neutralization was applied to obtain that data.
+        Returns the list of new PILs. Does not modify in place.
+        """
+        delta = []
+        for i in imgs:
+            if i:
+                old_im = i
+                old_size = old_im.size
+                new_size = (old_size[0] + 6, old_size[1] + 6)
+                new_im = Image.new("RGB", new_size, color=self.border_colors[neut_i])
+                post = ((new_size[0]-old_size[0])/2, (new_size[1]-old_size[1])/2)
+                new_im.paste(old_im, post)
+                delta.append(new_im)
+            else:
+                delta.append(False)
+        return delta
+
+    def draw_structure_fragment(self, fragment_idx, myMol_w_Hs):
+        """
+        Modified code from Ben.
+        Draws a structure fragment and returns an annotated fragment with its depth.
+        """
+        from copy import deepcopy
+        fragment_atoms = np.where(self.tree[fragment_idx]['atom_bool_arr'])[0]
+        depth_of_hit = np.sum(self.tree[fragment_idx]['bond_bool_arr'])
+        mol2 = deepcopy(myMol_w_Hs)
+        # Now set the atoms you'd like to remove to dummy atoms with atomic number 0
+        fragment_atoms = np.where(self.tree[fragment_idx]['atom_bool_arr']==False)[0]
+        for f in fragment_atoms:
+            mol2.GetAtomWithIdx(f).SetAtomicNum(0)
+
+        # Now remove dummy atoms using a query
+        mol3 = Chem.DeleteSubstructs(mol2, Chem.MolFromSmarts('[#0]'))
+        mol3 = Chem.RemoveHs(mol3)
+        # You get what you are looking for
+        return self.mol_to_img(mol3, depth_of_hit),depth_of_hit
+
+    def mol_to_img(self, mol, depth_of_hit, molSize=(200,120),kekulize=True):
+        """
+        Helper function to draw_structure_fragment.
+        Returns an image of the mol as a PIL with an annotated depth.
+        """
+        mc = Chem.Mol(mol.ToBinary())
+        if kekulize:
+            try:
+                Chem.Kekulize(mc)
+            except:
+                mc = Chem.Mol(mol.ToBinary())
+        if not mc.GetNumConformers():
+            rdDepictor.Compute2DCoords(mc)
+        return Chem.Draw.MolToImage(mc, molSize, kekulize, legend='depth : %d' % depth_of_hit)
+
+
+class PactolusPlotter():
+    """
+    Links buttons, graphs, and other interactive functions together.
+    """
+    def __init__(self, df, data_loc, index = 0, quantile=True, quantile_param=.85, nlarge = 10):
+        # internal variables
+        self.border_colors = [(130, 224, 170), ( 248, 196, 113 ), ( 195, 155, 211 ),
+                 (29, 131, 72), (154, 125, 10), (99, 57, 116)]
+        self.colors = np.array([[0, 0, 0, 1], [0, 0, 1, 1], [1.,0.,0.,1.]])
+        self.tree_file = df['filename_y'][index]
+        # DOES NOT INCLUDE THE DIRECTORY!! Must be supplied, unfortunately.
+        self.data_file = df['filename_x'][0].replace('pactolus_results_', '')
+        self.data_loc = data_loc
+        self.tree = self.get_tree_data()
+        self.data = self.get_dataset()
+        self.depth_limit = 3
+
+        self.fig = plt.figure(figsize=(12,12))
+        self.ax = self.fig.add_subplot(1,1,1)
+
+        # TO BE FIXED: Generate / user selected info
+        # This should be the row that we are checking in the pactolus results db
+        # Should be modular information, along with the tree and data_file
+        # For now, we'll keep this fixed and have someone else update these values.
+        self.index = index
+
+        self.tol = df['ppm'][self.index]
+        self.rt = df['retention_time'][self.index]    
+   
+        # get modules
+
+        # Spectrum graph with MS2.
+        self.pact_spectrum = PactolusSpectrum(self.rt, self.tree, self.data, self.colors, self.border_colors,
+                            self.fig, self.ax, self.depth_limit, self.tol)
+        # The plot takes in if we are using quantile, the quantile threshold
+        # and the number for nlargest, whichever is applicable.
+        self.pact_spectrum.plot(quantile, quantile_param, nlarge)
+        
+        # Text to tell the user about their row data.
+        data_string = ("Polarity: %d \n"
+            "Precursor intensity: %.2e \n"
+            "Precursor m/z: %.5f \n"
+            "Retention time: %.5f \n"
+            "Pactolus score: %.5f \n"
+            "Molecule name: %s") % (df["polarity"][index],
+               df["precursor intensity"][index],
+               df["precursor_mz"][index],
+               self.rt,
+               df["score"][index],
+               df["name"][index])
+        plt.figtext(0.225, 0.85, data_string, bbox=dict(facecolor='white', pad=10.0))
+        # hard code annotation for text
+        plt.figtext(0.32, 0.955, "Summary Information", size='large')
+
+        # Button to control depth of pactolus hits
+        self.depth_spot = plt.axes([0.075, 0.75, 0.10, 0.10])
+        self.depth_spot.set_title('Depth Limit')
+        self.depth_button = RadioButtons(self.depth_spot, ('3', '4', '5'))
+        self.depth_button.on_clicked(lambda x: self.radio_update())
+        
+        self.normalized_colors = self.normalize()
+
+        # Buttons to control what neutralizations get shown
+        init_buttons = (True, False, False, False, False, False)
+        self.neut_spot = plt.axes([0.65, 0.75, 0.25, 0.20]) # hard coding atm
+        self.neut_spot.set_title('Neutralizations')
+        self.neut_buttons = CheckButtons(self.neut_spot,
+                                 ('Proton w/ H: +2.008', 'Proton: +1.007', 'Electron: -0.0005',
+                                 'Proton w/ H: -2.008', 'Proton: -1.007', 'Electron: +0.0005',),
+                                  init_buttons)
+        self.neut_buttons.on_clicked(lambda x: self.check_update())
+        for line_tup in zip(range(len(self.neut_buttons.lines)),self.neut_buttons.lines):
+            for line in line_tup[1]:
+                line.set_color(self.normalized_colors[line_tup[0]])
+
+        # TO-DO: Make it so it does not plot right away with all the widgets
+        # There will be other plots in the future so we don't want to just plot
+        # everything
+        plt.show()
+
+    # updates internal depth value
+    def radio_update(self):
+        a = int(self.depth_button.value_selected)
+        self.depth_limit = a
+        self.pact_spectrum.set_depth_limit(a)
+
+    # helper function if the values are not normalized to [0, 1]
+    def normalize(self):
+        norm = []
+        normalizer = matcolors.Normalize(vmin=0, vmax=255)
+        for color in self.border_colors:
+            norm.append(tuple(normalizer(color)))
+        return norm
+
+    # updates internal neutralization values
+    def check_update(self):
+        # Hacky way of obtaining the status of the buttons
+        self.neutralizations = []
+        for i in self.neut_buttons.lines:
+            self.neutralizations.append(i[0].get_visible())
+        self.pact_spectrum.set_neut(self.neutralizations)
+
+    def get_dataset(self, in_place=False, want_data=True):
+        """
+        Gets the dataset from the raw data file.
+        Saves to its own dataset automatically if in_place is true.
+        Returns the dataset if want_data is true.
+        """
+        extension = '.h5'
+        filename = os.path.join(self.data_loc,self.data_file+extension)
+
+        if not os.path.isfile(filename):
+            raise ValueError('Invalid file!')
+        data = mgd.df_container_from_metatlas_file(filename)
+        if in_place:
+            self.data = data
+        if want_data:
+            return data
+
+    def get_tree_data(self, in_place=False, want_data=True):
+        """
+        Gets the tree file data from the tree file.
+        Saves to its own tree automatically if in_place is true.
+        Return the tree if want_data is true.
+        """
+        with h5py.File(self.tree_file,'r') as tr:
+            first = tr.keys()[0]
+            k = tr[first].keys()[0]
+            tree = tr[first][k][:]
+        if in_place:
+            self.tree = tree
+        if want_data:
+            return tree
+
+class PactolusSpectrum():
+    """
+    A big ol' graph containing a bunch of information.
+    Will update this doc string so it's actually usable
+    Give me a retention time, a tree file, raw data, and a depth limit and
+    I'll go to town.
+    Some values are not initialized until plot is called.
+    """
+    def __init__(self, rt, tree, ds, colors, border_colors, fig, ax,
+                 depth_limit = 3, tol = 1, neutralizations = [True, False, False, False, False, False]):
+        # Passed in params
+        # retention time
+        self.rt = rt
+        # peak colors
+        self.colors = colors
+        # color for borders
+        self.border_colors = border_colors
+        # depth limit
+        self.depth_limit = depth_limit
+        # ppm tolerance
+        self.tol = tol
+        # neutralizations in place
+        self.neutralizations = neutralizations
+    
+        # Generated internal vars
+        self.dataset = ds
+        self.tree = tree
+        self.fig = fig
+        self.ax = ax
+        #self.ax.set_ylim(0, 2e6) # make this modular later
+        
+        # Generated by plot
+        self.ploted_peaks = None
+        self.mz_peaks = None
+        # mz_peaks converted to a list, used for a helper
+        self.peaks_list = None
+        # list of lists of images and depths linked together.
+        # they are not ordered but they are lined up so iterating by index works
+        # index refers to a particular neutralization's info on the graph
+        # the lists inside the list refer to peaks: an image and a depth if applicable.
+        # images are False and depth = -1 if a fragment was not found
+        self.img = []
+        self.depth = []
+        # Post-processed images ready for display
+        self.preload_images = []
+        # A numpy array that indicates the colors a peak should display.
+        # 0: Unselected (Black)
+        # 1: Selected (Blue)
+        # 2: No fragment found (Red)
+        # Also is used to display images.
+        self.selected = None
+
+        # used for on_pick
+        self.selected_peaks = []
+        self.xoffset = 200 + 10 # hard coded for now
+        self.yoffset = 120 + 10 # hard coded for now
+        
+        # frag text is constantly updated to show what is the mz peak
+        self.frag_text = plt.figtext(0.225, 0.8, "No fragment selected.", bbox=dict(facecolor='white', pad=10.0))
+
+    # setter function for neutralizations
+    def set_neut(self, neutralizations):
+        self.neutralizations = neutralizations
+        # re-draw plot
+        self.recolor()
+
+    # setter function for depth limit
+    def set_depth_limit(self, dl):
+        self.depth_limit = dl
+        # re-draw plot
+        self.recolor()
+
+    def reset(self):
+        """
+        Set generated variables to their default blanks.
+        """
+        self.ploted_peaks = None
+        self.mz_peaks = None
+        self.mz_peaks_list = None
+        self.img = []
+        self.depth = []
+        self.selected = None
+        self.preload_images = []
+
+    def recolor(self):
+        """
+        Takes in a depth and neutralization and colors peaks without any matches red
+        and adjust values accordingly. Should reset the matcher.
+        """
+        # Remove all selected peaks and prepared images
+        for tup in self.selected_peaks:
+            if tup:
+                self.selected_peaks.remove(tup)
+                for img in tup[1]:
+                    img.remove()
+        self.frag_text.set_text("Recoloring the spectrum.")
+
+        # Figure out the neutralizations used
+        if not any(self.neutralizations):
+            self.frag_text.set_text("No neutralizations selected!")
+        tmp_selected = np.ones(len(self.depth[0]))
+        for i in range(len(self.depth)):
+            if self.neutralizations[i]:
+                s = (np.asarray(self.depth[i]) <= 0) # don't include peaks without frags or that include parent as frag
+                b = (np.asarray(self.depth[i]) > self.depth_limit) # don't include peaks above a depth
+                invalids = np.logical_or(s, b)
+                tmp_selected = np.multiply(tmp_selected, invalids)
+                # make unmatched peaks red
+
+        tmp_selected = (tmp_selected > 0).astype(int) * 2
+        self.ploted_peaks.set_color(self.colors[tmp_selected])
+        self.selected = tmp_selected
+
+    def plot(self, quantile=True, quantile_param=.85, nlarge = 10):
+        """
+        Plot the information I was given.
+        If quantile, grabs peak by quantile_param.
+        Otherwise, grab n largest values by nlarge.
+        """
+        self.reset()
+        dataset = self.dataset
+        
+        # Grab MS2 data
+        ms2_df = dataset['ms2_pos']
+        mz = ms2_df[ms2_df.rt==self.rt]['mz']
+        intensity = ms2_df[ms2_df.rt==self.rt]['i']
+        
+        # Gather peaks
+        self.mz_peaks = pd.concat([mz, intensity], axis=1)
+
+        # do it on quantile or by a fixed number?
+        if quantile:
+            self.mz_peaks = self.mz_peaks[self.mz_peaks.i >= self.mz_peaks.i.quantile(quantile_param)]
+        else:
+            self.mz_peaks = self.mz_peaks.nlargest(nlarge, 'i')
+
+        # plot the peaks
+        self.ploted_peaks = plt.vlines(self.mz_peaks['mz'], 0, self.mz_peaks['i'], picker=5, linewidths=2)
+
+        self.mz_peaks = self.mz_peaks['mz']
+        # convert to a list
+        self.peaks_list = self.mz_peaks.tolist()
+
+        # convert frags
+        fragger = FragmentManager(self.mz_peaks, self.tree, self.tol, self.border_colors)
+        match_frag_sets = fragger.find_matching_neutralized_frags()
+        frag = []
+        # this should be modular and defined elsewhere
+        
+        mol_inchi = df['inchi'][0]
+        mol = Chem.MolFromInchi(mol_inchi, sanitize=False)
+        mol_h = Chem.rdmolops.AddHs(mol)
+
+        # calculate by set since grouped by peak
+        for frag_list in match_frag_sets:
+            ilist = []
+            dlist = []
+            for frag_set in frag_list:
+                if frag_set:
+                    tup = fragger.draw_structure_fragment(frag_set[0], mol_h)
+                    ilist.append(tup[0])
+                    dlist.append(tup[1])
+                else:
+                    ilist.append(False)
+                    dlist.append(-1)
+            self.img.append(ilist)
+            self.depth.append(dlist)
+
+        # a list of lists which contain annotated images
+        tmp_index = -1
+        for img_set in range(len(self.img)):
+            tmp_index += 1
+            self.preload_images.append(fragger.borderize(self.img[img_set], tmp_index))
+
+        # grab only applicable peaks
+
+        # Reposition the graph so it'll look a bit better
+        pos1 = self.ax.get_position()
+        pos2 = [pos1.x0 - 0.05, 0.32,  pos1.width + .05, pos1.height / 2.0]
+        self.ax.set_position(pos2)
+        self.ax.set_title('Pactolus Results')
+        self.ax.set_xlabel('m/z')
+        self.ax.set_ylabel('intensity')
+        plt.ticklabel_format(style='sci', axis='y',scilimits=(0,0))
+        self.fig.canvas.draw_idle()
+        self.fig.canvas.callbacks.connect('pick_event', lambda event: self.on_pick(event))
+        self.recolor()
+
+    # Event to connect to the figure.
+    # Displays fragments found in a peak and retains them after clicking others.
+    # Supports deselecting.
+    # Can filter by neutralization and depth.
+    def on_pick(self, event):
+        try:
+            thisline = event.artist
+            ind = event.ind[0]
+            mz = self.peaks_list[ind]
+            # don't redraw if there wasn't a fragment
+            if self.selected[ind] == 2:
+                self.frag_text.set_text("Fragments were not detected at mz = %.5f." % mz)
+                self.fig.canvas.draw_idle()
+                return
+
+            x = 0
+            y = 140
+            tup = [peak for peak in self.selected_peaks if peak[0] == mz]
+
+            # check if user is unselecting a peak
+            if tup:
+                tup = tup[0]
+                self.selected_peaks.remove(tup)
+                for img in tup[1]:
+                    img.remove()
+                self.selected[ind] = 0
+            else:
+                imgs = []
+                yoff = 0
+                xoff = 0
+                c = 0
+                for i, j, k in zip(self.preload_images, self.depth, self.neutralizations):
+                    if k and i[ind] and (j[ind] >= 1 and j[ind] <= self.depth_limit):
+                        c += 1
+                        imgs.append(self.fig.figimage(i[ind], xo=x + 25 + (self.xoffset * xoff),
+                                                      yo=y + (self.yoffset * yoff), zorder=20))
+                        xoff += 1
+                        if xoff == 3:
+                            xoff = 0
+                            yoff = -1
+                if c == 1:
+                    self.frag_text.set_text("Obtained a fragment at mz = %.5f." % mz)
+                else:
+                    self.frag_text.set_text("Obtained fragments at mz = %.5f." % mz)
+                tup = (mz, imgs)
+                self.selected_peaks.append(tup)
+                self.selected[ind] = 1
+            thisline.set_color(self.colors[self.selected])
+            self.fig.canvas.draw_idle()
+        except Exception as e:
+            self.ax.set_title(e)
