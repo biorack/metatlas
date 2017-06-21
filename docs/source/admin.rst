@@ -31,6 +31,11 @@ The remote path (from python) is
 The local path (at NERSC) is:
 ``mysql meta_atlas -u meta_atlas_admin -h scidb1.nersc.gov -p``.
 
+To get a table to a file, do this:
+``mysql meta_atlas -u meta_atlas_admin -h scidb1.nersc.gov -p < cmd.sql > /dev/null``
+
+where cmd.sql is something like this:
+``select * from compounds;``
 
 You can use the database on a local machine or a machine not at NERC. Here are the steps
 
