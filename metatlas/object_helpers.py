@@ -97,7 +97,7 @@ def set_docstring(cls):
         elif descr == 'enum':
             descr = '{' + ', '.join(trait.values) + '}'
         doc += '%s: %s\n' % (tname, descr)
-        help_text = trait.get_metadata('help')
+        help_text = trait.help#get_metadata('help')
         if not help_text:
             help_text = '%s value.' % tname
         help_text = help_text.strip()

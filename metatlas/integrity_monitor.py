@@ -1,3 +1,4 @@
+# import argparse
 import smtplib
 import mimetypes
 import itertools
@@ -34,6 +35,7 @@ threshold = 1e5
 # change standard if needed. This is ABMBA
 std = 229.981116596
 std_neg = 227.966564596
+std_name = 'ABMBA'
 
 run_times = {}
 save_path = '/project/projectdirs/metatlas/projects/istd_logs/'
@@ -84,7 +86,7 @@ def yield_ppm(dataset, name, threshold, tolerance, mz_t, rt_max):
     return bounded
 
 
-def get_ppms(dataset, tolerance=15, mz_std=229.981116596, threshold=1e4):
+def get_ppms(dataset, tolerance=15, std=229.981116596, std_neg=227.966564596, threshold=1e4,rt_max=rt_max):
     """
     Given some dataset, gets applicable ppm and returns the resulting data.
     Can change various parameters if desired:
@@ -95,20 +97,18 @@ def get_ppms(dataset, tolerance=15, mz_std=229.981116596, threshold=1e4):
     # # if neg file, then use std_neg: ms1_pos should be empty if so
     ms1 = 'ms1_pos'
     ms2 = 'ms2_pos'
+    mz_t = std
     data = dataset[ms1]
     if data.empty:
         mz_t = std_neg
         ms1 = 'ms1_neg'
-        ms2 = 'ms2_neg'
-    else:
-        mz_t = mz_std
+        ms2 = 'ms2_neg'        
 
     # Looking through ms1_pos
     # MS 1
     data = dataset[ms1]
 
     ms1_max_i = -1
-    rt_max = -1
 
     # get the max i and rt at max i
     filtered = data[(abs(data['mz'] - mz_t) * 1e6) <= tolerance * mz_t]
@@ -141,11 +141,17 @@ def get_ppms(dataset, tolerance=15, mz_std=229.981116596, threshold=1e4):
             ms1_max_i, rt_max)
 
 
-def data_verify(file_name):
-    dataset = ma_data.df_container_from_metatlas_file(file_name)
-    s = file_name.split('/')
+def data_verify(file_name,tolerance=tolerance,std=std,std_neg=std_neg,threshold=threshold,rt_max=-1):
+    if type(file_name) == str:
+        hdf5_name = file_name
+    else:
+        #its a metatlas object
+        hdf5_name = file_name.hdf5_file
+
+    dataset = ma_data.df_container_from_metatlas_file(hdf5_name)
+    s = hdf5_name.split('/')
     samples_dict = {}
-    ppms = get_ppms(dataset, tolerance, std, threshold)
+    ppms = get_ppms(dataset, tolerance=tolerance, std=std,std_neg=std_neg, threshold=threshold,rt_max=rt_max)
     samples_dict['file name'] = s[-1]
     samples_dict['ms1 ppm'] = ppms[0]['ppm'].tolist()
     samples_dict['ms1 intensity'] = ppms[0]['i'].tolist()
@@ -162,7 +168,12 @@ def data_verify(file_name):
 
     samples_dict['ms1 max intensity'] = ppms[3]
     samples_dict['rt at max intensity'] = ppms[4]
-    samples_dict['acquisition timestamp'] = run_times[u'/global%s' % file_name]
+    if type(file_name) == str:
+        samples_dict['acquisition timestamp'] = run_times[u'/global%s' % file_name]
+    else:
+        #its a metatlas object
+        samples_dict['acquisition timestamp'] = file_name.acquisition_time
+        
     samples_dict['acquisition time'] = datetime.fromtimestamp(
         samples_dict['acquisition timestamp']).strftime('%Y-%m-%d %H:%M:%S')
 
@@ -266,7 +277,7 @@ def convert_to_html(df):
     return html
 
 
-def send_run_email(username, run_file, tables, standard='ABMBA'):
+def send_run_email(username, run_file, tables, standard=std_name):
     """
     Sends an email of the run(s) done and packages the generated CSV(s).
     """
@@ -333,6 +344,18 @@ def send_run_email(username, run_file, tables, standard='ABMBA'):
 
 # Run this to start the task
 def run_checker():
+    # global std
+    # global std_neg
+    # global std_name
+    # parser = argparse.ArgumentParser(description="Parameters for custom compounds")
+    # parser.add_argument('-mz_pos', '--mz_pos', type=float, required=False)
+    # parser.add_argument('-mz_neg', '--mz_neg', type=float, required=False)
+    
+    # args = parser.parse_args()
+    # if args.mz_pos is not None:
+    #     std = args.mz_pos
+    #     std_neg = args.mz_neg
+
     print 'starting task'
     start_time = time.time()
     origin_directory = '/project/projectdirs/metatlas/raw_data/'
@@ -382,10 +405,7 @@ def run_checker():
 #   user a general report of the data collected.
 if __name__ == '__main__':
     check_metatlas()
-
     runs = metob.retrieve('lcmsruns', username='*')
-
     for i in runs:
         run_times[i.hdf5_file] = i.acquisition_time
-
     run_checker()
