@@ -36,7 +36,7 @@ threshold = 1e5
 std = 229.981116596
 std_neg = 227.966564596
 std_name = 'ABMBA'
-
+rt_max = -1
 run_times = {}
 save_path = '/project/projectdirs/metatlas/projects/istd_logs/'
 
