@@ -37,6 +37,8 @@ pip install . --upgrade
 ## these might be necessary
 #pip install gspread
 
+#pip install dask[complete]
+
 #Install qgrid from https://github.com/quantopian/qgrid
 # clone to ../metatlas/projects
 # pip install .
