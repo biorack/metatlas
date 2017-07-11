@@ -98,7 +98,6 @@ def chromplotplus(kwargs):
     ##Options
     warnings.simplefilter('ignore', FutureWarning)
     share_y = kwargs['share_y']
-    save = kwargs['save']
     group = kwargs['group']
     
     #Subplot size and seperations
@@ -116,14 +115,15 @@ def chromplotplus(kwargs):
     data = norm['data']
 
     #Groups
-    groups = {}
-    if group == 'page' or group == 'index':
-        sorted(data, key=lambda d: d['group'])
+    groups = {} # stores "group name: [index of first data of group, # of data belonging to group]"
+    if group == 'page' or group == 'index' or group == 'sort':
+        data = sorted(data, key=lambda d: d['group'])
         for i, d in enumerate(data):
             if groups.get(d['group']) == None:
                 groups[d['group']] = [i, 1]
             else:
                 groups[d['group']][1] += 1
+        
         
     #Subplot arrangement
     n_plots_list = []
@@ -131,7 +131,7 @@ def chromplotplus(kwargs):
     n_cols_list = []
     
     if group == 'page':
-        for g in groups:
+        for g in sorted(groups.keys()):
             n_plots_list.append(groups[g][1])
             n_rows_list.append(int(np.ceil(np.sqrt(13.0*(groups[g][1])/11))))
             n_cols_list.append(int(np.ceil((groups[g][1])/float(n_rows_list[-1]))))
@@ -153,14 +153,12 @@ def chromplotplus(kwargs):
     x_values = np.arange(x_range[0],  x_range[1] + 1, (x_range[1] - x_range[0]) / hash_n)
     y_values = np.arange((y_range[0]/np.power(10, y_mag)),  (y_range[1]/np.power(10, y_mag)) + 1, ((y_range[1]/np.power(10, y_mag)) - (y_range[0]/np.power(10, y_mag))) / hash_m)
     
-    #Time keeper
-    to = time()
-        
     def plot():
         #Plot creation
         fig = plt.figure()
         ax = plt.subplot(111)
         plt.setp(ax, 'frame_on', False)
+        plt.ioff()
         ax.set_ylim([sub_y - y_offset, (n_cols)*y_offset + (y_offset - sub_y)])
         ax.set_xlim([sub_x - x_offset, (n_rows)*x_offset + (x_offset - sub_x)])
         ax.set_xticks([])
@@ -171,17 +169,17 @@ def chromplotplus(kwargs):
         #Group title
         if group == 'page':
             plt.title("\n".join(wrap(g,54)), size = 12., weight='bold')
-            
-        #Letter generator for labeling groups
-        if group == 'index':
-            lg = letter_gen()
     
         #Coordinate lists for lines to be drawn
         boxes = []
         hashes = []
         rt_edges = []
         rt_peaks = []      
-            
+        
+        #Letter generator for labeling groups
+        if group == 'index':
+            lg = letter_gen()
+    
         c = 0 #counter for plots
         for j in np.arange(n_cols - 1, -1, -1):
             for i in np.arange(n_rows):
@@ -202,7 +200,7 @@ def chromplotplus(kwargs):
                     
                     for k,v in groups.items():
                         if v is not None and v[0] == c:
-                            groups[k] = None
+                            groups[k][0] = None
                     continue
                 
                 #Retention Times
@@ -227,7 +225,7 @@ def chromplotplus(kwargs):
                               [(0, 0), (sub_x, 0), (sub_x, sub_y), (0, sub_y), (0, 0)]])
                 
                 #Subplot Titles
-                ax.annotate("\n".join(wrap(d[c]['name'],54)), 
+                ax.annotate("\n".join(wrap(d[c]['name'],48)), 
                             (x_delta + .5*sub_x, y_delta + sub_y + .1*(y_offset - sub_y)), 
                             ha='center', size = 8./(n_cols+.25), weight='bold')
                 
@@ -290,22 +288,20 @@ def chromplotplus(kwargs):
         ax.add_collection(rc)
         ax.add_collection(pc)
         
-        if save:
-            plt.rcParams['pdf.fonttype'] = 42
-            plt.rcParams['pdf.use14corefonts'] = True
-            plt.rcParams['text.usetex'] = False
-            pdf.savefig()
-            plt.close()
-        else:
-            plt.plot()
+        plt.rcParams['pdf.fonttype'] = 42
+        plt.rcParams['pdf.use14corefonts'] = True
+        plt.rcParams['text.usetex'] = False
+        pdf.savefig()
+        plt.close()
+        
             
     with PdfPages(file_name) as pdf:
         if group == 'page':
-            for i, g in enumerate(groups):
+            for i, g in enumerate(sorted(groups.keys())):
                 n_rows = n_rows_list[i]
                 n_cols = n_cols_list[i]
                 n_plots = n_plots_list[i]
-                d = [d for d in data if d['group'] == g]
+                d = data[groups[g][0]:groups[g][0] + groups[g][1]]
                 
                 plot()
         else:
@@ -314,6 +310,4 @@ def chromplotplus(kwargs):
             n_plots = n_plots_list[0]
             d = data
             
-            plot()            
-                   
-    print(time() - to)
+            plot()
