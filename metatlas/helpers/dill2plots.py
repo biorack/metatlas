@@ -18,6 +18,7 @@ import pickle
 import dill
 import numpy as np
 import re
+import json
 from matplotlib import pyplot as plt
 
 from rdkit import Chem
@@ -1159,16 +1160,36 @@ def plot_errorbar_plots(df,output_loc=''):
         #f.clear()
         plt.close(f)#f.clear()
 
-def get_reference_msms_spectra(frag_refs, compound_name = '', polarity = '', precursor_mz = 0.0):
-    spectra = []
-    if polarity ==0:
-        polarity = 'negative'
-    else:
-        polarity = 'positive'
+def frag_refs_to_json(json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', name = 'frag_refs', save = True):
+    ids = metob.retrieve('CompoundIdentification',username='*')
+    frag_refs = [cid for cid in ids if cid.frag_references]
+
+    data = {'head_id': [], 
+            'inchi_key': [],
+            'neutralized_inchi_key': [],
+            'neutralized_2d_inchi_key': [],
+            'polarity': [],
+            'collision_energy': [],
+            'technique': [],
+            'precursor_mz': [],
+            'mz_intensities': []}
+
     for fr in frag_refs:
-        if (fr.compound[0].name == compound_name) and (fr.frag_references[0].polarity == polarity ):# and (abs(fr.frag_references[0].precursor_mz - precursor_mz)<0.2):
-            spectra.append( [(m.mz, m.intensity) for m in fr.frag_references[0].mz_intensities] )
-    return spectra
+        data['head_id'].append(fr.frag_references[0].head_id), 
+        data['inchi_key'].append(fr.compound[0].inchi_key)
+        data['neutralized_inchi_key'].append(fr.compound[0].neutralized_inchi_key)
+        data['neutralized_2d_inchi_key'].append(fr.compound[0].neutralized_2d_inchi_key)
+        data['polarity'].append(fr.frag_references[0].polarity)
+        data['precursor_mz'].append(fr.frag_references[0].precursor_mz)
+        data['mz_intensities'].append([(m.mz, m.intensity) for m in fr.frag_references[0].mz_intensities])
+        data['collision_energy'].append(fr.frag_references[0].collision_energy)
+        data['technique'].append(fr.frag_references[0].technique)
+
+    if save:
+        with open(os.path.join(json_dir, name + '.json'), 'w') as text_file:
+            text_file.write(json.dumps(data))
+    else:
+        return json.dumps(data)
 
 # def get_idenficications_with_fragrefs():
 #     """
@@ -1176,7 +1197,7 @@ def get_reference_msms_spectra(frag_refs, compound_name = '', polarity = '', pre
 #     """
     
 
-def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [],include_groups = [],exclude_groups = [], output_loc = []):
+def make_identification_figure(msms_json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', msms_json_name = 'frag_refs', input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
     output_loc = os.path.expandvars(output_loc)    
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
@@ -1209,8 +1230,7 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
 
     print('loading preexisting compound identifications')
 
-    ids = metob.retrieve('CompoundIdentification',username='*')
-    frag_refs = [cid for cid in ids if cid.frag_references]
+    msms_refs = pd.read_json(os.path.join(msms_json_dir, msms_json_name + ".json"))
     
     print('getting spectra from files')
     
@@ -1245,13 +1265,13 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
 #             data[file_idx][compound_idx]['identification'].mz_references[0].polarity
 #             print data[file_idx][compound_idx]['data']['msms']
             if data[file_idx][compound_idx]['identification'].compound:
-                if data[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity == 'positive':
-                    my_polarity = 1
-                else:
-                    my_polarity = 0
-                ref_spec = get_reference_msms_spectra(frag_refs, 
-                                       compound_name = data[file_idx][compound_idx]['identification'].compound[0].name, 
-                                       polarity = my_polarity)
+#                 if data[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity == 'positive':
+#                     my_polarity = 1
+#                 else:
+#                     my_polarity = 0
+                ref_spec = [row for row in 
+                            msms_refs[(msms_refs['inchi_key'] == data[file_idx][compound_idx]['identification'].compound[0].inchi_key) & 
+                                     (msms_refs['polarity'] == data[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity)]['mz_intensities'].values.tolist()]
             else:
                 ref_spec = []
     #TODO: get the precursor_mz sorted out
@@ -1272,6 +1292,7 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
 #                 print data[file_idx][compound_idx]['identification'].compound[0].name, float(intensity[sx[0]]), float(min(ref_intensity))
                 ax.vlines(ref_mz,ref_zeros,[r*s for r in ref_intensity],colors='r',linewidth = 2)
 #                 print "we have reference spectra", len(ref_spec[0])
+            plt.ioff()
             plt.axhline()
             plt.tight_layout()
             L = plt.ylim()
@@ -1308,15 +1329,7 @@ def make_identification_figure(input_fname = '',input_dataset = [],include_lcmsr
             ax3.axis('off')
         #     plt.show()
             fig.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
-            #fig.clear()
-            plt.cla()
-            del fig
-            plt.close('all')#f.clear()
 
-
-    
-
-    
             
 def export_atlas_to_spreadsheet(myAtlas, output_filename='', input_type = 'atlas'):
     """
