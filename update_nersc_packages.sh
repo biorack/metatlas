@@ -12,6 +12,7 @@ git pull
 pip uninstall metatlas
 pip install . --upgrade
 
+#pip install matplotlib-venn
 #install cobrapy
 #pip install cobra
 #pip install python-libsbml
