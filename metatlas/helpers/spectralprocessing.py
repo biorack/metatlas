@@ -1,6 +1,100 @@
+import re
 import numpy as np
 from scipy.spatial.distance import pdist
 from scipy.cluster.hierarchy import linkage, fcluster
+
+
+def filter_frag_refs(metatlas_dataset, frag_refs, compound_idx, file_idx, condition):
+    """
+    Translates high-level condition into bitwise condition used to filter frag_refs 
+    before returning dataframe of frag_refs meeting condition
+    
+    Keywords and their effects:
+    inchi_key, 
+        metatlas_dataset inchi_key matches frag_refs inchi_key
+    neutralized_inchi_key, 
+        metatlas_dataset neutralized_inchi_key matches frag_refs neutralized_inchi_key
+    neutralized_2d_inchi_key, 
+        metatlas_dataset neutralized_2d_inchi_key matches frag_refs neutralized_2d_inchi_key
+    polarity,
+        metatlas_dataset polarity matches frag_refs polarity
+    rt, 
+        median of metatlas_dataset measured retention time falls between min and max metatlas_dataset reference retention time
+    precursor_mz, 
+        absolute difference of metatlas_dataset precursor_mz and frag_refs precursor_mz
+    collision_energy, 
+        metatlas_dataset collision_energy matches frag_refs collision_energy
+    
+    Example:
+    Filter by matching inchi_key or matching precursor_mz within .005 tolerance 
+    and measured retention time within reference window and polarity
+    '(inchi_key or (precursor_mz <= .005)) and rt and polarity'
+    
+    NOTE:
+    All comparisons done at high-level likely require parentheses for bitwise condition to function. If in doubt, add more parentheses.
+    
+    :param metatlas_dataset:
+    :param frag_refs: pandas dataframe, columns include 'inchi_key', 'neutralized_inchi_key', 'neutralized_2d_inchi_key', 'polarity', 'collision_energy', 'precursor_mz'
+    :param file_idx: index of file in metatlas_dataset
+    :param compound_idx: index of compound in metatlas_dataset
+    :param condition: string, high-level condition to be evaluated
+    
+    :return: subset of frag_refs meeting condition
+    """
+    
+    if 'data' in metatlas_dataset[file_idx][compound_idx]['data']['msms'].keys() and metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['mz'].size > 0:
+        
+        condition_list = list(filter(None, re.split(r"(\w+|[()])", condition)))
+        
+        for i in range(len(condition_list)):
+            #Identifiers
+            if metatlas_dataset[file_idx][compound_idx]['identification'].compound:
+                if condition_list[i] == "inchi_key":
+                    condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].compound[0].inchi_key == frag_refs['inchi_key'])"
+                
+                if condition_list[i] == "neutralized_inchi_key":
+                    condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].compound[0].neutralized_inchi_key == frag_refs['neutralized_inchi_key'])"
+                    
+                if condition_list[i] == "neutralized_2d_inchi_key":
+                    condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].compound[0].neutralized_2d_inchi_key == frag_refs['neutralized_2d_inchi_key'])"
+                    
+            else:
+                if condition_list[i] == "inchi_key":
+                    condition_list[i] = "(frag_refs.index != frag_refs.index)"
+                
+                if condition_list[i] == "neutralized_inchi_key":
+                    condition_list[i] = "(frag_refs.index != frag_refs.index)"
+                    
+                if condition_list[i] == "neutralized_2d_inchi_key":
+                    condition_list[i] = "(frag_refs.index != frag_refs.index)"
+                    
+            #Physical attributes
+            if condition_list[i] == "polarity":
+                condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity == frag_refs['polarity'])"
+                
+            if condition_list[i] == "rt":
+                    condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].rt_references[0].rt_min \
+                                         <= np.median(metatlas_dataset[file_idx][compound_idx]['data']['eic']['rt']) <= \
+                                         metatlas_dataset[file_idx][compound_idx]['identification'].rt_references[0].rt_max)"
+            
+            if condition_list[i] == "precursor_mz":
+                    condition_list[i] = "(np.abs(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['precursor_MZ'][0] - frag_refs['precursor_mz']))"
+            
+            if condition_list[i] == "collision_energy":
+                    condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['collision_energy'][0] == frag_refs['collision_energy'])"
+                    
+            #Logic
+            if condition_list[i] == "and":
+                    condition_list[i] = "&"
+            if condition_list[i] == "or":
+                    condition_list[i] = "|"
+            if condition_list[i] == "not":
+                    condition_list[i] = "~"
+                    
+        return frag_refs[eval(''.join(condition_list))]
+    
+    else:
+        return frag_refs[(frag_refs.index != frag_refs.index)]
 
 
 def sort_by_mz(a):
