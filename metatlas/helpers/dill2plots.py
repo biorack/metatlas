@@ -8,6 +8,7 @@ import os.path
 from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
+from metatlas.helpers import spectralprocessing as sp
 from metatlas import gui
 
 import qgrid
@@ -1135,6 +1136,24 @@ def file_with_max_precursor_intensity(data,compound_idx):
                         idx = i
     return idx,my_max
 
+def file_with_max_score(data, frag_refs, compound_idx, filter_by):
+    idx = []
+    my_max = 0
+    best_ref_spec = []
+    
+    for i,d in enumerate(data):
+        if 'data' in d[compound_idx]['data']['msms'].keys():
+            for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, i, filter_by).iterrows():
+                ref_mz = np.array(frag['mz_intensities']).T
+                data_mz = np.array([d[compound_idx]['data']['msms']['data']['mz'], d[compound_idx]['data']['msms']['data']['i']])
+                temp = sp.score_vectors_composite_dot(*sp.align_ms_vectors(data_mz, ref_mz, .05, 'sum'))
+                if temp > my_max:
+                    my_max = temp
+                    idx = i
+                    best_ref_spec = [frag['mz_intensities']]
+                
+    return idx, my_max, best_ref_spec
+
 def plot_errorbar_plots(df,output_loc=''):
     
     output_loc = os.path.expandvars(output_loc)
@@ -1197,7 +1216,7 @@ def frag_refs_to_json(json_dir = '/project/projectdirs/metatlas/projects/sharepo
 #     """
     
 
-def make_identification_figure(msms_json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', msms_json_name = 'frag_refs', input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
+def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', frag_json_name = 'frag_refs', file_select = 'score', input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
     output_loc = os.path.expandvars(output_loc)    
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
@@ -1230,13 +1249,24 @@ def make_identification_figure(msms_json_dir = '/project/projectdirs/metatlas/pr
 
     print('loading preexisting compound identifications')
 
-    msms_refs = pd.read_json(os.path.join(msms_json_dir, msms_json_name + ".json"))
+    frag_refs = pd.read_json(os.path.join(frag_json_dir, frag_json_name + ".json"))
     
     print('getting spectra from files')
     
-    
     for compound_idx in range(len(compound_names)):
-        file_idx, m = file_with_max_precursor_intensity(data,compound_idx)
+        if file_select == 'intensity':
+            file_idx, m = file_with_max_precursor_intensity(data,compound_idx)
+        if file_select == 'score':
+            ref_spec = []
+            if data[0][compound_idx]['identification'].compound:
+                file_idx, m, ref_spec = file_with_max_score(data, frag_refs, compound_idx, 'inchi_key  and rt and polarity')
+                s = m
+            if len(data[0][compound_idx]['data']['msms']['data']['precursor_MZ']) > 0 and len(ref_spec) == 0:
+                file_idx, m, ref_spec = file_with_max_score(data, frag_refs, compound_idx, '(precursor_mz <= .005) and rt and polarity')
+                s = m
+            if len(ref_spec) == 0:
+                file_idx, m = file_with_max_precursor_intensity(data,compound_idx)
+                s = 0
         if m:
             fig = plt.figure(figsize=(20,20))
         #     fig = plt.figure()
@@ -1269,9 +1299,12 @@ def make_identification_figure(msms_json_dir = '/project/projectdirs/metatlas/pr
 #                     my_polarity = 1
 #                 else:
 #                     my_polarity = 0
-                ref_spec = [row for row in 
-                            msms_refs[(msms_refs['inchi_key'] == data[file_idx][compound_idx]['identification'].compound[0].inchi_key) & 
-                                     (msms_refs['polarity'] == data[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity)]['mz_intensities'].values.tolist()]
+                if file_select == 'intensity':
+                    ref_spec = [row for row in 
+                                frag_refs[(frag_refs['inchi_key'] == data[file_idx][compound_idx]['identification'].compound[0].inchi_key) &
+                                         (frag_refs['polarity'] == data[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity)]['mz_intensities'].values.tolist()]
+
+            
             else:
                 ref_spec = []
     #TODO: get the precursor_mz sorted out
@@ -1325,6 +1358,8 @@ def make_identification_figure(msms_json_dir = '/project/projectdirs/metatlas/pr
             ax3.text(0,0.95,'%s %s'%(compound_names[compound_idx], data[file_idx][compound_idx]['identification'].mz_references[0].adduct),fontsize=12)
             ax3.text(0,0.9,'m/z theoretical = %5.4f, measured = %5.4f, %5.4f ppm difference'%(mz_theoretical, mz_measured, delta_ppm),fontsize=12)
             ax3.text(0,0.85,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=12)
+            if file_select == 'score':
+                ax3.text(0,0.80,'Score: %5.3f'%(s),fontsize=12)
             ax3.set_ylim(0.2,1.01)
             ax3.axis('off')
         #     plt.show()
