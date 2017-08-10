@@ -1,7 +1,19 @@
 import re
 import numpy as np
-from scipy.spatial.distance import pdist
-from scipy.cluster.hierarchy import linkage, fcluster
+
+def remove_ms_vector_noise(ms_v, threshold = 500):
+    return ms_v[:,ms_v[1,:] > threshold]
+
+def sort_by_mz(ms_v):
+    """
+    Returns ms vector sorted by m/z with associated intensity
+    
+    :param ms_v: numpy 2d array, ms_v[0] is m/z values and ms_v[1] is intensity values
+    
+    :return: numpy 2d array
+    """
+    
+    return ms_v[:,ms_v[0].argsort()]
 
 
 def filter_frag_refs(metatlas_dataset, frag_refs, compound_idx, file_idx, condition):
@@ -95,93 +107,122 @@ def filter_frag_refs(metatlas_dataset, frag_refs, compound_idx, file_idx, condit
     
     else:
         return frag_refs[(frag_refs.index != frag_refs.index)]
+    
 
-
-def sort_by_mz(a):
+def find_all_mz_matches(mz_v1, mz_v2, mz_tolerance):
     """
-    Returns array sorted by m/z with associated intensity
-    
-    :param a: numpy 2d array, v[0] is m/z values and v[1] is intensity values
-    
-    :return: numpy 2d array
+    Taken from pactolus and tweaked.
     """
     
-    return a.T[a.T[:, 0].argsort()].T
+    start_idxs = np.searchsorted(mz_v2, mz_v1-mz_tolerance)
+
+    end_idxs = len(mz_v2) - np.searchsorted(-mz_v2[::-1], -(mz_v1+mz_tolerance))
+
+    matches = [range(start, end) for start, end in zip(start_idxs, end_idxs)]
+
+    unique_matches = np.unique(np.concatenate(matches))
+
+    return matches, unique_matches
+    
+    
+def match_ms_vectors(ms_v1, ms_v2, mz_tolerance, resolve_by):
+    
+    assert(resolve_by == 'distance' or resolve_by == 'intensity')
+    
+    matches = find_all_mz_matches(ms_v1[0], ms_v2[0], mz_tolerance)[0]
+    
+    if resolve_by == 'distance':
+        match_matrix = np.fromfunction(np.vectorize(lambda i,j: np.absolute(ms_v1[0,int(i)] - ms_v2[0,int(j)]) if int(j) in matches[int(i)] else np.inf), (ms_v1[0].size, ms_v2[0].size)).astype(float)
+    if resolve_by == 'intensity':
+        match_matrix = np.fromfunction(np.vectorize(lambda i,j: ms_v1[1,int(i)] * ms_v2[1,int(j)] if int(j) in matches[int(i)] else -np.inf), (ms_v1[0].size, ms_v2[0].size)).astype(float)
+        
+    ms_v1_to_mv_v2 = np.array([np.nan for i in range(ms_v1[0].size)], dtype=float)
+    ms_v2_to_ms_v1 = np.array([np.nan for i in range(ms_v2[0].size)], dtype=float)
+    
+    ms_v1_resolved = set([])
+    ms_v2_resolved = set([])
+    
+    flat_match_matrix = match_matrix.ravel()
+ 
+    if resolve_by == 'distance':
+        masked_flat_match_matrix = np.ma.array(flat_match_matrix, mask=np.isinf(flat_match_matrix), fill_value=np.inf)
+        sorted_match_indices = np.dstack(np.unravel_index(np.ma.argsort(masked_flat_match_matrix), (ms_v1[0].size, ms_v2[0].size)))[0]
+    if resolve_by == 'intensity':
+        masked_flat_match_matrix = np.ma.array(flat_match_matrix, mask=np.isinf(flat_match_matrix), fill_value=-np.inf)
+        sorted_match_indices = np.dstack(np.unravel_index(np.ma.argsort(masked_flat_match_matrix, endwith=False)[::-1], (ms_v1[0].size, ms_v2[0].size)))[0]        
+    
+    for ms_v1_idx, ms_v2_idx in sorted_match_indices:
+        if np.isinf(match_matrix[ms_v1_idx, ms_v2_idx]):
+            break
+        
+        if ms_v1_idx not in ms_v1_resolved and ms_v2_idx not in ms_v2_resolved:
+            ms_v1_resolved.add(ms_v1_idx)
+            ms_v2_resolved.add(ms_v2_idx)
+            
+            ms_v1_to_mv_v2[ms_v1_idx] = ms_v2_idx
+            ms_v2_to_ms_v1[ms_v2_idx] = ms_v1_idx
+        
+    return ms_v1_to_mv_v2, ms_v2_to_ms_v1
 
 
-def align_ms_vectors(data, ref, distance, resolve="max"):
+def align_ms_vectors(ms_v1, ms_v2, mz_tolerance, resolve_by):
     """
-    Clusters combined m/z values from data and reference, 
-    creates 2xn data and reference vectors where n is the number of clusters with
-    index corresponding to a cluster, and assigns m/z values and intensities
-    to appropriate cluster index before returning data and reference vectors.
+    Finds one to one m/z matches within mz_tolerance between ms_v1 and ms_v2 resolving conflicts by resolve_by
+    and returns ms_v1_aligned and ms_v2_aligned formatted such that matches belong to the same components
+    and nonmatches belong to differing components.
     
-    Intensity values assigned to the same cluster index can be resolved in one of two ways:
-    max or sum of the intensities. 
-    M/z values assigned to the same cluster index use the m/z with the highest intensity.
+    :param ms_v1: numpy 2d array, ms_v1[0] is m/z and ms_v1[1] is intensities sorted by m/z
+    :param ms_v2: numpy 2d array, ms_v2[0] is m/z and ms_v2[1] is intensities sorted by m/z
+    :param mz_tolerance: float, limits matches to be within +/- mz_tolerance
+    :param resolve_by: ['intensity'], method to resolve conflicting matches into one to one matches
     
-    :param data: numpy 2d array, data[0] is m/z and data[1] is intensities sorted by m/z
-    :param ref: numpy 2d array, ref[0] is m/z and ref[1] is intensities sorted by m/z
-    :param distance: float, roughly +/- the size of the cluster
-    :param resolve: ['max', 'sum'], how to resolve same cluster intensity values
-    
-    :return data_vector: numpy 2d array, data_vector[0] is m/z values and data_vector[1] is intensity values
-    :return ref_vector: numpy 2d array, ref_vector[0] is m/z values and ref_vector[1] is intensity values
+    :return ms_v1_aligned: numpy 2d array, ms_v1_aligned[0] is m/z values and ms_v1_aligned[1] is intensity values,
+                                           matches + ms_v1 nonmatches + buffer of zeros of length ms_v2 nonmatches
+    :return ms_v2_aligned: numpy 2d array, ms_v2_aligned[0] is m/z values and ms_v2_aligned[1] is intensity values,
+                                           matches + buffer of zeros of length ms_v1 nonmatches + ms_v2 nonmatches
     """
     
-    assert(resolve == 'max' or resolve == 'sum')
+    #Find one to one matches within mz_tolerance
+    ms_v1_to_ms_v2, ms_v2_to_ms_v1 = match_ms_vectors(ms_v1, ms_v2, mz_tolerance, resolve_by)
     
-    #Trick clustering designed for 2D to use 1D by duplicating row
-    combined_mz = np.array([np.append(data[0], ref[0]), np.append(data[0], ref[0])])
+    #Create aligned ms vector variables
+    num_matches = ms_v1_to_ms_v2[~np.isnan(ms_v1_to_ms_v2)].size
+    vector_dim = ms_v1[0].size + ms_v2[0].size - num_matches
     
-    #Cluster combined m/z values
-    d = pdist(combined_mz.T)
-    y = linkage(d,'average')
-    clusters  = fcluster(y, distance, 'distance')
+    #Initialize aligned ms vectors
+    ms_v1_aligned = np.zeros([2, vector_dim])
+    ms_v2_aligned = np.zeros([2, vector_dim])
+    
+    #Assign matching ms vector components to same dimensions
+    ms_v1_aligned[:,:num_matches] = ms_v1[:,ms_v2_to_ms_v1[~np.isnan(ms_v2_to_ms_v1)].astype(int)]
+    ms_v2_aligned[:,:num_matches] = ms_v2[:,ms_v1_to_ms_v2[~np.isnan(ms_v1_to_ms_v2)].astype(int)]
+    
+    #Assign nonmatching ms vector components to differing dimensions
+    nonmatching_ms_v1 = ms_v1[:,np.isnan(ms_v1_to_ms_v2)]
+    nonmatching_ms_v2 = ms_v2[:,np.isnan(ms_v2_to_ms_v1)]
 
-    #Create data and ref vectors
-    data_vector = np.zeros([2, len(np.unique(clusters))])
-    ref_vector = np.zeros([2, len(np.unique(clusters))])
+    ms_v1_aligned[:,num_matches:num_matches + nonmatching_ms_v1[0].size] = nonmatching_ms_v1
+    ms_v2_aligned[:,num_matches + nonmatching_ms_v1[0].size:] = nonmatching_ms_v2
     
-    #Create counters to keep track of iteration through data and ref
-    r = 0
-    d = 0
-    
-    #Iterate over the clusters assigning m/z values 
-    #and intensities to appropriate cluster index
-    for i in range(clusters.size):
-        if data[0].size > d and data[0][d] == combined_mz[0][i]:
-            if data[1][d] > data_vector[1][clusters[i] - 1]:
-                data_vector[0][clusters[i] - 1] += data[0][d]
-                if resolve == 'max':
-                    data_vector[1][clusters[i] - 1] = data[1][d]
-            if resolve == 'sum':
-                data_vector[1][clusters[i] - 1] += data[1][d]
-            d += 1
-        if ref[0].size > r and ref[0][r] == combined_mz[0][i]:
-            if ref[1][r] > ref_vector[1][clusters[i] - 1]:
-                ref_vector[0][clusters[i] - 1] = ref[0][r]
-                if resolve == 'max': 
-                    ref_vector[1][clusters[i] - 1] = ref[1][r]
-            if resolve == 'sum':
-                ref_vector[1][clusters[i] - 1] += ref[1][r]
-            r += 1
-
-    return data_vector, ref_vector
+    return ms_v1_aligned, ms_v2_aligned
 
 
-def weigh_vector_by_mz_and_intensity(v, mz_power=0, intensity_power=.6):
+def align_nl_vectors(ms_v1_precusor_mz, ms_v2_precusor_mz, ms_v1, ms_v2, mz_tolerance, resolve_by):
+    return align_ms_vectors(np.array([ms_v1[0] - (ms_v1_precusor_mz - ms_v2_precusor_mz), ms_v1[1]]), ms_v2, mz_tolerance, resolve_by)
+
+
+def weigh_vector_by_mz_and_intensity(ms_v, mz_power=1, intensity_power=.6):
     """
     Returns (mz^mz_power)*(intensity^intensity_power) vector 
     
-    :param v: numpy 2d array, v[0] is m/z values and v[1] is intensity values
+    :param ms_v: numpy 2d array, ms_v[0] is m/z values and ms_v[1] is intensity values
     :param mz_power: float, power scales m/z
     :param intensity_power: float, power scales intensity
     
     :return: numpy 1d array
     """
     
-    return np.multiply(np.power(v[0], mz_power), np.power(v[1], intensity_power))
+    return np.multiply(np.power(ms_v[0], mz_power), np.power(ms_v[1], intensity_power))
 
 
 def calc_ratio_of_pairs(v1, v2):
@@ -233,7 +274,7 @@ def score_vectors_dot(v1, v2, normalize=True):
         return np.dot(v1, v2)
 
     
-def score_vectors_composite_dot(data_vector, ref_vector, mass_power=0, intensity_power=.6):
+def score_vectors_composite_dot(data_vector, ref_vector, mass_power=1, intensity_power=.6):
     """
     Returns "Composite" dot product score as defined in Table 1 of paper below
     
