@@ -11,6 +11,7 @@ from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas.helpers import spectralprocessing as sp
 from metatlas import gui
 
+from textwrap import fill, TextWrapper
 import qgrid
 import pandas as pd
 import os
@@ -1365,6 +1366,281 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
         #     plt.show()
             fig.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
 
+
+def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
+    file_idxs = []
+    ref_idxs = []
+    scores = []
+    aligned_samples = []
+    aligned_refs = []
+    
+    for file_idx in range(len(data)):
+        if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
+            for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
+                ref_mzi = np.array(frag['mz_intensities']).T
+                sample_mzi = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
+                
+                aligned_sample_mzi, aligned_ref_mzi = sp.align_ms_vectors(sp.sort_by_mz(sample_mzi), sp.sort_by_mz(ref_mzi), .05, 'intensity')
+                
+                scores.append(sp.score_vectors_composite_dot(aligned_sample_mzi, aligned_ref_mzi))
+                file_idxs.append(file_idx)
+                ref_idxs.append(ref_idx)
+                aligned_samples.append(aligned_sample_mzi)
+                aligned_refs.append(aligned_ref_mzi)
+                
+    
+    return zip(*sorted(zip(file_idxs, ref_idxs, scores, aligned_samples, aligned_refs), key=lambda l: l[2], reverse=True)[:5])
+            
+            
+def plot_msms_comparison(i, score, ax, precursor_intensity, sample_mzi, ref_mzi):
+    
+    shared = np.arange(np.nonzero(ref_mzi[0]==0)[0][0])
+    unshared_v1 = np.arange(np.nonzero(ref_mzi[0]==0)[0][0], np.nonzero(sample_mzi[0]==0)[0][0])
+    unshared_v2 = np.arange(np.nonzero(ref_mzi[0]==0)[0][-1] + 1, ref_mzi[0].size)
+    
+    sample_mz = sample_mzi[0,unshared_v1]
+    sample_zeros = np.zeros(sample_mzi[0,unshared_v1].shape)
+    sample_intensity = sample_mzi[1,unshared_v1]
+
+    ax.vlines(sample_mz, sample_zeros, sample_intensity, colors='r', linewidth = 1)
+
+    shared_mz = sample_mzi[0,shared]
+    shared_zeros = np.zeros(sample_mzi[0,shared].shape)
+    shared_sample_intensity = sample_mzi[1,shared]
+
+    ax.vlines(shared_mz, shared_zeros, shared_sample_intensity, colors='g', linewidth = 1)
+
+    most_intense_idxs = np.argsort(sample_mzi[1])[::-1]
+
+    if i == 0:
+        ax.set_title('%.4f'%score,fontsize=8,weight='bold')
+        ax.set_xlabel('m/z',fontsize=8,weight='bold')
+        ax.set_ylabel('intensity',fontsize=8,weight='bold')
+        ax.tick_params(axis='both', which='major', labelsize=6)
+
+        labels = [1.001e9]
+        for m in most_intense_idxs[:6]:
+            if np.min(np.abs(sample_mzi[0][m] - labels)) > 0.1 and sample_mzi[1][m] > 0.02 * np.max(sample_mzi[1]):
+                ax.annotate('%5.4f'%sample_mzi[0][m], 
+                            xy=(sample_mzi[0][m], 1.01*sample_mzi[1][m]),
+                            rotation = 90, 
+                            horizontalalignment = 'center', verticalalignment = 'left',
+                            size = 3)
+                labels.append(sample_mzi[0][m])
+ 
+    if ref_mzi[0].size > 0:
+        ref_scale = -1*np.max(sample_mzi[1]) / np.max(ref_mzi[1])
+        
+        ref_mz = ref_mzi[0,unshared_v2]
+        ref_zeros = np.zeros(ref_mzi[0,unshared_v2].shape)
+        ref_intensity = ref_scale*ref_mzi[1,unshared_v2]
+        shared_ref_intensity = ref_scale*ref_mzi[1,shared]
+    
+        ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth = 1)
+
+        ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth = 1)
+
+        ax.axhline()
+    ylim = ax.get_ylim()
+    ax.set_ylim(ylim[0], ylim[1]*1.2)
+            
+            
+def plot_structure(ax, compound, dimensions):
+    if compound:
+        inchi =  compound[0].inchi
+        myMol = Chem.MolFromInchi(inchi.encode('utf-8'))
+        myMol,neutralised = NeutraliseCharges(myMol)
+        image = Draw.MolToImage(myMol, size=(dimensions, dimensions))
+        ax.imshow(image)
+    ax.axis('off')            
+            
+            
+def plot_ema_compound_info(ax, compound_info):
+    wrapper = TextWrapper(width=28, break_on_hyphens=True)
+    
+    if compound_info.compound:
+        name = ['Name:', wrapper.fill(compound_info.compound[0].name)]
+        label = ['Label:', '']
+        formula = ['Formula:', compound_info.compound[0].formula]
+        polarity = ['Polarity:', compound_info.mz_references[0].detected_polarity]
+        neutral_mass = ['Monoisotopic Mass:', compound_info.compound[0].mono_isotopic_molecular_weight]
+        theoretical_mz = ['Theoretical M/Z:', compound_info.mz_references[0].mz]
+        adduct = ['Adduct:', compound_info.mz_references[0].adduct]
+        
+        cell_text = [name, label, formula, polarity, neutral_mass, theoretical_mz, adduct]
+        
+        ema_compound_info_table = ax.table(cellText=cell_text,
+                                           colLabels=['', 'EMA Compound Info'],
+                                           bbox=[0.0, 0.0, 1, 1], loc='top left')
+        ema_compound_info_table.scale(1, .7)
+        ema_compound_info_table.auto_set_font_size(False)
+        ema_compound_info_table.set_fontsize(5)
+        
+        cellDict = ema_compound_info_table.get_celld()
+        for i in range(len(cell_text)+1):
+            cellDict[(i,0)].set_width(0.3)
+            cellDict[(i,1)]._loc = 'center'
+            
+    ax.axis('off')
+            
+    
+def plot_eic(ax, data, file_idxs, compound_idx):
+    for file_idx in file_idxs:
+    
+        rt_min = data[file_idx][compound_idx]['identification'].rt_references[0].rt_min
+        rt_max = data[file_idx][compound_idx]['identification'].rt_references[0].rt_max
+        rt_peak = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
+
+        if len(data[file_idx][compound_idx]['data']['eic']['rt']) > 1:
+            x = np.asarray(data[file_idx][compound_idx]['data']['eic']['rt'])
+            y = np.asarray(data[file_idx][compound_idx]['data']['eic']['intensity'])
+
+            ax.plot(x, y, 'k-', linewidth=1.0, alpha=1.0)  
+            myWhere = np.logical_and(x>=rt_min, x<=rt_max )
+            ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=0.3)
+
+    ax.tick_params(labelbottom='off')
+    ax.tick_params(labelleft='off')
+    ax.axvline(rt_min, color='k', linewidth=1.0)
+    ax.axvline(rt_max, color='k', linewidth=1.0)
+    ax.axvline(rt_peak, color='r', linewidth=1.0)    
+    
+    
+def plot_score_and_ref_file(ax, score, ref):
+    ax.text(0.5, 1, '%.4f'%score,
+        weight='bold',
+        horizontalalignment='center',
+        verticalalignment='top',
+        fontsize=5,
+        transform=ax.transAxes)
+    
+    ax.text(0, .45, fill(ref, width=28),
+        horizontalalignment='left',
+        verticalalignment='center',
+        rotation='vertical',
+        fontsize=2,
+        transform=ax.transAxes)
+    
+    ax.axis('off')
+            
+            
+def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatlas/projects/sharepoint/frag_refs.json', input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
+    
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+    
+    if not input_dataset:
+        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
+    else:
+        data = input_dataset
+
+    #Filter runs from the metatlas dataset
+    if include_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_include_list(data, 'lcmsrun', include_lcmsruns)
+    if include_groups:
+        data = filter_lcmsruns_in_dataset_by_include_list(data, 'group', include_groups)
+        
+    if exclude_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_lcmsruns)
+    if exclude_groups:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_groups)
+
+    #Obtain compound and file names
+    compound_names = ma_data.get_compound_names(data)[0]
+    file_names = ma_data.get_file_names(data)
+    
+    #Obtain fragmentation references
+    frag_refs = pd.read_json(frag_refs_json)
+    
+    #Turn off interactive plotting
+    plt.ioff()
+    
+    #Iterate over compounds
+    for compound_idx in range(len(compound_names)):
+        top_five = []
+        file_idxs, ref_idxs, scores, aligned_samples, aligned_refs = [], [], [], [], []
+        
+        #Find 5 best file and reference pairs by score
+        if data[0][compound_idx]['identification'].compound:
+            top_five = top_five_scoring_files(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
+        if top_five:
+            file_idxs, ref_idxs, scores, aligned_samples, aligned_refs = top_five
+
+        #Plot if compound yields any scores
+        if scores:
+            
+            #Top 5 MSMS Spectra
+            ax1 = plt.subplot2grid((24, 24), (0, 0), rowspan=12, colspan=12)
+            ax2 = plt.subplot2grid((24, 24), (0, 12), rowspan=3, colspan=3)
+            ax2.tick_params(axis='both', length=2)
+            ax2.set_xticklabels([])
+            ax2.set_yticklabels([])
+            ax3 = plt.subplot2grid((24, 24), (3, 12), rowspan=3, colspan=3)
+            ax3.tick_params(axis='both', length=2)
+            ax3.set_xticklabels([])
+            ax3.set_yticklabels([])
+            ax4 = plt.subplot2grid((24, 24), (6, 12), rowspan=3, colspan=3)
+            ax4.tick_params(axis='both', length=2)
+            ax4.set_xticklabels([])
+            ax4.set_yticklabels([])
+            ax5 = plt.subplot2grid((24, 24), (9, 12), rowspan=3, colspan=3)
+            ax5.tick_params(axis='both', length=2)
+            ax5.set_xticklabels([])
+            ax5.set_yticklabels([])
+            
+            for i,(score,ax) in enumerate(zip(scores,[ax1, ax2, ax3, ax4, ax5])):
+                plot_msms_comparison(i, score, ax,
+                                     data[file_idxs[i]][compound_idx]['data']['msms']['data']['precursor_intensity'],
+                                     aligned_samples[i], aligned_refs[i])                    
+            
+            #EMA Compound Info
+            ax6 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
+            plot_ema_compound_info(ax6, data[file_idxs[0]][compound_idx]['identification'])
+            
+            #Next Best Scores and Filenames
+            ax7a = plt.subplot2grid((24, 24), (0, 15), rowspan=3, colspan=1)
+            ax7b = plt.subplot2grid((24, 24), (3, 15), rowspan=3, colspan=1)
+            ax7c = plt.subplot2grid((24, 24), (6, 15), rowspan=3, colspan=1)
+            ax7d = plt.subplot2grid((24, 24), (9, 15), rowspan=3, colspan=1)
+            
+            for i,(score,ax) in enumerate(zip(scores[1:],[ax7a, ax7b, ax7c, ax7d])):
+                plot_score_and_ref_file(ax, score, os.path.basename(data[file_idxs[i]][compound_idx]['lcmsrun'].hdf5_file))
+                
+            #Structure
+            ax8 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
+            plot_structure(ax8, data[file_idxs[0]][compound_idx]['identification'].compound, 300)
+            
+            #EIC
+            ax9 = plt.subplot2grid((24, 24), (6, 16), rowspan=6, colspan=6)
+            plot_eic(ax9, data, file_idxs, compound_idx)
+            
+#             #Reference and Sample Info
+#             ax10 = plt.subplot2grid((24, 24), (14, 6), rowspan=10, colspan=20)
+#             plot_ref_sample_info(ax10, 1, 1)
+            
+            #Old code
+            ax10 = plt.subplot2grid((24, 24), (15, 6), rowspan=9, colspan=20)
+            mz_theoretical = data[file_idxs[0]][compound_idx]['identification'].mz_references[0].mz
+            mz_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['mz_centroid']
+            if not mz_measured:
+                mz_measured = 0
+
+            delta_mz = abs(mz_theoretical - mz_measured)
+            delta_ppm = delta_mz / mz_theoretical * 1e6
+
+            rt_theoretical = data[file_idxs[0]][compound_idx]['identification'].rt_references[0].rt_peak
+            rt_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['rt_peak']
+            if not rt_measured:
+                rt_measured = 0    
+            ax10.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
+            ax10.text(0,0.9,'%s %s'%(compound_names[compound_idx], data[file_idxs[0]][compound_idx]['identification'].mz_references[0].adduct),fontsize=8)
+            ax10.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
+            ax10.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
+            ax10.set_ylim(0.2,1.01)
+            ax10.axis('off')
+
+            plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
+            
             
 def export_atlas_to_spreadsheet(myAtlas, output_filename='', input_type = 'atlas'):
     """
