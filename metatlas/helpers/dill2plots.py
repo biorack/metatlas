@@ -1146,7 +1146,7 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
             for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, i, filter_by).iterrows():
                 ref_mz = np.array(frag['mz_intensities']).T
                 data_mz = np.array([d[compound_idx]['data']['msms']['data']['mz'], d[compound_idx]['data']['msms']['data']['i']])
-                temp = sp.score_vectors_composite_dot(*sp.align_ms_vectors(data_mz, ref_mz, .05, 'sum'))
+                temp = sp.score_vectors_composite_dot(*sp.align_ms_vectors(data_mz, ref_mz, .05, 'intensity'))
                 if temp > my_max:
                     my_max = temp
                     idx = i
