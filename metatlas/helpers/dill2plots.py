@@ -1147,7 +1147,7 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
             for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, i, filter_by).iterrows():
                 ref_mz = np.array(frag['mz_intensities']).T
                 data_mz = np.array([d[compound_idx]['data']['msms']['data']['mz'], d[compound_idx]['data']['msms']['data']['i']])
-                temp = sp.score_vectors_composite_dot(*sp.align_ms_vectors(data_mz, ref_mz, .05, 'intensity'))
+                temp = sp.score_vectors_composite_dot(*sp.align_vectors(*sp.partition_ms_vectors(data_mz, ref_mz, .05, 'intensity')))
                 if temp > my_max:
                     my_max = temp
                     idx = i
@@ -1371,8 +1371,10 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
     file_idxs = []
     ref_idxs = []
     scores = []
-    aligned_samples = []
-    aligned_refs = []
+    sample_matches_list = []
+    ref_matches_list = []
+    sample_nonmatches_list = []
+    ref_nonmatches_list = []
     
     for file_idx in range(len(data)):
         if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
@@ -1380,37 +1382,39 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
                 ref_mzi = np.array(frag['mz_intensities']).T
                 sample_mzi = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
                 
-                aligned_sample_mzi, aligned_ref_mzi = sp.align_ms_vectors(sp.sort_by_mz(sample_mzi), sp.sort_by_mz(ref_mzi), .05, 'intensity')
+                sample_matches, ref_matches, sample_nonmatches, ref_nonmatches = sp.partition_ms_vectors(sp.sort_by_mz(sample_mzi), sp.sort_by_mz(ref_mzi), .05, 'intensity')
                 
-                scores.append(sp.score_vectors_composite_dot(aligned_sample_mzi, aligned_ref_mzi))
+                sample_aligned, ref_aligned = sp.align_vectors(sample_matches, ref_matches, sample_nonmatches, ref_nonmatches) 
+                
+                scores.append(sp.score_vectors_composite_dot(sample_aligned, ref_aligned))
                 file_idxs.append(file_idx)
                 ref_idxs.append(ref_idx)
-                aligned_samples.append(aligned_sample_mzi)
-                aligned_refs.append(aligned_ref_mzi)
-                
+                sample_matches_list.append(sample_matches)
+                ref_matches_list.append(ref_matches)
+                sample_nonmatches_list.append(sample_nonmatches)
+                ref_nonmatches_list.append(ref_nonmatches)
     
-    return zip(*sorted(zip(file_idxs, ref_idxs, scores, aligned_samples, aligned_refs), key=lambda l: l[2], reverse=True)[:5])
+    return zip(*sorted(zip(file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list), key=lambda l: l[2], reverse=True)[:5])
             
             
-def plot_msms_comparison(i, score, ax, precursor_intensity, sample_mzi, ref_mzi):
+def plot_msms_comparison(i, score, ax, precursor_intensity, sample_matches, ref_matches, sample_nonmatches, ref_nonmatches):
     
-    shared = np.arange(np.nonzero(ref_mzi[0]==0)[0][0])
-    unshared_v1 = np.arange(np.nonzero(ref_mzi[0]==0)[0][0], np.nonzero(sample_mzi[0]==0)[0][0])
-    unshared_v2 = np.arange(np.nonzero(ref_mzi[0]==0)[0][-1] + 1, ref_mzi[0].size)
+    full_sample = np.concatenate((sample_matches, sample_nonmatches), axis=1)
+    full_ref = np.concatenate((ref_matches, ref_nonmatches), axis=1)
     
-    sample_mz = sample_mzi[0,unshared_v1]
-    sample_zeros = np.zeros(sample_mzi[0,unshared_v1].shape)
-    sample_intensity = sample_mzi[1,unshared_v1]
+    sample_mz = sample_nonmatches[0]
+    sample_zeros = np.zeros(sample_nonmatches[0].shape)
+    sample_intensity = sample_nonmatches[1]
 
     ax.vlines(sample_mz, sample_zeros, sample_intensity, colors='r', linewidth = 1)
 
-    shared_mz = sample_mzi[0,shared]
-    shared_zeros = np.zeros(sample_mzi[0,shared].shape)
-    shared_sample_intensity = sample_mzi[1,shared]
+    shared_mz = sample_matches[0,]
+    shared_zeros = np.zeros(sample_matches[0].shape)
+    shared_sample_intensity = sample_matches[1]
 
     ax.vlines(shared_mz, shared_zeros, shared_sample_intensity, colors='g', linewidth = 1)
 
-    most_intense_idxs = np.argsort(sample_mzi[1])[::-1]
+    most_intense_idxs = np.argsort(full_sample[1])[::-1]
 
     if i == 0:
         ax.set_title('%.4f'%score,fontsize=8,weight='bold')
@@ -1420,21 +1424,21 @@ def plot_msms_comparison(i, score, ax, precursor_intensity, sample_mzi, ref_mzi)
 
         labels = [1.001e9]
         for m in most_intense_idxs[:6]:
-            if np.min(np.abs(sample_mzi[0][m] - labels)) > 0.1 and sample_mzi[1][m] > 0.02 * np.max(sample_mzi[1]):
-                ax.annotate('%5.4f'%sample_mzi[0][m], 
-                            xy=(sample_mzi[0][m], 1.01*sample_mzi[1][m]),
+            if np.min(np.abs(full_sample[0][m] - labels)) > 0.1 and full_sample[1][m] > 0.02 * np.max(full_sample[1]):
+                ax.annotate('%5.4f'%full_sample[0][m], 
+                            xy=(full_sample[0][m], 1.01*full_sample[1][m]),
                             rotation = 90, 
                             horizontalalignment = 'center', verticalalignment = 'left',
                             size = 3)
-                labels.append(sample_mzi[0][m])
+                labels.append(full_sample[0][m])
  
-    if ref_mzi[0].size > 0:
-        ref_scale = -1*np.max(sample_mzi[1]) / np.max(ref_mzi[1])
+    if full_ref[0].size > 0:
+        ref_scale = -1*np.max(full_sample[1]) / np.max(full_ref[1])
         
-        ref_mz = ref_mzi[0,unshared_v2]
-        ref_zeros = np.zeros(ref_mzi[0,unshared_v2].shape)
-        ref_intensity = ref_scale*ref_mzi[1,unshared_v2]
-        shared_ref_intensity = ref_scale*ref_mzi[1,shared]
+        ref_mz = ref_nonmatches[0]
+        ref_zeros = np.zeros(ref_nonmatches[0].shape)
+        ref_intensity = ref_scale*ref_nonmatches[1]
+        shared_ref_intensity = ref_scale*ref_matches[1]
     
         ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth = 1)
 
@@ -1520,8 +1524,6 @@ def plot_score_and_ref_file(ax, score, ref):
         rotation='vertical',
         fontsize=2,
         transform=ax.transAxes)
-    
-    ax.axis('off')
             
             
 def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatlas/projects/sharepoint/frag_refs.json', input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
@@ -1558,13 +1560,13 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
     #Iterate over compounds
     for compound_idx in range(len(compound_names)):
         top_five = []
-        file_idxs, ref_idxs, scores, aligned_samples, aligned_refs = [], [], [], [], []
+        file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list = [], [], [], [], [], [], []
         
         #Find 5 best file and reference pairs by score
         if data[0][compound_idx]['identification'].compound:
             top_five = top_five_scoring_files(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
         if top_five:
-            file_idxs, ref_idxs, scores, aligned_samples, aligned_refs = top_five
+            file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list = top_five
 
         #Plot if compound yields any scores
         if scores:
@@ -1591,7 +1593,8 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             for i,(score,ax) in enumerate(zip(scores,[ax1, ax2, ax3, ax4, ax5])):
                 plot_msms_comparison(i, score, ax,
                                      data[file_idxs[i]][compound_idx]['data']['msms']['data']['precursor_intensity'],
-                                     aligned_samples[i], aligned_refs[i])                    
+                                     sample_matches_list[i], ref_matches_list[i], sample_nonmatches_list[i], ref_nonmatches_list[i])                    
+                              
             
             #EMA Compound Info
             ax6 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
@@ -1599,9 +1602,13 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             
             #Next Best Scores and Filenames
             ax7a = plt.subplot2grid((24, 24), (0, 15), rowspan=3, colspan=1)
+            ax7a.axis('off')
             ax7b = plt.subplot2grid((24, 24), (3, 15), rowspan=3, colspan=1)
+            ax7b.axis('off')
             ax7c = plt.subplot2grid((24, 24), (6, 15), rowspan=3, colspan=1)
+            ax7c.axis('off')
             ax7d = plt.subplot2grid((24, 24), (9, 15), rowspan=3, colspan=1)
+            ax7d.axis('off')
             
             for i,(score,ax) in enumerate(zip(scores[1:],[ax7a, ax7b, ax7c, ax7d])):
                 plot_score_and_ref_file(ax, score, os.path.basename(data[file_idxs[i]][compound_idx]['lcmsrun'].hdf5_file))
