@@ -165,50 +165,42 @@ def match_ms_vectors(ms_v1, ms_v2, mz_tolerance, resolve_by):
     return ms_v1_to_mv_v2, ms_v2_to_ms_v1
 
 
-def align_ms_vectors(ms_v1, ms_v2, mz_tolerance, resolve_by):
+def partition_ms_vectors(ms_v1, ms_v2, mz_tolerance, resolve_by):
     """
-    Finds one to one m/z matches within mz_tolerance between ms_v1 and ms_v2 resolving conflicts by resolve_by
-    and returns ms_v1_aligned and ms_v2_aligned formatted such that matches belong to the same components
-    and nonmatches belong to differing components.
-    
     :param ms_v1: numpy 2d array, ms_v1[0] is m/z and ms_v1[1] is intensities sorted by m/z
     :param ms_v2: numpy 2d array, ms_v2[0] is m/z and ms_v2[1] is intensities sorted by m/z
     :param mz_tolerance: float, limits matches to be within +/- mz_tolerance
     :param resolve_by: ['intensity'], method to resolve conflicting matches into one to one matches
     
-    :return ms_v1_aligned: numpy 2d array, ms_v1_aligned[0] is m/z values and ms_v1_aligned[1] is intensity values,
-                                           matches + ms_v1 nonmatches + buffer of zeros of length ms_v2 nonmatches
-    :return ms_v2_aligned: numpy 2d array, ms_v2_aligned[0] is m/z values and ms_v2_aligned[1] is intensity values,
-                                           matches + buffer of zeros of length ms_v1 nonmatches + ms_v2 nonmatches
+    :return ms_v1_matches: numpy 2d array, 
+    :return ms_v2_matches: numpy 2d array,
+    :return ms_v1_nonmatches: numpy 2d array, 
+    :return ms_v2_nonmatches: numpy 2d array, 
     """
     
     #Find one to one matches within mz_tolerance
     ms_v1_to_ms_v2, ms_v2_to_ms_v1 = match_ms_vectors(ms_v1, ms_v2, mz_tolerance, resolve_by)
-    
-    #Create aligned ms vector variables
-    num_matches = ms_v1_to_ms_v2[~np.isnan(ms_v1_to_ms_v2)].size
-    vector_dim = ms_v1[0].size + ms_v2[0].size - num_matches
-    
-    #Initialize aligned ms vectors
-    ms_v1_aligned = np.zeros([2, vector_dim])
-    ms_v2_aligned = np.zeros([2, vector_dim])
-    
+
     #Assign matching ms vector components to same dimensions
-    ms_v1_aligned[:,:num_matches] = ms_v1[:,ms_v2_to_ms_v1[~np.isnan(ms_v2_to_ms_v1)].astype(int)]
-    ms_v2_aligned[:,:num_matches] = ms_v2[:,ms_v1_to_ms_v2[~np.isnan(ms_v1_to_ms_v2)].astype(int)]
+    ms_v1_matches = ms_v1[:,ms_v2_to_ms_v1[~np.isnan(ms_v2_to_ms_v1)].astype(int)]
+    ms_v2_matches = ms_v2[:,ms_v1_to_ms_v2[~np.isnan(ms_v1_to_ms_v2)].astype(int)]
     
     #Assign nonmatching ms vector components to differing dimensions
-    nonmatching_ms_v1 = ms_v1[:,np.isnan(ms_v1_to_ms_v2)]
-    nonmatching_ms_v2 = ms_v2[:,np.isnan(ms_v2_to_ms_v1)]
+    ms_v1_nonmatches = ms_v1[:,np.isnan(ms_v1_to_ms_v2)]
+    ms_v2_nonmatches = ms_v2[:,np.isnan(ms_v2_to_ms_v1)]
+    
+    return ms_v1_matches, ms_v2_matches, ms_v1_nonmatches, ms_v2_nonmatches
 
-    ms_v1_aligned[:,num_matches:num_matches + nonmatching_ms_v1[0].size] = nonmatching_ms_v1
-    ms_v2_aligned[:,num_matches + nonmatching_ms_v1[0].size:] = nonmatching_ms_v2
+
+def partition_nl_vectors(ms_v1_precusor_mz, ms_v2_precusor_mz, ms_v1, ms_v2, mz_tolerance, resolve_by):
+    return partition_ms_vectors(np.array([ms_v1[0] - (ms_v1_precusor_mz - ms_v2_precusor_mz), ms_v1[1]]), ms_v2, mz_tolerance, resolve_by)
+
+
+def align_vectors(ms_v1_matches, ms_v2_matches, ms_v1_nonmatches, ms_v2_nonmatches):
+    ms_v1_aligned = np.concatenate((ms_v1_matches, ms_v1_nonmatches, np.zeros(ms_v2_nonmatches.shape)), axis=1)
+    ms_v2_aligned = np.concatenate((ms_v2_matches, np.zeros(ms_v1_nonmatches.shape), ms_v2_nonmatches), axis=1)
     
     return ms_v1_aligned, ms_v2_aligned
-
-
-def align_nl_vectors(ms_v1_precusor_mz, ms_v2_precusor_mz, ms_v1, ms_v2, mz_tolerance, resolve_by):
-    return align_ms_vectors(np.array([ms_v1[0] - (ms_v1_precusor_mz - ms_v2_precusor_mz), ms_v1[1]]), ms_v2, mz_tolerance, resolve_by)
 
 
 def weigh_vector_by_mz_and_intensity(ms_v, mz_power=1, intensity_power=.6):
