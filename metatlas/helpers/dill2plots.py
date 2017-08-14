@@ -1649,6 +1649,133 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
             
             
+def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', input_dataset = [], compound_names = [],  include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
+    """
+    Plot three views of ms1 spectra for compounds in input_dataset using file with highest RT peak of a polarity:
+    Unscaled: plots ms1 spectra within window of mz_min and mz_max
+    Scaled: plots ms1 spectra within window of mz_min and mz_max scaling mz of compound to 70%
+    Full Range: plots ms1 spectra without window (unscaled)
+    """
+    
+    if not input_dataset:
+        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
+    else:
+        data = input_dataset
+        
+    if include_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_include_list(data, 'lcmsrun', include_lcmsruns)
+    if include_groups:
+        data = filter_lcmsruns_in_dataset_by_include_list(data, 'group', include_groups)
+
+    if exclude_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_lcmsruns)
+    if exclude_groups:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
+    
+    #Make sure there is data
+    assert(len(data) != 0)
+    
+    all_compound_names = ma_data.get_compound_names(data)[0]
+    
+    #Set default compound list to all compounds in input_dataset
+    if not compound_names:
+        compound_names = all_compound_names
+    
+    #Find implicit polarity and make sure there is not more than one
+    if 'POS' in include_lcmsruns or 'NEG' in exclude_lcmsruns:
+        assert(polarity == None or polarity == 'positive')
+        polarity = 'positive'
+    if 'NEG' in include_lcmsruns or 'POS' in exclude_lcmsruns:
+        assert(polarity == None or polarity == 'negative')
+        polarity = 'negative'
+        
+    if 'POS' in include_groups or 'NEG' in exclude_groups:
+        assert(polarity == None or polarity == 'positive')
+        polarity = 'positive'
+    if 'NEG' in include_groups or 'POS' in exclude_groups:
+        assert(polarity == None or polarity == 'negative')
+        polarity = 'negative'
+    
+    assert(polarity == 'positive' or polarity == 'negative')
+    
+    #Additional variables used acorss all compounds
+    lcms_polarity = 'ms1_' + polarity[:3]
+    titles = ['Unscaled', 'Scaled', 'Full Range']
+    
+    for compound_idx in [i for i,c in enumerate(all_compound_names) if c in compound_names]:
+
+        #Find file_idx of with highest RT peak
+        highest = 0
+        file_idx = None
+        for i,d in enumerate(data):
+            if d[compound_idx]['identification'].mz_references[0].detected_polarity == polarity:
+                if d[compound_idx]['data']['ms1_summary']['peak_height'] > highest:
+                    highest = d[compound_idx]['data']['ms1_summary']['peak_height']
+                    file_idx = i
+
+        lcms_data = ma_data.df_container_from_metatlas_file(data[file_idx][compound_idx]['lcmsrun'].hdf5_file)
+
+        #Find RT and mz peak for compound in file 
+        rt_peak = data[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']
+        rt_peak_actual = lcms_data[lcms_polarity].iloc[(lcms_data[lcms_polarity].rt - rt_peak).abs().argsort()[0]].rt
+        mz_peak_actual = data[file_idx][compound_idx]['data']['ms1_summary']['mz_peak']
+
+        #Create and sort dataframe containing RT peak, mz and intensity
+        df_all = lcms_data[lcms_polarity][(lcms_data[lcms_polarity].rt == rt_peak_actual)]
+        df_all.sort_values('i',ascending=False,inplace=True)
+
+        #Limit prior dataframe to +/- mz_min, mz_max
+        df_window = df_all[(df_all['mz'] > mz_peak_actual - mz_min) &
+                           (df_all['mz'] < mz_peak_actual + mz_max) ]
+        
+        #Plot compound name, mz, and RT peak
+        plt.ioff()
+        fig = plt.gcf()
+        fig.suptitle('%s, m/z: %5.4f, rt: %f'%(all_compound_names[compound_idx], mz_peak_actual, rt_peak_actual),
+                                                fontsize=8,weight='bold')
+
+        #Create axes for different views of ms1 spectra (unscaled, scaled, and full range)
+        ax1 = plt.subplot2grid((11, 12), (0, 0), rowspan=5, colspan=5)
+        ax2 = plt.subplot2grid((11, 12), (0, 7), rowspan=5, colspan=5)
+        ax3 = plt.subplot2grid((11, 12), (6, 0), rowspan=5, colspan=12)
+        
+        #Plot ms1 spectra
+        for ax_idx,(ax,df) in enumerate(zip([ax1, ax2, ax3], [df_window, df_window, df_all])):
+
+            ax.set_xlabel('m/z',fontsize=8,weight='bold')
+            ax.set_ylabel('intensity',fontsize=8,weight='bold')
+            ax.tick_params(axis='both', which='major', labelsize=6)
+            ax.set_title(titles[ax_idx],fontsize=8,weight='bold')
+            
+            mzs = df['mz']
+            zeros = np.zeros(len(df['mz']))
+            intensities = df['i']
+            
+            ax.vlines(mzs, zeros, intensities, colors='r',linewidth = 2)
+
+            labels = [1.001e9]
+            for i,row in df.iloc[:6].iterrows():
+                ax.annotate('%.4f'%row.mz, xy=(row.mz, 1.03*row.i),rotation = 90, horizontalalignment = 'center', verticalalignment = 'left', fontsize=6)
+                labels.append(row.mz)
+
+            ax.axhline(0)
+
+            if ax_idx != 2:
+                ax.set_xlim(mz_peak_actual - mz_min,  mz_peak_actual + mz_max)
+                
+            ylim = ax.get_ylim()
+            
+            if ax_idx == 1:                
+                ax.set_ylim(ylim[0], df[((mz_peak_actual - .05 < df['mz']) & (df['mz'] < mz_peak_actual + .05))].iloc[0]['i']*1.43)
+            else:
+                ax.set_ylim(ylim[0], ylim[1]*1.43)
+
+            if not os.path.exists(output_loc):
+                os.makedirs(output_loc)
+
+        plt.savefig(os.path.join(output_loc, all_compound_names[compound_idx] + '.pdf'))
+            
+            
 def export_atlas_to_spreadsheet(myAtlas, output_filename='', input_type = 'atlas'):
     """
     Return a pandas dataframe containing Atlas info.  Optionally save it.
