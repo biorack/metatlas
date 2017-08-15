@@ -1365,6 +1365,7 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
             ax3.axis('off')
         #     plt.show()
             fig.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
+            plt.close()
 
 
 def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
@@ -1647,6 +1648,7 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             ax10.axis('off')
 
             plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
+            plt.close()
             
             
 def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', input_dataset = [], compound_names = [],  include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
