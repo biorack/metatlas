@@ -1139,21 +1139,24 @@ def file_with_max_precursor_intensity(data,compound_idx):
 
 def file_with_max_score(data, frag_refs, compound_idx, filter_by):
     idx = []
-    my_max = 0
+    max_score = 0
     best_ref_spec = []
     
-    for i,d in enumerate(data):
-        if 'data' in d[compound_idx]['data']['msms'].keys():
-            for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, i, filter_by).iterrows():
+    for file_idx in range(len(data)):
+        if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
+            data_mz = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
+            
+            for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                 ref_mz = np.array(frag['mz_intensities']).T
-                data_mz = np.array([d[compound_idx]['data']['msms']['data']['mz'], d[compound_idx]['data']['msms']['data']['i']])
-                temp = sp.score_vectors_composite_dot(*sp.align_vectors(*sp.partition_ms_vectors(data_mz, ref_mz, .05, 'intensity')))
-                if temp > my_max:
-                    my_max = temp
-                    idx = i
+
+                score = sp.score_vectors_composite_dot(*sp.align_vectors(*sp.partition_ms_vectors(data_mz, ref_mz, .005, "intensity")))
+
+                if score > max_score:
+                    max_score = score
+                    idx = file_idx
                     best_ref_spec = [frag['mz_intensities']]
                 
-    return idx, my_max, best_ref_spec
+    return idx, max_score, best_ref_spec
 
 def plot_errorbar_plots(df,output_loc=''):
     
@@ -1217,11 +1220,10 @@ def frag_refs_to_json(json_dir = '/project/projectdirs/metatlas/projects/sharepo
 #     """
     
 
-def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', frag_json_name = 'frag_refs', file_select = 'score', input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
+def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', frag_json_name = 'frag_refs', input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
     output_loc = os.path.expandvars(output_loc)    
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
-    
     
     if not input_dataset:
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
@@ -1255,20 +1257,18 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
     print('getting spectra from files')
     
     for compound_idx in range(len(compound_names)):
-        if file_select == 'intensity':
-            file_idx, m = file_with_max_precursor_intensity(data,compound_idx)
-        if file_select == 'score':
-            ref_spec = []
-            if data[0][compound_idx]['identification'].compound:
-                file_idx, m, ref_spec = file_with_max_score(data, frag_refs, compound_idx, 'inchi_key  and rt and polarity')
-                score = m
-            if len(data[0][compound_idx]['data']['msms']['data']['precursor_MZ']) > 0 and len(ref_spec) == 0:
-                file_idx, m, ref_spec = file_with_max_score(data, frag_refs, compound_idx, '(precursor_mz <= .005) and rt and polarity')
-                score = m
-            if len(ref_spec) == 0:
-                file_idx, m = file_with_max_precursor_intensity(data,compound_idx)
-                score = 0
-        if m:
+        file_idx = None
+        file_precursor_intensity = 0
+        score = None
+        ref_spec = []
+               
+        if all([data[i][compound_idx]['identification'].compound for i in range(len(file_names))]):
+            file_idx, score, ref_spec = file_with_max_score(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
+            
+        else:
+            file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]        
+            
+        if file_idx:
             fig = plt.figure(figsize=(20,20))
         #     fig = plt.figure()
             ax = fig.add_subplot(211)
@@ -1292,23 +1292,6 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
                     ax.annotate('%5.4f'%mz[i], xy=(mz[i], 1.01*intensity[i]),rotation = 90, horizontalalignment = 'center', verticalalignment = 'left')
                     labels.append(mz[i])
 
-            
-#             data[file_idx][compound_idx]['identification'].mz_references[0].polarity
-#             print data[file_idx][compound_idx]['data']['msms']
-            if data[file_idx][compound_idx]['identification'].compound:
-#                 if data[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity == 'positive':
-#                     my_polarity = 1
-#                 else:
-#                     my_polarity = 0
-                if file_select == 'intensity':
-                    ref_spec = [row for row in 
-                                frag_refs[(frag_refs['inchi_key'] == data[file_idx][compound_idx]['identification'].compound[0].inchi_key) &
-                                         (frag_refs['polarity'] == data[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity)]['mz_intensities'].values.tolist()]
-
-            
-            else:
-                ref_spec = []
-    #TODO: get the precursor_mz sorted out
             
 #                                        precursor_mz = data[file_idx][compound_idx]['data']['msms']['precursor_mz'])
 #             print data[file_idx][compound_idx]['data']['msms']['polarity']
@@ -1359,8 +1342,8 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
             ax3.text(0,0.95,'%s %s'%(compound_names[compound_idx], data[file_idx][compound_idx]['identification'].mz_references[0].adduct),fontsize=12)
             ax3.text(0,0.9,'m/z theoretical = %5.4f, measured = %5.4f, %5.4f ppm difference'%(mz_theoretical, mz_measured, delta_ppm),fontsize=12)
             ax3.text(0,0.85,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=12)
-            if file_select == 'score':
-                ax3.text(0,0.80,'Score: %5.3f'%(score),fontsize=12)
+            if score != None:
+                ax3.text(0,0.80,'Score: %f'%(score),fontsize=12)
             ax3.set_ylim(0.2,1.01)
             ax3.axis('off')
         #     plt.show()
@@ -1379,21 +1362,40 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
     
     for file_idx in range(len(data)):
         if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
+            current_best_score = None
+            current_best_ref_idx = None
+            current_best_sample_matches = None
+            current_best_ref_matches = None
+            current_best_sample_nonmatches = None
+            current_best_ref_nonmatches = None
+            
+            sample_mzi = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
+            
             for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                 ref_mzi = np.array(frag['mz_intensities']).T
-                sample_mzi = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
                 
-                sample_matches, ref_matches, sample_nonmatches, ref_nonmatches = sp.partition_ms_vectors(sp.sort_by_mz(sample_mzi), sp.sort_by_mz(ref_mzi), .05, 'intensity')
+                sample_matches, ref_matches, sample_nonmatches, ref_nonmatches = sp.partition_ms_vectors(sample_mzi, ref_mzi, .005, 'intensity')
                 
                 sample_aligned, ref_aligned = sp.align_vectors(sample_matches, ref_matches, sample_nonmatches, ref_nonmatches) 
                 
-                scores.append(sp.score_vectors_composite_dot(sample_aligned, ref_aligned))
+                score = sp.score_vectors_composite_dot(sample_aligned, ref_aligned)
+                
+                if current_best_score == None or score > current_best_score:
+                    current_best_score = score
+                    current_best_ref_idx = ref_idx
+                    current_best_sample_matches = sample_matches
+                    current_best_ref_matches = ref_matches
+                    current_best_sample_nonmatches = sample_nonmatches
+                    current_best_ref_nonmatches = ref_nonmatches
+            
+            if current_best_score:
+                scores.append(current_best_score)
                 file_idxs.append(file_idx)
-                ref_idxs.append(ref_idx)
-                sample_matches_list.append(sample_matches)
-                ref_matches_list.append(ref_matches)
-                sample_nonmatches_list.append(sample_nonmatches)
-                ref_nonmatches_list.append(ref_nonmatches)
+                ref_idxs.append(current_best_ref_idx)
+                sample_matches_list.append(current_best_sample_matches)
+                ref_matches_list.append(current_best_ref_matches)
+                sample_nonmatches_list.append(current_best_sample_nonmatches)
+                ref_nonmatches_list.append(current_best_ref_nonmatches)
     
     return zip(*sorted(zip(file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list), key=lambda l: l[2], reverse=True)[:5])
             
@@ -1424,13 +1426,17 @@ def plot_msms_comparison(i, score, ax, precursor_intensity, sample_matches, ref_
         ax.tick_params(axis='both', which='major', labelsize=6)
 
         labels = [1.001e9]
-        for m in most_intense_idxs[:6]:
+        
+        intensity_requirement = [m for m in most_intense_idxs 
+                                 if np.min(np.abs(full_sample[0][m] - labels)) > 0.1 and full_sample[1][m] > 0.2 * np.max(full_sample[1])]
+        
+        for m in max([most_intense_idxs[:6], intensity_requirement], key=len):
             if np.min(np.abs(full_sample[0][m] - labels)) > 0.1 and full_sample[1][m] > 0.02 * np.max(full_sample[1]):
                 ax.annotate('%5.4f'%full_sample[0][m], 
                             xy=(full_sample[0][m], 1.01*full_sample[1][m]),
                             rotation = 90, 
                             horizontalalignment = 'center', verticalalignment = 'left',
-                            size = 3)
+                            fontsize = 5)
                 labels.append(full_sample[0][m])
  
     if full_ref[0].size > 0:
@@ -1446,8 +1452,9 @@ def plot_msms_comparison(i, score, ax, precursor_intensity, sample_matches, ref_
         ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth = 1)
 
         ax.axhline()
+        
     ylim = ax.get_ylim()
-    ax.set_ylim(ylim[0], ylim[1]*1.2)
+    ax.set_ylim(ylim[0], ylim[1]*1.33)
             
             
 def plot_structure(ax, compound, dimensions):
@@ -1500,15 +1507,15 @@ def plot_eic(ax, data, file_idxs, compound_idx):
             x = np.asarray(data[file_idx][compound_idx]['data']['eic']['rt'])
             y = np.asarray(data[file_idx][compound_idx]['data']['eic']['intensity'])
 
-            ax.plot(x, y, 'k-', linewidth=1.0, alpha=1.0)  
+            ax.plot(x, y, 'k-', linewidth=.5, alpha=1.0)  
             myWhere = np.logical_and(x>=rt_min, x<=rt_max )
-            ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=0.3)
+            ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=0.2)
 
     ax.tick_params(labelbottom='off')
     ax.tick_params(labelleft='off')
     ax.axvline(rt_min, color='k', linewidth=1.0)
     ax.axvline(rt_max, color='k', linewidth=1.0)
-    ax.axvline(rt_peak, color='r', linewidth=1.0)    
+    ax.axvline(rt_peak, color='r', linewidth=1.0)   
     
     
 def plot_score_and_ref_file(ax, score, ref):
@@ -1546,7 +1553,7 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
     if exclude_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_lcmsruns)
     if exclude_groups:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_groups)
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
 
     #Obtain compound and file names
     compound_names = ma_data.get_compound_names(data)[0]
@@ -1560,74 +1567,84 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
     
     #Iterate over compounds
     for compound_idx in range(len(compound_names)):
-        top_five = []
-        file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list = [], [], [], [], [], [], []
+        file_idxs, ref_idxs, scores = [], [], []
+        sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list = [], [], [], []
         
         #Find 5 best file and reference pairs by score
-        if data[0][compound_idx]['identification'].compound:
+        if any([data[i][compound_idx]['identification'].compound for i in range(len(file_names))]):
             top_five = top_five_scoring_files(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
-        if top_five:
-            file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list = top_five
+            if top_five:
+                file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list = top_five
+        
+        #Find best file by prescursor intensity
+        else:
+            file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
+            if file_idx:
+                file_idxs.append(file_idx)
+                sample_nonmatches_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
+                sample_matches_list.append(np.array([[],[]]))
+                ref_matches_list.append(np.array([[],[]]))
+                ref_nonmatches_list.append(np.array([[],[]]))
+                scores.append(0)
+                
+        #Plot if compound yields any scores 
+        if file_idxs:
 
-        #Plot if compound yields any scores
-        if scores:
-            
             #Top 5 MSMS Spectra
             ax1 = plt.subplot2grid((24, 24), (0, 0), rowspan=12, colspan=12)
-            ax2 = plt.subplot2grid((24, 24), (0, 12), rowspan=3, colspan=3)
-            ax2.tick_params(axis='both', length=2)
-            ax2.set_xticklabels([])
-            ax2.set_yticklabels([])
-            ax3 = plt.subplot2grid((24, 24), (3, 12), rowspan=3, colspan=3)
-            ax3.tick_params(axis='both', length=2)
-            ax3.set_xticklabels([])
-            ax3.set_yticklabels([])
-            ax4 = plt.subplot2grid((24, 24), (6, 12), rowspan=3, colspan=3)
-            ax4.tick_params(axis='both', length=2)
-            ax4.set_xticklabels([])
-            ax4.set_yticklabels([])
-            ax5 = plt.subplot2grid((24, 24), (9, 12), rowspan=3, colspan=3)
-            ax5.tick_params(axis='both', length=2)
-            ax5.set_xticklabels([])
-            ax5.set_yticklabels([])
+            ax2a = plt.subplot2grid((24, 24), (0, 12), rowspan=3, colspan=3)
+            ax2a.tick_params(axis='both', length=2)
+            ax2a.set_xticklabels([])
+            ax2a.set_yticklabels([])
+            ax2b = plt.subplot2grid((24, 24), (3, 12), rowspan=3, colspan=3)
+            ax2b.tick_params(axis='both', length=2)
+            ax2b.set_xticklabels([])
+            ax2b.set_yticklabels([])
+            ax2c = plt.subplot2grid((24, 24), (6, 12), rowspan=3, colspan=3)
+            ax2c.tick_params(axis='both', length=2)
+            ax2c.set_xticklabels([])
+            ax2c.set_yticklabels([])
+            ax2d = plt.subplot2grid((24, 24), (9, 12), rowspan=3, colspan=3)
+            ax2d.tick_params(axis='both', length=2)
+            ax2d.set_xticklabels([])
+            ax2d.set_yticklabels([])
             
-            for i,(score,ax) in enumerate(zip(scores,[ax1, ax2, ax3, ax4, ax5])):
+            for i,(score,ax) in enumerate(zip(scores,[ax1, ax2a, ax2b, ax2c, ax2d])):
                 plot_msms_comparison(i, score, ax,
                                      data[file_idxs[i]][compound_idx]['data']['msms']['data']['precursor_intensity'],
                                      sample_matches_list[i], ref_matches_list[i], sample_nonmatches_list[i], ref_nonmatches_list[i])                    
-                              
             
             #EMA Compound Info
-            ax6 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
-            plot_ema_compound_info(ax6, data[file_idxs[0]][compound_idx]['identification'])
+            ax3 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
+            plot_ema_compound_info(ax3, data[file_idxs[0]][compound_idx]['identification'])
             
             #Next Best Scores and Filenames
-            ax7a = plt.subplot2grid((24, 24), (0, 15), rowspan=3, colspan=1)
-            ax7a.axis('off')
-            ax7b = plt.subplot2grid((24, 24), (3, 15), rowspan=3, colspan=1)
-            ax7b.axis('off')
-            ax7c = plt.subplot2grid((24, 24), (6, 15), rowspan=3, colspan=1)
-            ax7c.axis('off')
-            ax7d = plt.subplot2grid((24, 24), (9, 15), rowspan=3, colspan=1)
-            ax7d.axis('off')
+            ax4a = plt.subplot2grid((24, 24), (0, 15), rowspan=3, colspan=1)
+            ax4a.axis('off')
+            ax4b = plt.subplot2grid((24, 24), (3, 15), rowspan=3, colspan=1)
+            ax4b.axis('off')
+            ax4c = plt.subplot2grid((24, 24), (6, 15), rowspan=3, colspan=1)
+            ax4c.axis('off')
+            ax4d = plt.subplot2grid((24, 24), (9, 15), rowspan=3, colspan=1)
+            ax4d.axis('off')
             
-            for i,(score,ax) in enumerate(zip(scores[1:],[ax7a, ax7b, ax7c, ax7d])):
+            for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
                 plot_score_and_ref_file(ax, score, os.path.basename(data[file_idxs[i]][compound_idx]['lcmsrun'].hdf5_file))
                 
             #Structure
-            ax8 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
-            plot_structure(ax8, data[file_idxs[0]][compound_idx]['identification'].compound, 300)
+            ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
+            plot_structure(ax5, data[file_idxs[0]][compound_idx]['identification'].compound, 100)
             
             #EIC
-            ax9 = plt.subplot2grid((24, 24), (6, 16), rowspan=6, colspan=6)
-            plot_eic(ax9, data, file_idxs, compound_idx)
+            ax6 = plt.subplot2grid((24, 24), (6, 16), rowspan=6, colspan=6)
+            plot_eic(ax6, data, file_idxs, compound_idx)
             
 #             #Reference and Sample Info
 #             ax10 = plt.subplot2grid((24, 24), (14, 6), rowspan=10, colspan=20)
 #             plot_ref_sample_info(ax10, 1, 1)
             
             #Old code
-            ax10 = plt.subplot2grid((24, 24), (15, 6), rowspan=9, colspan=20)
+            ax7 = plt.subplot2grid((24, 24), (15, 6), rowspan=9, colspan=20)
             mz_theoretical = data[file_idxs[0]][compound_idx]['identification'].mz_references[0].mz
             mz_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['mz_centroid']
             if not mz_measured:
@@ -1640,12 +1657,12 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             rt_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['rt_peak']
             if not rt_measured:
                 rt_measured = 0    
-            ax10.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
-            ax10.text(0,0.9,'%s %s'%(compound_names[compound_idx], data[file_idxs[0]][compound_idx]['identification'].mz_references[0].adduct),fontsize=8)
-            ax10.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
-            ax10.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
-            ax10.set_ylim(0.2,1.01)
-            ax10.axis('off')
+            ax7.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
+            ax7.text(0,0.9,'%s %s'%(compound_names[compound_idx], data[file_idxs[0]][compound_idx]['identification'].mz_references[0].adduct),fontsize=8)
+            ax7.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
+            ax7.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
+            ax7.set_ylim(0.2,1.01)
+            ax7.axis('off')
 
             plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
             plt.close()
