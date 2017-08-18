@@ -379,12 +379,31 @@ class adjust_rt_for_selected_compound(object):
         self.lin_log_ax.axis('off')
         self.lin_log_radio = RadioButtons(self.lin_log_ax, ('linear', 'log'))
         self.lin_log_radio.on_clicked(self.set_lin_log)
+
+        self.peak_flag_ax = plt.axes([0.8, 0.75, 0.1, 0.15])#, axisbg=axcolor)
+        self.peak_flag_ax.axis('off')
+        peak_flags = ('keep', 'remove', 'check')
+        my_id = metob.retrieve('CompoundIdentification',
+                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+        if my_id.description in peak_flags:
+            peak_flag_index = peak_flags.index(my_id.description)
+        else:
+            peak_flag_index = 0
+        self.peak_flag_radio = RadioButtons(self.peak_flag_ax, peak_flags)
+        self.peak_flag_radio.on_clicked(self.set_peak_flag)
+        self.peak_flag_radio.set_active(peak_flag_index)
         
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
         self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
         self.fig.canvas.draw_idle()
-        
+
+    def set_peak_flag(self,label):
+        my_id = metob.retrieve('CompoundIdentification',
+                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+        my_id.description = label
+        metob.store(my_id)
+
     def on_pick(self,event):
         thisline = event.artist
         thisline.set_color('red')
@@ -409,7 +428,14 @@ class adjust_rt_for_selected_compound(object):
                 self.rt_max_ax.cla()
                 self.y_scale_ax.cla()
                 self.set_plot_data()
-    
+        if event.key == 'x':
+            self.peak_flag_radio.set_active(1)
+            #This is really hacky, but using set_peak_flag function above didn't work.
+            my_id = metob.retrieve('CompoundIdentification',
+                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+            my_id.description = 'remove'
+            metob.store(my_id)            
+        
     def update_yscale(self,val):
         self.y_scale_slider.valinit = self.slider_val
         self.slider_val = self.y_scale_slider.val
