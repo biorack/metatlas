@@ -465,6 +465,7 @@ def write_pactolus_job_file(myfile,
     save_pat = 'test_pactolus_72_2_realtime.h5'
     out_pat = 'job_pactolus_realtime1_out.txt'
     err_pat = 'job_pactolus_realtime1_err.txt'
+    tmp_pat = 'placeholder_for_temp_path'
     
     old_tree_file = '/project/projectdirs/openmsi/projects/ben_trees/metacyc_max_depth_5.npy'
     
@@ -488,6 +489,7 @@ def write_pactolus_job_file(myfile,
     new_save_pat = '"%s"'%os.path.join(os.path.dirname(container_file),'pactolus_results_' + group_name)
     new_out_pat = '"%s"'%os.path.join(os.path.dirname(container_file),no_extension + '.out')
     new_err_pat = '"%s"'%os.path.join(os.path.dirname(container_file),no_extension + '.err')
+    new_tmp_pat = '"%s"'%os.path.join(os.path.dirname(container_file),'tmp')
     new_job_pat = '"%s"'%no_extension
     
     replace_text = [(read_pat,new_read_pat),
@@ -495,7 +497,8 @@ def write_pactolus_job_file(myfile,
                     (out_pat,new_out_pat),
                     (err_pat,new_err_pat),
                     (job_pat,new_job_pat),
-                    (old_tree_file,new_tree_file)]
+                    (old_tree_file,new_tree_file),
+                    (tmp_pat,new_tmp_pat)]
     
     temp_text = base_script_text
     for rt in replace_text:

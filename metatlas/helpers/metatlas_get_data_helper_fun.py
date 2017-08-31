@@ -8,6 +8,24 @@ import pandas as pd
 from textwrap import wrap
 import matplotlib.pyplot as plt
 
+
+def create_msms_dataframe(df):
+    """
+    create a dataframe organized into spectra from a raw dataframe of points
+    """
+    #removed polarity and hdf5_file
+    if 'precursor_MZ' in df.columns:
+        grouped = df.groupby(['precursor_MZ','rt','precursor_intensity','collision_energy']).aggregate(lambda x: tuple(x))
+    elif 'precursor_mz' in df.columns:
+        grouped = df.groupby(['precursor_mz','rt','precursor_intensity','collision_energy']).aggregate(lambda x: tuple(x))
+    grouped.mz = grouped.mz.apply(list)
+    grouped.i = grouped.i.apply(list)
+    grouped = grouped.reset_index()
+    grouped['spectrum'] = map(lambda x,y:(x,y),grouped['mz'],grouped['i'])
+    grouped['spectrum'] = grouped['spectrum'].apply(lambda x: zip(x[0],x[1]))
+    grouped.drop(['mz','i'], axis=1, inplace=True)
+    return grouped
+
 def compare_EIC_to_BPC_for_file(metatlas_dataset,file_index,yscale = 'linear'):
     """
     Plot the base peak chromatogram overlaid with extracted
@@ -75,7 +93,7 @@ def get_data_for_atlas_df_and_file(input_tuple):
         row.append(result)
     return row
 
-def get_bpc(filename,dataset='ms1_pos'):
+def get_bpc(filename,dataset='ms1_pos',integration='bpc'):
     """
     Gets the basepeak chromatogram for a file. 
     filename: File can be either a metatlas lcmsrun object or a full path to an hdf5file
@@ -85,8 +103,12 @@ def get_bpc(filename,dataset='ms1_pos'):
     A pandas dataframe with the value at the maximum intensity at each retention time
     """
     df_container = df_container_from_metatlas_file(filename)
-    bpc = df_container[dataset].sort('i', ascending=False).groupby('rt', as_index=False).first().sort('rt',ascending=True)
-    return bpc
+    if integration=='bpc':
+        bpc = df_container[dataset].sort_values('i', ascending=False).groupby('rt', as_index=False).first().sort_values('rt',ascending=True)
+        return bpc
+    else:
+        tic = df_container[dataset][['rt','i']].groupby('rt',as_index=False).sum().sort_values('rt',ascending=True)
+        return tic
 
 def df_container_from_metatlas_file(my_file):
     """
