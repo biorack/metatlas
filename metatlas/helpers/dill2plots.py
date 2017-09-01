@@ -1255,46 +1255,46 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
-    print(len(data))
-    print(len(data[0]))
+    
     # filter runs from the metatlas dataset
     if include_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
     if include_groups:
         data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
         
-    print(len(data))
-    print(len(data[0]))
     if exclude_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
     if exclude_groups:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_groups)
         #data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
     
-    print(len(data))
-    print(len(data[0]))
+    
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
-
-    print('loading preexisting compound identifications')
+    # print(len(data),len(data[0]),len(compound_names))
+    
 
     frag_refs = pd.read_json(os.path.join(frag_json_dir, frag_json_name + ".json"))
     
-    print('getting spectra from files')
     
     for compound_idx in range(len(compound_names)):
         file_idx = None
         file_precursor_intensity = 0
         score = None
         ref_spec = []
-               
-        if all([data[i][compound_idx]['identification'].compound for i in range(len(file_names))]):
+
+        if any([(len(data[i][compound_idx]['identification'].compound)!=0) and (data[i][compound_idx]['identification'].compound is not None) for i in range(len(file_names))]):
+            # print('checking for compound ids')
             file_idx, score, ref_spec = file_with_max_score(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
-            
+            if len(file_idx) == 0: #There is not a reference for that compound
+                file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]        
+            # print('found one',file_idx)
         else:
             file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]        
-            
-        if file_idx:
+        # print(file_idx,compound_idx, compound_names[compound_idx])
+        if isinstance(file_idx,int):
+            # print('printing')
+            # print(file_idx,compound_idx)
             fig = plt.figure(figsize=(20,20))
         #     fig = plt.figure()
             ax = fig.add_subplot(211)
@@ -2311,3 +2311,4 @@ def select_groups_for_analysis(name = '%', description = [], username = '*', do_
 
 
 
+# 
