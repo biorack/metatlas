@@ -706,7 +706,7 @@ def get_compound_names(data,use_labels=False):
             else:
                 _str = d['identification'].name
         _str = _str.split('///')[0]
-        newstr = '%d_%s_%s_%s_%5.2f'%(i,_str,d['identification'].mz_references[0].detected_polarity,
+        newstr = '%s_%s_%s_%s_%5.2f'%(str(i).zfill(4),_str,d['identification'].mz_references[0].detected_polarity,
                 d['identification'].mz_references[0].adduct,d['identification'].rt_references[0].rt_peak)
         newstr = re.sub('\.', 'p', newstr) #2 or more in regexp
 
