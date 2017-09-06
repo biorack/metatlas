@@ -677,7 +677,7 @@ def get_file_names(data,full_path=False):
     return file_names
 
 
-def get_compound_names(data):
+def get_compound_names(data,use_labels=False):
     """
     Parameters
     ----------
@@ -698,10 +698,13 @@ def get_compound_names(data):
 
     for i,d in enumerate(data[0]):
         compound_objects.append(d['identification'])
-        if len(d['identification'].compound) > 0:
-            _str = d['identification'].compound[0].name
-        else:
+        if use_labels:
             _str = d['identification'].name
+        else:
+            if len(d['identification'].compound) > 0:
+                _str = d['identification'].compound[0].name
+            else:
+                _str = d['identification'].name
         _str = _str.split('///')[0]
         newstr = '%s_%s_%s_%5.2f'%(_str,d['identification'].mz_references[0].detected_polarity,
                 d['identification'].mz_references[0].adduct,d['identification'].rt_references[0].rt_peak)

@@ -1246,7 +1246,9 @@ def frag_refs_to_json(json_dir = '/project/projectdirs/metatlas/projects/sharepo
 #     """
     
 
-def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', frag_json_name = 'frag_refs', input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
+def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', frag_json_name = 'frag_refs', 
+    input_fname = '', input_dataset = [], include_lcmsruns = [], 
+    exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = [], use_labels=False):
     output_loc = os.path.expandvars(output_loc)    
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
@@ -1269,7 +1271,7 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
         #data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
     
     
-    compound_names = ma_data.get_compound_names(data)[0]
+    compound_names = ma_data.get_compound_names(data,use_labels=use_labels)[0]
     file_names = ma_data.get_file_names(data)
     # print(len(data),len(data[0]),len(compound_names))
     
@@ -1286,7 +1288,7 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
         if any([(len(data[i][compound_idx]['identification'].compound)!=0) and (data[i][compound_idx]['identification'].compound is not None) for i in range(len(file_names))]):
             # print('checking for compound ids')
             file_idx, score, ref_spec = file_with_max_score(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
-            if len(file_idx) == 0: #There is not a reference for that compound
+            if ~isinstance(file_idx,int): #There is not a reference for that compound
                 file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]        
             # print('found one',file_idx)
         else:
@@ -1343,11 +1345,12 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
             if data[file_idx][compound_idx]['identification'].compound:
                 inchi =  data[file_idx][compound_idx]['identification'].compound[0].inchi
                 myMol = Chem.MolFromInchi(inchi.encode('utf-8'))
-                myMol,neutralised = NeutraliseCharges(myMol)
-                image = Draw.MolToImage(myMol, size = (300,300) )
-                ax2 = fig.add_subplot(223)
-                ax2.imshow(image)
-                ax2.axis('off')
+                # myMol,neutralised = NeutraliseCharges(myMol)
+                if myMol:
+                    image = Draw.MolToImage(myMol, size = (300,300) )
+                    ax2 = fig.add_subplot(223)
+                    ax2.imshow(image)
+                    ax2.axis('off')
             #     SVG(moltosvg(myMol))
 
             ax3 = fig.add_subplot(224)
@@ -1560,7 +1563,9 @@ def plot_score_and_ref_file(ax, score, ref):
         transform=ax.transAxes)
             
             
-def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatlas/projects/sharepoint/frag_refs.json', input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
+def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatlas/projects/sharepoint/frag_refs.json', 
+    input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], 
+    exclude_groups = [], output_loc = [],use_labels=False):
     
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
@@ -1582,7 +1587,7 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
 
     #Obtain compound and file names
-    compound_names = ma_data.get_compound_names(data)[0]
+    compound_names = ma_data.get_compound_names(data,use_labels)[0]
     file_names = ma_data.get_file_names(data)
     
     #Obtain fragmentation references
