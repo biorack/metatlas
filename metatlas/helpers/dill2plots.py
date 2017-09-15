@@ -1490,9 +1490,11 @@ def plot_structure(ax, compound, dimensions):
     if compound:
         inchi =  compound[0].inchi
         myMol = Chem.MolFromInchi(inchi.encode('utf-8'))
-        myMol,neutralised = NeutraliseCharges(myMol)
-        image = Draw.MolToImage(myMol, size=(dimensions, dimensions))
-        ax.imshow(image)
+        
+        if myMol:
+            image = Draw.MolToImage(myMol, size=(dimensions, dimensions))
+            ax.imshow(image)
+            
     ax.axis('off')            
             
             
@@ -1606,6 +1608,15 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             top_five = top_five_scoring_files(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
             if top_five:
                 file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list = top_five
+            else:
+                file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
+                if file_idx:
+                    file_idxs.append(file_idx)
+                    sample_nonmatches_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
+                    sample_matches_list.append(np.array([[],[]]))
+                    ref_matches_list.append(np.array([[],[]]))
+                    ref_nonmatches_list.append(np.array([[],[]]))
+                    scores.append(0)
         
         #Find best file by prescursor intensity
         else:
