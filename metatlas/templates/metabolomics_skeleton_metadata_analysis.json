@@ -7,7 +7,7 @@
          {
             "label":"readme",
             "file" :"",
-	    "_comment": "template automatically includes a file_format key with default value specified in the template. Please include file_format here if you want a value different from the default",
+	    "_comment": "template automatically includes a file_format key with default value specified in the template. Please include file_format here if you want a value different from the default"
          },
 	 {
 	    "label":"results",
