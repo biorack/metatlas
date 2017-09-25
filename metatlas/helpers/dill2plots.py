@@ -2140,9 +2140,9 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
             myID = metob.CompoundIdentification()
             
             if not pd.isnull(row.inchi_key): # this logic is where an identified metabolite has been specified
-                c = metob.retrieve('Compounds',neutralized_inchi_key=row.inchi_key,username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
+                c = metob.retrieve('Compounds',inchi_key=row.inchi_key,username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one. 
                 if c:
-                    c = c[0]
+                    c = c[-1]
             else:
                 c = 'use_label'
             if type(row.label) != float:
