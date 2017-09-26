@@ -149,7 +149,7 @@ def match_ms_vectors(ms_v1, ms_v2, mz_tolerance, resolve_by):
         sorted_match_indices = np.dstack(np.unravel_index(np.ma.argsort(masked_flat_match_matrix), (ms_v1[0].size, ms_v2[0].size)))[0]
     if resolve_by == 'intensity':
         masked_flat_match_matrix = np.ma.array(flat_match_matrix, mask=np.isinf(flat_match_matrix), fill_value=-np.inf)
-        sorted_match_indices = np.dstack(np.unravel_index(np.ma.argsort(masked_flat_match_matrix, endwith=False)[::-1], (ms_v1[0].size, ms_v2[0].size)))[0]        
+        sorted_match_indices = np.dstack(np.unravel_index(np.ma.argsort(masked_flat_match_matrix), (ms_v1[0].size, ms_v2[0].size)))[0]        
     
     for ms_v1_idx, ms_v2_idx in sorted_match_indices:
         if np.isinf(match_matrix[ms_v1_idx, ms_v2_idx]):
