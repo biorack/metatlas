@@ -1170,10 +1170,10 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
     
     for file_idx in range(len(data)):
         if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
-            data_mz = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
+            data_mz = sp.sort_ms_vector_by_mz(np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']]))
             
             for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
-                ref_mz = np.array(frag['mz_intensities']).T
+                ref_mz = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
 
                 score = sp.score_vectors_composite_dot(*sp.pairwise_align_ms_vectors(data_mz, ref_mz, .005, "intensity"))
 
@@ -1384,106 +1384,100 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
     file_idxs = []
     ref_idxs = []
     scores = []
-    sample_matches_list = []
-    ref_matches_list = []
-    sample_nonmatches_list = []
-    ref_nonmatches_list = []
+    msv_sample_list = []
+    msv_ref_list = []
     
     for file_idx in range(len(data)):
         if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
             current_best_score = None
             current_best_ref_idx = None
-            current_best_sample_matches = None
-            current_best_ref_matches = None
-            current_best_sample_nonmatches = None
-            current_best_ref_nonmatches = None
+            current_best_msv_sample = None
+            current_best_msv_ref = None
             
-            sample_mzi = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
+            msv_sample = sp.sort_ms_vector_by_mz(np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']]))
             
             for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
-                ref_mzi = np.array(frag['mz_intensities']).T
+                msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
                 
-                sample_matches, ref_matches, sample_nonmatches, ref_nonmatches = sp.partition_ms_vectors(sample_mzi, ref_mzi, .005, 'intensity')
+                msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'intensity')
                 
-                sample_aligned, ref_aligned = sp.align_vectors(sample_matches, ref_matches, sample_nonmatches, ref_nonmatches) 
-                
-                score = sp.score_vectors_composite_dot(sample_aligned, ref_aligned)
+                score = sp.score_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_power=0)
                 
                 if current_best_score == None or score > current_best_score:
                     current_best_score = score
                     current_best_ref_idx = ref_idx
-                    current_best_sample_matches = sample_matches
-                    current_best_ref_matches = ref_matches
-                    current_best_sample_nonmatches = sample_nonmatches
-                    current_best_ref_nonmatches = ref_nonmatches
+                    current_best_msv_sample = msv_sample_aligned
+                    current_best_msv_ref = msv_ref_aligned
             
             if current_best_score:
                 scores.append(current_best_score)
                 file_idxs.append(file_idx)
                 ref_idxs.append(current_best_ref_idx)
-                sample_matches_list.append(current_best_sample_matches)
-                ref_matches_list.append(current_best_ref_matches)
-                sample_nonmatches_list.append(current_best_sample_nonmatches)
-                ref_nonmatches_list.append(current_best_ref_nonmatches)
+                msv_sample_list.append(current_best_msv_sample)
+                msv_ref_list.append(current_best_msv_ref)
     
-    return zip(*sorted(zip(file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list), key=lambda l: l[2], reverse=True)[:5])
+    return zip(*sorted(zip(file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list), key=lambda l: l[2], reverse=True)[:5])
             
             
-def plot_msms_comparison(i, score, ax, precursor_intensity, sample_matches, ref_matches, sample_nonmatches, ref_nonmatches):
-    
-    full_sample = np.concatenate((sample_matches, sample_nonmatches), axis=1)
-    full_ref = np.concatenate((ref_matches, ref_nonmatches), axis=1)
-    
-    sample_mz = sample_nonmatches[0]
-    sample_zeros = np.zeros(sample_nonmatches[0].shape)
-    sample_intensity = sample_nonmatches[1]
+def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
 
-    ax.vlines(sample_mz, sample_zeros, sample_intensity, colors='r', linewidth = 1)
+    msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
 
-    shared_mz = sample_matches[0,]
-    shared_zeros = np.zeros(sample_matches[0].shape)
-    shared_sample_intensity = sample_matches[1]
+    msv_sample_unaligned = np.concatenate((msv_sample_matches, msv_sample_nonmatches), axis=1)
+    msv_ref_unaligned = np.concatenate((msv_ref_matches, msv_ref_nonmatches), axis=1)
 
-    ax.vlines(shared_mz, shared_zeros, shared_sample_intensity, colors='g', linewidth = 1)
+    sample_mz = msv_sample_nonmatches[0]
+    sample_zeros = np.zeros(msv_sample_nonmatches[0].shape)
+    sample_intensity = msv_sample_nonmatches[1]
 
-    most_intense_idxs = np.argsort(full_sample[1])[::-1]
+    ax.vlines(sample_mz, sample_zeros, sample_intensity, colors='r', linewidth=1)
+
+    shared_mz = msv_sample_matches[0]
+    shared_zeros = np.zeros(msv_sample_matches[0].shape)
+    shared_sample_intensity = msv_sample_matches[1]
+
+    ax.vlines(shared_mz, shared_zeros, shared_sample_intensity, colors='g', linewidth=1)
+
+    most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
 
     if i == 0:
-        ax.set_title('%.4f'%score,fontsize=8,weight='bold')
-        ax.set_xlabel('m/z',fontsize=8,weight='bold')
-        ax.set_ylabel('intensity',fontsize=8,weight='bold')
+        ax.set_title('%.4f' % score, fontsize=8, weight='bold')
+        ax.set_xlabel('m/z', fontsize=8, weight='bold')
+        ax.set_ylabel('intensity', fontsize=8, weight='bold')
         ax.tick_params(axis='both', which='major', labelsize=6)
 
         labels = [1.001e9]
-        
-        intensity_requirement = [m for m in most_intense_idxs 
-                                 if np.min(np.abs(full_sample[0][m] - labels)) > 0.1 and full_sample[1][m] > 0.2 * np.max(full_sample[1])]
-        
-        for m in max([most_intense_idxs[:6], intensity_requirement], key=len):
-            if np.min(np.abs(full_sample[0][m] - labels)) > 0.1 and full_sample[1][m] > 0.02 * np.max(full_sample[1]):
-                ax.annotate('%5.4f'%full_sample[0][m], 
-                            xy=(full_sample[0][m], 1.01*full_sample[1][m]),
-                            rotation = 90, 
-                            horizontalalignment = 'center', verticalalignment = 'left',
-                            fontsize = 5)
-                labels.append(full_sample[0][m])
- 
-    if full_ref[0].size > 0:
-        ref_scale = -1*np.max(full_sample[1]) / np.max(full_ref[1])
-        
-        ref_mz = ref_nonmatches[0]
-        ref_zeros = np.zeros(ref_nonmatches[0].shape)
-        ref_intensity = ref_scale*ref_nonmatches[1]
-        shared_ref_intensity = ref_scale*ref_matches[1]
-    
-        ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth = 1)
 
-        ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth = 1)
+        intensity_requirement = [m for m in most_intense_idxs
+                                 if
+                                 np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1
+                                 and msv_sample_unaligned[1][m] > 0.2 * np.max(msv_sample_unaligned[1])]
+
+        for m in max([most_intense_idxs[:6], intensity_requirement], key=len):
+            if np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1 and msv_sample_unaligned[1][m] > 0.02 * np.max(msv_sample_unaligned[1]):
+                ax.annotate('%5.4f' % msv_sample_unaligned[0][m],
+                            xy=(msv_sample_unaligned[0][m], 1.01 * msv_sample_unaligned[1][m]),
+                            rotation=90,
+                            horizontalalignment='center', verticalalignment='left',
+                            size=3)
+                labels.append(msv_sample_unaligned[0][m])
+
+    if msv_ref_unaligned[0].size > 0:
+        ref_scale = -1 * np.max(msv_sample_unaligned[1]) / np.max(msv_ref_unaligned[1])
+
+        ref_mz = msv_ref_nonmatches[0]
+        ref_zeros = np.zeros(msv_ref_nonmatches[0].shape)
+        ref_intensity = ref_scale * msv_ref_nonmatches[1]
+        shared_ref_intensity = ref_scale * msv_ref_matches[1]
+
+        ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth=1)
+
+        ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth=1)
 
         ax.axhline()
-        
+
     ylim = ax.get_ylim()
-    ax.set_ylim(ylim[0], ylim[1]*1.33)
+    ax.set_ylim(ylim[0], ylim[1] * 1.33)
             
             
 def plot_structure(ax, compound, dimensions):
@@ -1601,33 +1595,30 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
     #Iterate over compounds
     for compound_idx in range(len(compound_names)):
         file_idxs, ref_idxs, scores = [], [], []
-        sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list = [], [], [], []
+        msv_sample_list, msv_ref_list = [], []
         
         #Find 5 best file and reference pairs by score
         if any([data[i][compound_idx]['identification'].compound for i in range(len(file_names))]):
             top_five = top_five_scoring_files(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
             if top_five:
-                file_idxs, ref_idxs, scores, sample_matches_list, ref_matches_list, sample_nonmatches_list, ref_nonmatches_list = top_five
+                file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list = top_five
+            #Find best file by prescursor intensity
             else:
                 file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
                 if file_idx:
                     file_idxs.append(file_idx)
-                    sample_nonmatches_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
-                    sample_matches_list.append(np.array([[],[]]))
-                    ref_matches_list.append(np.array([[],[]]))
-                    ref_nonmatches_list.append(np.array([[],[]]))
+                    msv_sample_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
+                    msv_ref_list.append(np.full_like(msv_sample_list[-1], np.nan))
                     scores.append(0)
         
         #Find best file by prescursor intensity
         else:
             file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
             if file_idx:
-                file_idxs.append(file_idx)
-                sample_nonmatches_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
-                sample_matches_list.append(np.array([[],[]]))
-                ref_matches_list.append(np.array([[],[]]))
-                ref_nonmatches_list.append(np.array([[],[]]))
-                scores.append(0)
+                    file_idxs.append(file_idx)
+                    msv_sample_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
+                    msv_ref_list.append(np.full_like(msv_sample_list[-1], np.nan))
+                    scores.append(0)
                 
         #Plot if compound yields any scores 
         if file_idxs:
@@ -1652,9 +1643,7 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             ax2d.set_yticklabels([])
             
             for i,(score,ax) in enumerate(zip(scores,[ax1, ax2a, ax2b, ax2c, ax2d])):
-                plot_msms_comparison(i, score, ax,
-                                     data[file_idxs[i]][compound_idx]['data']['msms']['data']['precursor_intensity'],
-                                     sample_matches_list[i], ref_matches_list[i], sample_nonmatches_list[i], ref_nonmatches_list[i])                    
+                plot_msms_comparison(i, score, ax, msv_sample_list[i], msv_ref_list[i])                   
             
             #EMA Compound Info
             ax3 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
