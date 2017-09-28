@@ -1165,7 +1165,7 @@ def file_with_max_precursor_intensity(data,compound_idx):
 
 def file_with_max_score(data, frag_refs, compound_idx, filter_by):
     idx = []
-    max_score = 0
+    max_score = np.nan
     best_ref_spec = []
     
     for file_idx in range(len(data)):
@@ -1175,9 +1175,9 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
             for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                 ref_mz = np.array(frag['mz_intensities']).T
 
-                score = sp.score_vectors_composite_dot(*sp.align_vectors(*sp.partition_ms_vectors(data_mz, ref_mz, .005, "intensity")))
+                score = sp.score_vectors_composite_dot(*sp.pairwise_align_ms_vectors(data_mz, ref_mz, .005, "intensity"))
 
-                if score > max_score:
+                if score > max_score or np.isnan(max_score):
                     max_score = score
                     idx = file_idx
                     best_ref_spec = [frag['mz_intensities']]
