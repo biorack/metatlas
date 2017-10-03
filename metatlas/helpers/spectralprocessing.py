@@ -75,28 +75,22 @@ def filter_frag_refs(metatlas_dataset, frag_refs, compound_idx, file_idx,
     :return: pandas dataframe, subset of frag_refs meeting condition
     """
 
-    if 'data' in metatlas_dataset[file_idx][compound_idx]['data'][
-        'msms'].keys() and \
-                    metatlas_dataset[file_idx][compound_idx]['data']['msms'][
-                        'data']['mz'].size > 0:
+    if 'data' in metatlas_dataset[file_idx][compound_idx]['data']['msms'].keys() and \
+                 metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['mz'].size > 0:
 
         condition_list = list(filter(None, re.split(r"(\w+|[()])", condition)))
 
         for i in range(len(condition_list)):
             # Identifiers
-            if metatlas_dataset[file_idx][compound_idx][
-                'identification'].compound:
+            if metatlas_dataset[file_idx][compound_idx]['identification'].compound:
                 if condition_list[i] == "inchi_key":
-                    condition_list[
-                        i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].compound[0].inchi_key == frag_refs['inchi_key'])"
+                    condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].compound[0].inchi_key == frag_refs['inchi_key'])"
 
                 if condition_list[i] == "neutralized_inchi_key":
-                    condition_list[
-                        i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].compound[0].neutralized_inchi_key == frag_refs['neutralized_inchi_key'])"
+                    condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].compound[0].neutralized_inchi_key == frag_refs['neutralized_inchi_key'])"
 
                 if condition_list[i] == "neutralized_2d_inchi_key":
-                    condition_list[
-                        i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].compound[0].neutralized_2d_inchi_key == frag_refs['neutralized_2d_inchi_key'])"
+                    condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].compound[0].neutralized_2d_inchi_key == frag_refs['neutralized_2d_inchi_key'])"
 
             else:
                 if condition_list[i] == "inchi_key":
@@ -110,8 +104,7 @@ def filter_frag_refs(metatlas_dataset, frag_refs, compound_idx, file_idx,
 
             # Physical attributes
             if condition_list[i] == "polarity":
-                condition_list[
-                    i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity == frag_refs['polarity'])"
+                condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity == frag_refs['polarity'])"
 
             if condition_list[i] == "rt":
                 condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['identification'].rt_references[0].rt_min \
@@ -119,12 +112,10 @@ def filter_frag_refs(metatlas_dataset, frag_refs, compound_idx, file_idx,
                                          metatlas_dataset[file_idx][compound_idx]['identification'].rt_references[0].rt_max)"
 
             if condition_list[i] == "precursor_mz":
-                condition_list[
-                    i] = "(np.abs(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['precursor_MZ'][0] - frag_refs['precursor_mz']))"
+                condition_list[i] = "(np.abs(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['precursor_MZ'][0] - frag_refs['precursor_mz']))"
 
             if condition_list[i] == "collision_energy":
-                condition_list[
-                    i] = "(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['collision_energy'][0] == frag_refs['collision_energy'])"
+                condition_list[i] = "(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['collision_energy'][0] == frag_refs['collision_energy'])"
 
             # Logic
             if condition_list[i] == "and":
@@ -149,34 +140,32 @@ def combine_ms_vectors(msv_alignment, combine_by, weights=None):
         msv_alignment[i] is ms vector at position i,
         msv_alignment[i,0] is  m/z values at position i,
         msv_alignment[i,1] is intensity values at position i
-    :param combine_by: 'sum' or 'mean': dictates how to combine intensities
+    :param combine_by: 'mean', 'max', or 'sum': dictates how to combine intensities
     :param weights: list of floats of length msv_alignment[i,j],
         weighs msv_alignment[i] with weights[i] when computing mean
 
     :return: numpy 2d array
     """
 
-    assert combine_by == 'sum' or combine_by == 'mean'
+    assert combine_by == 'mean' or combine_by == 'max' or combine_by == 'sum'
 
-    def non_nan_mean(v):
+    def nanaverage(v, weights, axis):
         v = np.ma.masked_invalid(v)
-        v = np.ma.average(v, weights=weights, axis=0)
+        v = np.ma.average(v, weights=weights, axis=axis)
         v.mask = np.ma.nomask
         return v
-
-    def non_nan_sum(v):
-        v = np.ma.masked_invalid(v)
-        v = np.ma.sum(v, axis=0)
-        v.mask = np.ma.nomask
-        return v
-
+    
     if combine_by == 'mean':
-        return np.array([non_nan_mean(msv_alignment[:,0]),
-                         non_nan_mean(msv_alignment[:,1])])
+        return sort_ms_vector_by_mz(np.array([nanaverage(msv_alignment[:,0], weights, 0),
+                                              nanaverage(msv_alignment[:,1], weights, 0)]))
+    
+    if combine_by == 'max':
+        return sort_ms_vector_by_mz(np.array([nanaverage(msv_alignment[:,0], weights, 0),
+                                              np.nanmax(msv_alignment[:,1], axis = 0)]))
 
     if combine_by == 'sum':
-        return np.array([non_nan_mean(msv_alignment[:,0]),
-                         non_nan_sum(msv_alignment[:,1])])
+        return sort_ms_vector_by_mz(np.array([nanaverage(msv_alignment[:,0], weights, 0),
+                                              np.nansum(msv_alignment[:,1], axis = 0)]))
 
 
 ################################################################################
@@ -205,10 +194,10 @@ def find_all_ms_matches(msv_1, msv_2, mz_tolerance):
     assert (np.any(np.isnan(msv_1)) and np.any(np.isnan(msv_2))) == False
     assert msv_1.shape[0] == 2 and msv_2.shape[0] == 2
 
-    #start_idx is element for which inserting data_mz directly ahead of it maintains sort order
+    #start_idx is element for which inserting msv_1 directly ahead of it maintains sort order
     start_idxs = np.searchsorted(msv_2[0], msv_1[0] - mz_tolerance)
 
-    #end_idx is element for which inserting data_mz directly after it maintains sort order
+    #end_idx is element for which inserting msv_1 directly after it maintains sort order
     #found by searching negative reversed list since np.searchshorted requires increasing order
     end_idxs = len(msv_2[0]) - np.searchsorted(-msv_2[0][::-1], -(msv_1[0] + mz_tolerance))
 
@@ -324,11 +313,10 @@ def partition_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     assert msv_1.shape[0] == 2 and msv_2.shape[0] == 2
     
     # Find one to one matches within mz_tolerance
-    msv_1_to_msv_2, msv_2_to_msv_1 = match_ms_vectors(msv_1, msv_2,
-                                                      mz_tolerance, resolve_by)
+    msv_1_to_msv_2, msv_2_to_msv_1 = match_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by)
 
     # Assign matching ms vector components to same dimensions
-    msv_1_matches = msv_1[:,msv_2_to_msv_1[~np.isnan(msv_2_to_msv_1)].astype(int)]
+    msv_1_matches = msv_1[:,~np.isnan(msv_1_to_msv_2)]
     msv_2_matches = msv_2[:,msv_1_to_msv_2[~np.isnan(msv_1_to_msv_2)].astype(int)]
 
     # Assign nonmatching ms vector components to differing dimensions
@@ -388,16 +376,16 @@ def pairwise_align_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     msv_1_aligned = np.asarray(msv_1_matches, dtype=float)
     msv_2_aligned = np.asarray(msv_2_matches, dtype=float)
     
-    # Insert msv_1_nonmatches into msv_1_aligned to maintain order and nan shaped like msv_1_nonmatches in msv_2_aligned 
+    # Insert msv_1_nonmatches into msv_1_aligned and nan shaped like msv_1_nonmatches in msv_2_aligned 
     msv_1_to_insert = np.searchsorted(msv_1_aligned[0], msv_1_nonmatches[0])
     msv_1_aligned = np.insert(msv_1_aligned, msv_1_to_insert, msv_1_nonmatches, 1)
     msv_2_aligned = np.insert(msv_2_aligned, msv_1_to_insert, np.full_like(msv_1_nonmatches, np.nan), 1)
 
-    # Insert msv_2_nonmatches into msv_2_aligned to maintain order and nan shaped like msv_2_nonmatches in msv_1_aligned 
+    # Insert msv_2_nonmatches into msv_2_aligned and nan shaped like msv_2_nonmatches in msv_1_aligned 
     msv_2_to_insert = np.searchsorted(msv_2_aligned[0], msv_2_nonmatches[0])
     msv_2_aligned = np.insert(msv_2_aligned, msv_2_to_insert, msv_2_nonmatches, 1)
     msv_1_aligned = np.insert(msv_1_aligned, msv_2_to_insert, np.full_like(msv_2_nonmatches, np.nan), 1)
-
+    
     msv_alignment = np.dstack((np.array([msv_1_aligned.T, msv_2_aligned.T]))).T
 
     return msv_alignment
@@ -405,9 +393,10 @@ def pairwise_align_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
 
 def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
                               mass_power=0, intensity_power=1, weights=None):
-    """
+    """DO NOT USE. DOES NOT WORK AS WHEN THERE ARE CROSSING MATCHES.
+    
     Pairwise aligns each combination of pairs of ms vectors in msv_list (see pairwise_align_ms_vectors), 
-    scores them (see score_vectors_composite_dot), assigns the product of their score with 
+    scores them (see score_ms_vectors_composite_dot), assigns the product of their score with 
     the sum of their weights to a corresponding position in a score matrix, combines the 
     two ms vectors with highest score (see combine_ms_vectors) according to their weights 
     and weighs it as the sum of its constituent weights, removes the constituent ms vectors and 
@@ -432,9 +421,17 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
     :return msv_combined: numpy 2d array, total combination of all ms vectors in msv_list
     """
     
+    
+    try:
+        assert False
+    except:
+        print 'Do not use. Read the doc for details.'
+        raise
+    
     msv_list = [np.asarray(msv, dtype=float) for msv in msv_list]
     assert np.any([np.any(np.isnan(msv)) for msv in msv_list]) == False
     assert np.all([msv.shape[0] == 2 for msv in msv_list]) == True
+    assert not (resolve_by == 'intensity' and combine_by == 'mean')
     
     # Make a copy of the original ms vectors
     msv_original_list = msv_list[:]
@@ -455,7 +452,7 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
         # Add weighted score of msv_list[i] and msv_list[j] to score_matrix[i,j] for all combinations
         for i, j in np.array(np.tril_indices(num_msv, -1)).T:
             msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[j], mz_tolerance, resolve_by)
-            score_matrix[i, j] = (weights[i] + weights[j]) * sp.score_vectors_composite_dot(np.nan_to_num(msv_i_aligned), np.nan_to_num(msv_j_aligned), mass_power, intensity_power)
+            score_matrix[i, j] = (weights[i] + weights[j]) * score_ms_vectors_composite_dot(msv_i_aligned, msv_j_aligned, mass_power, intensity_power)
 
         # Flatten the score_matrix
         flat_score_matrix = score_matrix.ravel()
@@ -497,7 +494,7 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
     for i, msv in enumerate(msv_original_list):
         msv_alignment[i] =  pairwise_align_ms_vectors(msv, msv_combined, mz_tolerance, resolve_by)[0]
 
-    return msv_alignment[1:], msv_combined
+    return msv_alignment, msv_combined
 
 
 def partition_aligned_ms_vectors(msv_1_aligned, msv_2_aligned):
@@ -569,7 +566,7 @@ def calc_ratio_of_pairs(v1, v2):
     v2_shared = v2[shared]
 
     # Calculate ratio pairs
-    ratios = (v1_shared[1:]/v1_shared[:-1]) * (v2_shared[:-1]/v2_shared[1:])
+    ratios = (v1_shared/np.roll(v1_shared, 1)) * (np.roll(v2_shared, 1)/v2_shared)
 
     # Inverse ratio if greater than one
     ratios = np.minimum(ratios, 1 / ratios)
@@ -594,7 +591,7 @@ def score_vectors_dot(v1, v2, normalize=True):
         return np.dot(v1, v2)
 
 
-def score_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_power=1,
+def score_ms_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_power=1,
                                 intensity_power=.6):
     """
     Returns "Composite" dot product score as defined in Table 1 of paper below
@@ -701,12 +698,9 @@ def make_isotope_matrix(elements,
     mass_removed_vec = []
 
     for i, e in enumerate(elements):
-        mass_removed_vec.append(
-            int(isotope_dict[e]['isotopes'][0]['mass_number'] - 1))
+        mass_removed_vec.append(int(isotope_dict[e]['isotopes'][0]['mass_number'] - 1))
         for j, iso in enumerate(isotope_dict[e]['isotopes']):
-            isotope_matrix[i, j] = [scale_factor * (iso['atomic_mass'] - int(
-                isotope_dict[e]['isotopes'][0]['mass_number'] - 1)),
-                                    iso['abundance']]
+            isotope_matrix[i, j] = [scale_factor * (iso['atomic_mass'] - int(isotope_dict[e]['isotopes'][0]['mass_number'] - 1)), iso['abundance']]
 
     mass_removed_vec.append(-1)
 
@@ -729,7 +723,6 @@ def add_synthetic_element(synthetic,
 
     :return new_isotope_dict: dictionary with elements as keys and isotope information as values,
     """
-    print __file__
     # Make a deep copy of isotope_dict to modify
     new_isotope_dict = deepcopy(isotope_dict)
     
@@ -781,10 +774,8 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
         return 2 ** int(np.ceil(np.log(float(x)) / np.log(2.0)))
 
     element_vector = np.append(element_vector, 0)
-    max_elements = isotope_matrix[:, 0,
-                   0].size  # add 1 due to mass correction 'element'
-    max_isotopes = isotope_matrix[0, :,
-                   0].size  # maxiumum # of isotopes for one element
+    max_elements = isotope_matrix[:, 0, 0].size  # add 1 due to mass correction 'element'
+    max_isotopes = isotope_matrix[0, :, 0].size  # maxiumum # of isotopes for one element
 
     if resolution < 0.00001:  # % minimal mass step allowed
         resolution = 0.00001
@@ -794,33 +785,24 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
     R = 0.00001 / resolution  # % R is used to scale nuclide masses (see below)
 
     window_size = window_size / resolution  # convert window size to new mass units
-    window_size = next2pow(
-        window_size)  # fast radix-2 fast-Fourier transform algorithm
+    window_size = next2pow(window_size)  # fast radix-2 fast-Fourier transform algorithm
 
     if window_size < np.round(496708 * R) + 1:
-        window_size = nextpow2(
-            np.round(496708 * R) + 1)  # just to make sure window is big enough
+        window_size = nextpow2(np.round(496708 * R) + 1)  # just to make sure window is big enough
 
     M = np.array(element_vector)
 
     monoisotopic = 0.0
     for i, e in enumerate(element_vector):
-        monoisotopic = monoisotopic + ((mass_removed_vec[i] * scale_factor +
-                                        isotope_matrix[
-                                            i, 0, 0]) * e / scale_factor)
+        monoisotopic = monoisotopic + ((mass_removed_vec[i] * scale_factor + isotope_matrix[i, 0, 0]) * e / scale_factor)
 
-    Mmi = np.append(np.round(isotope_matrix[:-1, 0, 0] * R),
-                    0) * M  # % (Virtual) monoisotopic mass in new units
+    Mmi = np.append(np.round(isotope_matrix[:-1, 0, 0] * R), 0) * M  # % (Virtual) monoisotopic mass in new units
     Mmi = Mmi.sum()
 
-    folded = np.floor(Mmi / (
-    window_size - 1)) + 1  # % folded folded times (always one folding due to shift below)
+    folded = np.floor(Mmi / (window_size - 1)) + 1  # % folded folded times (always one folding due to shift below)
 
-    M[max_elements - 1] = np.ceil(((window_size - 1) - np.mod(Mmi,
-                                                              window_size - 1) + np.round(
-        100000 * R)) * resolution)
-    mass_removed = np.array(
-        mass_removed_vec) * M  # ';  % correction for 'virtual' elements and mass shift
+    M[max_elements - 1] = np.ceil(((window_size - 1) - np.mod(Mmi, window_size - 1) + np.round(100000 * R)) * resolution)
+    mass_removed = np.array(mass_removed_vec) * M  # ';  % correction for 'virtual' elements and mass shift
     mass_removed = mass_removed.sum()
 
     start = (folded * (window_size - 1) + 1) * resolution + mass_removed
@@ -829,8 +811,7 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
 
     MA = np.linspace(start, stop, step)
 
-    itAs = np.zeros((max_elements, max_isotopes, window_size),
-                    dtype=np.complex_)
+    itAs = np.zeros((max_elements, max_isotopes, window_size), dtype=np.complex_)
     tAs = np.zeros((max_elements, window_size), dtype=np.complex_)
 
     ptA = np.ones(window_size)
@@ -854,17 +835,11 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
 
     cutoff_idx = np.where(ptA > cutoff)[0]
 
-    contributions = np.zeros((max_elements - 1, max_isotopes, cutoff_idx.size),
-                             dtype=int)
+    contributions = np.zeros((max_elements - 1, max_isotopes, cutoff_idx.size), dtype=int)
 
     for i in xrange(max_elements - 1):
         for j in xrange(max_isotopes):
-            c = ~np.isclose(ptA[cutoff_idx], F.ifft(
-                (fft_ptA / (tAs[i])) * ((tAs[i] - itAs[i, j]))).real[
-                cutoff_idx])
-            contributions[i, j, c] = np.round((F.ifft(
-                (fft_ptA / (tAs[i])) * (itAs[i, j])).real[cutoff_idx][c] /
-                                               ptA[cutoff_idx][c]) *
-                                              element_vector[i])
+            c = ~np.isclose(ptA[cutoff_idx], F.ifft((fft_ptA / (tAs[i])) * ((tAs[i] - itAs[i, j]))).real[cutoff_idx])
+            contributions[i, j, c] = np.round((F.ifft((fft_ptA / (tAs[i])) * (itAs[i, j])).real[cutoff_idx][c] / ptA[cutoff_idx][c]) * element_vector[i])
 
     return np.array([MA[cutoff_idx], ptA[cutoff_idx]]), contributions

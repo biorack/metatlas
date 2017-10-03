@@ -1150,7 +1150,7 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
     return df
 
 def file_with_max_precursor_intensity(data,compound_idx):
-    idx = []
+    idx = None
     my_max = 0
     for i,d in enumerate(data):
         if 'data' in d[compound_idx]['data']['msms'].keys():
@@ -1170,12 +1170,12 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
     
     for file_idx in range(len(data)):
         if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
-            data_mz = sp.sort_ms_vector_by_mz(np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']]))
+            msv_sample = sp.sort_ms_vector_by_mz(np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']]))
             
             for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
-                ref_mz = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
+                msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
 
-                score = sp.score_vectors_composite_dot(*sp.pairwise_align_ms_vectors(data_mz, ref_mz, .005, "intensity"))
+                score = sp.score_ms_vectors_composite_dot(*sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape'), mass_power=0)
 
                 if score > max_score or np.isnan(max_score):
                     max_score = score
@@ -1399,9 +1399,9 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
             for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                 msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
                 
-                msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'intensity')
+                msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape')
                 
-                score = sp.score_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_power=0)
+                score = sp.score_ms_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_power=0)
                 
                 if current_best_score == None or score > current_best_score:
                     current_best_score = score
@@ -1614,11 +1614,11 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
         #Find best file by prescursor intensity
         else:
             file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
-            if file_idx:
-                    file_idxs.append(file_idx)
-                    msv_sample_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
-                    msv_ref_list.append(np.full_like(msv_sample_list[-1], np.nan))
-                    scores.append(0)
+            if file_idx is not None:
+                file_idxs.append(file_idx)
+                msv_sample_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
+                msv_ref_list.append(np.full_like(msv_sample_list[-1], np.nan))
+                scores.append(0)
                 
         #Plot if compound yields any scores 
         if file_idxs:
