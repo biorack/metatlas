@@ -53,13 +53,13 @@ def normalize_data(data, Names, x_offset, y_offset, sub_x, sub_y):
                Y_max = i
     
     x_mag = np.log10(X_max - X_min)
-    if np.isinf(x_mag):
+    if np.isinf(x_mag) or np.isnan(x_mag):
         x_mag = 0
     else:
         x_mag = int(x_mag)
         
     y_mag = np.log10(Y_max - Y_min) - 1
-    if np.isinf(y_mag):
+    if np.isinf(y_mag) or np.isnan(y_mag):
         y_mag = 0
     else:
         y_mag = int(y_mag)
@@ -145,13 +145,13 @@ def chromplotplus(kwargs):
         n_cols_list.append(int(np.ceil(n_plots_list[0]/float(n_rows_list[0]))))
     
     #Hashmark variables
-    hash_n = 4
-    hash_m = 4
+    hash_n = 5
+    hash_m = 5
     hash_l = .02*min(sub_x, sub_y)
     
     #Axis values
-    x_values = np.arange(x_range[0],  x_range[1] + 1, (x_range[1] - x_range[0]) / hash_n)
-    y_values = np.arange((y_range[0]/np.power(10, y_mag)),  (y_range[1]/np.power(10, y_mag)) + 1, ((y_range[1]/np.power(10, y_mag)) - (y_range[0]/np.power(10, y_mag))) / hash_m)
+    x_values = np.linspace(x_range[0], x_range[1], num=hash_n)
+    y_values = np.linspace(y_range[0]/np.power(10, y_mag), y_range[1]/np.power(10, y_mag), num=hash_m)
     
     def plot():
         #Plot creation
@@ -233,7 +233,7 @@ def chromplotplus(kwargs):
                 for axis in ['bottom', 'left', 'right', 'top']:
                     
                     #Horizontal range
-                    for k in range(0, hash_n + 1):
+                    for k in range(0, hash_n):
                         if axis == 'bottom':
                             start = (k*(1.0/hash_n)*sub_x + x_delta, y_delta)
                             end = (k*(1.0/hash_n)*sub_x + x_delta, hash_l + y_delta)
@@ -256,7 +256,7 @@ def chromplotplus(kwargs):
                             hashes.append([start, end])
                     
                     #Vertical range
-                    for l in range(0, hash_m + 1):
+                    for l in range(0, hash_m):
                         if axis == 'left':
                             start = (x_delta, l*(1.0/hash_m)*sub_y + y_delta)
                             end = ((hash_l + x_delta, l*(1.0/hash_m)*sub_y + y_delta))
