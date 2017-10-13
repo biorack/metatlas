@@ -13,25 +13,19 @@ def get_formulae(mass,tol=5,charge=0,tol_type='ppm',max_tests=1e7,
 	performs brute force chemical formula generation.  enumerate all possible matches within bounds.
 	Considers only [C,H,N,O,P,S,Na,K,Cl]
 
-	returns the error and a list of dicts with hits.
+	returns list of tuples (error,formula).
 
 	use it like this:
 	from metatlas.helpers import formula_generator as formulae
 	out = formulae.get_formulae(634.13226,1,min_c=20,min_h=15)
-	for o in out:
-	    s = []
-	    for oo in o[1]:
-	        if oo['guess'] != 0:
-	            s.append('%s%d'%(oo['symbol'],oo['guess']))
-	    print(o[0],' '.join(s))
 
-	(4.457399995771993e-06, 'H26 C32 O14')
-	(9.535900062473956e-06, 'H29 C34 N5 P1 S3')
-	(3.076309997140925e-05, 'H151 C24 N6 O3 P2')
-	(5.4717500006518094e-05, 'H35 C33 N1 O2 P3 S2')
+	(4.457399995771993e-06, 'H26C32O14')
+	(9.535900062473956e-06, 'H29C34N5P1S3')
+	(3.076309997140925e-05, 'H151C24N6O3P2')
+	(5.4717500006518094e-05, 'H35C33N1O2P3S2')
 	....
 
-	
+
 
 	"""
 
@@ -55,7 +49,17 @@ def get_formulae(mass,tol=5,charge=0,tol_type='ppm',max_tests=1e7,
 
 	hits = do_calculations(mass,tol,elements,max_tests);
 	
-	return sorted(hits,key=lambda x:x[0])  
+	hits = sorted(hits,key=lambda x:x[0])
+
+	formulae = [] #store all formulae
+	for hit in hits:
+	    formula = [] #store list of elements and stoichiometry
+	    for element in hit[1]:
+	        if element['guess'] != 0:
+	            formula.append('%s%d'%(element['symbol'],element['guess']))
+	    formulae.append((hit[0],''.join(formula)))
+	
+	return formulae
 
 
 
