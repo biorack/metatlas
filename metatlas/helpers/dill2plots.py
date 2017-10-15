@@ -1170,17 +1170,25 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
     
     for file_idx in range(len(data)):
         if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
-            msv_sample = sp.sort_ms_vector_by_mz(np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']]))
             
-            for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
-                msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
+            msv_sample_scans = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
+            rt_of_msv_sample = np.array(data[file_idx][compound_idx]['data']['msms']['data']['rt'])
 
-                score = sp.score_ms_vectors_composite_dot(*sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape'), mass_power=0)
+            scan_idxs = [i+1 
+                         for i in range(rt_of_msv_sample.size-1) 
+                         if rt_of_msv_sample[i] != rt_of_msv_sample[i+1]]
+            
+            for i, msv_sample in enumerate(np.split(msv_sample_scans, scan_idxs, axis=1)):
+            
+                for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
+                    msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
 
-                if score > max_score or np.isnan(max_score):
-                    max_score = score
-                    idx = file_idx
-                    best_ref_spec = [frag['mz_intensities']]
+                    score = sp.score_ms_vectors_composite_dot(*sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape'), mass_power=0)
+
+                    if score > max_score or np.isnan(max_score):
+                        max_score = score
+                        idx = file_idx
+                        best_ref_spec = [frag['mz_intensities']]
                 
     return idx, max_score, best_ref_spec
 
@@ -1386,37 +1394,49 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
     scores = []
     msv_sample_list = []
     msv_ref_list = []
+    rt_list = []
     
     for file_idx in range(len(data)):
         if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
-            current_best_score = None
-            current_best_ref_idx = None
-            current_best_msv_sample = None
-            current_best_msv_ref = None
             
-            msv_sample = sp.sort_ms_vector_by_mz(np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']]))
+            msv_sample_scans = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
+            rt_of_msv_sample = np.array(data[file_idx][compound_idx]['data']['msms']['data']['rt'])
+
+            scan_idxs = [i+1 
+                         for i in range(rt_of_msv_sample.size-1) 
+                         if rt_of_msv_sample[i] != rt_of_msv_sample[i+1]]
             
-            for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
-                msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
-                
-                msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape')
-                
-                score = sp.score_ms_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_power=0)
-                
-                if current_best_score == None or score > current_best_score:
-                    current_best_score = score
-                    current_best_ref_idx = ref_idx
-                    current_best_msv_sample = msv_sample_aligned
-                    current_best_msv_ref = msv_ref_aligned
+            for i, msv_sample in enumerate(np.split(msv_sample_scans, scan_idxs, axis=1)):
+                current_best_score = None
+                current_best_ref_idx = None
+                current_best_msv_sample = None
+                current_best_msv_ref = None
+                current_best_rt = None
             
-            if current_best_score:
-                scores.append(current_best_score)
-                file_idxs.append(file_idx)
-                ref_idxs.append(current_best_ref_idx)
-                msv_sample_list.append(current_best_msv_sample)
-                msv_ref_list.append(current_best_msv_ref)
+                for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
+                    msv_ref = np.array(frag['mz_intensities']).T
+                
+                    msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape')
+                
+                    score = sp.score_ms_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_power=0)
+                    
+                    if current_best_score == None or score > current_best_score:
+                        current_best_score = score
+                        current_best_ref_idx = ref_idx
+                        current_best_msv_sample = msv_sample_aligned
+                        current_best_msv_ref = msv_ref_aligned
+                        current_best_rt = np.split(rt_of_msv_sample, scan_idxs)[i][0]
+
+            
+                if current_best_score:
+                    scores.append(current_best_score)
+                    file_idxs.append(file_idx)
+                    ref_idxs.append(current_best_ref_idx)
+                    msv_sample_list.append(current_best_msv_sample)
+                    msv_ref_list.append(current_best_msv_ref)
+                    rt_list.append(current_best_rt)
     
-    return zip(*sorted(zip(file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list), key=lambda l: l[2], reverse=True)[:5])
+    return zip(*sorted(zip(file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list, rt_list), key=lambda l: l[2], reverse=True)[:5])
             
             
 def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
@@ -1459,7 +1479,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
                             xy=(msv_sample_unaligned[0][m], 1.01 * msv_sample_unaligned[1][m]),
                             rotation=90,
                             horizontalalignment='center', verticalalignment='left',
-                            size=3)
+                            size=4)
                 labels.append(msv_sample_unaligned[0][m])
 
     if msv_ref_unaligned[0].size > 0:
@@ -1511,7 +1531,7 @@ def plot_ema_compound_info(ax, compound_info):
                                            bbox=[0.0, 0.0, 1, 1], loc='top left')
         ema_compound_info_table.scale(1, .7)
         ema_compound_info_table.auto_set_font_size(False)
-        ema_compound_info_table.set_fontsize(5)
+        ema_compound_info_table.set_fontsize(4)
         
         cellDict = ema_compound_info_table.get_celld()
         for i in range(len(cell_text)+1):
@@ -1522,7 +1542,7 @@ def plot_ema_compound_info(ax, compound_info):
             
     
 def plot_eic(ax, data, file_idxs, compound_idx):
-    for file_idx in file_idxs:
+    for file_idx in set(file_idxs):
     
         rt_min = data[file_idx][compound_idx]['identification'].rt_references[0].rt_min
         rt_max = data[file_idx][compound_idx]['identification'].rt_references[0].rt_max
@@ -1543,15 +1563,15 @@ def plot_eic(ax, data, file_idxs, compound_idx):
     ax.axvline(rt_peak, color='r', linewidth=1.0)   
     
     
-def plot_score_and_ref_file(ax, score, ref):
+def plot_score_and_ref_file(ax, score, rt, ref):
     ax.text(0.5, 1, '%.4f'%score,
         weight='bold',
         horizontalalignment='center',
         verticalalignment='top',
-        fontsize=5,
+        fontsize=4,
         transform=ax.transAxes)
     
-    ax.text(0, .45, fill(ref, width=28),
+    ax.text(0, .45, fill(ref + ' RT=%5.3f'%rt, width=26),
         horizontalalignment='left',
         verticalalignment='center',
         rotation='vertical',
@@ -1561,7 +1581,7 @@ def plot_score_and_ref_file(ax, score, ref):
             
 def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatlas/projects/sharepoint/frag_refs.json', 
     input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], 
-    exclude_groups = [], output_loc = [],use_labels=False):
+    exclude_groups = [], output_loc = [],use_labels=False,intensity_sorted_matches=False):
     
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
@@ -1570,6 +1590,7 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
+        
 
     #Filter runs from the metatlas dataset
     if include_lcmsruns:
@@ -1596,12 +1617,13 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
     for compound_idx in range(len(compound_names)):
         file_idxs, ref_idxs, scores = [], [], []
         msv_sample_list, msv_ref_list = [], []
+        rt_list = []
         
         #Find 5 best file and reference pairs by score
         if any([data[i][compound_idx]['identification'].compound for i in range(len(file_names))]):
             top_five = top_five_scoring_files(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
             if top_five:
-                file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list = top_five
+                file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list, rt_list = top_five
             #Find best file by prescursor intensity
             else:
                 file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
@@ -1622,7 +1644,6 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
                 
         #Plot if compound yields any scores 
         if file_idxs:
-
             #Top 5 MSMS Spectra
             ax1 = plt.subplot2grid((24, 24), (0, 0), rowspan=12, colspan=12)
             ax2a = plt.subplot2grid((24, 24), (0, 12), rowspan=3, colspan=3)
@@ -1660,7 +1681,7 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             ax4d.axis('off')
             
             for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
-                plot_score_and_ref_file(ax, score, os.path.basename(data[file_idxs[i]][compound_idx]['lcmsrun'].hdf5_file))
+                plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
                 
             #Structure
             ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
@@ -1692,7 +1713,17 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             ax7.text(0,0.9,'%s %s'%(compound_names[compound_idx], data[file_idxs[0]][compound_idx]['identification'].mz_references[0].adduct),fontsize=8)
             ax7.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
             ax7.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
-            ax7.set_ylim(0.2,1.01)
+            if len(rt_list) > 0:
+                ax7.text(0,0.7,'Actual MSMS Elution of %5.3f minutes'%rt_list[0],fontsize=8)
+                msv_sample_matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0]
+                if intensity_sorted_matches:
+                    msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
+                mz_sample_matches = msv_sample_matches[0, msv_sample_matches[1] > 1e4].tolist()
+                ax7.text(0,0.6, 
+                         fill('Matching M/Zs: ' + ', '.join(['%5.3f'%m for m in mz_sample_matches]), width=54),
+                         fontsize=8)
+                         
+            ax7.set_ylim(.5,1.1)
             ax7.axis('off')
 
             plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
