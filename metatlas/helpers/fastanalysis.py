@@ -126,6 +126,25 @@ def filter_and_dump(atlas, groups, output_dir,
                     min_num_frag_matches = 3,  min_relative_frag_intensity = .05,
                     compress = False):
     
+    """
+    Creates error bars, chromatograms, and identification figures in output_dir for compounds in
+    metatlas_dataset created by atlas and groups which meet the minimum requirements set by
+    'min_intensity', 'rt_tolerance','mz_tolerance', 'min_msms_score', 
+    'min_num_frag_matches', and 'min_relative_frag_intensity'.
+    
+    'min_intensity' =< highest EIC across all files for given compound
+    'rt_tolerance' >= shift of median RT across all files for given compound to reference
+    'mz_tolerance' >= ppm of median mz across all files for given compound relative to reference
+    'min_msms_score' =< highest compound dot-product score across all files for given compound relative to reference
+    'min_num_frag_matches' =< number of matching mzs when calculating max_msms_score
+    'min_relative_frag_intensity' =< ratio of second highest to first highest intensity of matching sample mzs
+
+
+    :param atlas:
+    :param groups:
+    :param output_dir:
+    """
+    
     atlas_df = ma_data.make_atlas_df(atlas)
     atlas_df['label'] = [cid.name for cid in atlas.compound_identifications]
     
