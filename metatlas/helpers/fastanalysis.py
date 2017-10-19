@@ -119,11 +119,12 @@ def filter_metatlas_dataset_by_scores(scores_df, metatlas_dataset, min_intensity
     
 
 def filter_and_dump(atlas, groups, output_dir, 
-                    min_intensity = 1e5, 
+                    min_intensity = 3e4, 
                     rt_tolerance = .25, 
                     mz_tolerance = 10, 
-                    min_msms_score = .7, allow_no_msms = False,
-                    min_num_frag_matches = 3,  min_relative_frag_intensity = .05,
+                    min_msms_score = .3, allow_no_msms = False,
+                    min_num_frag_matches = 1,  min_relative_frag_intensity = .01,
+                    num_threads = 3,
                     compress = False):
     
     """
@@ -138,7 +139,9 @@ def filter_and_dump(atlas, groups, output_dir,
     'min_msms_score' =< highest compound dot-product score across all files for given compound relative to reference
     'min_num_frag_matches' =< number of matching mzs when calculating max_msms_score
     'min_relative_frag_intensity' =< ratio of second highest to first highest intensity of matching sample mzs
-
+    'num_threads' = number of threads to use in multiprocessing
+    
+    Returns the unfiltered metatlas dataset and filtered dataset that can be used for downstream processing steps.
 
     :param atlas:
     :param groups:
@@ -153,7 +156,7 @@ def filter_and_dump(atlas, groups, output_dir,
     for my_group in groups:
         for my_file in my_group.items:
             all_files.append((my_file , my_group, atlas_df, atlas))
-    pool = mp.Pool(processes=min(8, len(all_files)))
+    pool = mp.Pool(processes=min(num_threads, len(all_files)))
     metatlas_dataset = pool.map(ma_data.get_data_for_atlas_df_and_file, all_files)
     pool.close()
     pool.terminate()
@@ -201,8 +204,7 @@ def filter_and_dump(atlas, groups, output_dir,
                  'names': file_names}
         args_list.append(kwargs)
 
-    max_processes = 8
-    pool = mp.Pool(processes=min(max_processes, len(filtered_dataset[0])))
+    pool = mp.Pool(processes=min(num_threads, len(filtered_dataset[0])))
     pool.map(cpp.chromplotplus, args_list)
     pool.close()
     pool.terminate()
@@ -213,11 +215,5 @@ def filter_and_dump(atlas, groups, output_dir,
     
     #Identification figures
     dp.make_identification_figure_v2(input_dataset = filtered_dataset, input_fname = my_file, include_lcmsruns = [],exclude_lcmsruns = [], output_loc=os.path.join(output_dir,'identification'))
-   
-#    if compress:
-#    #Compress
-#        timestr = time.strftime("%Y%m%d-%H%M%S")
-#        tarball_name = timestr + '_' + os.path.basename(os.path.normpath(output_dir)) + '.tar.gz'
-#        %system tar -zcf $tarball_name -C $output_dir .
-#    print 'done'
-    
+
+    return metatlas_dataset,filtered_dataset   
