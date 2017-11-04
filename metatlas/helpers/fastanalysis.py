@@ -10,7 +10,9 @@ import multiprocessing as mp
 import pandas as pd
 import copy
 
-
+EMPTY_DATA = {'eic': {'rt': [], 'intensity': [], 'mz': []},\
+                'ms1_summary': {'num_ms1_datapoints': 0.0, 'rt_centroid': np.nan, 'mz_peak': np.nan, 'peak_height': np.nan, 'rt_peak': np.nan, 'peak_area': np.nan, 'mz_centroid': np.nan},\
+                'msms': {'data': {'rt': np.array([], dtype=np.float64), 'collision_energy': np.array([], dtype=np.float64), 'i': np.array([], dtype=np.float64), 'precursor_intensity': np.array([], dtype=np.float64), 'precursor_MZ': np.array([], dtype=np.float64), 'mz': np.array([], dtype=np.float64)}}}
 def scores_for_each_compound(atlas_df, metatlas_dataset):
     """
     Returns pandas dataframe with columns 'max_intensity', 'median_rt_shift','median_mz_ppm', 'max_msms_score', 
@@ -46,8 +48,18 @@ def scores_for_each_compound(atlas_df, metatlas_dataset):
     
     for compound_idx in range(len(compound_names)):
         #max intensity
+
+        #Empty data will look like this
+#         {'eic': {'rt': [], 'intensity': [], 'mz': []}, 
+#           'ms1_summary': {'num_ms1_datapoints': 0.0, 'rt_centroid': nan, 'mz_peak': nan, 'peak_height': nan, 'rt_peak': nan, 'peak_area': nan, 'mz_centroid': nan}, 
+#           'msms': {'data': {'rt': array([], dtype=float64), 'collision_energy': array([], dtype=float64), 'i': array([], dtype=float64), 'precursor_intensity': array([], dtype=float64), 'precursor_MZ': array([], dtype=float64), 'mz': array([], dtype=float64)}}}
+# nan
+# {'eic': None, 'ms1_summary': None, 'msms': {'data': []}}
+
         max_intensity = np.nan
         for file_idx in range(len(file_names)):
+            if metatlas_dataset[file_idx][compound_idx]['data']['eic'] is None:
+                continue
             if len(metatlas_dataset[file_idx][compound_idx]['data']['eic']['intensity']) == 0:
                 continue
             file_max_intensity = max(metatlas_dataset[file_idx][compound_idx]['data']['eic']['intensity'])
@@ -56,18 +68,24 @@ def scores_for_each_compound(atlas_df, metatlas_dataset):
         
         #median rt shift
         compound_ref_rt_peak = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
-
-        median_rt_shift = np.nanmedian([abs(compound_ref_rt_peak - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_centroid'])
-                                       for file_idx in range(len(file_names))])# if isinstance(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_centroid'], float)])
-        
+        median_rt_shift = []
+        for file_idx in range(len(file_names)):
+            if (metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary'] is not None) and (metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['num_ms1_datapoints']>0):
+                median_rt_shift.append(abs(compound_ref_rt_peak - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_centroid']))
+            else:
+                median_rt_shift.append(np.nan)
+        median_rt_shift = np.nanmedian(median_rt_shift)
         scores_df.iloc[compound_idx].median_rt_shift = median_rt_shift
         
         #median mz ppm
         compound_ref_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
+        median_mz_ppm = []
+        if (metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary'] is None) or (metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['num_ms1_datapoints']==0):
+            median_mz_ppm.append(np.nan)
+        else:
+            median_mz_ppm.append(1e6*(abs(compound_ref_mz - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']) / compound_ref_mz))
+        median_mz_ppm = np.nanmedian(median_mz_ppm)
 
-        median_mz_ppm = np.nanmedian([1e6*(abs(compound_ref_mz - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']) / compound_ref_mz)
-                                      for file_idx in range(len(file_names))])# if isinstance(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid'], float)])
-        
         #max msms score
         file_idx, max_msms_score, msv_ref = dp.file_with_max_score(metatlas_dataset, frag_refs, compound_idx, 'inchi_key and polarity')
         
@@ -93,29 +111,36 @@ def scores_for_each_compound(atlas_df, metatlas_dataset):
     return scores_df
     
 def filter_metatlas_dataset_by_scores(scores_df, metatlas_dataset, min_intensity, rt_tolerance, mz_tolerance, min_msms_score, allow_no_msms, min_num_frag_matches, min_relative_frag_intensity, full_remove = False):
-    
     file_names = ma_data.get_file_names(metatlas_dataset)
     
-    compounds_to_remove = []
+    compounds_to_keep = []
     
     for compound_idx,(label,row) in enumerate(scores_df.iterrows()):
         if row.max_intensity > min_intensity:
             if row.median_rt_shift < rt_tolerance:
                 if row.median_mz_ppm < mz_tolerance:
-                    if (row.max_msms_score > min_msms_score) or (allow_no_msms and np.isnan(row.max_msms_score)):
+                    if row.max_msms_score > min_msms_score:
                         if row.num_frag_matches > min_num_frag_matches:
                             if row.max_relative_frag_intensity > min_relative_frag_intensity:
-                                continue
-        compounds_to_remove.append(compound_idx)
-        
-    for compound_idx in compounds_to_remove[::-1]:
-        for file_idx in range(len(file_names)):
-            if full_remove:
-                metatlas_dataset[file_idx].pop(compound_idx)
-            else:
-                metatlas_dataset[file_idx][compound_idx] = empty_data
+                                compounds_to_keep.append(compound_idx)
+                    elif (allow_no_msms) and (np.isnan(row.max_msms_score)):
+                        compounds_to_keep.append(compound_idx)
 
-    return metatlas_dataset
+    filtered_dataset = []
+    if len(compounds_to_keep) > 0:
+        for file_idx in range(len(file_names)):
+            temp = []
+            for compound_idx in compounds_to_keep:
+                temp.append(metatlas_dataset[file_idx][compound_idx])
+                # if full_remove:
+                # filtered_dataset[file_idx].pop(compound_idx)
+                # else:
+                    # filtered_dataset[file_idx][compound_idx]['data'] = EMPTY_DATA
+            filtered_dataset.append(temp)
+    else:
+        print('YOU HAVE ZERO MATCHING COMPOUNDS!!!!!!!')
+        assert(False)
+    return filtered_dataset
     
 
 def filter_and_dump(atlas, groups, output_dir, 
@@ -165,15 +190,14 @@ def filter_and_dump(atlas, groups, output_dir,
     scores_df = scores_for_each_compound(atlas_df, metatlas_dataset)
     
     #filter dataset by scores
-    filtered_dataset = copy.deepcopy(metatlas_dataset)
-    filtered_dataset = filter_metatlas_dataset_by_scores(scores_df, filtered_dataset, 
+    filtered_dataset = filter_metatlas_dataset_by_scores(scores_df, metatlas_dataset, 
                                                          min_intensity, 
                                                          rt_tolerance, 
                                                          mz_tolerance, 
                                                          min_msms_score, allow_no_msms,
                                                          min_num_frag_matches,
                                                          min_relative_frag_intensity,
-                                                         full_remove=True)
+                                                         full_remove=False)
     
     #Scores dataframe
     scores_df.to_csv(os.path.join(output_dir,'compound_scores.csv'), sep='\t')
@@ -204,10 +228,10 @@ def filter_and_dump(atlas, groups, output_dir,
                  'names': file_names}
         args_list.append(kwargs)
 
-    pool = mp.Pool(processes=min(num_threads, len(filtered_dataset[0])))
-    pool.map(cpp.chromplotplus, args_list)
-    pool.close()
-    pool.terminate()
+    # pool = mp.Pool(processes=min(num_threads, len(filtered_dataset[0])))
+    # pool.map(cpp.chromplotplus, args_list)
+    # pool.close()
+    # pool.terminate()
     
     #Error bars
     peak_height = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset, include_lcmsruns = [],exclude_lcmsruns = [], fieldname='peak_height')

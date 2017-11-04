@@ -1169,7 +1169,15 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
     best_ref_spec = []
     
     for file_idx in range(len(data)):
-        if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
+        #empty can look like this:
+        # {'eic': {'rt': [], 'intensity': [], 'mz': []}, 'ms1_summary': {'num_ms1_datapoints': 0.0, 'rt_centroid': nan, 'mz_peak': nan, 'peak_height': nan, 'rt_peak': nan, 'peak_area': nan, 'mz_centroid': nan}, 'msms': {'data': {'rt': array([], dtype=float64), 'collision_energy': array([], dtype=float64), 'i': array([], dtype=float64), 'precursor_intensity': array([], dtype=float64), 'precursor_MZ': array([], dtype=float64), 'mz': array([], dtype=float64)}}}
+        #or empty can look like this:
+        # {'eic': None, 'ms1_summary': None, 'msms': {'data': []}}
+
+        if ('data' in data[file_idx][compound_idx]['data']['msms'].keys()) and \
+            (isinstance(data[file_idx][compound_idx]['data']['msms']['data'],dict)) and \
+            ('rt' in data[file_idx][compound_idx]['data']['msms']['data'].keys()) and \
+            (len(data[file_idx][compound_idx]['data']['msms']['data']['rt'])>0):
             
             msv_sample_scans = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
             rt_of_msv_sample = np.array(data[file_idx][compound_idx]['data']['msms']['data']['rt'])
@@ -1397,7 +1405,7 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
     rt_list = []
     
     for file_idx in range(len(data)):
-        if 'data' in data[file_idx][compound_idx]['data']['msms'].keys():
+        if (isinstance(data[file_idx][compound_idx]['data']['msms']['data'],dict)) and ('data' in data[file_idx][compound_idx]['data']['msms'].keys()):
             
             msv_sample_scans = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
             rt_of_msv_sample = np.array(data[file_idx][compound_idx]['data']['msms']['data']['rt'])
@@ -1582,7 +1590,11 @@ def plot_score_and_ref_file(ax, score, rt, ref):
 def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatlas/projects/sharepoint/frag_refs.json', 
     input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], 
     exclude_groups = [], output_loc = [],use_labels=False,intensity_sorted_matches=False):
-    
+    #empty can look like this:
+    # {'eic': {'rt': [], 'intensity': [], 'mz': []}, 'ms1_summary': {'num_ms1_datapoints': 0.0, 'rt_centroid': nan, 'mz_peak': nan, 'peak_height': nan, 'rt_peak': nan, 'peak_area': nan, 'mz_centroid': nan}, 
+    #'msms': {'data': {'rt': array([], dtype=float64), 'collision_energy': array([], dtype=float64), 'i': array([], dtype=float64), 'precursor_intensity': array([], dtype=float64), 'precursor_MZ': array([], dtype=float64), 'mz': array([], dtype=float64)}}}
+    #or empty can look like this:
+    # {'eic': None, 'ms1_summary': None, 'msms': {'data': []}}
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
     

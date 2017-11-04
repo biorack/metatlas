@@ -171,11 +171,11 @@ def make_atlas_df(atlas):
         if compound.mz_references:
             mz.append(compound.mz_references[0])
         else:
-            mz.append(metob.MzReference)
+            mz.append(metob.MzReference())
         if compound.rt_references:
             rt.append(compound.rt_references[0])
         else:
-            rt.append(metob.RtReference)
+            rt.append(metob.RtReference())
         if compound.compound:
             atlas_compound.append(compound.compound[0])
         else:
