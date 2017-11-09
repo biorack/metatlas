@@ -8,6 +8,10 @@ import sys
 import traceback
 
 import tables
+
+import warnings
+warnings.filterwarnings("ignore", module="plotly")
+
 import pymzml
 
 from metatlas import __version__
@@ -103,7 +107,7 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
     ]
 
     try:
-        mzml_reader = pymzml.run.Reader(in_file_name,
+        mzml_reader = Reader(in_file_name,
                                         extraAccessions=extraAccessions)
     except Exception as e:
         sys.stderr.write('\nMzml error: %s\n' % e)
