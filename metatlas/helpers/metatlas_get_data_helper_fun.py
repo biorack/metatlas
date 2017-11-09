@@ -180,7 +180,7 @@ def make_atlas_df(atlas):
             atlas_compound.append(compound.compound[0])
         else:
             atlas_compound.append(metob.Compound())
-        label.append(compound.name)
+            label.append(compound.name)
     compound_df = metob.to_dataframe(atlas_compound)
     compound_df.rename(columns = {'name':'compound_name','description':'compound_description'},inplace=True)
     #.rename(columns = {'name':'compound_name'}, inplace = True)
@@ -196,6 +196,7 @@ def make_atlas_df(atlas):
     #        u'mono_isotopic_molecular_weight', u'pubchem_compound_id', u'kegg_url', u'chebi_url', u'hmdb_url', u'lipidmaps_url', u'pubchem_url',u'wikipedia_url',  u'source']
 
     atlas_df = atlas_df[atlas_keys]
+    atlas_df['label'] = label
     return atlas_df
 
 def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.3,use_mz = 'mz',extra_mz = 0.0):
