@@ -1,5 +1,5 @@
 import matplotlib 
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import sys
 #import yaml
 import os
@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import warnings
 from textwrap import wrap
-warnings.filterwarnings("ignore")
+#warnings.filterwarnings("ignore")
 
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 
