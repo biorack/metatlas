@@ -238,7 +238,7 @@ class adjust_rt_for_selected_compound(object):
                  height = 6,
                  y_scale='linear',
                  alpha = 0.5,
-                 min_max_color = 'sage',
+                 min_max_color = 'green',
                  peak_color = 'darkviolet',
                  slider_color = 'ghostwhite',
                  y_max = 'auto',
@@ -332,8 +332,8 @@ class adjust_rt_for_selected_compound(object):
                     y = d[self.compound_idx]['data']['eic']['intensity']
                     x = np.asarray(x)
                     y = np.asarray(y)
-                    minval = np.min(y[np.nonzero(y)])
-                    y = y - minval
+                    #minval = np.min(y[np.nonzero(y)])
+                    #y = y - minval
                     x = x[y>0]
                     y = y[y>0]#y[y<0.0] = 0.0
                     self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
