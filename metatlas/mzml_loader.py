@@ -12,7 +12,7 @@ import tables
 import warnings
 warnings.filterwarnings("ignore", module="plotly")
 
-import pymzml
+from pymzml.run import Reader
 
 from metatlas import __version__
 
