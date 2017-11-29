@@ -133,7 +133,7 @@ class Workspace(object):
 
             with open(nersc_info['db_passwd_file']) as fid:
                 pw = fid.read().strip()
-                self.path = 'mysql+pymysql://meta_atlas_admin:%s@scidb1.nersc.gov/%s' % (pw, nersc_info['db_name'])
+                self.path = 'mysql+pymysql://meta_atlas_admin:%s@nerscdb04.nersc.gov/%s' % (pw, nersc_info['db_name'])
         else:
             local_config_file = os.path.join(metatlas_dir, 'local_config', 'local.yml')
             if os.path.isfile(local_config_file):
