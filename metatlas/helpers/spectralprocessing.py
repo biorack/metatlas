@@ -20,7 +20,7 @@ def remove_ms_vector_noise(msv, threshold=1e-5):
 
     :return: numpy 2d array
     """
-    
+
     return msv[:, msv[1, :] > threshold]
 
 
@@ -154,11 +154,11 @@ def combine_ms_vectors(msv_alignment, combine_by, weights=None):
         v = np.ma.average(v, weights=weights, axis=axis)
         v.mask = np.ma.nomask
         return v
-    
+
     if combine_by == 'mean':
         return sort_ms_vector_by_mz(np.array([nanaverage(msv_alignment[:,0], weights, 0),
                                               nanaverage(msv_alignment[:,1], weights, 0)]))
-    
+
     if combine_by == 'max':
         return sort_ms_vector_by_mz(np.array([nanaverage(msv_alignment[:,0], weights, 0),
                                               np.nanmax(msv_alignment[:,1], axis = 0)]))
@@ -188,7 +188,7 @@ def find_all_ms_matches(msv_1, msv_2, mz_tolerance):
     :return: matches, list of lists
     :return: unique_matches, numpy 1d array
     """
-    
+
     msv_1 = np.asarray(msv_1, dtype=float)
     msv_2 = np.asarray(msv_2, dtype=float)
     assert (np.any(np.isnan(msv_1)) and np.any(np.isnan(msv_2))) == False
@@ -213,13 +213,13 @@ def find_all_ms_matches(msv_1, msv_2, mz_tolerance):
 def match_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     """
     Finds indices where m/z values in msv_1 and msv_2 'best' match within +/- mz_tolerance
-    by finding all matches (see find_all_ms_matches) and resolving non-one-to-one cases by 
+    by finding all matches (see find_all_ms_matches) and resolving non-one-to-one cases by
     assigning matches in order of:
         'distance': smallest to largest difference in matching m/zs
         'shape': smallest to largest difference in matching normalized intensities
         'intensity': largest to smallest product of matching intensities
-    Returns two 1d numpy arrays with indices corresponding to indices of msv_1 and msv_2 
-    respectively where each value is the matching index in the other ms vector or nan if 
+    Returns two 1d numpy arrays with indices corresponding to indices of msv_1 and msv_2
+    respectively where each value is the matching index in the other ms vector or nan if
     there is no matching index.
 
     :param msv_1: numpy 2d array, msv_1[0] is m/z values and msv_1[1] is intensity values
@@ -236,11 +236,11 @@ def match_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     msv_2 = np.asarray(msv_2, dtype=float)
     assert (np.any(np.isnan(msv_1)) and np.any(np.isnan(msv_2))) == False
     assert msv_1.shape[0] == 2 and msv_2.shape[0] == 2
-    
+
     assert resolve_by == 'distance' or resolve_by == 'shape' or resolve_by == 'intensity'
-    
+
     matches = find_all_ms_matches(msv_1, msv_2, mz_tolerance)[0]
-    
+
     # Create match matrix where row i and column j is value determined by resolve_by if msv_1[i] matches msv_2[j]
     # and a default value if otherwise
     if resolve_by == 'distance':
@@ -270,7 +270,7 @@ def match_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
         masked_flat_match_matrix = np.ma.array(flat_match_matrix,
                                                mask=np.isinf(flat_match_matrix),
                                                fill_value=-np.inf)
-        
+
         sorted_match_indices = np.dstack(np.unravel_index(
             np.ma.argsort(masked_flat_match_matrix, endwith=False)[::-1],
             (msv_1[0].size, msv_2[0].size)))[0]
@@ -293,7 +293,7 @@ def partition_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     (see match_ms_vectors) and returns 4 numpy 2d arrays with msv_1 and msv_2 partitioned
     into matches and nonmatches. Index i of matching partitions match with index i of the
     other and all indices of nonmatching partitions do not match any index of the other.
-    
+
     :param msv_1: numpy 2d array, msv_1[0] is m/z and msv_1[1] is intensities sorted by m/z
     :param msv_2: numpy 2d array, msv_2[0] is m/z and msv_2[1] is intensities sorted by m/z
     :param mz_tolerance: float, limits matches to be within +/- mz_tolerance
@@ -311,7 +311,7 @@ def partition_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     msv_2 = np.asarray(msv_2, dtype=float)
     assert (np.any(np.isnan(msv_1)) and np.any(np.isnan(msv_2))) == False
     assert msv_1.shape[0] == 2 and msv_2.shape[0] == 2
-    
+
     # Find one to one matches within mz_tolerance
     msv_1_to_msv_2, msv_2_to_msv_1 = match_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by)
 
@@ -328,7 +328,7 @@ def partition_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
 
 def partition_nl_vectors(msv_1_precusor_mz, msv_2_precusor_mz, msv_1, msv_2, mz_tolerance, resolve_by):
     return partition_ms_vectors(
-        np.array([msv_1[0] - (msv_1_precusor_mz - msv_2_precusor_mz),msv_1[1]]), 
+        np.array([msv_1[0] - (msv_1_precusor_mz - msv_2_precusor_mz),msv_1[1]]),
         msv_2,
         mz_tolerance, resolve_by)
 
@@ -348,9 +348,9 @@ def pairwise_align_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     """
     Finds which m/z values in msv_1 and msv_2 'best' match within +/- mz_tolerance
     (see match_ms_vectors) and returns a numpy 3d array containing aligned versions of msv_1
-    and msv_2 meaning index i of one matches index i of the other and nonmatches are filled 
+    and msv_2 meaning index i of one matches index i of the other and nonmatches are filled
     with nan.
-    
+
     :param msv_1: numpy 2d array, msv_1[0] is m/z and msv_1[1] is intensities sorted by m/z
     :param msv_2: numpy 2d array, msv_2[0] is m/z and msv_2[1] is intensities sorted by m/z
     :param mz_tolerance: float, limits matches to be within +/- mz_tolerance
@@ -363,7 +363,7 @@ def pairwise_align_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
         msv_alignment[i:,0] is  m/z values at position i,
         msv_alignment[i:,1] is intensity values at position i
     """
-    
+
     msv_1 = np.asarray(msv_1, dtype=float)
     msv_2 = np.asarray(msv_2, dtype=float)
     assert (np.any(np.isnan(msv_1)) and np.any(np.isnan(msv_2))) == False
@@ -371,21 +371,21 @@ def pairwise_align_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
 
     # Get matches and nonmatches between msv_1 and msv_2
     msv_1_matches, msv_2_matches, msv_1_nonmatches, msv_2_nonmatches = partition_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by)
-    
+
     # Initialize msv_1_aligned and msv_2_aligned
     msv_1_aligned = np.asarray(msv_1_matches, dtype=float)
     msv_2_aligned = np.asarray(msv_2_matches, dtype=float)
-    
-    # Insert msv_1_nonmatches into msv_1_aligned and nan shaped like msv_1_nonmatches in msv_2_aligned 
+
+    # Insert msv_1_nonmatches into msv_1_aligned and nan shaped like msv_1_nonmatches in msv_2_aligned
     msv_1_to_insert = np.searchsorted(msv_1_aligned[0], msv_1_nonmatches[0])
     msv_1_aligned = np.insert(msv_1_aligned, msv_1_to_insert, msv_1_nonmatches, 1)
     msv_2_aligned = np.insert(msv_2_aligned, msv_1_to_insert, np.full_like(msv_1_nonmatches, np.nan), 1)
 
-    # Insert msv_2_nonmatches into msv_2_aligned and nan shaped like msv_2_nonmatches in msv_1_aligned 
+    # Insert msv_2_nonmatches into msv_2_aligned and nan shaped like msv_2_nonmatches in msv_1_aligned
     msv_2_to_insert = np.searchsorted(msv_2_aligned[0], msv_2_nonmatches[0])
     msv_2_aligned = np.insert(msv_2_aligned, msv_2_to_insert, msv_2_nonmatches, 1)
     msv_1_aligned = np.insert(msv_1_aligned, msv_2_to_insert, np.full_like(msv_2_nonmatches, np.nan), 1)
-    
+
     msv_alignment = np.dstack((np.array([msv_1_aligned.T, msv_2_aligned.T]))).T
 
     return msv_alignment
@@ -393,21 +393,21 @@ def pairwise_align_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
 
 def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
                               mass_power=0, intensity_power=1, weights=None):
-    """DO NOT USE. DOES NOT WORK AS WHEN THERE ARE CROSSING MATCHES.
-    
-    Pairwise aligns each combination of pairs of ms vectors in msv_list (see pairwise_align_ms_vectors), 
-    scores them (see score_ms_vectors_composite_dot), assigns the product of their score with 
-    the sum of their weights to a corresponding position in a score matrix, combines the 
-    two ms vectors with highest score (see combine_ms_vectors) according to their weights 
-    and weighs it as the sum of its constituent weights, removes the constituent ms vectors and 
-    weights from msv_list and weights, inserts the combined ms vector and weight to the 
+    """EXPERIMENTAL: Pairwise alignments can lead to M/Z-wise misalignments in the multiple alignment.
+
+    Pairwise aligns each combination of pairs of ms vectors in msv_list (see pairwise_align_ms_vectors),
+    scores them (see score_ms_vectors_composite_dot), assigns the product of their score with
+    the sum of their weights to a corresponding position in a score matrix, combines the
+    two ms vectors with highest score (see combine_ms_vectors) according to their weights
+    and weighs it as the sum of its constituent weights, removes the constituent ms vectors and
+    weights from msv_list and weights, inserts the combined ms vector and weight to the
     front of msv_list and weights, repeats previous steps until msv_list only contains the combination
     of all ms vectors, and returns a tuple containing a numpy 3d array containing each original
     ms vector pairwise aligned to the combination of all ms vectors and this combination ms vector.
-    
-    The algorithm is analogous to clustal used for sequence alignment by using a distance matrix produced 
+
+    The algorithm is analogous to clustal used for sequence alignment by using a distance matrix produced
     by pairwise ms alignment and a modified neighbor-joining method.
-    
+
     :param msv_list: list of numpy 2d array, msv_1[0] is m/z and msv_1[1] is intensities sorted by m/z
     :param mz_tolerance: float, limits matches to be within +/- mz_tolerance
     :param resolve_by: 'distance', 'shape', or 'intensity',
@@ -420,19 +420,15 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
         msv_alignment[i:,1] is intensity values at position i
     :return msv_combined: numpy 2d array, total combination of all ms vectors in msv_list
     """
-    
-    
-    try:
-        assert False
-    except:
-        print 'Do not use. Read the doc for details.'
-        raise
-    
+
+
+    print 'EXPERIMENTAL: Pairwise alignments can lead to M/Z-wise misalignments in the multiple alignment.'
+
     msv_list = [np.asarray(msv, dtype=float) for msv in msv_list]
     assert np.any([np.any(np.isnan(msv)) for msv in msv_list]) == False
     assert np.all([msv.shape[0] == 2 for msv in msv_list]) == True
     assert not (resolve_by == 'intensity' and combine_by == 'mean')
-    
+
     # Make a copy of the original ms vectors
     msv_original_list = msv_list[:]
 
@@ -440,19 +436,29 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
     if weights == None:
         weights = [1. / len(msv_list)] * len(msv_list)
 
-    # Find the two most similar ms vectors by score, combine them, remove them from msv_list, 
+    # Initialize score_matrix
+    num_msv = len(msv_list)
+    score_matrix = np.empty((num_msv, num_msv))
+    score_matrix.fill(np.nan)
+
+    # Find the two most similar ms vectors by score, combine them, remove them from msv_list,
     # add the combination to msv_list, repeat until there is only the combination of all ms vectors
     while len(msv_list) > 1:
-        
-        # Initialize score_matrix
-        num_msv = len(msv_list)
-        score_matrix = np.empty((num_msv, num_msv))
-        score_matrix.fill(np.nan)
 
-        # Add weighted score of msv_list[i] and msv_list[j] to score_matrix[i,j] for all combinations
-        for i, j in np.array(np.tril_indices(num_msv, -1)).T:
-            msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[j], mz_tolerance, resolve_by)
-            score_matrix[i, j] = (weights[i] + weights[j]) * score_ms_vectors_composite_dot(msv_i_aligned, msv_j_aligned, mass_power, intensity_power)
+        # Store number of ms vectors
+        num_msv = len(msv_list)
+
+        if np.isnan(score_matrix).all():
+            # Add weighted score of msv_list[i] and msv_list[j] to score_matrix[i,j] for all combinations
+            for i, j in np.array(np.tril_indices(num_msv, -1)).T:
+                msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[j], mz_tolerance, resolve_by)
+                score_matrix[i, j] = (weights[i] + weights[j]) * score_ms_vectors_composite_dot(msv_i_aligned, msv_j_aligned, mass_power, intensity_power)
+            # Add weighted score of msv_list[i] and msv_list[0] to score_matrix[i,0] for new ms vector only
+        else:
+            for i in range(1, num_msv):
+                msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[0], mz_tolerance, resolve_by)
+                score_matrix[i, 0] = (weights[i] + weights[0]) * score_ms_vectors_composite_dot(msv_i_aligned, msv_j_aligned, mass_power, intensity_power)
+
 
         # Flatten the score_matrix
         flat_score_matrix = score_matrix.ravel()
@@ -461,7 +467,7 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
         masked_flat_score_matrix = np.ma.array(flat_score_matrix,
                                                mask=np.isnan(flat_score_matrix),
                                                fill_value=-np.inf)
-        
+
         # Find indices of score_matrix with the maximum score
         max_score = np.unravel_index(np.ma.argmax(masked_flat_score_matrix),
                                      (num_msv, num_msv))
@@ -477,12 +483,18 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
                                           weights=[weights[max_score[0]],
                                                    weights[max_score[1]]])
 
-        # Remove the ms vectors yielding the best scores from msv_list
+        # Remove the ms vectors yielding the best scores from msv_list and score_matrix
         msv_list.pop(max_score[0])
         msv_list.pop(max_score[1])
+        score_matrix = np.delete(score_matrix, max_score[0], 0)
+        score_matrix = np.delete(score_matrix, max_score[0], 1)
+        score_matrix = np.delete(score_matrix, max_score[1], 0)
+        score_matrix = np.delete(score_matrix, max_score[1], 1)
 
-        # Add the msv_combined to msv_list
+        # Add the msv_combined to msv_list and score_matrix
         msv_list.insert(0, msv_combined)
+        score_matrix = np.pad(score_matrix, ((1,0),(1,0)), mode='constant', constant_values=np.nan)
+
         # Remove constituent weights and add combined weight to weights
         weights.insert(0, weights.pop(max_score[0]) + weights.pop(max_score[1]))
 
@@ -499,11 +511,11 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
 
 def partition_aligned_ms_vectors(msv_1_aligned, msv_2_aligned):
     """
-    Finds indices where m/z values in msv_1_aligned and msv_2_aligned are matching (non-nan for both ms vectors) 
-    and nonmatching (nan for only one ms vector) and returns 4 numpy 2d arrays with msv_1_aligned and msv_2_aligned 
+    Finds indices where m/z values in msv_1_aligned and msv_2_aligned are matching (non-nan for both ms vectors)
+    and nonmatching (nan for only one ms vector) and returns 4 numpy 2d arrays with msv_1_aligned and msv_2_aligned
     partitioned into matches and nonmatches. Index i of matching partitions match with index i of the
     other and all indices of nonmatching partitions do not match any index of the other.
-    
+
     :param msv_1_aligned: numpy 2d array, msv_1_aligned[0] is m/z and msv_1_aligned[1] is intensities sorted by m/z,
         each index of msv_1_aligned has its m/z value match that of msv_2_aligned if non-nan
     :param msv_2_aligned: numpy 2d array, msv_2_aligned[0] is m/z and msv_2_aligned[1] is intensities sorted by m/z,
@@ -514,12 +526,12 @@ def partition_aligned_ms_vectors(msv_1_aligned, msv_2_aligned):
     :return msv_1_nonmatches: numpy 2d array,
     :return msv_2_nonmatches: numpy 2d array,
     """
-    
+
     msv_1_aligned = np.asarray(msv_1_aligned, dtype=float)
     msv_2_aligned = np.asarray(msv_2_aligned, dtype=float)
     assert msv_1_aligned.shape[0] == 2 and msv_2_aligned.shape[0] == 2
     assert msv_1_aligned.shape == msv_2_aligned.shape
-    
+
     msv_1_matches = msv_1_aligned[:,~np.isnan(msv_1_aligned[0]) & ~np.isnan(msv_2_aligned[0])]
     msv_2_matches = msv_2_aligned[:,~np.isnan(msv_1_aligned[0]) & ~np.isnan(msv_2_aligned[0])]
     msv_1_nonmatches = msv_1_aligned[:,~np.isnan(msv_1_aligned[0]) & np.isnan(msv_2_aligned[0])]
@@ -613,7 +625,7 @@ def score_ms_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_pow
     msv_ref_aligned = np.asarray(msv_ref_aligned, dtype=float)
     assert msv_sample_aligned.shape[0] == 2 and msv_ref_aligned.shape[0] == 2
     assert msv_sample_aligned.shape == msv_ref_aligned.shape
-    
+
     # Find number of peaks shared between sample and reference and in sample
     num_shared = np.sum(~np.isnan(msv_sample_aligned) & ~np.isnan(msv_ref_aligned))
     num_sample = msv_sample_aligned[0,~np.isnan(msv_sample_aligned[0])].size
@@ -640,14 +652,14 @@ def parse_formula(formula, elements=[]):
     """
     Takes formula and optional list of elements and returns list of elements found in formula
     (in order of input elements if set) and list of their counts.
-    
+
     :param formula: string,
     :param elements: list of strings
 
     :return: list of strings,
     :return: list of ints,
     """
-    
+
     in_paren = re.compile("\(([A-Z0-9]+?)\)(\d*)")
 
     expanded = formula
@@ -669,13 +681,13 @@ def parse_formula(formula, elements=[]):
     return zip(*[(e, element_count[e]) for e in elements])
 
 
-def make_isotope_matrix(elements, 
+def make_isotope_matrix(elements,
                         isotope_dict=pickle.load(open(os.path.join(os.path.dirname(__file__), 'isotope_dict.pkl'), 'rb')),
                         scale_factor=100000):
     """
     Takes list of elements, and optional isotope dictionary and scaling factor.
     Returns an isotope matrix and vector containing masses removed from it to be used in make_isotope_distribution.
-    
+
     :param elements: list of strings, elements must be in keys of isotope_dict
     :param isotope_dict: dictionary with elements as keys and isotope information as values
     :param scale_factor: integer, scales masses up in isotope_matrix so FFT in make_isotope_distribution
@@ -684,7 +696,7 @@ def make_isotope_matrix(elements,
     :return isotope_matrix: numpy 3d matrix of shape (max_elements, max_isotopes, 2),
     :return mass_removed_vec: list of ints,
     """
-    
+
     max_elements = len(elements) + 1
     max_isotopes = 0
 
@@ -707,14 +719,14 @@ def make_isotope_matrix(elements,
     return np.nan_to_num(isotope_matrix), mass_removed_vec
 
 
-def add_synthetic_element(synthetic, 
+def add_synthetic_element(synthetic,
                           isotope_dict=pickle.load(open(os.path.join(os.path.dirname(__file__), 'isotope_dict.pkl'), 'rb'))):
     """
     Takes a dictionary with synthetic element labels (like 'D' for deuterium or 'H' if you wish to override H) as keys
     and tuples as values, and optional isotope dictionary. Tuple[1] is a list of floats which sum to 1 and override the
     abundances of the isotopes of the element given by Tuple[0] and isotope_dict.
     Returns an new isotope dictionary with the synthetic element(s) added to it.
-    
+
     :param synthetic: dictionary of form {synth:(ele,[a,b,...]), ...},
         synth is synthetic element label,
         ele must be in keys of isotope_dict,
@@ -725,7 +737,7 @@ def add_synthetic_element(synthetic,
     """
     # Make a deep copy of isotope_dict to modify
     new_isotope_dict = deepcopy(isotope_dict)
-    
+
     # Modify the deep copy
     for e in synthetic.keys():
         new_isotope_dict[e] = deepcopy(isotope_dict[synthetic[e][0]])
