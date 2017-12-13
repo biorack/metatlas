@@ -45,35 +45,26 @@ def scores_for_each_compound(atlas_df, metatlas_dataset):
                              index = atlas_df.label)
 
     for compound_idx in range(len(compound_names)):
-        max_intensity = np.nan
-        for file_idx in range(len(file_names)):
-            if metatlas_dataset[file_idx][compound_idx]['data']['eic'] is None:
-                continue
-            if len(metatlas_dataset[file_idx][compound_idx]['data']['eic']['intensity']) == 0:
-                continue
-            file_max_intensity = max(metatlas_dataset[file_idx][compound_idx]['data']['eic']['intensity'])
-            if file_max_intensity > max_intensity or np.isnan(max_intensity):
-                max_intensity = file_max_intensity
+        intensities = []
+        rt_shifts = []
+        mz_ppms = []
 
-        #median rt shift
         compound_ref_rt_peak = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
-        median_rt_shift = []
-        for file_idx in range(len(file_names)):
-            if (metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary'] is not None) and (metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['num_ms1_datapoints']>0):
-                median_rt_shift.append(abs(compound_ref_rt_peak - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_centroid']))
-            else:
-                median_rt_shift.append(np.nan)
-        median_rt_shift = np.nanmedian(median_rt_shift)
-        scores_df.iloc[compound_idx].median_rt_shift = median_rt_shift
-
-        #median mz ppm
         compound_ref_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
-        median_mz_ppm = []
-        if (metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary'] is None) or (metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['num_ms1_datapoints']==0):
-            median_mz_ppm.append(np.nan)
-        else:
-            median_mz_ppm.append(1e6*(abs(compound_ref_mz - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']) / compound_ref_mz))
-        median_mz_ppm = np.nanmedian(median_mz_ppm)
+
+        for file_idx in range(len(file_names)):
+            try:
+                assert(len(metatlas_dataset[file_idx][compound_idx]['data']['eic']['intensity']) > 0)
+                intensities.extend(metatlas_dataset[file_idx][compound_idx]['data']['eic']['intensity'])
+            except AssertionError:
+                pass
+
+            try:
+                assert(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['num_ms1_datapoints'] > 0)
+                rt_shifts.append(abs(compound_ref_rt_peak - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_centroid']))
+                mz_ppms.append(1e6*(abs(compound_ref_mz - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']) / compound_ref_mz))
+            except AssertionError:
+                pass
 
         #max msms score
         file_idx, max_msms_score, msv_ref = dp.file_with_max_score(metatlas_dataset, frag_refs, compound_idx, 'inchi_key and polarity')
@@ -86,7 +77,7 @@ def scores_for_each_compound(atlas_df, metatlas_dataset):
             msv_sample = sp.sort_ms_vector_by_mz(np.array([metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['mz'], metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['i']]))
 
             msv_sample_matches = sp.partition_ms_vectors(msv_sample, msv_ref, .005, 'shape')[0]
-            num_frag_matches = len(msv_sample_matches[0])
+            num_frag_matches = len(sp.remove_ms_vector_noise(msv_sample_matches, threshold=1e-4)[0])
 
             if num_frag_matches > 1:
                 msv_sample_matches_by_intensity = msv_sample_matches[:, msv_sample_matches[1].argsort()]
@@ -95,7 +86,12 @@ def scores_for_each_compound(atlas_df, metatlas_dataset):
 
 
         #assign scores
-        scores_df.iloc[compound_idx] = (max_intensity, median_rt_shift, median_mz_ppm, max_msms_score, num_frag_matches, max_relative_frag_intensity)
+        scores_df.iloc[compound_idx] = [np.nanmax(intensities),
+                                        np.nanmedian(rt_shifts),
+                                        np.nanmedian(mz_ppms),
+                                        max_msms_score,
+                                        num_frag_matches,
+                                        max_relative_frag_intensity]
 
     return scores_df
 
