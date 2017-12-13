@@ -128,7 +128,7 @@ def filter_metatlas_dataset_by_scores(scores_df, metatlas_dataset, min_intensity
     return filtered_dataset
 
 
-def filter_and_dump(atlas, groups, output_dir,
+def filter_and_dump(atlas, groups, output_dir, metatlas_dataset=None,
                     min_intensity = 3e4,
                     rt_tolerance = .25,
                     mz_tolerance = 10,
@@ -162,15 +162,17 @@ def filter_and_dump(atlas, groups, output_dir,
     atlas_df['label'] = [cid.name for cid in atlas.compound_identifications]
 
     print 'making dataset'
-    #make metatlas dataset
-    all_files = []
-    for my_group in groups:
-        for my_file in my_group.items:
-            all_files.append((my_file , my_group, atlas_df, atlas))
-    pool = mp.Pool(processes=min(num_threads, len(all_files)))
-    metatlas_dataset = pool.map(ma_data.get_data_for_atlas_df_and_file, all_files)
-    pool.close()
-    pool.terminate()
+
+    if metatlas_dataset is None:
+        #make metatlas dataset
+        all_files = []
+        for my_group in groups:
+            for my_file in my_group.items:
+                all_files.append((my_file , my_group, atlas_df, atlas))
+        pool = mp.Pool(processes=min(num_threads, len(all_files)))
+        metatlas_dataset = pool.map(ma_data.get_data_for_atlas_df_and_file, all_files)
+        pool.close()
+        pool.terminate()
 
     print 'making scores_df'
     #scores compounds in metatlas dataset
