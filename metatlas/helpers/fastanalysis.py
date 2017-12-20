@@ -176,7 +176,7 @@ def filter_and_dump(atlas, groups, output_dir, metatlas_dataset=None,
 
     print 'making compound_scores.csv'
     #Scores dataframe
-    scores_df.to_csv(os.path.join(output_dir,'compound_scores.csv'), sep='\t')
+    scores_df.to_csv(os.path.join(output_dir,'compound_scores.csv'))
 
     print 'filtering dataset'
     #filter dataset by scores
