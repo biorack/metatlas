@@ -84,18 +84,30 @@ def scores_for_each_compound(atlas_df, metatlas_dataset):
 
                 max_relative_frag_intensity = msv_sample_matches_by_intensity[1,-2] / msv_sample_matches_by_intensity[1,-1]
 
+        try:
+            max_intensity = np.nanmax(intensities)
+        except ValueError:
+            max_intensity = np.nan
+        try:
+            median_rt_shift = np.nanmedian(rt_shifts)
+        except ValueError:
+            median_rt_shift = np.nan
+        try:
+            median_mz_ppm = np.nanmedian(mz_ppms)
+        except ValueError:
+            median_mz_ppm = np.nan
 
         #assign scores
-        scores_df.iloc[compound_idx] = [np.nanmax(intensities),
-                                        np.nanmedian(rt_shifts),
-                                        np.nanmedian(mz_ppms),
+        scores_df.iloc[compound_idx] = [max_intensity,
+                                        median_rt_shift,
+                                        median_mz_ppm,
                                         max_msms_score,
                                         num_frag_matches,
                                         max_relative_frag_intensity]
 
     return scores_df
 
-def filter_metatlas_dataset_by_scores(scores_df, metatlas_dataset, min_intensity, rt_tolerance, mz_tolerance, min_msms_score, allow_no_msms, min_num_frag_matches, min_relative_frag_intensity, full_remove = False):
+def filter_metatlas_dataset_by_scores(scores_df, metatlas_dataset, min_intensity, rt_tolerance, mz_tolerance, min_msms_score, allow_no_msms, min_num_frag_matches, min_relative_frag_intensity):
     file_names = ma_data.get_file_names(metatlas_dataset)
 
     compounds_to_keep = []
@@ -186,8 +198,15 @@ def filter_and_dump(atlas, groups, output_dir, metatlas_dataset=None,
                                                          mz_tolerance,
                                                          min_msms_score, allow_no_msms,
                                                          min_num_frag_matches,
-                                                         min_relative_frag_intensity,
-                                                         full_remove=False)
+                                                         min_relative_frag_intensity)
+
+    filtered_atlas_df = copy.deepcopy(atlas_df)
+    compounds_to_remove = []
+
+    for i in range(len(filtered_dataset[0])):
+        compounds_to_remove.append(filtered_dataset[0][i]['identification'].compound[0].inchi_key)
+
+    filtered_atlas_df = filtered_atlas_df[~filtered_atlas_df['inchi_key'].isin(compounds_to_remove)]
 
     #Chromatograms
     group = 'sort' # 'page' or 'index' or 'sort' or None
@@ -215,10 +234,10 @@ def filter_and_dump(atlas, groups, output_dir, metatlas_dataset=None,
                  'names': file_names}
         args_list.append(kwargs)
 
-    # pool = mp.Pool(processes=min(num_threads, len(filtered_dataset[0])))
-    # pool.map(cpp.chromplotplus, args_list)
-    # pool.close()
-    # pool.terminate()
+    pool = mp.Pool(processes=min(num_threads, len(filtered_dataset[0])))
+    pool.map(cpp.chromplotplus, args_list)
+    pool.close()
+    pool.terminate()
 
     #Error bars
     peak_height = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset, include_lcmsruns = [],exclude_lcmsruns = [], fieldname='peak_height')
@@ -227,4 +246,4 @@ def filter_and_dump(atlas, groups, output_dir, metatlas_dataset=None,
     #Identification figures
     dp.make_identification_figure_v2(input_dataset = filtered_dataset, input_fname = my_file, include_lcmsruns = [],exclude_lcmsruns = [], output_loc=os.path.join(output_dir,'identification'))
 
-    return metatlas_dataset,filtered_dataset
+    return metatlas_dataset,filtered_dataset,filtered_atlas_df
