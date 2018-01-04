@@ -201,12 +201,12 @@ def filter_and_dump(atlas, groups, output_dir, metatlas_dataset=None,
                                                          min_relative_frag_intensity)
 
     filtered_atlas_df = copy.deepcopy(atlas_df)
-    compounds_to_remove = []
+    compounds_to_keep = []
 
     for i in range(len(filtered_dataset[0])):
-        compounds_to_remove.append(filtered_dataset[0][i]['identification'].compound[0].inchi_key)
+        compounds_to_keep.append(filtered_dataset[0][i]['identification'].compound[0].inchi_key)
 
-    filtered_atlas_df = filtered_atlas_df[~filtered_atlas_df['inchi_key'].isin(compounds_to_remove)]
+    filtered_atlas_df = filtered_atlas_df[filtered_atlas_df['inchi_key'].isin(compounds_to_keep)]
 
     #Chromatograms
     group = 'sort' # 'page' or 'index' or 'sort' or None
