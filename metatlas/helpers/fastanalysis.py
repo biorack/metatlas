@@ -1,4 +1,6 @@
-import sys, os
+import sys
+import os
+import multiprocessing as mp
 
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas.helpers import dill2plots as dp
@@ -6,27 +8,34 @@ from metatlas.helpers import chromplotplus as cpp
 from metatlas.helpers import spectralprocessing as sp
 
 import numpy as np
-import multiprocessing as mp
 import pandas as pd
-import copy
 
+loose_param = {'min_intensity': 1e3,
+               'rt_tolerance': .25,
+               'mz_tolerance': 25,
+               'min_msms_score': 0.3, 'allow_no_msms': True,
+               'min_num_frag_matches': 1,  'min_relative_frag_intensity': .01}
 
-def scores_for_each_compound(atlas_df, metatlas_dataset):
+strict_param = {'min_intensity': 1e5,
+                'rt_tolerance': .25,
+                'mz_tolerance': 5,
+                'min_msms_score': .6, 'allow_no_msms': False,
+                'min_num_frag_matches': 3, 'min_relative_frag_intensity': .1}
+
+def make_scores_df(metatlas_dataset):
     """
     Returns pandas dataframe with columns 'max_intensity', 'median_rt_shift','median_mz_ppm', 'max_msms_score',
     'num_frag_matches', and 'max_relative_frag_intensity', rows of compounds in metatlas_dataset, and values
     of the best "score" for a given compound across all files.
 
-    'max_intensity': highest EIC across all files for given compound
-    'median_rt_shift': shift of median RT across all files for given compound to reference
-    'median_mz_ppm': ppm of median mz across all files for given compound relative to reference
+    'max_intensity': highest intensity across all files for given compound
+    'median_rt_shift': median shift of RT across all files for given compound to reference
+    'median_mz_ppm': median ppm of mz across all files for given compound relative to reference
     'max_msms_score': highest compound dot-product score across all files for given compound relative to reference
     'num_frag_matches': number of matching mzs when calculating max_msms_score
     'max_relative_frag_intensity': ratio of second highest to first highest intensity of matching sample mzs
 
-
     :param metatlas_dataset:
-    :param atlas_df:
 
     :return scores_df: pandas dataframe
     """
@@ -35,14 +44,7 @@ def scores_for_each_compound(atlas_df, metatlas_dataset):
     compound_names = ma_data.get_compound_names(metatlas_dataset)[0]
     frag_refs = pd.read_json(os.path.join('/project/projectdirs/metatlas/projects/sharepoint/frag_refs.json'))
 
-    scores_df = pd.DataFrame(np.nan,
-                             columns = ['max_intensity',
-                                        'median_rt_shift',
-                                        'median_mz_ppm',
-                                        'max_msms_score',
-                                        'num_frag_matches',
-                                        'max_relative_frag_intensity'],
-                             index = atlas_df.label)
+    scores = []
 
     for compound_idx in range(len(compound_names)):
         intensities = []
@@ -97,66 +99,134 @@ def scores_for_each_compound(atlas_df, metatlas_dataset):
         except ValueError:
             median_mz_ppm = np.nan
 
-        #assign scores
-        scores_df.iloc[compound_idx] = [max_intensity,
-                                        median_rt_shift,
-                                        median_mz_ppm,
-                                        max_msms_score,
-                                        num_frag_matches,
-                                        max_relative_frag_intensity]
+        # assign scores
+        scores.append([metatlas_dataset[0][compound_idx]['identification'].compound[0].name,
+                       metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key,
+                       max_intensity,
+                       median_rt_shift,
+                       median_mz_ppm,
+                       max_msms_score,
+                       num_frag_matches,
+                       max_relative_frag_intensity])
+
+    scores_df = pd.DataFrame(scores,
+                             columns=['name',
+                                      'inchi_key',
+                                      'max_intensity',
+                                      'median_rt_shift',
+                                      'median_mz_ppm',
+                                      'max_msms_score',
+                                      'num_frag_matches',
+                                      'max_relative_frag_intensity'])
 
     return scores_df
 
-def filter_metatlas_dataset_by_scores(scores_df, metatlas_dataset, min_intensity, rt_tolerance, mz_tolerance, min_msms_score, allow_no_msms, min_num_frag_matches, min_relative_frag_intensity):
-    file_names = ma_data.get_file_names(metatlas_dataset)
 
-    compounds_to_keep = []
-
-    for compound_idx,(label,row) in enumerate(scores_df.iterrows()):
-        if row.max_intensity > min_intensity:
-            if row.median_rt_shift < rt_tolerance:
-                if row.median_mz_ppm < mz_tolerance:
-                    if row.max_msms_score > min_msms_score:
-                        if row.num_frag_matches > min_num_frag_matches:
-                            if row.max_relative_frag_intensity > min_relative_frag_intensity:
-                                compounds_to_keep.append(compound_idx)
-                    elif (allow_no_msms) and (np.isnan(row.max_msms_score)):
-                        compounds_to_keep.append(compound_idx)
-
-    filtered_dataset = []
-    if len(compounds_to_keep) > 0:
-        for file_idx in range(len(file_names)):
-            temp = []
-            for compound_idx in compounds_to_keep:
-                temp.append(metatlas_dataset[file_idx][compound_idx])
-            filtered_dataset.append(temp)
-    else:
-        print('YOU HAVE ZERO MATCHING COMPOUNDS!!!!!!!')
-        assert(False)
-    return filtered_dataset
-
-
-def filter_and_dump(atlas, groups, output_dir, metatlas_dataset=None,
-                    min_intensity = 3e4,
-                    rt_tolerance = .25,
-                    mz_tolerance = 10,
-                    min_msms_score = .3, allow_no_msms = False,
-                    min_num_frag_matches = 1,  min_relative_frag_intensity = .01,
-                    num_threads = 3,
-                    compress = False):
-
+def test_scores_df(scores_df,
+                   min_intensity, rt_tolerance, mz_tolerance,
+                   min_msms_score, allow_no_msms, min_num_frag_matches, min_relative_frag_intensity):
     """
-    Creates error bars, chromatograms, and identification figures in output_dir for compounds in
-    metatlas_dataset created by atlas and groups which meet the minimum requirements set by
+    Returns pandas series containing boolean values for each compound in scores_df
+    describing if it passes minimum requirements set by:
     'min_intensity', 'rt_tolerance','mz_tolerance', 'min_msms_score',
     'min_num_frag_matches', and 'min_relative_frag_intensity'.
 
-    'min_intensity' =< highest EIC across all files for given compound
+    'min_intensity' <= highest intensity across all files for given compound
     'rt_tolerance' >= shift of median RT across all files for given compound to reference
     'mz_tolerance' >= ppm of median mz across all files for given compound relative to reference
-    'min_msms_score' =< highest compound dot-product score across all files for given compound relative to reference
-    'min_num_frag_matches' =< number of matching mzs when calculating max_msms_score
-    'min_relative_frag_intensity' =< ratio of second highest to first highest intensity of matching sample mzs
+    'min_msms_score' <= highest compound dot-product score across all files for given compound relative to reference
+    'min_num_frag_matches' <= number of matching mzs when calculating max_msms_score
+    'min_relative_frag_intensity' <= ratio of second highest to first highest intensity of matching sample mzs
+
+    :param score_df:
+
+    :return passing_series:
+    """
+
+    return (scores_df.max_intensity > min_intensity) &\
+           (scores_df.median_rt_shift < rt_tolerance) &\
+           (scores_df.median_mz_ppm < mz_tolerance) &\
+           ((scores_df.max_msms_score > min_msms_score) &\
+            (scores_df.num_frag_matches > min_num_frag_matches) &\
+            ((min_num_frag_matches <= 1) |\
+             (scores_df.max_relative_frag_intensity > min_relative_frag_intensity))) |\
+           ((allow_no_msms) &\
+            (np.isnan(scores_df.max_msms_score)))
+
+
+
+def filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset,
+                             column='passing'):
+    """
+    Splits atlas and metatlas_dataset by compound according to if it
+    passes/fails minimum requirements set by:
+    'min_intensity', 'rt_tolerance','mz_tolerance', 'min_msms_score',
+    'min_num_frag_matches', and 'min_relative_frag_intensity'.
+
+    'min_intensity' <= highest intensity across all files for given compound
+    'rt_tolerance' >= shift of median RT across all files for given compound to reference
+    'mz_tolerance' >= ppm of median mz across all files for given compound relative to reference
+    'min_msms_score' <= highest compound dot-product score across all files for given compound relative to reference
+    'min_num_frag_matches' <= number of matching mzs when calculating max_msms_score
+    'min_relative_frag_intensity' <= ratio of second highest to first highest intensity of matching sample mzs
+
+    :param score_df:
+    :param atlas:
+    :param metatlas_dataset:
+
+    :return pass_atlas_df, fail_atlas_df, pass_dataset, fail_dataset:
+    """
+
+    try:
+        assert(column in scores_df)
+    except AssertionError:
+        print 'Error: ' + column + ' not in scores_df. Either set column where pass/fail boolean values are or run test_scores_df().'
+
+    pass_atlas_df = atlas_df[atlas_df.inchi_key.isin(scores_df[scores_df['passing']].inchi_key.values)]
+    fail_atlas_df = atlas_df[atlas_df.inchi_key.isin(scores_df[~scores_df['passing']].inchi_key.values)]
+
+    pass_dataset = []
+    fail_dataset = []
+
+    for file_idx in range(len(metatlas_dataset)):
+        pass_temp = []
+        fail_temp = []
+
+        for compound_idx in range(len(metatlas_dataset[0])):
+            if metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key in scores_df[scores_df['passing']].inchi_key.values:
+                pass_temp.append(metatlas_dataset[file_idx][compound_idx])
+            else:
+                fail_temp.append(metatlas_dataset[file_idx][compound_idx])
+
+        pass_dataset.append(pass_temp)
+        fail_dataset.append(fail_temp)
+
+    return pass_atlas_df, fail_atlas_df, pass_dataset, fail_dataset
+
+
+def filter_and_output(atlas_df, metatlas_dataset, output_dir,
+                      min_intensity,
+                      rt_tolerance,
+                      mz_tolerance,
+                      min_msms_score, allow_no_msms,
+                      min_num_frag_matches,  min_relative_frag_intensity,
+                      num_threads=4,
+                      output_pass=True, output_fail=False,
+                      compress=False):
+
+    """
+    Splits atlas and metatlas_dataset by compound according to if it
+    passes/fails minimum requirements set by:
+    'min_intensity', 'rt_tolerance','mz_tolerance', 'min_msms_score',
+    'min_num_frag_matches', and 'min_relative_frag_intensity' and
+    creates error bars, chromatograms, and identification figures in output_dir.
+
+    'min_intensity' <= highest intensity across all files for given compound
+    'rt_tolerance' >= shift of median RT across all files for given compound to reference
+    'mz_tolerance' >= ppm of median mz across all files for given compound relative to reference
+    'min_msms_score' <= highest compound dot-product score across all files for given compound relative to reference
+    'min_num_frag_matches' <= number of matching mzs when calculating max_msms_score
+    'min_relative_frag_intensity' <= ratio of second highest to first highest intensity of matching sample mzs
     'num_threads' = number of threads to use in multiprocessing
 
     Returns the unfiltered metatlas dataset and filtered dataset that can be used for downstream processing steps.
@@ -166,84 +236,102 @@ def filter_and_dump(atlas, groups, output_dir, metatlas_dataset=None,
     :param output_dir:
     """
 
-    atlas_df = ma_data.make_atlas_df(atlas)
-    atlas_df['label'] = [cid.name for cid in atlas.compound_identifications]
+    with open(os.path.join(output_dir, 'test_parameters.txt'), 'w') as f:
+        f.write('min_intensity=' + str(min_intensity) + '\n' +
+                'rt_tolerance=' + str(rt_tolerance) + '\n' +
+                'mz_tolerance=' + str(mz_tolerance) + '\n' +
+                'min_msms_score=' + str(min_msms_score) + '\n' +
+                'allow_no_msms=' + str(allow_no_msms) + '\n' +
+                'min_num_frag_matches=' + str(min_num_frag_matches) + '\n' +
+                'min_relative_frag_intensity=' + str(min_relative_frag_intensity))
 
-    print 'making dataset'
+    print 'making scores_df'
+    # scores compounds in metatlas dataset
+    scores_df = make_scores_df(metatlas_dataset)
 
-    if metatlas_dataset is None:
-        #make metatlas dataset
-        all_files = []
-        for my_group in groups:
-            for my_file in my_group.items:
-                all_files.append((my_file , my_group, atlas_df, atlas))
-        pool = mp.Pool(processes=min(num_threads, len(all_files)))
-        metatlas_dataset = pool.map(ma_data.get_data_for_atlas_df_and_file, all_files)
+    print 'testing and making compound_scores.csv'
+    # scores dataframe
+    scores_df['passing'] = test_scores_df(scores_df,
+                                          min_intensity, rt_tolerance, mz_tolerance,
+                                          min_msms_score, allow_no_msms, min_num_frag_matches, min_relative_frag_intensity)
+    scores_df.to_csv(os.path.join(output_dir, 'compound_scores.csv'))
+
+    print 'filtering atlas and dataset'
+    # filter dataset by scores
+    pass_atlas_df, fail_atlas_df, pass_dataset, fail_dataset = filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset)
+
+    outputs = []
+
+    if output_pass:
+        try:
+            pass_dataset[0][0]['data']
+            outputs.append((pass_atlas_df, pass_dataset, os.path.join(output_dir, 'pass')))
+        except:
+            pass
+
+    if output_fail:
+        try:
+            fail_dataset[0][0]['data']
+            outputs.append((fail_atlas_df, fail_dataset, os.path.join(output_dir, 'fail')))
+        except:
+            pass
+
+    for atlas_df, filtered_dataset, output_dir in outputs:
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        print 'saving atlas'
+        atlas_df.to_csv(os.path.join(output_dir, 'filtered_atlas_export.csv'))
+
+        print 'making info tables'
+        peak_height = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='peak_height' , output_loc=os.path.join(output_dir,'sheets'))
+        peak_area = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='peak_area' , output_loc=os.path.join(output_dir,'sheets'))
+        mz_peak = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='mz_peak' , output_loc=os.path.join(output_dir,'sheets'))
+        rt_peak = dp.make_output_dataframe(input_fname = '', input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [],fieldname='rt_peak' , output_loc=os.path.join(output_dir,'sheets'))
+        mz_centroid = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='mz_centroid' , output_loc=os.path.join(output_dir,'sheets'))
+        rt_centroid = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='rt_centroid' , output_loc=os.path.join(output_dir,'sheets'))
+
+        print 'making error bars'
+        #Error bars
+        peak_height = dp.make_output_dataframe(input_fname='', input_dataset=filtered_dataset, include_lcmsruns=[], exclude_lcmsruns=[], fieldname='peak_height')
+        dp.plot_errorbar_plots(peak_height, output_loc=os.path.join(output_dir, 'error_bar_peak_height'))
+
+        print 'making identification figures'
+        #Identification figures
+        dp.make_identification_figure_v2(input_dataset=filtered_dataset, include_lcmsruns = [],exclude_lcmsruns=[], output_loc=os.path.join(output_dir, 'identification'))
+
+        print 'making chromatograms'
+        # Chromatograms
+        group = 'sort'  # 'page' or 'index' or 'sort' or None
+        save = True
+        share_y = True
+
+        file_names = ma_data.get_file_names(filtered_dataset)
+        compound_names = ma_data.get_compound_names(filtered_dataset)[0]
+        args_list = []
+
+        chromatogram_str = 'compound_chromatograms'
+
+        if not os.path.exists(os.path.join(output_dir, chromatogram_str)):
+            os.makedirs(os.path.join(output_dir, chromatogram_str))
+
+        for compound_idx, my_compound in enumerate(compound_names):
+            my_data = list()
+            for file_idx, my_file in enumerate(file_names):
+                my_data.append(filtered_dataset[file_idx][compound_idx])
+            kwargs = {'data': my_data,
+                      'file_name': os.path.join(output_dir, chromatogram_str, my_compound+'.pdf'),
+                      'group': group,
+                      'save': save,
+                      'share_y': share_y,
+                      'names': file_names}
+            args_list.append(kwargs)
+
+        pool = mp.Pool(processes=min(num_threads, len(filtered_dataset[0])))
+        pool.map(cpp.chromplotplus, args_list)
         pool.close()
         pool.terminate()
 
-    print 'making scores_df'
-    #scores compounds in metatlas dataset
-    scores_df = scores_for_each_compound(atlas_df, metatlas_dataset)
-
-    print 'making compound_scores.csv'
-    #Scores dataframe
-    scores_df.to_csv(os.path.join(output_dir,'compound_scores.csv'))
-
-    print 'filtering dataset'
-    #filter dataset by scores
-    filtered_dataset = filter_metatlas_dataset_by_scores(scores_df, metatlas_dataset,
-                                                         min_intensity,
-                                                         rt_tolerance,
-                                                         mz_tolerance,
-                                                         min_msms_score, allow_no_msms,
-                                                         min_num_frag_matches,
-                                                         min_relative_frag_intensity)
-
-    filtered_atlas_df = copy.deepcopy(atlas_df)
-    compounds_to_keep = []
-
-    for i in range(len(filtered_dataset[0])):
-        compounds_to_keep.append(filtered_dataset[0][i]['identification'].compound[0].inchi_key)
-
-    filtered_atlas_df = filtered_atlas_df[filtered_atlas_df['inchi_key'].isin(compounds_to_keep)]
-
-    #Chromatograms
-    group = 'sort' # 'page' or 'index' or 'sort' or None
-    save = True
-    share_y = True
-
-    file_names = ma_data.get_file_names(filtered_dataset)
-    compound_names = ma_data.get_compound_names(filtered_dataset)[0]
-    args_list = []
-
-    chromatogram_str = 'compound_chromatograms'
-
-    if not os.path.exists(os.path.join(output_dir,chromatogram_str)):
-        os.makedirs(os.path.join(output_dir,chromatogram_str))
-
-    for compound_idx, my_compound in enumerate(compound_names):
-        my_data = list()
-        for file_idx, my_file in enumerate(file_names):
-            my_data.append(filtered_dataset[file_idx][compound_idx])
-        kwargs = {'data': my_data,
-                 'file_name': os.path.join(output_dir, chromatogram_str, my_compound+'.pdf'),
-                 'group': group,
-                 'save': save,
-                 'share_y': share_y,
-                 'names': file_names}
-        args_list.append(kwargs)
-
-    pool = mp.Pool(processes=min(num_threads, len(filtered_dataset[0])))
-    pool.map(cpp.chromplotplus, args_list)
-    pool.close()
-    pool.terminate()
-
-    #Error bars
-    peak_height = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset, include_lcmsruns = [],exclude_lcmsruns = [], fieldname='peak_height')
-    dp.plot_errorbar_plots(peak_height, output_loc=os.path.join(output_dir,'error_bar_peak_height'))
-
-    #Identification figures
-    dp.make_identification_figure_v2(input_dataset = filtered_dataset, input_fname = my_file, include_lcmsruns = [],exclude_lcmsruns = [], output_loc=os.path.join(output_dir,'identification'))
-
-    return metatlas_dataset,filtered_dataset,filtered_atlas_df
+    print 'done'
+    return pass_atlas_df, fail_atlas_df, pass_dataset, fail_dataset
