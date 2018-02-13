@@ -501,12 +501,12 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
             for i, j in np.array(np.tril_indices(num_msv, -1)).T:
                 msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[j], mz_tolerance, resolve_by)
                 score_matrix[i, j] = score_ms_vectors_composite(msv_i_aligned, msv_j_aligned, mass_power=mass_power, intensity_power=intensity_power)
+
         else:
             # Add weighted score of msv_list[i] and msv_list[0] to score_matrix[i,0] for new ms vector only
             for i in range(1, num_msv):
                 msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[0], mz_tolerance, resolve_by)
                 score_matrix[i, 0] = score_ms_vectors_composite(msv_i_aligned, msv_j_aligned, mass_power=mass_power, intensity_power=intensity_power)
-
 
         # Flatten the score_matrix
         flat_score_matrix = score_matrix.ravel()
