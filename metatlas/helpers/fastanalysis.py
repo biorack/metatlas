@@ -79,7 +79,10 @@ def make_scores_df(metatlas_dataset):
             msv_sample = sp.sort_ms_vector_by_mz(np.array([metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['mz'], metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['i']]))
 
             msv_sample_matches = sp.partition_ms_vectors(msv_sample, msv_ref, .005, 'shape')[0]
-            num_frag_matches = len(sp.remove_ms_vector_noise(msv_sample_matches, threshold=1e-4)[0])
+            if len(msv_sample_matches[0]) > 0:
+                num_frag_matches = len(sp.remove_ms_vector_noise(msv_sample_matches)[0])
+            else:
+                num_frag_matches = 0
 
             if num_frag_matches > 1:
                 msv_sample_matches_by_intensity = msv_sample_matches[:, msv_sample_matches[1].argsort()]
@@ -138,7 +141,7 @@ def test_scores_df(scores_df,
     'min_num_frag_matches' <= number of matching mzs when calculating max_msms_score
     'min_relative_frag_intensity' <= ratio of second highest to first highest intensity of matching sample mzs
 
-    :param score_df:
+    :param scores_df:
 
     :return passing_series:
     """
@@ -170,7 +173,7 @@ def filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset,
     'min_num_frag_matches' <= number of matching mzs when calculating max_msms_score
     'min_relative_frag_intensity' <= ratio of second highest to first highest intensity of matching sample mzs
 
-    :param score_df:
+    :param scores_df:
     :param atlas:
     :param metatlas_dataset:
 

@@ -1191,7 +1191,7 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
                 for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                     msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
 
-                    score = sp.score_ms_vectors_composite_dot(*sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape'), mass_power=0)
+                    score = sp.score_ms_vectors_composite(*sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape'))
 
                     if score > max_score or np.isnan(max_score):
                         max_score = score
@@ -1433,7 +1433,7 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
 
                 msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape')
 
-                score = sp.score_ms_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_power=0)
+                score = sp.score_ms_vectors_composite(msv_sample_aligned, msv_ref_aligned)
 
                 if current_best_score == None or score > current_best_score:
                     current_best_score = score
@@ -1733,14 +1733,17 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             ax7.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
             ax7.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
             if len(rt_list) > 0:
-                ax7.text(0,0.7,'Actual MSMS Elution of %5.3f minutes'%rt_list[0],fontsize=8)
+                ax7.text(0,0.7,'MSMS Scan at %5.3f minutes'%rt_list[0],fontsize=8)
                 msv_sample_matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0]
                 if intensity_sorted_matches:
                     msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
-                mz_sample_matches = msv_sample_matches[0, msv_sample_matches[1] > 1e4].tolist()
+                if len(msv_sample_matches[0]) > 0:
+                    mz_sample_matches = sp.remove_ms_vector_noise(msv_sample_matches)[0].tolist()
+                else:
+                    mz_sample_matches = [np.nan]
                 ax7.text(0,0.6,
                          fill('Matching M/Zs: ' + ', '.join(['%5.3f'%m for m in mz_sample_matches]), width=54),
-                         fontsize=8)
+                         fontsize=8, verticalalignment='top')
 
             ax7.set_ylim(.5,1.1)
             ax7.axis('off')

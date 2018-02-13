@@ -5,13 +5,13 @@ import os
 import pickle
 import numpy as np
 import numpy.fft.fftpack as F
-
+import pandas as pd
 
 ################################################################################
 #Misc Functions
 ################################################################################
 
-def remove_ms_vector_noise(msv, threshold=1e-5):
+def remove_ms_vector_noise(msv, threshold=1e-3):
     """
     Returns ms vector with intensity below threshold removed
 
@@ -21,7 +21,7 @@ def remove_ms_vector_noise(msv, threshold=1e-5):
     :return: numpy 2d array
     """
 
-    return msv[:, msv[1, :] > threshold]
+    return msv[:, msv[1, :] > threshold * np.max(msv[1])]
 
 
 def sort_ms_vector_by_mz(msv):
@@ -166,6 +166,66 @@ def combine_ms_vectors(msv_alignment, combine_by, weights=None):
     if combine_by == 'sum':
         return sort_ms_vector_by_mz(np.array([nanaverage(msv_alignment[:,0], weights, 0),
                                               np.nansum(msv_alignment[:,1], axis = 0)]))
+
+# TODO
+# def lower_ms_vector_resolution(msv, mz_tolerance):
+#     """
+#     Finds indices where m/z values in msv_1 and msv_2 'best' match within +/- mz_tolerance
+#     by finding all matches (see find_all_ms_matches) and resolving non-one-to-one cases by
+#     assigning matches in order of:
+#         'distance': smallest to largest difference in matching m/zs
+#         'shape': smallest to largest difference in matching normalized intensities
+#         'intensity': largest to smallest product of matching intensities
+#     Returns two 1d numpy arrays with indices corresponding to indices of msv_1 and msv_2
+#     respectively where each value is the matching index in the other ms vector or nan if
+#     there is no matching index.
+#
+#     :param msv_1: numpy 2d array, msv_1[0] is m/z values and msv_1[1] is intensity values
+#     :param msv_2:  numpy 2d array, msv_2[0] is m/z values and msv_2[1] is intensity values
+#     :param mz_tolerance: limits matches to be within +/- mz_tolerance
+#     :param resolve_by: 'distance', 'shape', or 'intensity',
+#         determines what to prioritize when there are multiple matching m/zs within mz_tolerance
+#
+#     :return: msv_1_to_msv_2, numpy_1d_array of length msv_1
+#     :return: msv_2_to_msv_1, numpy_1d_array of length msv_2
+#     """
+#
+#     msv_1 = np.asarray(msv, dtype=float)
+#     assert np.any(np.isnan(msv)) == False
+#     assert msv.shape[0] == 2
+#
+#     matches = find_all_ms_matches(msv, msv, mz_tolerance)[0]
+#
+#     # Create match matrix where row i and column j is value determined by resolve_by if msv_1[i] matches msv_2[j]
+#     # and a default value if otherwise
+#     match_matrix = np.fromfunction(np.vectorize(lambda i, j: np.absolute(msv[0, int(i)] - msv[0, int(j)]) if int(j) in matches[int(i)] else np.inf), (msv[0].size, msv[0].size)).astype(float)
+#
+#     # Initialize numpy arrays to return matching indices
+#     msv_1_to_msv_2 = np.full_like(msv_1[0], np.nan, dtype=float)
+#     msv_2_to_msv_1 = np.full_like(msv_2[0], np.nan, dtype=float)
+#
+#     # Flatten match matrix
+#     flat_match_matrix = match_matrix.ravel()
+#
+#     # Sort match matrix indices in order determined by resolve_by
+#     if resolve_by == 'distance' or resolve_by == 'shape':
+#         masked_flat_match_matrix = np.ma.array(flat_match_matrix,
+#                                                mask=np.isinf(flat_match_matrix),
+#                                                fill_value=np.inf)
+#         sorted_match_indices = np.dstack(
+#             np.unravel_index(np.ma.argsort(masked_flat_match_matrix),
+#                              (msv_1[0].size, msv_2[0].size)))[0]
+#
+#     # Assign matching indices in order determined by resolve_by
+#     for msv_1_idx, msv_2_idx in sorted_match_indices:
+#         if np.isinf(match_matrix[msv_1_idx, msv_2_idx]):
+#             break
+#
+#         if msv_1_idx not in msv_2_to_msv_1 and msv_2_idx not in msv_1_to_msv_2:
+#             msv_1_to_msv_2[msv_1_idx] = msv_2_idx
+#             msv_2_to_msv_1[msv_2_idx] = msv_1_idx
+#
+#     return msv_1_to_msv_2, msv_2_to_msv_1
 
 
 ################################################################################
@@ -333,17 +393,6 @@ def partition_nl_vectors(msv_1_precusor_mz, msv_2_precusor_mz, msv_1, msv_2, mz_
         mz_tolerance, resolve_by)
 
 
-# def align_vectors(msv_1_matches, msv_2_matches, msv_1_nonmatches,
-#                   msv_2_nonmatches):
-#         (msv_1_matches, msv_1_nonmatches, np.zeros(msv_2_nonmatches.shape)),
-#         axis=1)
-#     ms_v2_aligned = np.concatenate(
-#         (msv_2_matches, np.zeros(msv_1_nonmatches.shape), msv_2_nonmatches),
-#         axis=1)
-#
-#     return ms_v1_aligned, ms_v2_aligned
-
-
 def pairwise_align_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     """
     Finds which m/z values in msv_1 and msv_2 'best' match within +/- mz_tolerance
@@ -396,10 +445,9 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
     """EXPERIMENTAL: Pairwise alignments can lead to M/Z-wise misalignments in the multiple alignment.
 
     Pairwise aligns each combination of pairs of ms vectors in msv_list (see pairwise_align_ms_vectors),
-    scores them (see score_ms_vectors_composite_dot), assigns the product of their score with
-    the sum of their weights to a corresponding position in a score matrix, combines the
-    two ms vectors with highest score (see combine_ms_vectors) according to their weights
-    and weighs it as the sum of its constituent weights, removes the constituent ms vectors and
+    scores them (see score_ms_vectors_composite_dot), assigns their scoreto a corresponding position in
+    a score matrix, combines the two ms vectors with highest score (see combine_ms_vectors) according to
+    their weights and weighs it as the sum of its constituent weights, removes the constituent ms vectors and
     weights from msv_list and weights, inserts the combined ms vector and weight to the
     front of msv_list and weights, repeats previous steps until msv_list only contains the combination
     of all ms vectors, and returns a tuple containing a numpy 3d array containing each original
@@ -433,7 +481,7 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
     msv_original_list = msv_list[:]
 
     # Set weights of ms vectors uniformly if weights is not set manually
-    if weights == None:
+    if weights is None:
         weights = [1. / len(msv_list)] * len(msv_list)
 
     # Initialize score_matrix
@@ -452,13 +500,13 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
             # Add weighted score of msv_list[i] and msv_list[j] to score_matrix[i,j] for all combinations
             for i, j in np.array(np.tril_indices(num_msv, -1)).T:
                 msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[j], mz_tolerance, resolve_by)
-                score_matrix[i, j] = score_ms_vectors_composite_dot(msv_i_aligned, msv_j_aligned, mass_power, intensity_power)
-            # Add weighted score of msv_list[i] and msv_list[0] to score_matrix[i,0] for new ms vector only
+                score_matrix[i, j] = score_ms_vectors_composite(msv_i_aligned, msv_j_aligned, mass_power=mass_power, intensity_power=intensity_power)
+
         else:
+            # Add weighted score of msv_list[i] and msv_list[0] to score_matrix[i,0] for new ms vector only
             for i in range(1, num_msv):
                 msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[0], mz_tolerance, resolve_by)
-                score_matrix[i, 0] = score_ms_vectors_composite_dot(msv_i_aligned, msv_j_aligned, mass_power, intensity_power)
-
+                score_matrix[i, 0] = score_ms_vectors_composite(msv_i_aligned, msv_j_aligned, mass_power=mass_power, intensity_power=intensity_power)
 
         # Flatten the score_matrix
         flat_score_matrix = score_matrix.ravel()
@@ -504,7 +552,7 @@ def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
     # Pairwise align all ms vectors from msv_original_list to final msv_combined
     # and add to msv_alignment
     for i, msv in enumerate(msv_original_list):
-        msv_alignment[i] =  pairwise_align_ms_vectors(msv, msv_combined, mz_tolerance, resolve_by)[0]
+        msv_alignment[i] = pairwise_align_ms_vectors(msv, msv_combined, mz_tolerance, resolve_by)[0]
 
     return msv_alignment, msv_combined
 
@@ -540,7 +588,7 @@ def partition_aligned_ms_vectors(msv_1_aligned, msv_2_aligned):
     return msv_1_matches, msv_2_matches, msv_1_nonmatches, msv_2_nonmatches
 
 
-def weigh_vector_by_mz_and_intensity(msv, mz_power=1, intensity_power=.6):
+def weigh_vector_by_mz_and_intensity(msv, mz_power, intensity_power):
     """
     Returns (mz^mz_power)*(intensity^intensity_power) vector
 
@@ -551,8 +599,10 @@ def weigh_vector_by_mz_and_intensity(msv, mz_power=1, intensity_power=.6):
     :return: numpy 1d array
     """
 
-    return np.multiply(np.power(msv[0], mz_power),
-                       np.power(msv[1], intensity_power))
+    weighted_vector = np.multiply(np.power(msv[0], mz_power),
+                                  np.power(msv[1], intensity_power))# + intensity_power**((-intensity_power+1)**-1), intensity_power))
+
+    return weighted_vector / np.linalg.norm(weighted_vector)
 
 
 def calc_ratio_of_pairs(v1, v2):
@@ -571,11 +621,14 @@ def calc_ratio_of_pairs(v1, v2):
     """
 
     # Find shared indices between v1 and v2
-    shared = ~np.isnan(v1) & ~np.isnan(v2)
+    shared = (v1 != 0) & ~np.isnan(v1) & (v2 != 0) & ~np.isnan(v2)
 
     # Select shared indices from v1 and v2
     v1_shared = v1[shared]
     v2_shared = v2[shared]
+
+    if sum(shared) == 1 and len(v1) != 1 and len(v2) != 1:
+        return 0
 
     # Calculate ratio pairs
     ratios = (v1_shared/np.roll(v1_shared, 1)) * (np.roll(v2_shared, 1)/v2_shared)
@@ -586,32 +639,15 @@ def calc_ratio_of_pairs(v1, v2):
     return np.nan_to_num(np.sum(ratios) / np.sum(shared))
 
 
-def score_vectors_dot(v1, v2, normalize=True):
+def score_ms_vectors_dot(msv_sample_aligned, msv_ref_aligned, **kwargs):
     """
-    Returns dot product of two vectors, either normalized to a magnitude of 1 or not.
-
-    :param v1: numpy 1d array
-    :param v2: numpy 1d array
-    :param normalize: bool, scales to unit vector if true
-
-    :return:
-    """
-
-    if normalize:
-        return np.dot(v1 / np.linalg.norm(v1), v2 / np.linalg.norm(v2))
-    else:
-        return np.dot(v1, v2)
-
-
-def score_ms_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_power=1,
-                                intensity_power=.6):
-    """
-    Returns "Composite" dot product score as defined in Table 1 of paper below
+    Returns dot product score similar defined in Table 1 of paper below
 
     :param msv_1_aligned: numpy 2d array, msv_1_aligned[0] is m/z and msv_1_aligned[1] is intensities sorted by m/z,
         each index of msv_1_aligned has its m/z value match that of msv_2_aligned if non-nan
     :param msv_2_aligned: numpy 2d array, msv_2_aligned[0] is m/z and msv_2_aligned[1] is intensities sorted by m/z,
         each index of msv_2_aligned has its m/z value match that of msv_1_aligned if non-nan
+    :param kwargs: Ask Daniel or look at the code itself
 
     :return: float
 
@@ -623,26 +659,212 @@ def score_ms_vectors_composite_dot(msv_sample_aligned, msv_ref_aligned, mass_pow
 
     msv_sample_aligned = np.asarray(msv_sample_aligned, dtype=float)
     msv_ref_aligned = np.asarray(msv_ref_aligned, dtype=float)
+
     assert msv_sample_aligned.shape[0] == 2 and msv_ref_aligned.shape[0] == 2
     assert msv_sample_aligned.shape == msv_ref_aligned.shape
 
-    # Find number of peaks shared between sample and reference and in sample
-    num_shared = np.sum(~np.isnan(msv_sample_aligned) & ~np.isnan(msv_ref_aligned))
-    num_sample = msv_sample_aligned[0,~np.isnan(msv_sample_aligned[0])].size
+    shared = ~np.isnan(msv_sample_aligned[0]) & ~np.isnan(msv_ref_aligned[0])
+
+    mass_power = kwargs.pop('mass_power', 0)
+    intensity_power = kwargs.pop('intensity_power', 1 / np.log2(sum(shared) + 1))
 
     # Weigh vectors according to mass and intensity
     msv_sample_weighted = weigh_vector_by_mz_and_intensity(np.nan_to_num(msv_sample_aligned),
-                                                           mass_power,
-                                                           intensity_power)
+                                                           mass_power, intensity_power)
     msv_ref_weighted = weigh_vector_by_mz_and_intensity(np.nan_to_num(msv_ref_aligned),
-                                                        mass_power,
-                                                        intensity_power)
+                                                        mass_power, intensity_power)
+
+    # Compute dot product
+    dot = np.dot(msv_sample_weighted, msv_ref_weighted)
+
+    return dot
+
+
+def score_ms_vectors_composite(msv_sample_aligned, msv_ref_aligned,
+                               **kwargs):
+    """
+    Returns composite score similar to that defined in Table 1 of paper below
+
+    :param msv_1_aligned: numpy 2d array, msv_1_aligned[0] is m/z and msv_1_aligned[1] is intensities sorted by m/z,
+        each index of msv_1_aligned has its m/z value match that of msv_2_aligned if non-nan
+    :param msv_2_aligned: numpy 2d array, msv_2_aligned[0] is m/z and msv_2_aligned[1] is intensities sorted by m/z,
+        each index of msv_2_aligned has its m/z value match that of msv_1_aligned if non-nan
+    :param kwargs: Ask Daniel or look at the code
+
+    :return: float
+
+    Stein, S. E., & Scott, D. R. (1994).
+    Optimization and testing of mass spectral library search algorithms for compound identification.
+    Journal of the American Society for Mass Spectrometry,
+    5(9), 859-866. doi:10.1016/1044-0305(94)87009-8
+    """
+
+    msv_sample_aligned = np.asarray(msv_sample_aligned, dtype=float)
+    msv_ref_aligned = np.asarray(msv_ref_aligned, dtype=float)
+
+    assert msv_sample_aligned.shape[0] == 2 and msv_ref_aligned.shape[0] == 2
+    assert msv_sample_aligned.shape == msv_ref_aligned.shape
+
+    shared = ~np.isnan(msv_sample_aligned[0]) & ~np.isnan(msv_ref_aligned[0])
+
+    if sum(shared) == 0:
+        return 0
+
+    mean_type = kwargs.pop('mean_type', 'geo')
+
+    mass_power = kwargs.pop('mass_power', 0)
+    dot_mass_power = mass_power
+    ratio_mass_power = mass_power
+    intensity_power = kwargs.pop('intensity_power', 1 / np.log2(sum(shared) + 1))
+    dot_intensity_power = intensity_power
+    ratio_intensity_power = intensity_power
+
+    dot_mass_power = kwargs.pop('dot_mass_power', 0)
+    dot_intensity_power = kwargs.pop('dot_intensity_power', 1 / np.log2(sum(shared) + 1))
+    ratio_mass_power = kwargs.pop('ratio_mass_power', 0)
+    ratio_intensity_power = kwargs.pop('ratio_intensity_power', 1 / np.log2(sum(shared) + 1))
+
+    # Weigh vectors according to mass and intensity
+    msv_sample_dot_weighted = weigh_vector_by_mz_and_intensity(np.nan_to_num(msv_sample_aligned),
+                                                               dot_mass_power, dot_intensity_power)
+    msv_ref_dot_weighted = weigh_vector_by_mz_and_intensity(np.nan_to_num(msv_ref_aligned),
+                                                            dot_mass_power, dot_intensity_power)
+    msv_sample_ratio_weighted = weigh_vector_by_mz_and_intensity(np.nan_to_num(msv_sample_aligned),
+                                                                 ratio_mass_power, ratio_intensity_power)
+    msv_ref_ratio_weighted = weigh_vector_by_mz_and_intensity(np.nan_to_num(msv_ref_aligned),
+                                                              ratio_mass_power, ratio_intensity_power)
 
     # Compute dot product and ratio of pairs
-    dot = score_vectors_dot(msv_sample_weighted, msv_ref_weighted)
-    ratio = calc_ratio_of_pairs(msv_sample_aligned[1], msv_ref_aligned[1])
 
-    return ((num_sample * dot) + (num_shared * ratio)) / (num_sample + num_shared)
+    dot = np.dot(msv_sample_dot_weighted, msv_ref_dot_weighted)
+    ratio = calc_ratio_of_pairs(msv_sample_ratio_weighted, msv_ref_ratio_weighted)
+
+    dot_weight = np.nansum([msv_sample_dot_weighted, msv_ref_dot_weighted])
+    ratio_weight = np.sum([msv_sample_ratio_weighted[shared], msv_ref_ratio_weighted[shared]])
+
+
+    # Compute mean with 1 of 4 methods
+    try:
+        if mean_type == 'arith':
+            comp = ((dot_weight * dot) + (ratio_weight * ratio)) / (dot_weight + ratio_weight)
+        if mean_type == 'geo':
+            comp = ((dot ** dot_weight) * (ratio ** ratio_weight)) ** (1. / (dot_weight + ratio_weight))
+        if mean_type == 'harm':
+            comp = (dot_weight + ratio_weight) / ((dot_weight / dot) + (ratio_weight / ratio))
+        if mean_type == 'rms':
+            comp = (((dot_weight * (dot ** 2.)) + (ratio_weight * (ratio ** 2.))) / (dot_weight + ratio_weight)) ** .5
+    except ZeroDivisionError:
+        return 0
+
+    return np.nan_to_num(comp)
+
+
+# def score_ms_vectors_relevance(msv_query_aligned, msv_target_aligned, **kwargs):
+#     """
+#     Returns score that is a proxy for the probablity that the queried msv
+#     is part of the target msv
+#
+#     :param msv_1_aligned: numpy 2d array, msv_1_aligned[0] is m/z and msv_1_aligned[1] is intensities sorted by m/z,
+#         each index of msv_1_aligned has its m/z value match that of msv_2_aligned if non-nan
+#     :param msv_2_aligned: numpy 2d array, msv_2_aligned[0] is m/z and msv_2_aligned[1] is intensities sorted by m/z,
+#         each index of msv_2_aligned has its m/z value match that of msv_1_aligned if non-nan
+#
+#     :return: float
+#     """
+#
+#     msv_query_aligned = np.asarray(msv_query_aligned, dtype=float)
+#     msv_target_aligned = np.asarray(msv_target_aligned, dtype=float)
+#
+#     assert msv_query_aligned.shape[0] == 2 and msv_target_aligned.shape[0] == 2
+#     assert msv_query_aligned.shape == msv_target_aligned.shape
+#
+#     shared = ~np.isnan(msv_query_aligned[0]) & ~np.isnan(msv_target_aligned[0])
+#
+#     mass_power = kwargs.pop('mass_power', 0)
+#     intensity_power = kwargs.pop('intensity_power', 1 / np.log2(sum(shared) + 1))
+#
+#     # Weigh vectors according to mass and intensity
+#     msv_query_weighted = weigh_vector_by_mz_and_intensity(np.nan_to_num(msv_query_aligned),
+#                                                           mass_power, intensity_power)
+#     msv_target_weighted = weigh_vector_by_mz_and_intensity(np.nan_to_num(msv_target_aligned),
+#                                                            mass_power, intensity_power)
+#
+#     ratio = calc_ratio_of_pairs(msv_query_weighted, msv_target_weighted)
+#
+#     if ratio == 0:
+#         return 0
+#
+#     relevance = ratio * ((np.sum(msv_query_aligned[1, shared]) / np.nansum(msv_query_aligned[1])))
+#
+#     return relevance
+
+
+################################################################################
+#Spectral search related functions
+################################################################################
+
+def search_ms_refs(msv_query, **kwargs):
+    """
+    Returns dataframe with search results and msv_query vs msv_ref score
+    from ref_df which matches query.
+
+    :param msv_query: numpy 2d array, msv_query[0] is m/z and msv_query[1] is intensities sorted by m/z
+    :param kwargs: Ask Daniel or look at the code
+
+    Common query:
+    query='(@polarity == polarity) and ((@precursor_mz - @pre_mz_tolerance) <= precursor_mz <= (@precursor_mz + @pre_mz_tolerance))'
+
+    :return: results_df
+    """
+
+    # Alignment parameters
+    resolve_by = kwargs.pop('resolve_by', 'shape')
+    frag_mz_tolerance = kwargs.pop('frag_mz_tolerance', .005)
+
+    # Reference parameters
+    ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs.tab')
+    ref_dtypes = kwargs.pop('ref_dtypes', {'database':str, 'id':str, 'name':str,
+                                           'spectrum':object,'decimal':float, 'precursor_mz':float,
+                                           'polarity':str, 'adduct':str, 'fragmentation_method':str,
+                                           'collision_energy':str, 'instrument':str, 'instrument_type':str,
+                                           'formula':str, 'exact_mass':float,
+                                           'inchi_key':str, 'inchi':str, 'smiles':str})
+    ref_index = kwargs.pop('ref_index', ['database', 'id'])
+    query = kwargs.pop('query', 'index == index or index == @pd.NaT')
+
+    if 'ref_df' in kwargs:
+        ref_df = kwargs.pop('ref_df')
+    else:
+        ref_df = pd.read_csv(ref_loc,
+                             sep='\t',
+                             dtype=ref_dtypes
+                            ).set_index(ref_index)
+
+    ref_df = ref_df.query(query, local_dict=dict(locals(), **kwargs))
+
+    if ref_df['spectrum'].apply(type).eq(str).all():
+        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: np.array(eval(s)))
+
+    # Define function to score msv_qury against msv's in reference dataframe
+    def score_and_num_matches(msv_ref):
+
+        msv_query_aligned, msv_ref_aligned = pairwise_align_ms_vectors(msv_query, msv_ref,
+                                                                       frag_mz_tolerance,
+                                                                       resolve_by)
+        num_matches = np.sum(~np.isnan(msv_query_aligned[0]) & ~np.isnan(msv_ref_aligned[0]))
+        score = score_ms_vectors_composite(msv_query_aligned, msv_ref_aligned,
+                                           **kwargs)
+        # sensitivity = score_ms_vectors_relevance(msv_ref_aligned, msv_query_aligned,
+        #                                          **kwargs)
+        # precision = score_ms_vectors_relevance(msv_query_aligned, msv_ref_aligned,
+        #                                        **kwargs)
+
+        return pd.Series([score, num_matches, # sensitivity, precision,
+                          msv_query_aligned, msv_ref_aligned],
+                         index=['score', 'num_matches', # 'sensitivity', 'precision',
+                                'msv_query_aligned', 'msv_ref_aligned'])
+
+    return ref_df['spectrum'].apply(score_and_num_matches)
 
 ################################################################################
 #Isotope Distribution Related Functions
@@ -778,7 +1000,7 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
     DAbund is the amount of deuterium [0-1], 0.05 is typical
     September 25, 2017
     Added arbitrary elemental composition capability
-    Added ability to track which isotopes of which elements contribute to which peaks
+    Added ability to track which nuclides contribute to which peaks
     Daniel Treen, dgct@jps.net
     '''
 
