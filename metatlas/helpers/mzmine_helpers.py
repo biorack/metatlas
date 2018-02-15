@@ -140,7 +140,10 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000):
         cids = []
         for j,row in df_features_not_in_blank.iterrows():
             my_mz_ref = metob.MzReference(mz=row.mz,mz_tolerance=row.mz_tolerance,detected_polarity=params['polarity'],lcms_run=None)
-            my_rt_ref = metob.RtReference(rt_peak=row.rt_peak,rt_min=row.rt_min,rt_max=row.rt_max,lcms_run=None)
+            use_rt = row.rt_min
+            if row.rt_min < params['min_rt']:
+                use_rt = params['min_rt']
+            my_rt_ref = metob.RtReference(rt_peak=row.rt_peak,rt_min=use_rt,rt_max=row.rt_max,lcms_run=None)
             my_id = metob.CompoundIdentification(rt_references=[my_rt_ref],mz_references=[my_mz_ref],name=row.label)
             cids.append(my_id)
         my_atlas = metob.Atlas(name='untargeted atlas',compound_identifications=cids)
@@ -317,7 +320,7 @@ def configure_mass_detection(new_d,noise_floor,polarity):
     
     return new_d
 
-def configure_chromatogram_builder(new_d,min_peak_duration,min_peak_height,mz_tolerance,polarity):
+def configure_chromatogram_builder(new_d,min_peak_duration,min_peak_height,mz_tolerance,polarity,min_rt,max_rt):
     """
     
     """
@@ -338,6 +341,9 @@ def configure_chromatogram_builder(new_d,min_peak_duration,min_peak_height,mz_to
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Scans' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['polarity'] = polarity.upper()
     
+    new_d['batch']['batchstep'][idx]['parameter'][idx2]['retention_time']['min'] = '%.3f'%min_rt
+    new_d['batch']['batchstep'][idx]['parameter'][idx2]['retention_time']['max'] = '%.3f'%max_rt
+
     return new_d
 
 
@@ -725,9 +731,27 @@ def remove_duplicate_files(files):
             file_names.append(f.name)
     return unique_files
 
-def get_files(groups,filename_substring,file_filters):
+def get_files(groups,filename_substring,file_filters,is_group=False):
+    """
+    if is_group is False, gets files from the experiment/folder name and filters with file_filters
+
+    if is_group is True, gets files from the metatlas group name and filters with file_filters
+
+    """
+
     for i,g in enumerate(groups):
-        new_files = metob.retrieve('Lcmsruns',experiment=g,name=filename_substring,username='*')
+        if is_group == True:
+        # get files as a metatlas group
+            groups = dp.select_groups_for_analysis(name = g,do_print=False,
+                                                   most_recent = True,
+                                                   remove_empty = True,
+                                                   include_list = [], exclude_list = file_filters)#['QC','Blank'])
+            new_files = []
+            for each_g in groups:
+                for f in each_g.items:
+                    new_files.append(f)
+        else:
+            new_files = metob.retrieve('Lcmsruns',experiment=g,name=filename_substring,username='*')
         if i == 0:
             all_files = new_files
         else:
@@ -745,9 +769,9 @@ def get_files(groups,filename_substring,file_filters):
     files = remove_duplicate_files(files)
     return files
 
-def make_task_and_job(basedir,basename,polarity,files):
-    if not os.path.exists(basedir):
-        os.mkdir(basedir)
+def make_task_and_job(params):#basedir,basename,polarity,files):
+    if not os.path.exists(params['basedir']):
+        os.mkdir(params['basedir'])
 
     xml_str = get_batch_file_template()
     d = xml_to_dict(xml_str)
@@ -755,25 +779,29 @@ def make_task_and_job(basedir,basename,polarity,files):
 #         print(i,k['@method'])
 
     task = metob.MZMineTask()
-    task.polarity = polarity
-    task.lcmsruns = files
-    new_d = replace_files(d,files)
+    task.polarity = params['polarity']
+    task.lcmsruns = params['files']
+    new_d = replace_files(d,params['files'])
 
-    task.min_peak_duration = 0.025
-    task.max_peak_duration = 30.0
-    task.rt_tol_perfile = 0.015
-    task.rt_tol_multifile = 0.15
-    task.min_peak_height = 1e6
-    task.noise_floor = 3e4
-    task.mz_tolerance = 10.0
-    task.min_sn_ratio = 2.0
-    task.output_csv = os.path.join(basedir,'%s_%s.csv'%(basename,task.polarity))
-    task.output_workspace = os.path.join(basedir,'%s_%s.mzmine'%(basename,task.polarity))
-    task.input_xml = os.path.join(basedir,'%s_%s.xml'%(basename,task.polarity))
+
+
+    task.min_peak_duration = params['min_peak_duration']
+    task.max_peak_duration = params['max_peak_duration']
+    task.rt_tol_perfile = params['rt_tol_perfile']
+    task.rt_tol_multifile = params['rt_tol_multifile']
+    task.min_peak_height = params['min_peak_height']
+    task.noise_floor = params['noise_floor']
+    task.mz_tolerance = params['mz_tolerance']
+    task.min_sn_ratio = params['min_sn_ratio']
+    task.min_rt = params['min_rt']
+    task.max_rt = params['max_rt']
+    task.output_csv = os.path.join(params['basedir'],'%s_%s.csv'%(params['basename'],task.polarity))
+    task.output_workspace = os.path.join(params['basedir'],'%s_%s.mzmine'%(params['basename'],task.polarity))
+    task.input_xml = os.path.join(params['basedir'],'%s_%s.xml'%(params['basename'],task.polarity))
     task.mzmine_launcher = get_latest_mzmine_binary()
-    new_d = configure_crop_filter(new_d,task.polarity,files)
+    new_d = configure_crop_filter(new_d,task.polarity,params['files'])
     new_d = configure_mass_detection(new_d,task.noise_floor,task.polarity)
-    new_d = configure_chromatogram_builder(new_d,task.min_peak_duration,task.min_peak_height,task.mz_tolerance,task.polarity)
+    new_d = configure_chromatogram_builder(new_d,task.min_peak_duration,task.min_peak_height,task.mz_tolerance,task.polarity,task.min_rt,task.max_rt)
     new_d = configure_peak_deconvolution(new_d,task.min_peak_height,task.min_sn_ratio,task.min_peak_duration,task.max_peak_duration)
     new_d = configure_isotope_adduct_fragment_search(new_d,task.mz_tolerance,task.rt_tol_perfile,task.polarity,task.min_peak_height)
     new_d = configure_join_aligner(new_d,task.mz_tolerance,task.rt_tol_multifile)
@@ -793,14 +821,16 @@ def make_task_and_job(basedir,basename,polarity,files):
 def create_job_script(m):
     """
     """
-    job_cmd = make_task_and_job(m['basedir'],m['basename'],m['polarity'],m['files'])
+    job_cmd = make_task_and_job(m)#['basedir'],m['basename'],m['polarity'],m['files'])
     sbatch_file_name = os.path.join(m['basedir'],'%s_%s.sbatch'%(m['basename'],m['polarity']))
     denovo_sbatch_file_name = os.path.join(m['basedir'],'%s_%s_denovo.sbatch'%(m['basename'],m['polarity']))
-
     err_file_name = os.path.join(m['basedir'],'%s_%s.err'%(m['basename'],m['polarity']))
     out_file_name = os.path.join(m['basedir'],'%s_%s.out'%(m['basename'],m['polarity']))
     job_cmd_filtered = make_targeted_mzmine_job(m['basedir'],m['basename'],m['polarity'],m['files'])
     params_filename = os.path.join(m['basedir'],'%s_%s_params.json'%(m['basename'],m['polarity']))
+    new_params_filename = os.path.join(m['basedir'],'%s_%s_params-used.json'%(m['basename'],m['polarity']))
+
+    copy_params_command = "cp '%s' '%s'"%(params_filename,new_params_filename)
 
     # build up the command to use mzmine-csv and metatlas for heavy peak filtering
     command_line_command = 'from metatlas.helpers import mzmine_helpers as mzm; mzm.clean_and_filter_mzmine_output()'
@@ -815,9 +845,13 @@ def create_job_script(m):
         fid.write('%s\n'%SLURM_HEADER.replace('slurm.err',err_file_name).replace('slurm.out',out_file_name))
         if m['metatlas_path']:
             fid.write('\n\n%s\n\n'%m['metatlas_path'])
-        fid.write('%s\n'%job_cmd)
+        if not m['mzmine_done']:
+            fid.write('%s\n'%copy_params_command)
+            fid.write('%s\n'%job_cmd)
         fid.write('%s\n'%python_string)
-        fid.write('%s\n'%job_cmd_filtered)
+
+        if not m['mzmine_done']:
+            fid.write('%s\n'%job_cmd_filtered)
         # fid.write('%s\n'%second_python_string)
 
     bad_words = ['account=', '-p','-C','-L','-t','-N']
@@ -825,7 +859,9 @@ def create_job_script(m):
     good_time = '#SBATCH -t 24:00:00\n'
 
     bad_node = '-N 1 -c 64'
-    good_node = '#SBATCH -N 1 -c 16\n'
+    good_node = '#SBATCH -N 1 -c 32\n'
+
+
     with open(sbatch_file_name) as oldfile, open(denovo_sbatch_file_name, 'w') as newfile:
         for line in oldfile:
             if not any(bad_word in line for bad_word in bad_words):
@@ -834,6 +870,7 @@ def create_job_script(m):
                 newfile.write(good_time)
             if bad_node in line:
                 newfile.write(good_node)
+                newfile.write('#SBATCH --mem=400G\n')
 
 
     return sbatch_file_name
