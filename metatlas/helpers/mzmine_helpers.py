@@ -870,7 +870,7 @@ def create_job_script(m):
                 newfile.write(good_time)
             if bad_node in line:
                 newfile.write(good_node)
-                newfile.write('#SBATCH --mem=400G\n')
+                newfile.write('#SBATCH --mem=600G\n')
 
 
     return sbatch_file_name
