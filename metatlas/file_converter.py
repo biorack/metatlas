@@ -14,7 +14,9 @@ import traceback
 from datetime import datetime, time as dtime
 from subprocess import check_output
 
-from metatlas import LcmsRun, mzml_to_hdf, store, retrieve
+from metatlas.metatlas_objects import LcmsRun, store, retrieve
+from metatlas.mzml_loader import mzml_to_hdf
+
 from metatlas.mzml_loader import VERSION_TIMESTAMP
 from metatlas.system_utils import send_mail
 

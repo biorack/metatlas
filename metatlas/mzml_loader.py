@@ -11,7 +11,8 @@ import tables
 
 import warnings
 warnings.filterwarnings("ignore", module="plotly")
-
+# pymzml has plotly in it and if you don't have a setup in your 
+# home directory, you get a warning.
 from pymzml.run import Reader
 
 from metatlas import __version__
@@ -92,7 +93,6 @@ def mzml_to_hdf(in_file_name, out_file_name=None, debug=False):
         sys.stdout.write("STATUS: Converting %s to %s (mzML to HDF)" %
               (in_file_name, out_file_name))
         sys.stdout.flush()
-
     # Extra accessions for pymzml to read
     extraAccessions = [
         ('MS:1000016', ['value', 'unitName']),  # scan start time

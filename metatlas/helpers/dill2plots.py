@@ -9,7 +9,7 @@ from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas.helpers import spectralprocessing as sp
-from metatlas import gui
+# from metatlas import gui
 
 from textwrap import fill, TextWrapper
 import qgrid
@@ -21,7 +21,7 @@ import dill
 import numpy as np
 import re
 import json
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 
 from rdkit import Chem
 from rdkit.Chem import Descriptors, rdMolDescriptors, AllChem, Draw, rdDepictor
@@ -1604,7 +1604,6 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
     # {'eic': None, 'ms1_summary': None, 'msms': {'data': []}}
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
-
     if not input_dataset:
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
@@ -1621,17 +1620,14 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_lcmsruns)
     if exclude_groups:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
-
     #Obtain compound and file names
     compound_names = ma_data.get_compound_names(data,use_labels)[0]
     file_names = ma_data.get_file_names(data)
 
     #Obtain fragmentation references
     frag_refs = pd.read_json(frag_refs_json)
-
     #Turn off interactive plotting
     plt.ioff()
-
     #Iterate over compounds
     for compound_idx in range(len(compound_names)):
         file_idxs, ref_idxs, scores = [], [], []
@@ -1661,6 +1657,7 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
                 msv_ref_list.append(np.full_like(msv_sample_list[-1], np.nan))
                 scores.append(0)
 
+
         #Plot if compound yields any scores
         if file_idxs:
             #Top 5 MSMS Spectra
@@ -1682,12 +1679,15 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             ax2d.set_xticklabels([])
             ax2d.set_yticklabels([])
 
+
             for i,(score,ax) in enumerate(zip(scores,[ax1, ax2a, ax2b, ax2c, ax2d])):
                 plot_msms_comparison(i, score, ax, msv_sample_list[i], msv_ref_list[i])
+
 
             #EMA Compound Info
             ax3 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
             plot_ema_compound_info(ax3, data[file_idxs[0]][compound_idx]['identification'])
+
 
             #Next Best Scores and Filenames
             ax4a = plt.subplot2grid((24, 24), (0, 15), rowspan=3, colspan=1)
@@ -1698,6 +1698,7 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
             ax4c.axis('off')
             ax4d = plt.subplot2grid((24, 24), (9, 15), rowspan=3, colspan=1)
             ax4d.axis('off')
+
 
             for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
                 plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
@@ -1759,7 +1760,7 @@ def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', 
     Scaled: plots ms1 spectra within window of mz_min and mz_max scaling mz of compound to 70%
     Full Range: plots ms1 spectra without window (unscaled)
     """
-
+    print('here I am')
     if not input_dataset:
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
@@ -1806,7 +1807,7 @@ def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', 
     titles = ['Unscaled', 'Scaled', 'Full Range']
 
     for compound_idx in [i for i,c in enumerate(all_compound_names) if c in compound_names]:
-
+        print('compound is',compound_idx)
         #Find file_idx of with highest RT peak
         highest = 0
         file_idx = None
