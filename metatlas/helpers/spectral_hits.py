@@ -88,7 +88,7 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
     if len(spectral_hits_dfs) == 0:
         with open(tab_loc, 'w') as blank:
             blank.write('\t'.join(['database', 'id', 'rt',
-                                   'precursor_mz', 'precursor_intensity',
+                                   'precursor_mz', 'precursor_intensity', 'polarity',
                                    'score', 'num_matches',
                                    'msv_query_aligned', 'msv_ref_aligned']))
         return
@@ -103,7 +103,7 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
     spectral_hits_df['msv_query_aligned'] = spectral_hits_df['msv_query_aligned'].apply(lambda a: a.tolist())
     spectral_hits_df['msv_ref_aligned'] = spectral_hits_df['msv_ref_aligned'].apply(lambda a: a.tolist())
 
-    spectral_hits_df.to_csv(tab_loc, columns=['precursor_mz', 'precursor_intensity',
+    spectral_hits_df.to_csv(tab_loc, columns=['precursor_mz', 'precursor_intensity', 'polarity',
                                               'score', 'num_matches',
                                               'msv_query_aligned', 'msv_ref_aligned'],
                             sep='\t', compression='gzip')
