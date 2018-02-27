@@ -22,7 +22,7 @@ except NameError:  # python3
     basestring = str
 
 # setting this very high easily causes out of memory
-NUM_THREADS = 8
+NUM_THREADS = 4
 
 BATCH_FILE_PATH = '/project/projectdirs/metatlas/projects/mzmine_parameters/batch_files/'
 PYTHON_BINARY = '/global/common/software/m2650/python-cori/bin/python'
@@ -34,7 +34,8 @@ BINARY_PATH = '/project/projectdirs/metatlas/projects/mzmine_parameters/MZmine'
 
 
 SLURM_HEADER = """#!/bin/bash
-#SBATCH -N 1 -n 64
+#SBATCH -N 1 -c 64
+#SBATCH --exclusive
 #SBATCH --error="slurm.err"
 #SBATCH --output="slurm.out"
 #SBATCH --qos=genepool
@@ -44,8 +45,18 @@ SLURM_HEADER = """#!/bin/bash
 
 export MPLBACKEND="agg"
 export HDF5_USE_FILE_LOCKING=FALSE
+# cori specific tells it to not allocate memory on a per thread basis
+export MALLOC_ARENA_MAX=1
 
 module load java
+
+# echo every command and terminate script if there is an error
+set -ex
+
+env | grep -i java | sort
+
+# to see the resources a job used:
+# sacct -j <job_id> --format jobidraw,jobname,maxrss,maxvmsize --unit G
 
 """
 
@@ -139,6 +150,7 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000):
         
         
         #Make an Atlas
+        print('making new atlas')
         cids = []
         for j,row in df_features_not_in_blank.iterrows():
             my_mz_ref = metob.MzReference(mz=row.mz,mz_tolerance=row.mz_tolerance,detected_polarity=params['polarity'],lcms_run=None)
@@ -152,6 +164,7 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000):
         atlas_df = ma_data.make_atlas_df(my_atlas)
         
         #Make Groups
+        print('making groups')
         all_files = [f.replace('Peak height','').replace('filtered','').strip() for f in df.columns if '.mzML' in f]
         metatlas_files = []      
         for f in all_files:
@@ -164,6 +177,8 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000):
         groups = metob.Group(name='untargeted group',items=metatlas_files)
         
         #Get Data
+        print('getting data')
+        print('using',NUM_THREADS,'cores')
         all_files = []
         for my_file in groups.items:
             all_files.append((my_file,groups,atlas_df,my_atlas))
@@ -171,22 +186,19 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000):
         # metatlas_dataset = []
         # for f in all_files:
             # metatlas_dataset.append(ma_data.get_data_for_atlas_df_and_file(f))
-        metatlas_dataset = []
-        for f in all_files:
-            metatlas_dataset.append(ma_data.get_data_for_atlas_df_and_file(f))
 
-        # pool = mp.Pool(processes=min(NUM_THREADS, len(all_files)))
-        # metatlas_dataset = pool.map(ma_data.get_data_for_atlas_df_and_file, all_files)
-        # pool.close()
-        # pool.join()
+        pool = mp.Pool(processes=min(NUM_THREADS, len(all_files)))
+        metatlas_dataset = pool.map(ma_data.get_data_for_atlas_df_and_file, all_files)
+        pool.close()
+        pool.join()
         # pool.terminate()
-        
+        print('data acquired')
         # remove peaks that aren't valid.  See pk_checker for details on validity.
         num_features = len(metatlas_dataset[0])
         num_files = len(metatlas_dataset)
-        
+        print('checking pk_checker')
         valid_peaks = [pk_checker(metatlas_dataset,atlas_df,compound_idx,params) for compound_idx in range(num_features)]
-
+        print('checking peak in top',n_peaks)
         # add another boolean after valid_peaks of if peak is in top 1000
         valid_peaks = peak_in_top_n(metatlas_dataset,n_peaks=n_peaks,prior_boolean=valid_peaks)
 
@@ -423,9 +435,11 @@ def create_job_script(m):
         if not m['mzmine_done']:
             fid.write('%s\n'%copy_params_command)
             fid.write('%s\n'%job_cmd)
-        fid.write('%s\n'%python_string)
 
-        if not m['mzmine_done']:
+        if not m['metatlas_done']:
+            fid.write('%s\n'%python_string)
+
+        if not m['small_mzmine_done']:
             fid.write('%s\n'%job_cmd_filtered)
         # fid.write('%s\n'%second_python_string)
 
@@ -433,8 +447,8 @@ def create_job_script(m):
     bad_time = '#SBATCH -t 24:00:00'
     good_time = '#SBATCH -t 24:00:00\n'
 
-    bad_node = '-N 1 -n 64'
-    good_node = '#SBATCH -N 1 -c 32\n'
+    bad_node = '-N 1 -c 64'
+    good_node = '#SBATCH -N 1 -c 64\n'
 
 
     with open(sbatch_file_name) as oldfile, open(denovo_sbatch_file_name, 'w') as newfile:
@@ -445,7 +459,7 @@ def create_job_script(m):
                 newfile.write(good_time)
             if bad_node in line:
                 newfile.write(good_node)
-                newfile.write('#SBATCH --mem=300G\n')
+                newfile.write('#SBATCH --mem=494G\n')
 
 
     return sbatch_file_name
@@ -612,24 +626,24 @@ def make_targeted_mzmine_job(basedir,basename,polarity,files):
     task.lcmsruns = files
     new_d = replace_files(d,files)
 
-    task.min_peak_duration = 0.025
-    task.max_peak_duration = 30.0
-    task.rt_tol_perfile = 0.015
-    task.rt_tol_multifile = 0.15
-    task.min_peak_height = 1e6
-    task.noise_floor = 3e4
-    task.mz_tolerance = 10.0
-    task.min_sn_ratio = 2.0
+    # task.min_peak_duration = 0.025
+    # task.max_peak_duration = 30.0
+    # task.rt_tol_perfile = 0.015
+    # task.rt_tol_multifile = 0.15
+    # task.min_peak_height = 1e6
+    # task.noise_floor = 3e4
+    # task.mz_tolerance = 10.0
+    # task.min_sn_ratio = 2.0
     project_name = '%s_%s'%(basename,task.polarity)
-    task.output_csv = os.path.join(basedir,'intermediate_results','%s_%s_filtered.csv'%(basename,task.polarity))
+    # task.output_csv = os.path.join(basedir,'intermediate_results','%s_%s_filtered.csv'%(basename,task.polarity))
     task.output_workspace = os.path.join(basedir,project_name,'%s_%s.mzmine'%(basename,task.polarity))
     task.input_xml = os.path.join(basedir,'logs','%s_%s_filtered.xml'%(basename,task.polarity))
     
-    peak_list_filename = os.path.join(basedir,'intermediate_results','%s_%s_formatted_peakfiltered.csv'%(basename,polarity))
+    # peak_list_filename = os.path.join(basedir,'intermediate_results','%s_%s_formatted_peakfiltered.csv'%(basename,polarity))
     task.mzmine_launcher = get_latest_mzmine_binary()
 
-    new_d = configure_crop_filter(new_d,task.polarity,files)
-    new_d = configure_targeted_peak_detection(new_d,peak_list_filename,intensity_tolerance=1e-4,noise_level=1e4,mz_tolerance=20,rt_tolerance=0.5)
+    # new_d = configure_crop_filter(new_d,task.polarity,files)
+    # new_d = configure_targeted_peak_detection(new_d,peak_list_filename,intensity_tolerance=1e-4,noise_level=1e4,mz_tolerance=20,rt_tolerance=0.5)
     new_d = configure_workspace_output(new_d,task.output_workspace)
 
     t = dict_to_etree(new_d)
