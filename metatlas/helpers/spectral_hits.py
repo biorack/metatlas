@@ -20,7 +20,7 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
         sys.stderr.write(mzml_loc + ' not a file')
         sys.exit(1)
 
-    if tab_loc is None:
+    if tab_loc is None or tab_loc == '':
         tab_loc = os.path.splitext(mzml_loc)[0] + '_spectral-hits.tab.gz'
 
     ms_types = kwargs.pop('ms_types', ['ms2_pos', 'ms2_neg'])
@@ -49,7 +49,7 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
                           local_dict=dict(locals(), **kwargs))
 
     if ref_df['spectrum'].apply(type).eq(str).all():
-        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: np.array(eval(s)))
+        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s))
 
     mzml_dfs = ml.mzml_to_df(mzml_loc)
     try:
@@ -79,6 +79,7 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
 
         if len(hit_df.index) > 0:
             hit_df['rt'] = rt
+            hit_df['polarity'] = scan['polarity']
             hit_df['precursor_mz'] = scan['precursor_mz']
             hit_df['precursor_intensity'] = scan['precursor_intensity']
 
@@ -86,8 +87,10 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
 
     if len(spectral_hits_dfs) == 0:
         with open(tab_loc, 'w') as blank:
-            blank.write('\t'.join(['rt', 'precursor_mz', 'precursor_intensity',
-                                   'score', 'num_matches']))
+            blank.write('\t'.join(['database', 'id', 'rt',
+                                   'precursor_mz', 'precursor_intensity',
+                                   'score', 'num_matches',
+                                   'msv_query_aligned', 'msv_ref_aligned']))
         return
 
     spectral_hits_df = pd.concat(spectral_hits_dfs
@@ -97,9 +100,13 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
     spectral_hits_df.set_index('rt', append=True, inplace=True)
     spectral_hits_df.reorder_levels(['rt'] + ref_index)
 
+    spectral_hits_df['msv_query_aligned'] = spectral_hits_df['msv_query_aligned'].apply(lambda a: a.tolist())
+    spectral_hits_df['msv_ref_aligned'] = spectral_hits_df['msv_ref_aligned'].apply(lambda a: a.tolist())
+
     spectral_hits_df.to_csv(tab_loc, columns=['precursor_mz', 'precursor_intensity',
-                                              'score', 'num_matches'],
-                            compression='gzip')
+                                              'score', 'num_matches',
+                                              'msv_query_aligned', 'msv_ref_aligned'],
+                            sep='\t', compression='gzip')
 
 
 def generate_worklist(worklist_loc, mzml_dir, tab_dir=None):
@@ -107,12 +114,12 @@ def generate_worklist(worklist_loc, mzml_dir, tab_dir=None):
     worklist = []
 
     assert os.path.isdir(mzml_dir)
-    mzml_dir = os.path.abspath(mzml_dir)
+    mzml_dir = os.path.realpath(mzml_dir)
 
-    if tab_dir is None:
+    if tab_dir is None or tab_dir == '':
         tab_dir = mzml_dir
-
-    tab_dir = os.path.abspath(tab_dir)
+    else:
+        tab_dir = os.path.realpath(tab_dir)
 
     if not os.path.exists(tab_dir):
         os.makedirs(tab_dir)
@@ -132,7 +139,7 @@ def generate_worklist(worklist_loc, mzml_dir, tab_dir=None):
                                         name + '_spectral-hits.tab.gz')
 
                 if not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
-                    worklist.append(os.path.abspath(__file__) +
+                    worklist.append(os.path.realpath(__file__) +
                                     ' -t \"' + os.path.join(root, filename) +
                                     '\" \"' + out_file + '\"')
 
