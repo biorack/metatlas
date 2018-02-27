@@ -440,121 +440,261 @@ def pairwise_align_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     return msv_alignment
 
 
-def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
-                              mass_power=0, intensity_power=1, weights=None):
-    """EXPERIMENTAL: Pairwise alignments can lead to M/Z-wise misalignments in the multiple alignment.
+# def multiple_tree_align_ms_vectors(msv_list, mz_tolerance, resolve_by):
+#     msv_list = [np.asarray(msv, dtype=float) for msv in msv_list]
+#     assert ~np.any([np.any(np.isnan(msv)) for msv in msv_list])
+#     assert np.all([msv.shape[0] == 2 for msv in msv_list])
+#
+#     score_graph = nx.Graph()
+#
+#     for i in range(len(msv_list)):
+#         score_graph.add_node(i)
+#
+#     for i, j in np.array(np.tril_indices(len(msv_list), -1)).T:
+#         msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[j], mz_tolerance, resolve_by)
+#         score = score_ms_vectors_composite(msv_i_aligned, msv_j_aligned)
+#         if score > 0:
+#             score_graph.add_edge(i, j, weight=1.-score)
+#
+#     return nx.minimum_spanning_tree(score_graph)
 
-    Pairwise aligns each combination of pairs of ms vectors in msv_list (see pairwise_align_ms_vectors),
-    scores them (see score_ms_vectors_composite_dot), assigns their scoreto a corresponding position in
-    a score matrix, combines the two ms vectors with highest score (see combine_ms_vectors) according to
-    their weights and weighs it as the sum of its constituent weights, removes the constituent ms vectors and
-    weights from msv_list and weights, inserts the combined ms vector and weight to the
-    front of msv_list and weights, repeats previous steps until msv_list only contains the combination
-    of all ms vectors, and returns a tuple containing a numpy 3d array containing each original
-    ms vector pairwise aligned to the combination of all ms vectors and this combination ms vector.
+# def new_multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by):
+#     msv_list = [np.asarray(msv, dtype=float) for msv in msv_list]
+#     assert ~np.any([np.any(np.isnan(msv)) for msv in msv_list])
+#     assert np.all([msv.shape[0] == 2 for msv in msv_list])
+#
+#     # Combine msv_list mz-wise and keep track of mz origin
+#     msv_combined = np.concatenate(msv_list, axis=1)
+#     msv_tracking = np.concatenate([[i]*len(msv_list[i][0])
+#                                    for i in range(len(msv_list))])
+#
+#     sorted_by_mz = msv_combined[0].argsort()
+#
+#     msv_combined = msv_combined[:, sorted_by_mz]
+#
+#     print msv_combined.shape
+#
+#     msv_tracking = msv_tracking[sorted_by_mz]
+#
+#     if resolve_by == 'distance':
+#         vsd = ValueSortedDict()
+#     if resolve_by == 'intensity':
+#         vsd = ValueSortedDict(lambda v:-v)
+#
+#     matches = find_all_ms_matches(msv_combined,
+#                                   msv_combined,
+#                                   mz_tolerance)[0]
+#
+#     for i, l in enumerate(matches):
+#         if len(l) > 1:
+#             for j in l[l.index(i) + 1:]:
+#                 if resolve_by == 'distance':
+#                     vsd[(i, j)] = msv_combined[0, j] - msv_combined[0, i]
+#                 if resolve_by == 'intensity':
+#                     vsd[(i, j)] = msv_combined[1, i] * msv_combined[1, j]
+#
+#     to_merge = {i: SortedSet([i]) for i in range(msv_combined.shape[1] + 1)}
+#
+#     for (i, j) in vsd.iterkeys():
+#         if set([msv_tracking[e] for e in to_merge[i]]) & set([msv_tracking[e] for e in to_merge[j]]) == set():
+#             if vsd.has_key((to_merge[i][0], to_merge[j][-1])):
+#                 merge_set = SortedSet.union(to_merge[i], to_merge[j])
+#                 for s in merge_set:
+#                     to_merge[s] = merge_set
+#
+#     for merge_set in set([tuple(s) for s in to_merge.values()]):
+#         if len(merge_set) > 1:
+#             msv_combined[:, merge_set[0]] = combine_ms_vectors(msv_combined[:, merge_set].T,
+#                                                                'mean')
+#             msv_combined[:, merge_set[1:]] = np.nan
+#
+#     msv_combined = msv_combined[:, ~np.isnan(msv_combined[0])]
+#     msv_combined = msv_combined[:, msv_combined[0].argsort()]
+#
+#     print msv_combined.shape
+#
+#     msv_alignment = np.empty((len(msv_list), msv_combined.shape[0], msv_combined.shape[1]))
+#
+#     for i, msv in enumerate(msv_list):
+#         msv_alignment[i] = pairwise_align_ms_vectors(msv, msv_combined, mz_tolerance, resolve_by)[0]
+#
+#     if resolve_by == 'distance':
+#         vsd = ValueSortedDict()
+#     if resolve_by == 'intensity':
+#         vsd = ValueSortedDict(lambda v:-v)
+#
+#     matches = find_all_ms_matches(msv_combined,
+#                                   msv_combined,
+#                                   mz_tolerance)[0]
+#
+#     for i, l in enumerate(matches):
+#         if len(l) > 1:
+#             for j in l[l.index(i) + 1:]:
+#                 if resolve_by == 'distance':
+#                     vsd[(i, j)] = msv_combined[0, j] - msv_combined[0, i]
+#                 if resolve_by == 'intensity':
+#                     vsd[(i, j)] = msv_combined[1, i] * msv_combined[1, j]
+#
+#     to_compress = {i: SortedSet([i]) for i in range(msv_combined.shape[1] + 1)}
+#     compressed_mzi = {}
+#
+#     for (i, j) in vsd.iterkeys():
+#         compress_set = SortedSet.union(to_compress[i], to_compress[j])
+#         mzi = combine_ms_vectors(np.concatenate(msv_alignment[:, :, compress_set], axis=1).T,
+#                                  'mean')
+#         print mzi
+#         print msv_combined[:, i]
+#         print msv_combined[:, j]
+#         print
+#
+#         if np.all(np.sum(~np.isnan(msv_alignment[:, 0, compress_set]), axis=1) <= 1):
+#             if (np.all(np.isnan(msv_alignment[:, 0, compress_set])):
+#                 for s in compress_set:
+#                     to_compress[s] = compress_set
+#                     compressed_mzi[s] = mzi
+#             elif ((mzi[0] - mz_tolerance <= np.nanmin(msv_alignment[:, 0, compress_set]))
+#             and (np.nanmax(msv_alignment[:, 0, compress_set]) <= mzi[0] + mz_tolerance))):
+#
+#                 for s in compress_set:
+#                     to_compress[s] = compress_set
+#                     compressed_mzi[s] = mzi
+#     n = 0
+#     for compress_set in set([tuple(s) for s in to_compress.values()]):
+#         if len(compress_set) > 1:
+#             n += 1
+#             msv_combined[:, compress_set[0]] = compressed_mzi[compress_set[0]]
+#             msv_combined[:, compress_set[1:]] = np.nan
+#     print n
+#
+#     msv_combined = msv_combined[:, ~np.isnan(msv_combined[0])]
+#     msv_combined = msv_combined[:, msv_combined[0].argsort()]
+#
+#     msv_alignment = np.empty((len(msv_list), msv_combined.shape[0], msv_combined.shape[1]))
+#
+#     print msv_combined.shape
+#
+#     for i, msv in enumerate(msv_list):
+#         msv_alignment[i] = pairwise_align_ms_vectors(msv, msv_combined, mz_tolerance, resolve_by)[0]
+#
+#     return msv_alignment, msv_combined
 
-    The algorithm is analogous to clustal used for sequence alignment by using a distance matrix produced
-    by pairwise ms alignment and a modified neighbor-joining method.
 
-    :param msv_list: list of numpy 2d array, msv_1[0] is m/z and msv_1[1] is intensities sorted by m/z
-    :param mz_tolerance: float, limits matches to be within +/- mz_tolerance
-    :param resolve_by: 'distance', 'shape', or 'intensity',
-        determines what to prioritize when there are multiple matching m/zs within mz_tolerance
-        (see match_ms_vectors)
-
-    :return msv_alignment: numpy 3d array,
-        msv_alignment[i] is ms vector at position i,
-        msv_alignment[i:,0] is  m/z values at position i,
-        msv_alignment[i:,1] is intensity values at position i
-    :return msv_combined: numpy 2d array, total combination of all ms vectors in msv_list
-    """
-
-
-    print 'EXPERIMENTAL: Pairwise alignments can lead to M/Z-wise misalignments in the multiple alignment.'
-
-    msv_list = [np.asarray(msv, dtype=float) for msv in msv_list]
-    assert np.any([np.any(np.isnan(msv)) for msv in msv_list]) == False
-    assert np.all([msv.shape[0] == 2 for msv in msv_list]) == True
-    assert not (resolve_by == 'intensity' and combine_by == 'mean')
-
-    # Make a copy of the original ms vectors
-    msv_original_list = msv_list[:]
-
-    # Set weights of ms vectors uniformly if weights is not set manually
-    if weights is None:
-        weights = [1. / len(msv_list)] * len(msv_list)
-
-    # Initialize score_matrix
-    num_msv = len(msv_list)
-    score_matrix = np.empty((num_msv, num_msv))
-    score_matrix.fill(np.nan)
-
-    # Find the two most similar ms vectors by score, combine them, remove them from msv_list,
-    # add the combination to msv_list, repeat until there is only the combination of all ms vectors
-    while len(msv_list) > 1:
-
-        # Store number of ms vectors
-        num_msv = len(msv_list)
-
-        if np.isnan(score_matrix).all():
-            # Add weighted score of msv_list[i] and msv_list[j] to score_matrix[i,j] for all combinations
-            for i, j in np.array(np.tril_indices(num_msv, -1)).T:
-                msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[j], mz_tolerance, resolve_by)
-                score_matrix[i, j] = score_ms_vectors_composite(msv_i_aligned, msv_j_aligned, mass_power=mass_power, intensity_power=intensity_power)
-
-        else:
-            # Add weighted score of msv_list[i] and msv_list[0] to score_matrix[i,0] for new ms vector only
-            for i in range(1, num_msv):
-                msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[0], mz_tolerance, resolve_by)
-                score_matrix[i, 0] = score_ms_vectors_composite(msv_i_aligned, msv_j_aligned, mass_power=mass_power, intensity_power=intensity_power)
-
-        # Flatten the score_matrix
-        flat_score_matrix = score_matrix.ravel()
-
-        # Mask the score_matrix to only see valid scores
-        masked_flat_score_matrix = np.ma.array(flat_score_matrix,
-                                               mask=np.isnan(flat_score_matrix),
-                                               fill_value=-np.inf)
-
-        # Find indices of score_matrix with the maximum score
-        max_score = np.unravel_index(np.ma.argmax(masked_flat_score_matrix),
-                                     (num_msv, num_msv))
-
-        # Pairwise align the ms vectors yielding the best score
-        pair = pairwise_align_ms_vectors(msv_list[max_score[0]],
-                                         msv_list[max_score[1]],
-                                         mz_tolerance,
-                                         resolve_by)
-
-        # Combine the ms vectors yielding the best score into msv_combined
-        msv_combined = combine_ms_vectors(pair, combine_by,
-                                          weights=[weights[max_score[0]],
-                                                   weights[max_score[1]]])
-
-        # Remove the ms vectors yielding the best scores from msv_list and score_matrix
-        msv_list.pop(max_score[0])
-        msv_list.pop(max_score[1])
-        score_matrix = np.delete(score_matrix, max_score[0], 0)
-        score_matrix = np.delete(score_matrix, max_score[0], 1)
-        score_matrix = np.delete(score_matrix, max_score[1], 0)
-        score_matrix = np.delete(score_matrix, max_score[1], 1)
-
-        # Add the msv_combined to msv_list and score_matrix
-        msv_list.insert(0, msv_combined)
-        score_matrix = np.pad(score_matrix, ((1,0),(1,0)), mode='constant', constant_values=np.nan)
-
-        # Remove constituent weights and add combined weight to weights
-        weights.insert(0, weights.pop(max_score[0]) + weights.pop(max_score[1]))
-
-    # Initialize msv_alignment
-    msv_alignment = np.empty((len(msv_original_list), 2, msv_list[0][0].size))
-
-    # Pairwise align all ms vectors from msv_original_list to final msv_combined
-    # and add to msv_alignment
-    for i, msv in enumerate(msv_original_list):
-        msv_alignment[i] = pairwise_align_ms_vectors(msv, msv_combined, mz_tolerance, resolve_by)[0]
-
-    return msv_alignment, msv_combined
+# def multiple_align_ms_vectors(msv_list, mz_tolerance, resolve_by, combine_by,
+#                               mass_power=0, intensity_power=1, weights=None):
+#     """EXPERIMENTAL: Pairwise alignments can lead to M/Z-wise misalignments in the multiple alignment.
+#
+#     Pairwise aligns each combination of pairs of ms vectors in msv_list (see pairwise_align_ms_vectors),
+#     scores them (see score_ms_vectors_composite_dot), assigns their scoreto a corresponding position in
+#     a score matrix, combines the two ms vectors with highest score (see combine_ms_vectors) according to
+#     their weights and weighs it as the sum of its constituent weights, removes the constituent ms vectors and
+#     weights from msv_list and weights, inserts the combined ms vector and weight to the
+#     front of msv_list and weights, repeats previous steps until msv_list only contains the combination
+#     of all ms vectors, and returns a tuple containing a numpy 3d array containing each original
+#     ms vector pairwise aligned to the combination of all ms vectors and this combination ms vector.
+#
+#     The algorithm is analogous to clustal used for sequence alignment by using a distance matrix produced
+#     by pairwise ms alignment and a modified neighbor-joining method.
+#
+#     :param msv_list: list of numpy 2d array, msv_1[0] is m/z and msv_1[1] is intensities sorted by m/z
+#     :param mz_tolerance: float, limits matches to be within +/- mz_tolerance
+#     :param resolve_by: 'distance', 'shape', or 'intensity',
+#         determines what to prioritize when there are multiple matching m/zs within mz_tolerance
+#         (see match_ms_vectors)
+#
+#     :return msv_alignment: numpy 3d array,
+#         msv_alignment[i] is ms vector at position i,
+#         msv_alignment[i:,0] is  m/z values at position i,
+#         msv_alignment[i:,1] is intensity values at position i
+#     :return msv_combined: numpy 2d array, total combination of all ms vectors in msv_list
+#     """
+#
+#
+#     print 'EXPERIMENTAL: Pairwise alignments can lead to M/Z-wise misalignments in the multiple alignment.'
+#
+#     msv_list = [np.asarray(msv, dtype=float) for msv in msv_list]
+#     assert np.any([np.any(np.isnan(msv)) for msv in msv_list]) == False
+#     assert np.all([msv.shape[0] == 2 for msv in msv_list]) == True
+#     assert not (resolve_by == 'intensity' and combine_by == 'mean')
+#
+#     # Make a copy of the original ms vectors
+#     msv_original_list = msv_list[:]
+#
+#     # Set weights of ms vectors uniformly if weights is not set manually
+#     if weights is None:
+#         weights = [1. / len(msv_list)] * len(msv_list)
+#
+#     # Initialize score_matrix
+#     num_msv = len(msv_list)
+#     score_matrix = np.empty((num_msv, num_msv))
+#     score_matrix.fill(np.nan)
+#
+#     # Find the two most similar ms vectors by score, combine them, remove them from msv_list,
+#     # add the combination to msv_list, repeat until there is only the combination of all ms vectors
+#     while len(msv_list) > 1:
+#
+#         # Store number of ms vectors
+#         num_msv = len(msv_list)
+#
+#         if np.isnan(score_matrix).all():
+#             # Add weighted score of msv_list[i] and msv_list[j] to score_matrix[i,j] for all combinations
+#             for i, j in np.array(np.tril_indices(num_msv, -1)).T:
+#                 msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[j], mz_tolerance, resolve_by)
+#                 score_matrix[i, j] = score_ms_vectors_composite(msv_i_aligned, msv_j_aligned, mass_power=mass_power, intensity_power=intensity_power)
+#         else:
+#             # Add weighted score of msv_list[i] and msv_list[0] to score_matrix[i,0] for new ms vector only
+#             for i in range(1, num_msv):
+#                 msv_i_aligned, msv_j_aligned = pairwise_align_ms_vectors(msv_list[i], msv_list[0], mz_tolerance, resolve_by)
+#                 score_matrix[i, 0] = score_ms_vectors_composite(msv_i_aligned, msv_j_aligned, mass_power=mass_power, intensity_power=intensity_power)
+#
+#
+#         # Flatten the score_matrix
+#         flat_score_matrix = score_matrix.ravel()
+#
+#         # Mask the score_matrix to only see valid scores
+#         masked_flat_score_matrix = np.ma.array(flat_score_matrix,
+#                                                mask=np.isnan(flat_score_matrix),
+#                                                fill_value=-np.inf)
+#
+#         # Find indices of score_matrix with the maximum score
+#         max_score = np.unravel_index(np.ma.argmax(masked_flat_score_matrix),
+#                                      (num_msv, num_msv))
+#
+#         # Pairwise align the ms vectors yielding the best score
+#         pair = pairwise_align_ms_vectors(msv_list[max_score[0]],
+#                                          msv_list[max_score[1]],
+#                                          mz_tolerance,
+#                                          resolve_by)
+#
+#         # Combine the ms vectors yielding the best score into msv_combined
+#         msv_combined = combine_ms_vectors(pair, combine_by,
+#                                           weights=[weights[max_score[0]],
+#                                                    weights[max_score[1]]])
+#
+#         # Remove the ms vectors yielding the best scores from msv_list and score_matrix
+#         msv_list.pop(max_score[0])
+#         msv_list.pop(max_score[1])
+#         score_matrix = np.delete(score_matrix, max_score[0], 0)
+#         score_matrix = np.delete(score_matrix, max_score[0], 1)
+#         score_matrix = np.delete(score_matrix, max_score[1], 0)
+#         score_matrix = np.delete(score_matrix, max_score[1], 1)
+#
+#         # Add the msv_combined to msv_list and score_matrix
+#         msv_list.insert(0, msv_combined)
+#         score_matrix = np.pad(score_matrix, ((1,0),(1,0)), mode='constant', constant_values=np.nan)
+#
+#         # Remove constituent weights and add combined weight to weights
+#         weights.insert(0, weights.pop(max_score[0]) + weights.pop(max_score[1]))
+#
+#     # Initialize msv_alignment
+#     msv_alignment = np.empty((len(msv_original_list), 2, msv_list[0][0].size))
+#
+#     # Pairwise align all ms vectors from msv_original_list to final msv_combined
+#     # and add to msv_alignment
+#     print msv_combined
+#     for i, msv in enumerate(msv_original_list):
+#         msv_alignment[i] = pairwise_align_ms_vectors(msv, msv_combined, mz_tolerance, resolve_by)[0]
+#
+#     return msv_alignment, msv_combined
 
 
 def partition_aligned_ms_vectors(msv_1_aligned, msv_2_aligned):
@@ -843,7 +983,7 @@ def search_ms_refs(msv_query, **kwargs):
     ref_df = ref_df.query(query, local_dict=dict(locals(), **kwargs))
 
     if ref_df['spectrum'].apply(type).eq(str).all():
-        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: np.array(eval(s)))
+        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s))
 
     # Define function to score msv_qury against msv's in reference dataframe
     def score_and_num_matches(msv_ref):
