@@ -129,8 +129,8 @@ def test_scores_df(scores_df,
                    min_intensity, rt_tolerance, mz_tolerance,
                    min_msms_score, allow_no_msms, min_num_frag_matches, min_relative_frag_intensity):
     """
-    Returns pandas series containing boolean values for each compound in scores_df
-    describing if it passes minimum requirements set by:
+    Returns pandas series containing boolean values for each
+    compound in scores_df describing if it passes minimum requirements set by:
     'min_intensity', 'rt_tolerance','mz_tolerance', 'min_msms_score',
     'min_num_frag_matches', and 'min_relative_frag_intensity'.
 
@@ -143,18 +143,25 @@ def test_scores_df(scores_df,
 
     :param scores_df:
 
-    :return passing_series:
+    :return test_series:
     """
 
-    return (scores_df.max_intensity > min_intensity) &\
-           (scores_df.median_rt_shift < rt_tolerance) &\
-           (scores_df.median_mz_ppm < mz_tolerance) &\
-           ((scores_df.max_msms_score > min_msms_score) &\
-            (scores_df.num_frag_matches > min_num_frag_matches) &\
-            ((min_num_frag_matches <= 1) |\
-             (scores_df.max_relative_frag_intensity > min_relative_frag_intensity))) |\
-           ((allow_no_msms) &\
-            (np.isnan(scores_df.max_msms_score)))
+    def test_row(row):
+        if (row.max_intensity >= min_intensity):
+            if (row.median_rt_shift <= rt_tolerance):
+                if (row.median_mz_ppm <= mz_tolerance):
+                    if allow_no_msms:
+                        if np.isnan(row.max_msms_score):
+                            return True
+                    if (row.max_msms_score >= min_msms_score):
+                        if (row.num_frag_matches >= min_num_frag_matches):
+                            if (min_num_frag_matches <= 1):
+                                return True
+                            if (row.max_relative_frag_intensity >= min_relative_frag_intensity):
+                                return True
+        return False
+
+    return scores_df.apply(test_row, axis=1)
 
 
 
