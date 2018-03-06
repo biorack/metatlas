@@ -155,7 +155,7 @@ def test_scores_df(scores_df,
                             return True
                     if (row.max_msms_score >= min_msms_score):
                         if (row.num_frag_matches >= min_num_frag_matches):
-                            if (min_num_frag_matches <= 1):
+                            if (row.num_frag_matches <= 1):
                                 return True
                             if (row.max_relative_frag_intensity >= min_relative_frag_intensity):
                                 return True
