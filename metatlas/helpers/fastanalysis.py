@@ -56,8 +56,8 @@ def make_scores_df(metatlas_dataset):
 
         for file_idx in range(len(file_names)):
             try:
-                assert(len(metatlas_dataset[file_idx][compound_idx]['data']['eic']['intensity']) > 0)
-                intensities.extend(metatlas_dataset[file_idx][compound_idx]['data']['eic']['intensity'])
+                assert(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height'] > 0)
+                intensities.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height'])
             except AssertionError:
                 pass
 
