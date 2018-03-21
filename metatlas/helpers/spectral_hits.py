@@ -12,16 +12,20 @@ import pandas as pd
 import numpy as np
 
 
-def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
+def find_spectral_hits(mzml_loc, tab_loc=None, force=False, **kwargs):
 
     if os.path.isfile(mzml_loc):
         mzml_loc = os.path.realpath(mzml_loc)
     else:
-        sys.stderr.write(mzml_loc + ' not a file')
+        sys.stderr.write('error: ' + mzml_loc + ' not found\n')
         sys.exit(1)
 
     if tab_loc is None or tab_loc == '':
         tab_loc = os.path.splitext(mzml_loc)[0] + '_spectral-hits.tab.gz'
+
+    if not force and os.path.exists(tab_loc) and os.path.getsize(tab_loc) != 0:
+        sys.stderr.write('error: ' + tab_loc + ' already exists\n')
+        sys.exit(1)
 
     ms_types = kwargs.pop('ms_types', ['ms2_pos', 'ms2_neg'])
 
@@ -58,7 +62,8 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
                              if ms_type in ms_types
                              and isinstance(df, pd.DataFrame)], axis=1)
     except ValueError:
-        return
+        sys.stderr.write('error: ' + mzml_loc + ' not convertable to dataframe\n')
+        sys.exit(1)
 
     mzml_rt_group = mzml_df.groupby('rt')
 
@@ -100,11 +105,11 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
     spectral_hits_df.set_index('rt', append=True, inplace=True)
     spectral_hits_df.reorder_levels(['rt'] + ref_index)
 
-    def nistify(msv):
-        msv[~np.isnan(msv)] = -1
+    # def nistify(msv):
+    #     msv[~np.isnan(msv)] = -1
 
     spectral_hits_df['msv_query_aligned'] = spectral_hits_df['msv_query_aligned'].apply(lambda a: a.tolist())
-    spectral_hits_df.xs('nist', level='database')['msv_ref_aligned'].apply(nistify)
+    # spectral_hits_df.xs('nist', level='database')['msv_ref_aligned'].apply(nistify)
     spectral_hits_df['msv_ref_aligned'] = spectral_hits_df['msv_ref_aligned'].apply(lambda a: a.tolist())
 
     spectral_hits_df.to_csv(tab_loc, columns=['precursor_mz', 'precursor_intensity', 'polarity',
@@ -112,8 +117,11 @@ def find_spectral_hits(mzml_loc, tab_loc=None, **kwargs):
                                               'msv_query_aligned', 'msv_ref_aligned'],
                             sep='\t', compression='gzip')
 
+    sys.stdout.write('created: ' + tab_loc + '\n')
 
-def generate_worklist(worklist_loc, mzml_dir, tab_dir=None):
+
+
+def generate_worklist(worklist_loc, mzml_dir, tab_dir=None, force=False):
 
     worklist = []
 
@@ -142,9 +150,14 @@ def generate_worklist(worklist_loc, mzml_dir, tab_dir=None):
                 out_file = os.path.join(out_path,
                                         name + '_spectral-hits.tab.gz')
 
-                if not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
+                if force:
                     worklist.append(os.path.realpath(__file__) +
-                                    ' -t \"' + os.path.join(root, filename) +
+                                    ' -f -m \"' + os.path.join(root, filename) +
+                                    '\" \"' + out_file + '\"')
+
+                elif not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
+                    worklist.append(os.path.realpath(__file__) +
+                                    ' -m \"' + os.path.join(root, filename) +
                                     '\" \"' + out_file + '\"')
 
     with open(worklist_loc, 'w') as worklist_file:
@@ -153,11 +166,17 @@ def generate_worklist(worklist_loc, mzml_dir, tab_dir=None):
 
 def arg_parser():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--force', action='store_true', required=False,
+                         help='forces file(s) to be remade if they exist')
+    parser.add_argument('-l', '--location', type=str, required=False, metavar='out_dir',
+                         help='changes output location for files')
+
     task_type = parser.add_mutually_exclusive_group(required=True)
-    task_type.add_argument('-t', '--tab', nargs='+', type=str,
-                           help='mzml_loc [tab_loc]')
-    task_type.add_argument('-w', '--worklist', nargs='+', type=str,
-                           help='worklist_loc mzml_dir [tab_dir]')
+    task_type.add_argument('-m', '--make', type=str, metavar='mzml_loc',
+                           help='makes spectral_hits file')
+    task_type.add_argument('-w', '--worklist', nargs=2, type=str, metavar=('worklist_loc', 'mzml_dir'),
+                           help='creates worklist to make many spectral_hits files')
+
 
     return parser
 
@@ -173,11 +192,11 @@ def main():
     parser = arg_parser()
     args, cmd_kwargs = parser.parse_known_args()
 
-    if args.tab:
-        find_spectral_hits(*args.tab, **kwargs)
+    if args.make:
+        find_spectral_hits(args.make, args.location, args.force, **kwargs)
 
     if args.worklist:
-        generate_worklist(*args.worklist)
+        generate_worklist(args.worklist[0], args.worklist[1], args.location, args.force)
 
 
 if __name__ == '__main__':
