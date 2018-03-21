@@ -168,7 +168,7 @@ def arg_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--force', action='store_true', required=False,
                          help='forces file(s) to be remade if they exist')
-    parser.add_argument('-l', '--location', type=str, required=False, metavar='out_dir',
+    parser.add_argument('-l', '--location', type=str, required=False, metavar='out_dir/loc',
                          help='changes output location for files')
 
     task_type = parser.add_mutually_exclusive_group(required=True)
