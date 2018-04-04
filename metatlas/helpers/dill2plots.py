@@ -343,11 +343,11 @@ class adjust_rt_for_selected_compound(object):
         self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color,linewidth=4.0)
         self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color,linewidth=4.0)
 
-        self.rt_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.03], axisbg=self.slider_color)
-        self.rt_max_ax = plt.axes([0.09, 0.1, 0.81, 0.03], axisbg=self.slider_color)
-        self.rt_min_ax = plt.axes([0.09, 0.15, 0.81, 0.03], axisbg=self.slider_color)
+        self.rt_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.03], facecolor=self.slider_color)
+        self.rt_max_ax = plt.axes([0.09, 0.1, 0.81, 0.03], facecolor=self.slider_color)
+        self.rt_min_ax = plt.axes([0.09, 0.15, 0.81, 0.03], facecolor=self.slider_color)
 
-        self.y_scale_ax = plt.axes([0.925, 0.275, 0.02, 0.63], axisbg=self.slider_color)
+        self.y_scale_ax = plt.axes([0.925, 0.275, 0.02, 0.63], facecolor=self.slider_color)
 
         min_x = self.ax.get_xlim()[0]
         max_x = self.ax.get_xlim()[1]
