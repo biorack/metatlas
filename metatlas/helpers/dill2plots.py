@@ -1089,6 +1089,80 @@ def get_ion_from_fragment(frag_info,spectrum):
     return hit,hit_indices
 
 
+def calculate_median_of_internal_standards(dataset_for_median,atlas,include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = []):
+    """
+  
+    """
+    
+    # filter runs from the metatlas dataset
+
+    # dataset_for_median = copy.deepcopy(dataset_for_median)
+    if include_lcmsruns:
+        dataset_for_median = filter_lcmsruns_in_dataset_by_include_list(dataset_for_median,'lcmsrun',include_lcmsruns)
+    if include_groups:
+        dataset_for_median = filter_lcmsruns_in_dataset_by_include_list(dataset_for_median,'group',include_groups)
+    if exclude_lcmsruns:
+        dataset_for_median = filter_lcmsruns_in_dataset_by_exclude_list(dataset_for_median,'lcmsrun',exclude_lcmsruns)
+    if exclude_groups:
+        dataset_for_median = filter_lcmsruns_in_dataset_by_exclude_list(dataset_for_median,'group',exclude_groups)
+    internal_standard_vals = []
+    for i,dd in enumerate(dataset_for_median): #loop through files
+        for j,d in enumerate(dd): #loop through compounds
+            if atlas.compound_identifications[j].internal_standard_id != 'nan':
+                save_dict = {'file_name':d['lcmsrun'].name,'internal_standard_id':atlas.compound_identifications[j].internal_standard_id}
+                for fieldname in ['peak_height','peak_area']:
+                    if (not d['data']['ms1_summary']) or (not d['data']['ms1_summary'][fieldname]):
+                        v = 0
+                    else:
+                        v = d['data']['ms1_summary'][fieldname]
+                    save_dict[fieldname] = v
+                internal_standard_vals.append(save_dict)
+    return internal_standard_vals
+
+
+def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = []):
+    """
+    Takes in a metatlas dataset and an atlas. Returns a metatlas dataset with
+    ms1_summary peak_height and peak_area normalized by internal standard where
+    user selected in their atlas.
+    
+    The compound_identification in the atlas has the followign fields:
+        internal_standard_id = MetUnicode(help='Freetext identifier for an internal standard')
+        do_normalization = MetBool(False)
+        internal_standard_to_use = MetUnicode(help='identifier of which internal standard to normalize by')
+
+    Peaks are normalized by:
+
+    I_normalized = I_molecule_in_file / I_standard_in_file * MEDIAN(I_standard_in_good_files)
+
+    "good files" for calculating the median intensity of the standard are identified
+    by exclude_lcmsruns=[]
+
+    The patterns in exclude_lcmsruns will remove files that you don't want to use for calculating the median intensity
+
+    """
+    internal_standard_vals = calculate_median_of_internal_standards(metatlas_dataset,atlas,include_lcmsruns = include_lcmsruns,
+        exclude_lcmsruns =exclude_lcmsruns, include_groups =include_groups,exclude_groups =exclude_groups)
+
+    median_vals = pd.DataFrame(internal_standard_vals).drop('file_name',axis=1).groupby('internal_standard_id').median()
+    df = pd.DataFrame(internal_standard_vals)#.drop('peak_height',axis=1)
+    norm_dfs = {}
+    norm_dfs['peak_area'] = df.pivot(index='internal_standard_id', columns='file_name', values='peak_area')
+    norm_dfs['peak_height'] = df.pivot(index='internal_standard_id', columns='file_name', values='peak_height')
+    
+    for i,dd in enumerate(metatlas_dataset): #loop through files
+        if dd[0]['lcmsrun'].name in norm_dfs['peak_area'].columns: #make sure the file name is in the normalization dataframe
+            for j,d in enumerate(dd): #loop through compounds
+                if atlas.compound_identifications[j].do_normalization == True:
+                    for fieldname in ['peak_height','peak_area']:
+                        if (not d['data']['ms1_summary']) or (not d['data']['ms1_summary'][fieldname]):
+                            v = 0
+                        else:
+                            norm_val = norm_dfs[fieldname].loc[atlas.compound_identifications[j].internal_standard_to_use,d['lcmsrun'].name]
+                            median_val = median_vals.loc[atlas.compound_identifications[j].internal_standard_to_use,fieldname]
+                            metatlas_dataset[i][j]['data']['ms1_summary'][fieldname] = d['data']['ms1_summary'][fieldname] / norm_val * median_val
+                        
+    return metatlas_dataset
 
 #plot msms and annotate
 #compound name
@@ -2197,6 +2271,14 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                 if c != 'use_label':
                     myID.compound = [c]
                 myID.name = compound_label
+
+                try:
+                    myID.do_normalization = row.do_normalization
+                    myID.internal_standard_id = row.internal_standard_id
+                    myID.internal_standard_to_use = row.internal_standard_to_use
+                except:
+                    # no internal standard information was provided
+                    pass
 
 
                 mzRef = metob.MzReference()
