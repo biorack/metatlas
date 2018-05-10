@@ -564,6 +564,9 @@ class CompoundIdentification(MetatlasObject):
     rt_references = MetList(MetInstance(RtReference))
     frag_references = MetList(MetInstance(FragmentationReference))
     intensity_references = MetList(MetInstance(IntensityReference))
+    internal_standard_id = MetUnicode(help='Freetext identifier for an internal standard')
+    do_normalization = MetBool(False)
+    internal_standard_to_use = MetUnicode(help='identifier of which internal standard to normalize by')
 
 
 @set_docstring
