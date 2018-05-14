@@ -7,7 +7,7 @@ MAINTAINER = 'Steven Silvester'
 MAINTAINER_EMAIL = 'steven.silvester@ieee.org'
 URL = 'http://github.com/biorack/metatlas'
 LICENSE = 'MIT'
-REQUIRES = ["numpy", "yaml", "pytables", "pymzml (==0.7.8)", "simplejson", "rpy2", "pandas",
+REQUIRES = ["numpy", "pyyaml", "pytables", "pymzml (==0.7.8)", "simplejson", "rpy2", "pandas",
             "dataset", "ipython", "traitlets (==4.1.0)", "six", "tabulate", "dill",
             "gspread","pymysql", "qgrid", "pillow", 'oauth2client (== 1.5.2)']
 CLASSIFIERS = """\
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         packages=find_packages(exclude=['doc']),
         include_package_data=True,
         zip_safe=False,  # the package can run out of an .egg file
-        install_requires=['pymzml==0.7.8', 'yaml','simplejson', 'requests_toolbelt',
+        install_requires=['pymzml==0.7.8', 'pyyaml','simplejson', 'requests_toolbelt',
                           'dataset', 'ipython', 'traitlets==4.1.0', 'six',
                           'tabulate', 'dill', 'oauth2client==1.5.2', 'gspread',
                           'qgrid', 'pillow'],
