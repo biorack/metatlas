@@ -21,16 +21,16 @@ before_install:
 - conda config --set always_yes yes
 - conda update conda -q
 - conda info -a
-- travis_retry conda create -n test $PYTHON pip nose pytables matplotlib pandas jupyter h5py
+- travis_retry conda create -n -y test $PYTHON pip nose pytables matplotlib pandas jupyter h5py
 - source activate test
 # - rm /home/travis/miniconda/envs/test/lib/libreadline.so.6
-- travis_retry pip install coveralls requests_toolbelt
+- travis_retry pip install --yes coveralls requests_toolbelt
 # rpy2
 # - sudo Rscript scripts/xcms-install.R
 - conda install -c https://conda.anaconda.org/rdkit rdkit
 install:
 - export PYTHONWARNINGS=all
-- pip install -e .
+- pip install --yes -e .
 script:
 - export METATLAS_LOCAL=1
 - if [[ $PYTHON == python=3.4* ]]; then nosetests --exe -v --with-doctest --with-cov
