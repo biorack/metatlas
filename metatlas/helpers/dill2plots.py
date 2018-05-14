@@ -12,7 +12,7 @@ from metatlas.helpers import spectralprocessing as sp
 # from metatlas import gui
 
 from textwrap import fill, TextWrapper
-import qgrid
+# import qgrid
 import pandas as pd
 import os
 import tables

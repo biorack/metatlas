@@ -31,37 +31,6 @@ def test_interact_get_metatlas_files():
     files = dp.get_metatlas_files(experiment=experiment, name=name, most_recent=most_recent)
     assert len(files) == 1350
 
-    experiment = '%violacein%'
-    name = '%_%'
-    most_recent = True
-    files = dp.get_metatlas_files(experiment=experiment, name=name, most_recent=most_recent)
-    assert len(files) == 1350
-
-    experiment = '%violacein%'
-    name = '%_%'
-    most_recent = False
-    files = dp.get_metatlas_files(experiment=experiment, name=name, most_recent=most_recent)
-    assert len(files) == 1350
-
-    experiment = '%violacein%'
-    name = '%_%'
-    most_recent = False
-    files = dp.get_metatlas_files(experiment=experiment, name=name, most_recent=most_recent)
-    assert len(files) == 1350
-
-    experiment = '%violacein%'
-    name = '%_%'
-    most_recent = False
-    files = dp.get_metatlas_files(experiment=experiment, name=name, most_recent=most_recent)
-    assert len(files) == 1350
-
-    experiment = '%violacein%'
-    name = '%_%'
-    most_recent = False
-    files = dp.get_metatlas_files(experiment=experiment, name=name, most_recent=most_recent)
-    assert len(files) == 1350
-
-
 
 @skipif(not ON_NERSC)
 def test_make_empty_fileinfo_sheet():
