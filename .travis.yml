@@ -25,7 +25,7 @@ before_install:
 - conda create --quiet --yes -n test $PYTHON pip nose pytables matplotlib pandas jupyter h5py
 - source activate test
 # - rm /home/travis/miniconda/envs/test/lib/libreadline.so.6
-- pip install coveralls requests_toolbelt rpy2
+- pip install coveralls requests_toolbelt
 # rpy2
 # - sudo Rscript scripts/xcms-install.R
 - conda install -c https://conda.anaconda.org/rdkit rdkit
