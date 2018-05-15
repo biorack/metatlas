@@ -6,7 +6,7 @@ env:
   global:
   - GH_REF: github.com/biorack/metatlas.git
   - secure: HCQ8gC9b17rPuF4/KnZFlh3crLhlRFKtbUMVJGFuCnz4r7Zna1TELWgmLI0WX6jGgwjjO9ca5aKOOKj0CVGvOPTmIX3VCGEehgxfN0K9pdE9eUlaN047hh32CrTxtik97jxImvPnbni/QmwI3/xI/XrPj2U5iUm38h/WDg+sTPU=
-  # - METATLAS_LOCAL: True
+  - METATLAS_LOCAL: True
 before_install:
 - sudo apt-add-repository "deb http://cran.stat.ucla.edu/bin/linux/ubuntu trusty/"
 - sudo apt-get update
