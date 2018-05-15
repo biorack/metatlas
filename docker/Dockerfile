@@ -32,29 +32,29 @@ RUN wget --quiet https://github.com/krallin/tini/releases/download/v0.10.0/tini 
 # Configure environment
 ENV CONDA_DIR /opt/conda
 ENV PATH $CONDA_DIR/bin:$PATH
-ENV PYTHONPATH $PYTHONPATH:/home/jovyan/work/BASTet
-ENV PYTHONPATH $PYTHONPATH:/home/jovyan/work/pactolus
+ENV PYTHONPATH $PYTHONPATH:/home/metatlas/repos/BASTet
+ENV PYTHONPATH $PYTHONPATH:/home/metatlas/repos/pactolus
 ENV SHELL /bin/bash
-ENV NB_USER jovyan
+ENV NB_USER metatlas
 ENV NB_UID 1000
 ENV HOME /home/$NB_USER
 ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
-# Create jovyan user with UID=1000 and in the 'users' group
+# Create metatlas user with UID=1000 and in the 'users' group
 RUN useradd -m -s /bin/bash -N -u $NB_UID $NB_USER && \
     mkdir -p $CONDA_DIR && \
     chown $NB_USER $CONDA_DIR
 
 USER $NB_USER
 
-# Setup jovyan home directory
-RUN mkdir /home/$NB_USER/work && \
+# Setup metatlas home directory
+RUN mkdir /home/$NB_USER/repos && \
     mkdir /home/$NB_USER/.jupyter && \
     echo "cacert=/etc/ssl/certs/ca-certificates.crt" > /home/$NB_USER/.curlrc
 
-# Install conda as jovyan
+# Install conda as metatlas
 RUN cd /tmp && \
     mkdir -p $CONDA_DIR && \
     wget --quiet https://repo.continuum.io/miniconda/Miniconda3-4.2.12-Linux-x86_64.sh && \
@@ -75,10 +75,11 @@ RUN conda install --quiet --yes \
 USER root
 
 EXPOSE 8888
-WORKDIR /home/$NB_USER/work
+WORKDIR /home/$NB_USER/repos
 
 # Configure container startup
-ENTRYPOINT ["tini", "--"]
+# ENTRYPOINT ["tini", "--"]
+# ENTRYPOINT["/bin/bash"]
 #CMD ["start-notebook.sh"]
 
 # Add local files as late as possible to avoid cache busting
@@ -88,7 +89,7 @@ COPY start-singleuser.sh /usr/local/bin/
 COPY jupyter_notebook_config.py /home/$NB_USER/.jupyter/
 RUN chown -R $NB_USER:users /home/$NB_USER/.jupyter
 
-# Switch back to jovyan to avoid accidental container runs as root
+# Switch back to metatlas to avoid accidental container runs as root
 USER $NB_USER
 
 
@@ -118,7 +119,7 @@ RUN apt-get update && apt-get install -yq --no-install-recommends \
     rm -rf /usr/share/texlive/texmf-dist/fonts/tfm
 
 
-# Switch back to jovyan to avoid accidental container runs as root
+# Switch back to metatlas to avoid accidental container runs as root
 USER $NB_USER
 
 
@@ -204,39 +205,43 @@ RUN conda create --quiet --yes -p $CONDA_DIR/envs/python2 python=2.7 \
 
 #install rdkit for both python3 and python2
 # consider pinning rdkit with version: rdkit=2016.09.4
-RUN /opt/conda/bin/conda install -c https://conda.anaconda.org/rdkit rdkit -y --quiet
-RUN /opt/conda/bin/conda install -n python2 -c https://conda.anaconda.org/rdkit rdkit -y --quiet
+# RUN /opt/conda/bin/conda install -c https://conda.anaconda.org/rdkit rdkit -y --quiet
+RUN /opt/conda/bin/conda install -n python2 -c rdkit rdkit -y --quiet
 
 # Add shortcuts to distinguish pip for python2 and python3 envs
 RUN ln -s $CONDA_DIR/envs/python2/bin/pip $CONDA_DIR/bin/pip2 && \
     ln -s $CONDA_DIR/bin/pip $CONDA_DIR/bin/pip3
 
 
-RUN git clone https://github.com/biorack/metatlas.git && \
-    cd /home/jovyan/work/metatlas/ && \
-    pip2 install . --ignore-installed && \
-    pip3 install . --ignore-installed
+RUN cd /home/metatlas/repos/ && \
+    git clone https://github.com/biorack/metatlas.git && \
+    cd /home/metatlas/repos/metatlas/ && \
+    # pip3 install . --ignore-installed && \
+    pip2 install . --ignore-installed
 
-RUN git clone https://github.com/quantopian/qgrid && \
-    cd /home/jovyan/work/qgrid/ && \
+RUN cd /home/metatlas/repos/ && \
+    git clone https://github.com/quantopian/qgrid && \
+    cd /home/metatlas/repos/qgrid/ && \
     pip2 install . --ignore-installed --quiet && \
-    pip3 install . --ignore-installed && \
+    # pip3 install . --ignore-installed && \
     pip2 install pyteomics --ignore-installed --quiet && \
-    pip3 install pyteomics --ignore-installed --quiet && \
+    # pip3 install pyteomics --ignore-installed --quiet && \
     pip2 install pyimzml --ignore-installed --quiet && \
-    pip3 install pyimzml --ignore-installed --quiet && \
-    pip2 install lxml --ignore-installed --quiet && \
-    pip3 install lxml --ignore-installed --quiet
+    # pip3 install pyimzml --ignore-installed --quiet && \
+    pip2 install lxml --ignore-installed --quiet
+    # pip3 install lxml --ignore-installed --quiet
 
-RUN git clone https://github.com/biorack/BASTet.git
+RUN cd /home/metatlas/repos/ && \
+    git clone https://github.com/biorack/BASTet.git
     
-RUN git clone https://github.com/biorack/pactolus.git
+RUN cd /home/metatlas/repos/ && \
+    git clone https://github.com/biorack/pactolus.git
 
     
 
 # Import matplotlib the first time to build the font cache.
 ENV XDG_CACHE_HOME /home/$NB_USER/.cache/
-RUN MPLBACKEND=Agg $CONDA_DIR/envs/python2/bin/python -c "import matplotlib.pyplot"
+# RUN MPLBACKEND=Agg $CONDA_DIR/envs/python2/bin/python -c "import matplotlib.pyplot"
 
 # Configure ipython kernel to use matplotlib inline backend by default
 # RUN mkdir -p $HOME/.ipython/profile_default/startup
@@ -253,7 +258,39 @@ RUN pip install kernda --no-cache && \
     kernda -o -y /usr/local/share/jupyter/kernels/python2/kernel.json && \
     pip uninstall kernda -y
 
+RUN echo "===> add webupd8 repository..."  && \
+    echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | tee /etc/apt/sources.list.d/webupd8team-java.list  && \
+    echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | tee -a /etc/apt/sources.list.d/webupd8team-java.list  && \
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys EEA14886  && \
+    apt-get update
+
+
+RUN echo "===> install Java"  && \
+    echo debconf shared/accepted-oracle-license-v1-1 select true | debconf-set-selections  && \
+    echo debconf shared/accepted-oracle-license-v1-1 seen true | debconf-set-selections  && \
+    DEBIAN_FRONTEND=noninteractive  apt-get install -y --force-yes oracle-java8-installer oracle-java8-set-default
+
+
+RUN echo "===> clean up..."  && \
+    rm -rf /var/cache/oracle-jdk8-installer  && \
+    apt-get clean  && \
+    rm -rf /var/lib/apt/lists/*
+
+
+# define default command
+#CMD ["java"]
+
+ENV MZMINE_VERSIONS /home/$NB_USER/repos/mzmine_components/versions
+RUN mkdir -p $MZMINE_VERSIONS && \
+    cd $MZMINE_VERSIONS && \
+    wget $(curl -s https://api.github.com/repos/mzmine/mzmine2/releases/latest | grep 'browser_' | cut -d\" -f4) -O mzmine_latest.zip && \
+    unzip mzmine_latest.zip
+    #cp ../MZmine-2.23/startMZmine_NERSC_* .
 
 
 USER $NB_USER
+#TODO: fix the bouncing around between USERs
+#Currently 231023 files
+#docker run -it benbowen/metatlas /bin/bash
+#find / -type f -print | wc -l
 
