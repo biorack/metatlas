@@ -1091,9 +1091,9 @@ def get_ion_from_fragment(frag_info,spectrum):
 
 def calculate_median_of_internal_standards(dataset_for_median,atlas,include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = []):
     """
-  
+
     """
-    
+
     # filter runs from the metatlas dataset
 
     # dataset_for_median = copy.deepcopy(dataset_for_median)
@@ -1125,7 +1125,7 @@ def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns
     Takes in a metatlas dataset and an atlas. Returns a metatlas dataset with
     ms1_summary peak_height and peak_area normalized by internal standard where
     user selected in their atlas.
-    
+
     The compound_identification in the atlas has the followign fields:
         internal_standard_id = MetUnicode(help='Freetext identifier for an internal standard')
         do_normalization = MetBool(False)
@@ -1149,7 +1149,7 @@ def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns
     norm_dfs = {}
     norm_dfs['peak_area'] = df.pivot(index='internal_standard_id', columns='file_name', values='peak_area')
     norm_dfs['peak_height'] = df.pivot(index='internal_standard_id', columns='file_name', values='peak_height')
-    
+
     for i,dd in enumerate(metatlas_dataset): #loop through files
         if dd[0]['lcmsrun'].name in norm_dfs['peak_area'].columns: #make sure the file name is in the normalization dataframe
             for j,d in enumerate(dd): #loop through compounds
@@ -1161,7 +1161,7 @@ def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns
                             norm_val = norm_dfs[fieldname].loc[atlas.compound_identifications[j].internal_standard_to_use,d['lcmsrun'].name]
                             median_val = median_vals.loc[atlas.compound_identifications[j].internal_standard_to_use,fieldname]
                             metatlas_dataset[i][j]['data']['ms1_summary'][fieldname] = d['data']['ms1_summary'][fieldname] / norm_val * median_val
-                        
+
     return metatlas_dataset
 
 #plot msms and annotate
@@ -1813,12 +1813,15 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
                 if intensity_sorted_matches:
                     msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
                 if len(msv_sample_matches[0]) > 0:
-                    mz_sample_matches = sp.remove_ms_vector_noise(msv_sample_matches)[0].tolist()
+                    mz_sample_matches = msv_sample_matches[0].tolist()
+                    threshold_mz_sample_matches = sp.remove_ms_vector_noise(msv_sample_matches)[0].tolist()
                 else:
                     mz_sample_matches = [np.nan]
+                    threshold_mz_sample_matches = [np.nan]
                 ax7.text(0,0.6,
-                         fill('Matching M/Zs: ' + ', '.join(['%5.3f'%m for m in mz_sample_matches]), width=54),
-                         fontsize=8, verticalalignment='top')
+                         fill('Matching M/Zs above 1E-3*max: ' + ', '.join(['%5.3f'%m for m in threshold_mz_sample_matches]), width=90) + '\n\n' +
+                         fill('All Matching M/Zs: ' + ', '.join(['%5.3f'%m for m in mz_sample_matches]), width=90),
+                         fontsize=6, verticalalignment='top')
 
             ax7.set_ylim(.5,1.1)
             ax7.axis('off')
