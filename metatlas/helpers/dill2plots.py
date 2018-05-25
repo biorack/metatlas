@@ -44,6 +44,40 @@ from matplotlib.widgets import Slider, Button, RadioButtons
 
 from matplotlib.widgets import AxesWidget
 
+import gspread
+from oauth2client.client import SignedJwtAssertionCredentials
+
+def get_google_sheet(notebook_name = "Sheet name", 
+                     token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
+                     sheet_name = 'Sheet1'):
+    """
+    Returns a pandas data frame from the google sheet.
+    Assumes header row is first row.
+    
+    To use the token hard coded in the token field, 
+    the sheet must be shared with:
+    metatlas-ipython-nersc@ipython-to-sheets-demo.iam.gserviceaccount.com
+    Unique sheet names are a requirement of this approach.
+    
+    """
+    json_key = json.load(open(token))
+    scope = ['https://spreadsheets.google.com/feeds']
+
+    #this is deprecated as of january, but we have pinned the version of oauth2.
+    #see https://github.com/google/oauth2client/issues/401
+    credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
+
+    #here is the new way incase the version pin is removed
+    #credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
+
+    gc = gspread.authorize(credentials)
+
+    wks = gc.open(notebook_name)
+    istd_qc_data = wks.worksheet(sheet_name).get_all_values()
+    headers = istd_qc_data.pop(0)
+    df = pd.DataFrame(istd_qc_data,columns=headers)
+    return df
+
 class VertSlider(AxesWidget):
     """
     A slider representing a floating point range
