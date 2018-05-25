@@ -25,7 +25,7 @@ except ImportError:
 
 # Whether we are running from NERSC
 ON_NERSC = 'METATLAS_LOCAL' not in os.environ
-
+print('NERSC=',ON_NERSC)
 
 # Observable List from
 # http://stackoverflow.com/a/13259435
@@ -204,7 +204,7 @@ class Workspace(object):
         for (table_name, updates) in self._updates.items():
             if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
-                                     primary_type='String(32)')
+                                     primary_type=self.db.types.string(32))
                 self.fix_table(table_name)
             with self.db:
                 for (uid, prev_uid) in updates:
@@ -212,7 +212,7 @@ class Workspace(object):
         for (table_name, inserts) in self._inserts.items():
             if '_' not in table_name and table_name not in self.db:
                 self.db.create_table(table_name, primary_id='unique_id',
-                                     primary_type='String(32)')
+                                     primary_type=self.db.types.string(32))
                 self.fix_table(table_name)
             self.db[table_name].insert_many(inserts)
             # print(table_name,inserts)
