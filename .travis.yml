@@ -41,7 +41,7 @@ script:
 # - nosetests --exe -v --with-doctest --with-cov --cover-package metatlas
 - nosetests --exe -v metatlas
 #; fi
-# - make docs
+- make docs
 # - pytest metatlas/tests/test_metatlas_objects.py
 # after_success:
 # - coveralls
