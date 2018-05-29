@@ -36,8 +36,10 @@ install:
 script:
 - export METATLAS_LOCAL=1
 - touch travis_workspace.db
-- if [[ $PYTHON == python=3.4* ]]; then nosetests --exe -v --with-doctest --with-cov
-  --cover-package metatlas; else nosetests --exe -v metatlas; fi
+#- if [[ $PYTHON == python=3.4* ]]; then nosetests --exe -v --with-doctest --with-cov
+#  --cover-package metatlas; else 
+- nosetests --exe -v --with-doctest --with-cov --cover-package metatlas
+#; fi
 - make docs
 # - pytest metatlas/tests/test_metatlas_objects.py
 after_success:
