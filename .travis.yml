@@ -2,39 +2,48 @@ language: python
 env:
   matrix:
   - PYTHON="python=2.7"
-  - PYTHON="python=3.4"
+  #- PYTHON="python=3.4"
   global:
   - GH_REF: github.com/biorack/metatlas.git
   - secure: HCQ8gC9b17rPuF4/KnZFlh3crLhlRFKtbUMVJGFuCnz4r7Zna1TELWgmLI0WX6jGgwjjO9ca5aKOOKj0CVGvOPTmIX3VCGEehgxfN0K9pdE9eUlaN047hh32CrTxtik97jxImvPnbni/QmwI3/xI/XrPj2U5iUm38h/WDg+sTPU=
 before_install:
 - sudo apt-add-repository "deb http://cran.stat.ucla.edu/bin/linux/ubuntu trusty/"
 - sudo apt-get update
-- sudo apt-get install --force-yes libnetcdf-dev netcdf-bin r-base
+- sudo apt-get install --force-yes sqlite3
+#libnetcdf-dev netcdf-bin r-base
 - export MPL_DIR=$HOME/.config/matplotlib
+- export METATLAS_LOCAL=True
 - mkdir -p $MPL_DIR
 - touch $MPL_DIR/matplotlibrc
 - echo "backend:Template" > $MPL_DIR/matplotlibrc
-- wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
+- wget -nv http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
 - bash miniconda.sh -b -p $HOME/miniconda
 - export PATH="$HOME/miniconda/bin:$PATH"
 - hash -r
 - conda config --set always_yes yes
 - conda update conda -q
 - conda info -a
-- travis_retry conda create -n test $PYTHON pip nose pytables matplotlib pandas jupyter h5py
-- source activate test -q
+- conda create --quiet --yes -n test $PYTHON pip nose pytables matplotlib pandas jupyter h5py
+- source activate test
 # - rm /home/travis/miniconda/envs/test/lib/libreadline.so.6
-- travis_retry pip install coveralls requests_toolbelt rpy2
-- sudo Rscript scripts/xcms-install.R
+- pip install coveralls requests_toolbelt
+# rpy2
+# - sudo Rscript scripts/xcms-install.R
 - conda install -c https://conda.anaconda.org/rdkit rdkit
 install:
-- export PYTHONWARNINGS=all
+#- export PYTHONWARNINGS=all
 - pip install -e .
 script:
 - export METATLAS_LOCAL=1
-- if [[ $PYTHON == python=3.4* ]]; then nosetests --exe -v --with-doctest --with-cov
-  --cover-package metatlas; else nosetests --exe -v metatlas; fi
+- touch travis_workspace.db
+#- if [[ $PYTHON == python=3.4* ]]; then nosetests --exe -v --with-doctest --with-cov
+#  --cover-package metatlas; else 
+# - nosetests --exe -v --with-doctest --with-cov --cover-package metatlas
+- nosetests --exe -v metatlas
+#; fi
 - make docs
-after_success:
-- coveralls
-- if [[ $PYTHON == python=3.4* ]]; then bash scripts/travis_after_success.sh; fi
+# - pytest metatlas/tests/test_metatlas_objects.py
+# after_success:
+# - coveralls
+# - if [[ $PYTHON == python=3.4* ]]; then bash scripts/travis_after_success.sh; fi
+- bash scripts/travis_after_success.sh
