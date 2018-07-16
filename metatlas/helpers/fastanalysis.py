@@ -42,14 +42,14 @@ def make_stats_table(input_fname = '', input_dataset = [],
 
     # filter runs from the metatlas dataset
     if include_lcmsruns:
-        metatlas_dataset = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
+        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
     if include_groups:
-        metatlas_dataset = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
+        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
 
     if exclude_lcmsruns:
-        metatlas_dataset = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
     if exclude_groups:
-        metatlas_dataset = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
+        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
 
     file_names = ma_data.get_file_names(metatlas_dataset)
     compound_names = ma_data.get_compound_names(metatlas_dataset,use_labels=use_labels)[0]
