@@ -1,6 +1,7 @@
 import sys
 import os
 import multiprocessing as mp
+import pprint
 
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas import metatlas_objects as metob
@@ -42,14 +43,14 @@ def make_stats_table(input_fname = '', input_dataset = [],
 
     # filter runs from the metatlas dataset
     if include_lcmsruns:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
+        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,'lcmsrun',include_lcmsruns)
     if include_groups:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
+        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,'group',include_groups)
 
     if exclude_lcmsruns:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
+        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset,'lcmsrun',exclude_lcmsruns)
     if exclude_groups:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
+        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset,'group',exclude_groups)
 
     file_names = ma_data.get_file_names(metatlas_dataset)
     compound_names = ma_data.get_compound_names(metatlas_dataset,use_labels=use_labels)[0]
@@ -74,8 +75,16 @@ def make_stats_table(input_fname = '', input_dataset = [],
 
     passing = {key:np.ones((len(compound_names), len(file_names))).astype(float) for key in dfs.keys()}
 
+    dependencies = {'peak_height': [],
+                    'peak_area': ['peak_height'],
+                    'rt_peak': ['peak_height'],
+                    'mz_centroid': ['peak_height'],
+                    'mz_ppm': ['peak_height'],
+                    'msms_score': ['peak_height', 'num_frag_matches'],
+                    'num_frag_matches': ['peak_height', 'msms_score']}
+
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
-        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric)
+        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels)
         dfs[metric].columns = dfs[metric].columns.get_level_values(1)
 
     dfs['mz_ppm'] = dfs['peak_height'].copy()
@@ -138,7 +147,8 @@ def make_stats_table(input_fname = '', input_dataset = [],
     stats_table = []
 
     for key in dfs.keys():
-        stats_df = (dfs[key] * passing['peak_height'] * passing[key]).T.describe().T
+        test = np.product(np.array([passing[dep] for dep in dependencies[key]]), axis=0)
+        stats_df = (dfs[key] * test * passing[key]).T.describe().T
         stats_df['range'] = stats_df['max'] - stats_df['min']
         stats_df.columns = pd.MultiIndex.from_product([['filtered'], [key], stats_df.columns])
         stats_table.append(stats_df)
@@ -152,6 +162,12 @@ def make_stats_table(input_fname = '', input_dataset = [],
     stats_table = pd.concat(stats_table, axis=1)
 
     stats_table.to_csv(os.path.join(output_loc, 'stats_table.tab'), sep='\t')
+
+    # with open(os.path.join(output_loc, 'stats_table.readme'), 'w') as readme:
+    #     for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'mz_tolerance', 'min_msms_score', 'min_num_frag_matches']:
+    #         readme.write('%s\n'%var)
+    #         pprint.pprint(eval(var), readme)
+    #         readme.write('\n')
 
     if return_all:
         return stats_table, dfs, passing
