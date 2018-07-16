@@ -47,18 +47,18 @@ from matplotlib.widgets import AxesWidget
 import gspread
 from oauth2client.client import SignedJwtAssertionCredentials
 
-def get_google_sheet(notebook_name = "Sheet name", 
+def get_google_sheet(notebook_name = "Sheet name",
                      token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
                      sheet_name = 'Sheet1'):
     """
     Returns a pandas data frame from the google sheet.
     Assumes header row is first row.
-    
-    To use the token hard coded in the token field, 
+
+    To use the token hard coded in the token field,
     the sheet must be shared with:
     metatlas-ipython-nersc@ipython-to-sheets-demo.iam.gserviceaccount.com
     Unique sheet names are a requirement of this approach.
-    
+
     """
     json_key = json.load(open(token))
     scope = ['https://spreadsheets.google.com/feeds']
@@ -1209,7 +1209,7 @@ def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns
 #print all chromatograms
 #structure
 
-def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height'):
+def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height', use_labels=False):
     """
     fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
     """
@@ -1229,7 +1229,7 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
     if exclude_groups:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
 
-    compound_names = ma_data.get_compound_names(data)[0]
+    compound_names = ma_data.get_compound_names(data,use_labels=use_labels)[0]
     file_names = ma_data.get_file_names(data)
     group_names = ma_data.get_group_names(data)
     output_loc = os.path.expandvars(output_loc)
