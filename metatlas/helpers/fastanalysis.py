@@ -65,23 +65,16 @@ def make_stats_table(input_fname = '', input_dataset = [],
     msms_spectra_df.set_index(['database', 'inchi_key', 'polarity', 'id'], inplace=True)
     msms_spectra_df = msms_spectra_df.xs('metatlas', level='database')['spectrum'].transform(lambda s: eval(s.replace('nan', 'np.nan'))).transform(np.array)
 
-    metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'peak_height', 'peak_area']
-
-    dfs = {'peak_height': None,
-           'peak_area': None,
-           'rt_peak': None,
-           'mz_centroid': None,
-           'mz_ppm': None,
-           'msms_score': None,
-           'num_frag_matches': None}
+    metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta', 'peak_height', 'peak_area']
 
     dfs = {m:None for m in metrics}
     passing = {m:np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
 
     dependencies = {'peak_height': [],
                     'peak_area': ['peak_height'],
-                    'rt_peak': ['peak_height'],
-                    'mz_centroid': ['peak_height'],
+                    'rt_peak': ['peak_height', 'rt_delta'],
+                    'rt_delta': ['peak_height'],
+                    'mz_centroid': ['peak_height', 'mz_ppm'],
                     'mz_ppm': ['peak_height'],
                     'msms_score': ['peak_height', 'num_frag_matches'],
                     'num_frag_matches': ['peak_height', 'msms_score']}
@@ -95,6 +88,7 @@ def make_stats_table(input_fname = '', input_dataset = [],
 
     dfs['msms_score'] = dfs['mz_ppm'].copy()
     dfs['num_frag_matches'] = dfs['mz_ppm'].copy()
+    dfs['rt_delta'] = dfs['mz_ppm'].copy()
 
     passing['peak_height'] = (np.nan_to_num(dfs['peak_height'].values) >= min_peak_height).astype(float)
 
@@ -103,7 +97,8 @@ def make_stats_table(input_fname = '', input_dataset = [],
         ref_rt_peak = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
         ref_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
 
-        passing['rt_peak'][compound_idx] = (abs(ref_rt_peak - np.nan_to_num(dfs['rt_peak'].iloc[compound_idx].values)) <= rt_tolerance).astype(float)
+        dfs['rt_delta'].iloc[compound_idx] = abs(ref_rt_peak - dfs['rt_peak'].iloc[compound_idx])
+        passing['rt_delta'][compound_idx] = (abs(ref_rt_peak - np.nan_to_num(dfs['rt_peak'].iloc[compound_idx].values)) <= rt_tolerance).astype(float)
 
         dfs['mz_ppm'].iloc[compound_idx] = 1e6*(abs(ref_mz - dfs['mz_centroid'].iloc[compound_idx]) / ref_mz)
         passing['mz_ppm'][compound_idx] = (dfs['mz_ppm'].iloc[compound_idx].values <= mz_tolerance).astype(float)
