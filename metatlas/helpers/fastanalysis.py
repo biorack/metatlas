@@ -33,12 +33,14 @@ def make_stats_table(input_fname = '', input_dataset = [],
                      use_labels = False, return_all=False,
                      msms_refs_loc='/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs.tab'):
 
+    assert output_loc is not None or return_all
+
     if not input_dataset:
         metatlas_dataset = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         metatlas_dataset = input_dataset
 
-    if not os.path.exists(output_loc):
+    if output_loc is not None and not os.path.exists(output_loc):
         os.mkdir(output_loc)
 
     # filter runs from the metatlas dataset
@@ -146,12 +148,16 @@ def make_stats_table(input_fname = '', input_dataset = [],
 
     for metric in metrics:
         test = np.product(np.array([passing[dep] for dep in dependencies[metric]]), axis=0)
+        if output_loc is not None:
+            (dfs[metric] * test).to_csv(os.path.join(output_loc, 'filtered_%s.tab'%metric), sep='\t')
         stats_df = (dfs[metric] * test * passing[metric]).T.describe().T
         stats_df['range'] = stats_df['max'] - stats_df['min']
         stats_df.columns = pd.MultiIndex.from_product([['filtered'], [metric], stats_df.columns])
         stats_table.append(stats_df)
 
     for metric in metrics:
+        if output_loc is not None:
+            dfs[metric].to_csv(os.path.join(output_loc, 'unfiltered_%s.tab'%metric), sep='\t')
         stats_df = dfs[metric].T.describe().T
         stats_df['range'] = stats_df['max'] - stats_df['min']
         stats_df.columns = pd.MultiIndex.from_product([['unfiltered'], [metric], stats_df.columns])
@@ -159,19 +165,20 @@ def make_stats_table(input_fname = '', input_dataset = [],
 
     stats_table = pd.concat(stats_table, axis=1)
 
-    stats_table.to_csv(os.path.join(output_loc, 'stats_table.tab'), sep='\t')
+    if output_loc is not None:
+        stats_table.to_csv(os.path.join(output_loc, 'stats_table.tab'), sep='\t')
 
-    with open(os.path.join(output_loc, 'stats_table.readme'), 'w') as readme:
-        for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'mz_tolerance', 'min_msms_score', 'min_num_frag_matches']:
-            readme.write('%s\n'%var)
-            try:
-                if np.isinf(eval(var)):
-                    pprint.pprint('default', readme)
-                else:
+        with open(os.path.join(output_loc, 'stats_table.readme'), 'w') as readme:
+            for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'mz_tolerance', 'min_msms_score', 'min_num_frag_matches']:
+                readme.write('%s\n'%var)
+                try:
+                    if np.isinf(eval(var)):
+                        pprint.pprint('default', readme)
+                    else:
+                        pprint.pprint(eval(var), readme)
+                except TypeError:
                     pprint.pprint(eval(var), readme)
-            except TypeError:
-                pprint.pprint(eval(var), readme)
-            readme.write('\n')
+                readme.write('\n')
 
     if return_all:
         return stats_table, dfs, passing
