@@ -65,6 +65,8 @@ def make_stats_table(input_fname = '', input_dataset = [],
     msms_spectra_df.set_index(['database', 'inchi_key', 'polarity', 'id'], inplace=True)
     msms_spectra_df = msms_spectra_df.xs('metatlas', level='database')['spectrum'].transform(lambda s: eval(s.replace('nan', 'np.nan'))).transform(np.array)
 
+    metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'peak_height', 'peak_area']
+
     dfs = {'peak_height': None,
            'peak_area': None,
            'rt_peak': None,
@@ -73,7 +75,8 @@ def make_stats_table(input_fname = '', input_dataset = [],
            'msms_score': None,
            'num_frag_matches': None}
 
-    passing = {key:np.ones((len(compound_names), len(file_names))).astype(float) for key in dfs.keys()}
+    dfs = {m:None for m in metrics}
+    passing = {m:np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
 
     dependencies = {'peak_height': [],
                     'peak_area': ['peak_height'],
@@ -141,33 +144,39 @@ def make_stats_table(input_fname = '', input_dataset = [],
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
-    for key in dfs.keys():
-        passing[key][passing[key] == 0] = np.nan
+    for metric in metrics:
+        passing[metric][passing[metric] == 0] = np.nan
 
     stats_table = []
 
-    for key in dfs.keys():
-        test = np.product(np.array([passing[dep] for dep in dependencies[key]]), axis=0)
-        stats_df = (dfs[key] * test * passing[key]).T.describe().T
+    for metric in metrics:
+        test = np.product(np.array([passing[dep] for dep in dependencies[metric]]), axis=0)
+        stats_df = (dfs[metric] * test * passing[metric]).T.describe().T
         stats_df['range'] = stats_df['max'] - stats_df['min']
-        stats_df.columns = pd.MultiIndex.from_product([['filtered'], [key], stats_df.columns])
+        stats_df.columns = pd.MultiIndex.from_product([['filtered'], [metric], stats_df.columns])
         stats_table.append(stats_df)
 
-    for key in dfs.keys():
-        stats_df = dfs[key].T.describe().T
+    for metric in metrics:
+        stats_df = dfs[metric].T.describe().T
         stats_df['range'] = stats_df['max'] - stats_df['min']
-        stats_df.columns = pd.MultiIndex.from_product([['unfiltered'], [key], stats_df.columns])
+        stats_df.columns = pd.MultiIndex.from_product([['unfiltered'], [metric], stats_df.columns])
         stats_table.append(stats_df)
 
     stats_table = pd.concat(stats_table, axis=1)
 
     stats_table.to_csv(os.path.join(output_loc, 'stats_table.tab'), sep='\t')
 
-    # with open(os.path.join(output_loc, 'stats_table.readme'), 'w') as readme:
-    #     for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'mz_tolerance', 'min_msms_score', 'min_num_frag_matches']:
-    #         readme.write('%s\n'%var)
-    #         pprint.pprint(eval(var), readme)
-    #         readme.write('\n')
+    with open(os.path.join(output_loc, 'stats_table.readme'), 'w') as readme:
+        for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'mz_tolerance', 'min_msms_score', 'min_num_frag_matches']:
+            readme.write('%s\n'%var)
+            try:
+                if np.isinf(eval(var)):
+                    pprint.pprint('default', readme)
+                else:
+                    pprint.pprint(eval(var), readme)
+            except TypeError:
+                pprint.pprint(eval(var), readme)
+            readme.write('\n')
 
     if return_all:
         return stats_table, dfs, passing
