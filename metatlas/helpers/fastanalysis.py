@@ -27,11 +27,19 @@ strict_param = {'min_intensity': 1e5,
 def make_stats_table(input_fname = '', input_dataset = [],
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
                      output_loc = None,
-                     min_peak_height = 0, rt_tolerance = np.inf, mz_tolerance = np.inf,
-                     min_msms_score = 0, min_num_frag_matches = 0,
-                     allow_no_msms = False, min_relative_frag_intensity = None,
-                     use_labels = False, return_all=False,
-                     msms_refs_loc='/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs.tab'):
+                     min_peak_height=0, rt_tolerance=np.inf, mz_tolerance=np.inf,
+                     min_msms_score=0, min_num_frag_matches=0,
+                     allow_no_msms=False, min_relative_frag_intensity=None,
+                     use_labels=False, return_all=False,
+                     msms_refs_loc='/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs.tab',
+                     dependencies = {'peak_height': [],
+                                     'peak_area': ['peak_height'],
+                                     'rt_peak': ['peak_height', 'rt_delta'],
+                                     'rt_delta': ['peak_height'],
+                                     'mz_centroid': ['peak_height', 'mz_ppm'],
+                                     'mz_ppm': ['peak_height'],
+                                     'msms_score': ['peak_height', 'num_frag_matches'],
+                                     'num_frag_matches': ['peak_height', 'msms_score']}):
 
     assert output_loc is not None or return_all
 
@@ -72,18 +80,8 @@ def make_stats_table(input_fname = '', input_dataset = [],
     dfs = {m:None for m in metrics}
     passing = {m:np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
 
-    dependencies = {'peak_height': [],
-                    'peak_area': ['peak_height'],
-                    'rt_peak': ['peak_height', 'rt_delta'],
-                    'rt_delta': ['peak_height'],
-                    'mz_centroid': ['peak_height', 'mz_ppm'],
-                    'mz_ppm': ['peak_height'],
-                    'msms_score': ['peak_height', 'num_frag_matches'],
-                    'num_frag_matches': ['peak_height', 'msms_score']}
-
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
         dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels)
-        dfs[metric].columns = dfs[metric].columns.get_level_values(1)
 
     dfs['mz_ppm'] = dfs['peak_height'].copy()
     dfs['mz_ppm'] *= np.nan
@@ -135,8 +133,8 @@ def make_stats_table(input_fname = '', input_dataset = [],
                         best_msms_score = msms_score
                         most_num_matches = num_matches
 
-            dfs['msms_score'].iloc[compound_idx][file_name] = best_msms_score
-            dfs['num_frag_matches'].iloc[compound_idx][file_name] = most_num_matches
+            dfs['msms_score'].iat[compound_idx, file_idx] = best_msms_score
+            dfs['num_frag_matches'].iat[compound_idx, file_idx] = most_num_matches
 
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
