@@ -1702,7 +1702,74 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         transform=ax.transAxes)
 
 
-def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatlas/projects/sharepoint/frag_refs.json',
+def get_msms_hits(metatlas_dataset, use_labels=False, query=('database == "metatlas"'), **kwargs):
+
+    resolve_by = kwargs.pop('resolve_by', 'shape')
+    frag_mz_tolerance = kwargs.pop('frag_mz_tolerance', .005)
+
+    # Reference parameters
+    ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs.tab')
+    ref_dtypes = kwargs.pop('ref_dtypes', {'database':str, 'id':str, 'name':str,
+                                           'spectrum':object,'decimal':float, 'precursor_mz':float,
+                                           'polarity':str, 'adduct':str, 'fragmentation_method':str,
+                                           'collision_energy':str, 'instrument':str, 'instrument_type':str,
+                                           'formula':str, 'exact_mass':float,
+                                           'inchi_key':str, 'inchi':str, 'smiles':str})
+
+    ref_index = kwargs.pop('ref_index', ['database', 'inchi_key', 'polarity', 'id'])
+
+    if 'ref_df' in kwargs:
+        ref_df = kwargs.pop('ref_df')
+    else:
+        ref_df = pd.read_csv(ref_loc,
+                             sep='\t',
+                             dtype=ref_dtypes
+                            ).set_index(ref_index)
+
+    ref_df = ref_df.query(query, local_dict=dict(locals(), **kwargs))
+
+    if ref_df['spectrum'].apply(type).eq(str).all():
+        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s)).apply(np.array)
+
+
+    file_names = ma_data.get_file_names(metatlas_dataset)
+    compound_names = ma_data.get_compound_names(metatlas_dataset,use_labels=True)[0]
+
+    msms_hits = []
+
+    for compound_idx,compound_name in enumerate(compound_names):
+        inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+
+        compound_hits = []
+
+        for file_idx,file_name in enumerate(file_names):
+
+            polarity = metatlas_dataset[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity
+
+            rt_mz_i_df = pd.DataFrame({k:metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'][k]
+                                      for k in ('rt', 'mz', 'i', 'precursor_MZ')}).sort_values(['rt', 'mz'])
+
+            for rt in rt_mz_i_df.rt.unique():
+                msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
+
+                msv_sample = msv_sample[:,msv_sample[0] < rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0] + 2.5]
+
+                scan_df = sp.search_ms_refs(msv_sample, ref_df=ref_df,
+                                            query='("%s" == inchi_key) and ("%s" == polarity)'%(inchi_key,polarity))
+
+                if len(scan_df) > 0:
+                    scan_df['file_name'] = file_name
+                    scan_df['msms_scan'] = rt
+
+                    scan_df.set_index('file_name', append=True, inplace=True)
+                    scan_df.set_index('msms_scan', append=True, inplace=True)
+
+                    msms_hits.append(scan_df)
+
+    return pd.concat(msms_hits)
+
+
+def make_identification_figure_v2(
     input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [],
     exclude_groups = [], output_loc = [],use_labels=False,intensity_sorted_matches=False):
     #empty can look like this:
@@ -1717,7 +1784,6 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
     else:
         data = input_dataset
 
-
     #Filter runs from the metatlas dataset
     if include_lcmsruns:
         data = filter_lcmsruns_in_dataset_by_include_list(data, 'lcmsrun', include_lcmsruns)
@@ -1728,43 +1794,45 @@ def make_identification_figure_v2(frag_refs_json = '/project/projectdirs/metatla
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_lcmsruns)
     if exclude_groups:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
+
+    msms_hits_df = get_msms_hits(data, use_labels)
+    msms_hits_df.reset_index(inplace = True)
+    msms_hits_df.sort_values('score', ascending=False, inplace=True)
+    msms_hits_df.drop_duplicates(['inchi_key', 'file_name'], keep='first', inplace=True)
+    msms_hits_df = msms_hits_df.groupby(['inchi_key']).head(5).sort_values(['inchi_key'], kind='mergesort')
+
     #Obtain compound and file names
     compound_names = ma_data.get_compound_names(data,use_labels)[0]
     file_names = ma_data.get_file_names(data)
 
-    #Obtain fragmentation references
-    frag_refs = pd.read_json(frag_refs_json)
     #Turn off interactive plotting
     plt.ioff()
     #Iterate over compounds
     for compound_idx in range(len(compound_names)):
-        file_idxs, ref_idxs, scores = [], [], []
-        msv_sample_list, msv_ref_list = [], []
-        rt_list = []
+        inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
+        comp_msms_hits = msms_hits_df[msms_hits_df['inchi_key'] == inchi_key]
+
+        file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
 
         #Find 5 best file and reference pairs by score
-        if any([data[i][compound_idx]['identification'].compound for i in range(len(file_names))]):
-            top_five = top_five_scoring_files(data, frag_refs, compound_idx, 'inchi_key and rt and polarity')
-            if top_five:
-                file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list, rt_list = top_five
-            #Find best file by prescursor intensity
-            else:
-                file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
-                if file_idx:
-                    file_idxs.append(file_idx)
-                    msv_sample_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
-                    msv_ref_list.append(np.full_like(msv_sample_list[-1], np.nan))
-                    scores.append(0)
+        if len(comp_msms_hits) > 0:
+            file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
+            scores = comp_msms_hits['score'].values.tolist()
+            msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
+            msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
+            rt_list = comp_msms_hits['msms_scan'].values.tolist()
 
-        #Find best file by prescursor intensity
         else:
             file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
-            if file_idx is not None:
-                file_idxs.append(file_idx)
-                msv_sample_list.append(np.array([np.array(data[file_idx][compound_idx]['data']['msms']['data']['mz']), np.array(data[file_idx][compound_idx]['data']['msms']['data']['i'])]))
-                msv_ref_list.append(np.full_like(msv_sample_list[-1], np.nan))
-                scores.append(0)
+            if file_idx:
+                precursor_intensity = data[file_idx][compound_idx]['data']['msms']['data']['precursor_intensity']
+                idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
 
+                file_idxs = [file_idx]
+                msv_sample_list = [np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max],
+                                             data[file_idx][compound_idx]['data']['msms']['data']['i'][idx_max]])]
+                msv_ref_list = [np.full_like(msv_sample_list[-1], np.nan)]
+                scores = [0]
 
         #Plot if compound yields any scores
         if file_idxs:
