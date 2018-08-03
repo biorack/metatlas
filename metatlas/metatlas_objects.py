@@ -30,7 +30,7 @@ from .object_helpers import (
 # Whether to fetch stubs automatically, disabled when we want to display
 # a large number of objects.
 FETCH_STUBS = True
-
+ADDUCTS = ('[M]','[M+H]','[M+2H]','[M+NH4]','[M+Na]','[M+H-H2O]','[M-H]','[M-2H]','[M+Cl]','[2M+H]','[2M-H]','[M-H+Na]','[M+K]','[M+2Na]','[M-e]','[M+acetate]','[M-H+Cl]','[M-H+2Na]')
 POLARITY = ('positive', 'negative', 'alternating')
 FRAGMENTATION_TECHNIQUE = ('hcd','cid','etd','ecd','irmpd')
 
@@ -539,7 +539,8 @@ class MzReference(Reference):
     mz_tolerance = MetFloat()
     mz_tolerance_units = MetEnum(('ppm', 'Da'), 'ppm')
     detected_polarity = MetEnum(POLARITY, 'positive')
-    adduct = MetUnicode(help='Optional adduct')
+    adduct = MetEnum(ADDUCTS,'',help='Adduct')
+    #add when needed: charge = MetFloat(help='the charge on the m/z feature')
     modification = MetUnicode(help='Optional modification')
     observed_formula = MetUnicode(help='Optional observed formula')
 
