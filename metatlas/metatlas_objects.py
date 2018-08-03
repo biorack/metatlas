@@ -514,6 +514,7 @@ class FragmentationReference(Reference):
     #A Fragmentation Tree will be added as a datatype when MS^n is deposited
     polarity = MetEnum(POLARITY, 'positive')
     precursor_mz = MetFloat()
+    isolation_window = MetFloat(help='width of the isolation window in Daltons')
     collision_energy = MetUnicode()#MetFloat()
     technique = MetEnum(FRAGMENTATION_TECHNIQUE,'cid')
     mz_intensities = MetList(MetInstance(MzIntensityPair),
