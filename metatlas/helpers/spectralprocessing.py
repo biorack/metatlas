@@ -444,16 +444,16 @@ def pairwise_align_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
 def peakdet(v, delta, x = None):
     """
     Converted from MATLAB script at http://billauer.co.il/peakdet.html
-    
+
     Returns two arrays
-    
+
     function [maxtab, mintab]=peakdet(v, delta, x)
     %PEAKDET Detect peaks in a vector
     %        [MAXTAB, MINTAB] = PEAKDET(V, DELTA) finds the local
     %        maxima and minima ("peaks") in the vector V.
     %        MAXTAB and MINTAB consists of two columns. Column 1
     %        contains indices in V, and column 2 the found values.
-    %      
+    %
     %        With [MAXTAB, MINTAB] = PEAKDET(V, DELTA, X) the indices
     %        in MAXTAB and MINTAB are replaced with the corresponding
     %        X-values.
@@ -461,33 +461,33 @@ def peakdet(v, delta, x = None):
     %        A point is considered a maximum peak if it has the maximal
     %        value, and was preceded (to the left) by a value lower by
     %        DELTA.
-    
+
     % Eli Billauer, 3.4.05 (Explicitly not copyrighted).
     % This function is released to the public domain; Any use is allowed.
-    
+
     """
     maxtab = []
     mintab = []
-       
+
     if x is None:
         x = np.arange(len(v))
-    
+
     v = np.asarray(v)
-    
+
     if len(v) != len(x):
         sys.exit('Input vectors v and x must have same length')
-    
+
     if not np.isscalar(delta):
         sys.exit('Input argument delta must be a scalar')
-    
+
     if delta <= 0:
         sys.exit('Input argument delta must be positive')
-    
+
     mn, mx = np.Inf, -np.Inf
     mnpos, mxpos = np.NaN, np.NaN
-    
+
     lookformax = True
-    
+
     for i in np.arange(len(v)):
         this = v[i]
         if this > mx:
@@ -496,7 +496,7 @@ def peakdet(v, delta, x = None):
         if this < mn:
             mn = this
             mnpos = x[i]
-        
+
         if lookformax:
             if this < mx-delta:
                 maxtab.append((mxpos, mx))
@@ -1055,7 +1055,9 @@ def search_ms_refs(msv_query, **kwargs):
     ref_df = ref_df.query(query, local_dict=dict(locals(), **kwargs))
 
     if ref_df['spectrum'].apply(type).eq(str).all():
-        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s))
+        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s)).apply(np.array)
+        for _, row in ref_df.iterrows():
+            row['spectrum'] = row['spectrum'][:, row['spectrum'][0] < row['precursor_mz'] + 2.5]
 
     # Define function to score msv_qury against msv's in reference dataframe
     def score_and_num_matches(msv_ref):

@@ -61,6 +61,8 @@ def find_spectral_hits(mzml_loc, tab_loc=None, force=False, **kwargs):
                              for ms_type, df in mzml_dfs.items()
                              if ms_type in ms_types
                              and isinstance(df, pd.DataFrame)], axis=1)
+        mzml_df = mzml_df[mzml_df['mz'] < mzml_df['precursor_mz'] + 2.5]
+
     except ValueError:
         sys.stderr.write('error: ' + mzml_loc + ' not convertable to dataframe\n')
         sys.exit(1)
@@ -71,22 +73,28 @@ def find_spectral_hits(mzml_loc, tab_loc=None, force=False, **kwargs):
 
     data_df['spectrum'] = map(lambda s: np.array(list(s)), zip(mzml_rt_group['mz'].apply(list),
                                                                mzml_rt_group['i'].apply(list)))
+
+
     data_df.set_index(['rt'], inplace=True)
 
     spectral_hits_dfs = []
 
-    for rt, scan in data_df.iterrows():
+    for rt, row in data_df.iterrows():
 
-        hit_df = sp.search_ms_refs(scan['spectrum'],
-                                   ref_df=ref_df,
-                                   **dict(scan.to_dict(),
-                                          **kwargs))
+        try:
+            hit_df = sp.search_ms_refs(row['spectrum'],
+                                       ref_df=ref_df,
+                                       **dict(row.to_dict(),
+                                              **kwargs))
+        except:
+            sys.stderr.write('error on: \n' + repr(row))
+            sys.exit(1)
 
         if len(hit_df.index) > 0:
             hit_df['rt'] = rt
-            hit_df['polarity'] = scan['polarity']
-            hit_df['precursor_mz'] = scan['precursor_mz']
-            hit_df['precursor_intensity'] = scan['precursor_intensity']
+            hit_df['polarity'] = row['polarity']
+            hit_df['precursor_mz'] = row['precursor_mz']
+            hit_df['precursor_intensity'] = row['precursor_intensity']
 
             spectral_hits_dfs.append(hit_df)
 
@@ -153,12 +161,12 @@ def generate_worklist(worklist_loc, mzml_dir, tab_dir=None, force=False):
                 if force:
                     worklist.append(os.path.realpath(__file__) +
                                     ' -f -m \"' + os.path.join(root, filename) +
-                                    '\" \"' + out_file + '\"')
+                                    '\" -l \"' + out_file + '\"')
 
                 elif not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
                     worklist.append(os.path.realpath(__file__) +
                                     ' -m \"' + os.path.join(root, filename) +
-                                    '\" \"' + out_file + '\"')
+                                    '\" -l \"' + out_file + '\"')
 
     with open(worklist_loc, 'w') as worklist_file:
         worklist_file.write('\n'.join(worklist))
