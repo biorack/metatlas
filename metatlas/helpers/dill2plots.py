@@ -2405,9 +2405,9 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                 #    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_mz[x],username = '*')[0]
                 #    mzRef.lcms_run = f
                 if 'adduct' in row:
-                    if ~ps.isnull(row.adduct):
+                    if ~pd.isnull(row.adduct):
                         mzRef.adduct = row.adduct
-                    
+
                 myID.mz_references = [mzRef]
 
                 rtRef = metob.RtReference()
