@@ -48,7 +48,7 @@ export HDF5_USE_FILE_LOCKING=FALSE
 # cori specific tells it to not allocate memory on a per thread basis
 export MALLOC_ARENA_MAX=1
 
-module load java
+#module load java
 
 # echo every command and terminate script if there is an error
 set -ex
@@ -442,6 +442,7 @@ def create_job_script(m):
         if not m['small_mzmine_done']:
             fid.write('%s\n'%job_cmd_filtered)
         # fid.write('%s\n'%second_python_string)
+        
 
     bad_words = ['qos', '-p','-C','-L','-t','-N']
     bad_time = '#SBATCH -t 24:00:00'

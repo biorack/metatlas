@@ -30,7 +30,7 @@ from .object_helpers import (
 # Whether to fetch stubs automatically, disabled when we want to display
 # a large number of objects.
 FETCH_STUBS = True
-
+ADDUCTS = ('','[M]+','[M+H]+','[M+2H]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M-H+Cl]2-','[M-H+2Na]+')
 POLARITY = ('positive', 'negative', 'alternating')
 FRAGMENTATION_TECHNIQUE = ('hcd','cid','etd','ecd','irmpd')
 
@@ -514,7 +514,9 @@ class FragmentationReference(Reference):
     #A Fragmentation Tree will be added as a datatype when MS^n is deposited
     polarity = MetEnum(POLARITY, 'positive')
     precursor_mz = MetFloat()
-    collision_energy = MetFloat()
+    isolation_window = MetFloat(-1.0,help='width of the isolation window in Daltons')
+    collision_energy = MetUnicode()#MetFloat()
+    # adduct = MetEnum(ADDUCTS,'',help='Adduct')
     technique = MetEnum(FRAGMENTATION_TECHNIQUE,'cid')
     mz_intensities = MetList(MetInstance(MzIntensityPair),
                           help='list of [mz, intesity] tuples that describe ' +
@@ -538,7 +540,8 @@ class MzReference(Reference):
     mz_tolerance = MetFloat()
     mz_tolerance_units = MetEnum(('ppm', 'Da'), 'ppm')
     detected_polarity = MetEnum(POLARITY, 'positive')
-    adduct = MetUnicode(help='Optional adduct')
+    adduct = MetEnum(ADDUCTS,'',help='Adduct')
+    #add when needed: charge = MetFloat(help='the charge on the m/z feature')
     modification = MetUnicode(help='Optional modification')
     observed_formula = MetUnicode(help='Optional observed formula')
 

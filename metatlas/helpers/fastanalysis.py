@@ -198,14 +198,14 @@ def make_scores_df(metatlas_dataset):
             try:
                 assert(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height'] > 0)
                 intensities.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height'])
-            except AssertionError:
+            except:# AssertionError:
                 pass
 
             try:
                 assert(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['num_ms1_datapoints'] > 0)
                 rt_shifts.append(abs(compound_ref_rt_peak - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_centroid']))
                 mz_ppms.append(1e6*(abs(compound_ref_mz - metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']) / compound_ref_mz))
-            except AssertionError:
+            except:# AssertionError:
                 pass
 
         row = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key)]

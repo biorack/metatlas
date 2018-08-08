@@ -2406,7 +2406,10 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                 #if 'file_mz' in df.keys():
                 #    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_mz[x],username = '*')[0]
                 #    mzRef.lcms_run = f
-                #     mzRef.adduct = '[M-H]'
+                if 'adduct' in row:
+                    if ~ps.isnull(row.adduct):
+                        mzRef.adduct = row.adduct
+                    
                 myID.mz_references = [mzRef]
 
                 rtRef = metob.RtReference()
