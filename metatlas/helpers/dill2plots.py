@@ -1809,13 +1809,15 @@ def make_identification_figure_v2(
     plt.ioff()
     #Iterate over compounds
     for compound_idx in range(len(compound_names)):
-        inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
-        comp_msms_hits = msms_hits_df[msms_hits_df['inchi_key'] == inchi_key]
-
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
 
         #Find 5 best file and reference pairs by score
-        if len(comp_msms_hits) > 0:
+        if len(data[0][compound_idx]['identification'].compound) > 0 and \
+           sum(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) > 0:
+
+            inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
+            comp_msms_hits = msms_hits_df[msms_hits_df['inchi_key'] == inchi_key]
+
             file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
             scores = comp_msms_hits['score'].values.tolist()
             msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
