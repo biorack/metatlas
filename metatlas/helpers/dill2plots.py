@@ -1738,6 +1738,10 @@ def get_msms_hits(metatlas_dataset, use_labels=False, query=('database == "metat
     msms_hits = []
 
     for compound_idx,compound_name in enumerate(compound_names):
+        if len(metatlas_dataset[0][compound_idx]['identification'].compound) == 0:
+            # exit here if there isn't a compound in the identification
+            continue
+
         inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
 
         compound_hits = []
