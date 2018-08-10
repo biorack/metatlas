@@ -1769,8 +1769,10 @@ def get_msms_hits(metatlas_dataset, use_labels=False, query=('database == "metat
                     scan_df.set_index('msms_scan', append=True, inplace=True)
 
                     msms_hits.append(scan_df)
-
-    return pd.concat(msms_hits)
+    if len(msms_hits)>0:
+        return pd.concat(msms_hits)
+    else:
+        return None
 
 
 def make_identification_figure_v2(
@@ -1800,10 +1802,11 @@ def make_identification_figure_v2(
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
 
     msms_hits_df = get_msms_hits(data, use_labels)
-    msms_hits_df.reset_index(inplace = True)
-    msms_hits_df.sort_values('score', ascending=False, inplace=True)
-    msms_hits_df.drop_duplicates(['inchi_key', 'file_name'], keep='first', inplace=True)
-    msms_hits_df = msms_hits_df.groupby(['inchi_key']).head(5).sort_values(['inchi_key'], kind='mergesort')
+    if msms_hits_df is not None:
+        msms_hits_df.reset_index(inplace = True)
+        msms_hits_df.sort_values('score', ascending=False, inplace=True)
+        msms_hits_df.drop_duplicates(['inchi_key', 'file_name'], keep='first', inplace=True)
+        msms_hits_df = msms_hits_df.groupby(['inchi_key']).head(5).sort_values(['inchi_key'], kind='mergesort')
 
     #Obtain compound and file names
     compound_names = ma_data.get_compound_names(data,use_labels)[0]
