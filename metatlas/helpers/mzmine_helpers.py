@@ -94,7 +94,7 @@ def make_figures_from_filtered_data(params,all_files,my_atlas):
     dp.make_identification_figure_v2(input_dataset = metatlas_dataset, input_fname = '', include_lcmsruns = [],exclude_lcmsruns = params['blank_str'].append('QC'), output_loc=os.path.join(output_dir,'identification'))
     print('$$$$ Done Making FIGURES')
 
-def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000):
+def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000,do_test=False):
     """
     This is a command line function that runs after the first feature finding is complete.
     After mzmine runs, make an atlas, get data, and filter
@@ -133,6 +133,10 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000):
                                                                                 remove_fragments=False,
                                                                                 remove_adducts=False,
                                                                                 remove_clusters=False,)
+        if do_test == True:
+            #if only a test, just do a couple of features
+            df = df.head(10)
+            
         df.to_csv(file_to_convert.replace('.csv','') + '_formatted.csv',index=True) #save a simplified mzmine-like csv as a backup of all features found.
         
         #Filter features found in the blank
