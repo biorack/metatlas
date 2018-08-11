@@ -2394,6 +2394,13 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                     # no internal standard information was provided
                     pass
 
+                try:
+                    myID.identification_notes = row.identification_notes
+                except:
+                    # no identification_notes were provided
+                    pass
+                
+
 
                 mzRef = metob.MzReference()
                 # take the mz value from the spreadsheet
