@@ -30,7 +30,7 @@ from .object_helpers import (
 # Whether to fetch stubs automatically, disabled when we want to display
 # a large number of objects.
 FETCH_STUBS = True
-ADDUCTS = ('','[M]+','[M+H]+','[M+2H]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M-H+Cl]2-','[M-H+2Na]+')
+ADDUCTS = ('','[M]+','[M+H]+','[M+2H]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-H+Cl]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M-H+Cl]2-','[M-H+2Na]+')
 POLARITY = ('positive', 'negative', 'alternating')
 FRAGMENTATION_TECHNIQUE = ('hcd','cid','etd','ecd','irmpd')
 
@@ -563,6 +563,8 @@ class CompoundIdentification(MetatlasObject):
     identification_grade = _IdGradeTrait(
         help='Identification grade of the id (can be specified by a letter A-H'
     )
+    identification_notes = MetUnicode('',
+                             help='notes about this identifiation')
     mz_references = MetList(MetInstance(MzReference))
     rt_references = MetList(MetInstance(RtReference))
     frag_references = MetList(MetInstance(FragmentationReference))
