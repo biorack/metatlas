@@ -218,12 +218,13 @@ def make_scores_df(metatlas_dataset):
             max_msms_score = row['score'].values[0]
             num_frag_matches = row['num_matches'].values[0]
 
-            msv_sample_matches = sp.partition_aligned_ms_vectors(row['msv_query_aligned'].values[0],
-                                                                 row['msv_ref_aligned'].values[0])[0]
-            msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
-            msv_sample_matches_by_intensity = msv_sample_matches[:, msv_sample_matches[1].argsort()]
+            if num_frag_matches > 1:
+                msv_sample_matches = sp.partition_aligned_ms_vectors(row['msv_query_aligned'].values[0],
+                                                                     row['msv_ref_aligned'].values[0])[0]
+                msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
+                msv_sample_matches_by_intensity = msv_sample_matches[:, msv_sample_matches[1].argsort()]
 
-            max_relative_frag_intensity = msv_sample_matches_by_intensity[1,-2] / msv_sample_matches_by_intensity[1,-1]
+                max_relative_frag_intensity = msv_sample_matches_by_intensity[1,-2] / msv_sample_matches_by_intensity[1,-1]
 
         try:
             max_intensity = np.nanmax(intensities)
