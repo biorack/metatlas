@@ -1635,12 +1635,12 @@ def plot_structure(ax, compound, dimensions):
     ax.axis('off')
 
 
-def plot_ema_compound_info(ax, compound_info):
+def plot_ema_compound_info(ax, compound_info, label=''):
     wrapper = TextWrapper(width=28, break_on_hyphens=True)
 
     if compound_info.compound:
         name = ['Name:', wrapper.fill(compound_info.compound[0].name)]
-        label = ['Label:', '']
+        label = ['Label:', wrapper.fill(label)]
         formula = ['Formula:', compound_info.compound[0].formula]
         polarity = ['Polarity:', compound_info.mz_references[0].detected_polarity]
         neutral_mass = ['Monoisotopic Mass:', compound_info.compound[0].mono_isotopic_molecular_weight]
@@ -1664,8 +1664,8 @@ def plot_ema_compound_info(ax, compound_info):
     ax.axis('off')
 
 
-def plot_eic(ax, data, file_idxs, compound_idx):
-    for file_idx in set(file_idxs):
+def plot_eic(ax, data, compound_idx):
+    for file_idx in range(len(data)):
 
         rt_min = data[file_idx][compound_idx]['identification'].rt_references[0].rt_min
         rt_max = data[file_idx][compound_idx]['identification'].rt_references[0].rt_max
@@ -1675,12 +1675,14 @@ def plot_eic(ax, data, file_idxs, compound_idx):
             x = np.asarray(data[file_idx][compound_idx]['data']['eic']['rt'])
             y = np.asarray(data[file_idx][compound_idx]['data']['eic']['intensity'])
 
-            ax.plot(x, y, 'k-', linewidth=.5, alpha=1.0)
+            ax.plot(x, y, 'k-', linewidth=.1, alpha=min(1, 10*(1./len(data))))
             myWhere = np.logical_and(x>=rt_min, x<=rt_max )
-            ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=0.2)
+            ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=min(1, 2*(1./len(data))))
 
-    ax.tick_params(labelbottom='off')
-    ax.tick_params(labelleft='off')
+    # ax.tick_params(labelbottom='off')
+    ax.xaxis.set_tick_params(labelsize=5)
+    ax.get_yaxis().get_major_formatter().set_useOffset(False)
+    ax.get_yaxis().set_visible(False)
     ax.axvline(rt_min, color='k', linewidth=1.0)
     ax.axvline(rt_max, color='k', linewidth=1.0)
     ax.axvline(rt_peak, color='r', linewidth=1.0)
@@ -1702,21 +1704,23 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         transform=ax.transAxes)
 
 
-def get_msms_hits(metatlas_dataset, use_labels=False, query=('database == "metatlas"'), **kwargs):
+def get_msms_hits(metatlas_dataset, use_labels=False, pre_query=('database == "metatlas"'),
+                  query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
+                  **kwargs):
 
     resolve_by = kwargs.pop('resolve_by', 'shape')
     frag_mz_tolerance = kwargs.pop('frag_mz_tolerance', .005)
 
     # Reference parameters
-    ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs.tab')
+    ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab')
     ref_dtypes = kwargs.pop('ref_dtypes', {'database':str, 'id':str, 'name':str,
-                                           'spectrum':object,'decimal':float, 'precursor_mz':float,
+                                           'spectrum':object,'decimal':int, 'precursor_mz':float,
                                            'polarity':str, 'adduct':str, 'fragmentation_method':str,
                                            'collision_energy':str, 'instrument':str, 'instrument_type':str,
                                            'formula':str, 'exact_mass':float,
                                            'inchi_key':str, 'inchi':str, 'smiles':str})
 
-    ref_index = kwargs.pop('ref_index', ['database', 'inchi_key', 'polarity', 'id'])
+    ref_index = kwargs.pop('ref_index', ['database', 'id'])
 
     if 'ref_df' in kwargs:
         ref_df = kwargs.pop('ref_df')
@@ -1726,14 +1730,13 @@ def get_msms_hits(metatlas_dataset, use_labels=False, query=('database == "metat
                              dtype=ref_dtypes
                             ).set_index(ref_index)
 
-    ref_df = ref_df.query(query, local_dict=dict(locals(), **kwargs))
+    ref_df = ref_df.query(pre_query, local_dict=dict(locals(), **kwargs))
 
     if ref_df['spectrum'].apply(type).eq(str).all():
         ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s)).apply(np.array)
 
-
     file_names = ma_data.get_file_names(metatlas_dataset)
-    compound_names = ma_data.get_compound_names(metatlas_dataset,use_labels=True)[0]
+    compound_names = ma_data.get_compound_names(metatlas_dataset)[0]
 
     msms_hits = []
 
@@ -1743,6 +1746,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, query=('database == "metat
             continue
 
         inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+        pre_mz_ppm = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance
+        precursor_mz = metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid']
 
         compound_hits = []
 
@@ -1758,8 +1763,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, query=('database == "metat
 
                 msv_sample = msv_sample[:,msv_sample[0] < rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0] + 2.5]
 
-                scan_df = sp.search_ms_refs(msv_sample, ref_df=ref_df,
-                                            query='("%s" == inchi_key) and ("%s" == polarity)'%(inchi_key,polarity))
+                scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
 
                 if len(scan_df) > 0:
                     scan_df['file_name'] = file_name
@@ -1769,6 +1773,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, query=('database == "metat
                     scan_df.set_index('msms_scan', append=True, inplace=True)
 
                     msms_hits.append(scan_df)
+
     if len(msms_hits)>0:
         return pd.concat(msms_hits)
     else:
@@ -1801,12 +1806,14 @@ def make_identification_figure_v2(
     if exclude_groups:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
 
-    msms_hits_df = get_msms_hits(data, use_labels)
+    msms_hits_df = get_msms_hits(data, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
+    msms_hits_df.reset_index(['inchi_key', 'precursor_mz'], inplace=True)
+
     if msms_hits_df is not None:
         msms_hits_df.reset_index(inplace = True)
         msms_hits_df.sort_values('score', ascending=False, inplace=True)
-        msms_hits_df.drop_duplicates(['inchi_key', 'file_name'], keep='first', inplace=True)
-        msms_hits_df = msms_hits_df.groupby(['inchi_key']).head(5).sort_values(['inchi_key'], kind='mergesort')
+        # msms_hits_df.drop_duplicates(['inchi_key', 'file_name'], keep='first', inplace=True)
+        # msms_hits_df = msms_hits_df.groupby(['inchi_key']).head(5).sort_values(['inchi_key'], kind='mergesort')
 
     #Obtain compound and file names
     compound_names = ma_data.get_compound_names(data,use_labels)[0]
@@ -1819,11 +1826,14 @@ def make_identification_figure_v2(
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
 
         #Find 5 best file and reference pairs by score
-        if len(data[0][compound_idx]['identification'].compound) > 0 and \
-           sum(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) > 0:
+        try:
+            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) \
+                                          & (np.isclose(msms_hits_df['precursor_mz'].values.astype(float), data[0][compound_idx]['data']['ms1_summary']['mz_centroid'],
+                                             atol=0, rtol=data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6))].drop_duplicates('file_name').head(5)
+
+            assert len(comp_msms_hits) > 0
 
             inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
-            comp_msms_hits = msms_hits_df[msms_hits_df['inchi_key'] == inchi_key]
 
             file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
             scores = comp_msms_hits['score'].values.tolist()
@@ -1831,9 +1841,10 @@ def make_identification_figure_v2(
             msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
             rt_list = comp_msms_hits['msms_scan'].values.tolist()
 
-        else:
+        except (IndexError, AssertionError) as e:
+
             file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
-            if file_idx:
+            if file_idx is not None:
                 precursor_intensity = data[file_idx][compound_idx]['data']['msms']['data']['precursor_intensity']
                 idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
 
@@ -1842,9 +1853,28 @@ def make_identification_figure_v2(
                                              data[file_idx][compound_idx]['data']['msms']['data']['i'][idx_max]])]
                 msv_ref_list = [np.full_like(msv_sample_list[-1], np.nan)]
                 scores = [0]
+            else:
+                file_idx = None
+                max_intensity = 0
+
+                for fi in range(len(data)):
+                    try:
+                        temp = max(data[fi][compound_idx]['data']['eic']['intensity'])
+                        if temp > max_intensity:
+                            file_idx = fi
+                            max_intensity = temp
+                    except ValueError:
+                        continue
+
+                file_idxs = [file_idx]
+                msv_sample_list = [np.array([0, np.nan]).T]
+                msv_ref_list = [np.array([0, np.nan]).T]
+                scores = [np.nan]
+
+
 
         #Plot if compound yields any scores
-        if file_idxs:
+        if file_idxs and file_idxs[0] is not None:
             #Top 5 MSMS Spectra
             ax1 = plt.subplot2grid((24, 24), (0, 0), rowspan=12, colspan=12)
             ax2a = plt.subplot2grid((24, 24), (0, 12), rowspan=3, colspan=3)
@@ -1871,7 +1901,8 @@ def make_identification_figure_v2(
 
             #EMA Compound Info
             ax3 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
-            plot_ema_compound_info(ax3, data[file_idxs[0]][compound_idx]['identification'])
+            plot_ema_compound_info(ax3, data[file_idxs[0]][compound_idx]['identification'])#,
+                                   # ma_data.get_compound_names(data,use_labels=True)[0][compound_idx])
 
 
             #Next Best Scores and Filenames
@@ -1894,7 +1925,7 @@ def make_identification_figure_v2(
 
             #EIC
             ax6 = plt.subplot2grid((24, 24), (6, 16), rowspan=6, colspan=6)
-            plot_eic(ax6, data, file_idxs, compound_idx)
+            plot_eic(ax6, data, compound_idx)
 
 #             #Reference and Sample Info
 #             ax10 = plt.subplot2grid((24, 24), (14, 6), rowspan=10, colspan=20)
@@ -2227,6 +2258,8 @@ def make_groups_from_fileinfo_sheet(filename,filetype='tab',store=False):
         df = pd.read_csv(filename,sep='\t')
     elif filetype == 'csv':
         df = pd.read_csv(filename,sep=',')
+    elif filetype == 'df':
+        df = filename
     else:
         df = pd.read_excel(filename)
     grouped = df.groupby(by='group')
@@ -2399,7 +2432,7 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                 except:
                     # no identification_notes were provided
                     pass
-                
+
 
 
                 mzRef = metob.MzReference()
