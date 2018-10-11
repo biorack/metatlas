@@ -416,7 +416,7 @@ class adjust_rt_for_selected_compound(object):
 
         self.peak_flag_ax = plt.axes([0.8, 0.75, 0.1, 0.15])#, axisbg=axcolor)
         self.peak_flag_ax.axis('off')
-        peak_flags = ('keep', 'remove', 'check')
+        peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape')
         my_id = metob.retrieve('CompoundIdentification',
                                unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
         if my_id.description in peak_flags:
@@ -479,7 +479,7 @@ class adjust_rt_for_selected_compound(object):
     def update_rt(self,val):
         self.my_rt.rt_min = self.rt_min_slider.val
         self.my_rt.rt_max = self.rt_max_slider.val
-        self.my_rt.rt_peak = self.rt_peak_slider.val
+        #self.my_rt.rt_peak = self.rt_peak_slider.val
 
         self.rt_min_slider.valinit = self.my_rt.rt_min
         self.rt_max_slider.valinit = self.my_rt.rt_max
@@ -1807,9 +1807,9 @@ def make_identification_figure_v2(
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
 
     msms_hits_df = get_msms_hits(data, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
-    msms_hits_df.reset_index(['inchi_key', 'precursor_mz'], inplace=True)
 
     if msms_hits_df is not None:
+        msms_hits_df.reset_index(['inchi_key', 'precursor_mz'], inplace=True)
         msms_hits_df.reset_index(inplace = True)
         msms_hits_df.sort_values('score', ascending=False, inplace=True)
         # msms_hits_df.drop_duplicates(['inchi_key', 'file_name'], keep='first', inplace=True)
@@ -1841,7 +1841,7 @@ def make_identification_figure_v2(
             msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
             rt_list = comp_msms_hits['msms_scan'].values.tolist()
 
-        except (IndexError, AssertionError) as e:
+        except:# (IndexError, AssertionError) as e:
 
             file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
             if file_idx is not None:
@@ -2125,11 +2125,13 @@ def export_atlas_to_spreadsheet(myAtlas, output_filename='', input_type = 'atlas
                 if g:
                     atlas_export.loc[i,c] = g
         atlas_export.loc[i, 'label'] = my_id.name
+        atlas_export.loc[i, 'id_notes'] = my_id.description
         atlas_export.loc[i,'rt_min'] = my_id.rt_references[0].rt_min
         atlas_export.loc[i,'rt_max'] = my_id.rt_references[0].rt_max
         atlas_export.loc[i,'rt_peak'] = my_id.rt_references[0].rt_peak
         atlas_export.loc[i,'mz'] = my_id.mz_references[0].mz
         atlas_export.loc[i,'mz_tolerance'] = my_id.mz_references[0].mz_tolerance
+        atlas_export.loc[i,'adduct'] = my_id.mz_references[0].adduct
         atlas_export.loc[i,'polarity'] = my_id.mz_references[0].detected_polarity
         if my_id.frag_references:
             atlas_export.loc[i,'has_fragmentation_reference'] = True
