@@ -53,15 +53,14 @@ def make_edges(mz_vec,label_vec,delta_mass,tolerance=5,edge_label=''):
     # df is a typical table with mz and label values
     # it should have "polarity",""
     df['label'] = df.apply(make_feature_label,axis=1)
-    edge_count = []
+    all_edges = []
     for i in range(10): #do the top 10 mass differences
         e = make_edges(df['mz'].values,
                    df['label'].values,
                    mass_differences.loc[i,'mass'],
                   tolerance=3,
                    edge_label=mass_differences.loc[i,'formula'])
-    edge_count.append({'edge_index':i,'edge_count':len(e)})
-    print(i,len(e))
+        all_edges.extend(e)
     """
     
     mz_vec = np.asarray(mz_vec)
