@@ -19,7 +19,7 @@ mass_differences = pd.DataFrame([{"formula":"Same","mass":0.0,"rank":0},{"formul
 
 def make_feature_label(row,polarity_attr='polarity',mz_attr='mz',rt_attr='rt_peak'):
     """
-    For consistency these are my prefered way to do this:
+    For consistency these are my preferred way to do this:
     * polarity: a "+" or "-" sign
     * mz: float (typically mz_centroid)
     * rt: float (typically rt_peak)
@@ -32,7 +32,7 @@ def make_feature_label(row,polarity_attr='polarity',mz_attr='mz',rt_attr='rt_pea
 
 def make_edges(mz_vec,label_vec,delta_mass,tolerance=5,edge_label=''):
     """
-    either add to or initialize an edge list given a dataframe with the columns:
+    Create an edge list based on chemical differences.
 
     Inputs:
     * mz_vec is a list or array of m/z values
