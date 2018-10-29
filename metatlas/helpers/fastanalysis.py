@@ -197,9 +197,12 @@ def make_scores_df(metatlas_dataset):
         compound_ref_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
         inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
 
-        comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key) \
-                                      & (np.isclose(msms_hits_df['precursor_mz'].values.astype(float), metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid'],
-                                         atol=0, rtol=metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6))]
+        if len(msms_hits_df) == 0:
+            comp_msms_hits = msms_hits_df
+        else:
+            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key) \
+                                          & (np.isclose(msms_hits_df['precursor_mz'].values.astype(float), metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid'],
+                                             atol=0, rtol=metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6))]
 
         for file_idx in range(len(file_names)):
             try:
