@@ -7,10 +7,131 @@ import pickle
 import numpy as np
 import numpy.fft.fftpack as F
 import pandas as pd
+from matplotlib import pyplot as plt
+
+# mass differences ranked by commonality in biochemical databases
+mass_differences = pd.DataFrame([{"formula":"Same","mass":0.0,"rank":0},{"formula":"+O","mass":15.99491500,"rank":1.00000000},{"formula":"+H 2","mass":2.01565000,"rank":2.00000000},{"formula":"+H 2+O","mass":18.01056500,"rank":3.00000000},{"formula":"+H 2+C","mass":14.01565000,"rank":4.00000000},{"formula":"+H 2+C+O","mass":30.01056500,"rank":5.00000000},{"formula":"+H 8+C 5","mass":68.06260000,"rank":6.00000000},{"formula":"+O-H 2","mass":13.97926500,"rank":7.00000000},{"formula":"+H12+C 9-O 6","mass":24.12441000,"rank":8.00000000},{"formula":"+C","mass":12.00000000,"rank":9.00000000},{"formula":"+H10+C 6+O 5","mass":162.05282500,"rank":10.00000000},{"formula":"+C+O","mass":27.99491500,"rank":11.00000000},{"formula":"+O-H 3","mass":12.97144000,"rank":12.00000000},{"formula":"+O-H 2-C","mass":1.97926500,"rank":13.00000000},{"formula":"+O-H","mass":14.98709000,"rank":14.00000000},{"formula":"+O 2","mass":31.98983000,"rank":15.00000000},{"formula":"+H 4+C 2","mass":28.03130000,"rank":16.00000000},{"formula":"+H 8+C 5-O","mass":52.06768500,"rank":17.00000000},{"formula":"+H 4","mass":4.03130000,"rank":18.00000000},{"formula":"+O 2-H 3","mass":28.96635500,"rank":19.00000000},{"formula":"+O 3+P-H","mass":77.95068300,"rank":20.00000000},{"formula":"+H 6+C 5-O","mass":50.05203500,"rank":21.00000000},{"formula":"+H 2+C 2","mass":26.01565000,"rank":22.00000000},{"formula":"+C+O 2-H","mass":42.98200500,"rank":23.00000000},{"formula":"+H 4+C","mass":16.03130000,"rank":24.00000000},{"formula":"+H 2+C 2+O","mass":42.01056500,"rank":25.00000000},{"formula":"+O 2-H","mass":30.98200500,"rank":26.00000000},{"formula":"+H12+C 9-O 5","mass":40.11932500,"rank":27.00000000},{"formula":"+H 4+C 2+O","mass":44.02621500,"rank":28.00000000},{"formula":"+O-C","mass":3.99491500,"rank":29.00000000},{"formula":"+H 4+C 2-O","mass":12.03638500,"rank":30.00000000},{"formula":"+H26+C15+O","mass":222.19836500,"rank":31.00000000},{"formula":"+C 2","mass":24.00000000,"rank":32.00000000},{"formula":"+O 9+P-H13-C 9","mass":53.82627300,"rank":33.00000000},{"formula":"+O 2-H 2","mass":29.97418000,"rank":34.00000000},{"formula":"+H 4+C+O","mass":32.02621500,"rank":35.00000000},{"formula":"+O11-H 2-C 3","mass":137.92841500,"rank":36.00000000},{"formula":"+H","mass":1.00782500,"rank":37.00000000},{"formula":"+O-H 4","mass":11.96361500,"rank":38.00000000},{"formula":"+H 2+C+O 2","mass":46.00548000,"rank":39.00000000},{"formula":"+H16+C10","mass":136.12520000,"rank":40.00000000},{"formula":"+H 4+O","mass":20.02621500,"rank":41.00000000},{"formula":"+H14+C10-O 5","mass":54.13497500,"rank":42.00000000},{"formula":"+C+O-H","mass":26.98709000,"rank":43.00000000},{"formula":"+C-H 2","mass":9.98435000,"rank":44.00000000},{"formula":"+O 5-H 4-C 4","mass":27.94327500,"rank":45.00000000},{"formula":"+H 2+C 2-O","mass":10.02073500,"rank":46.00000000},{"formula":"+H+O","mass":17.00274000,"rank":47.00000000},{"formula":"+H 8+C 5+O","mass":84.05751500,"rank":48.00000000},{"formula":"+H 3","mass":3.02347500,"rank":49.00000000},{"formula":"+H 2+O 2","mass":34.00548000,"rank":50.00000000}])
+
 
 ################################################################################
 #Misc Functions
 ################################################################################
+
+def make_feature_label(row,polarity_attr='polarity',mz_attr='mz',rt_attr='rt_peak'):
+    """
+    For consistency these are my preferred way to do this:
+    * polarity: a "+" or "-" sign
+    * mz: float (typically mz_centroid)
+    * rt: float (typically rt_peak)
+
+    Returns:
+    * string that looks like "+1234.1234@1.23" for 
+    positive mode, m/z=1234.1234, & rt=1.23
+    """
+    return '%s%.4f@%.2f'%(row[polarity_attr],row[mz_attr],row[rt_attr])
+
+def make_edges(mz_vec,label_vec,delta_mass,tolerance=5,edge_label=''):
+    """
+    Create an edge list based on chemical differences.
+
+    Inputs:
+    * mz_vec is a list or array of m/z values
+    * label_vec is a list or array of strings to label nodes
+    * delta mass is a float that is the difference in masses between two features
+    * tolerance is in ppm
+    * edge_label (str) is usually chemical formula and is an attribute of mass differences.
+
+    Outputs:
+    * edge_list: a list of dicts with the keys
+       - source and target identified by the label_vec
+       - edge labeled by "edge_label"
+       - weight: calculated by the 1/num_edges for a particular difference
+    
+    See Also: metatlas.spectralprocessing.make_feature_label() for a consistent way to label features.
+
+    Usage:
+    # df is a typical table with mz and label values
+    # it should have "polarity",""
+    df['label'] = df.apply(make_feature_label,axis=1)
+    all_edges = []
+    for i in range(10): #do the top 10 mass differences
+        e = make_edges(df['mz'].values,
+                   df['label'].values,
+                   mass_differences.loc[i,'mass'],
+                  tolerance=3,
+                   edge_label=mass_differences.loc[i,'formula'])
+        all_edges.extend(e)
+    """
+    
+    mz_vec = np.asarray(mz_vec)
+    label_vec = np.asarray(label_vec)
+    delta_mass = float(delta_mass)
+    tolerance = float(tolerance)
+    
+    m = np.abs(np.abs(mz_vec[:,np.newaxis] - mz_vec) - delta_mass)
+    e = (mz_vec[:,np.newaxis] + mz_vec) * tolerance / 2. / 1000000. 
+    idx = np.argwhere(m<e)
+    idx = idx[idx[:,0]<idx[:,1],:] #keep lower left triangle
+    zipped_lists = zip(label_vec[idx[:,0]],label_vec[idx[:,1]])
+    edge_list = [{'source' : v1, 'target' : v2, 'edge':edge_label} for v1,v2 in zipped_lists]
+    for item in edge_list:
+        item.update({'weight':1.0/float(len(e))})
+    return edge_list
+
+def histogram_edge_frequency(edge_count):
+    """
+    Input:
+    * edge_count: list of dicts generated by metatlas.spectralprocessing.make_edges()
+
+    Output:
+    * fig, ax: a figure and axes handles for the frequency of occurnce of various edges in your network
+    
+    See Also:
+    metatlas.spectralprocessing.make_edges()
+
+    """
+    plt.ioff()
+    ec_df = pd.DataFrame(edge_count)
+    sorted_mass_difference = pd.merge(ec_df,mass_differences,left_on='edge_index',right_index=True).drop(columns=['edge_index']).sort_values('edge_count',ascending=False)
+    sorted_mass_difference.reset_index(inplace=True)
+    fig,ax = plt.subplots(figsize=(14,7))
+    sorted_mass_difference.plot.bar(x='formula',y='edge_count',ax=ax,color='black')
+    ax.set_ylabel('edge count')
+    plt.ion()
+    return fig,ax
+
+def transform_network_type(input_list,output_type=('dataframe','networkx'),do_mst=False):
+    """
+    For a input:
+    * list of dicts with attributes (source,target,edge,weight)
+    Other inputs:
+    * do_mst: if True and output_type is networkx, returns a minimum spanning tree network
+
+    Return:
+    * for output_type='dataframe': a pandas dataframe each row is a connection
+    * for output_type='networkx': a networkx graph with corresponding node and edge attributes
+
+    See Also:
+    * metatlas.spectralprocessing.make_edges()
+    
+    """
+    if output_type=='dataframe':
+        return pd.DataFrame(input_list)
+    elif output_type=='networkx':
+        import networkx as nx
+        G = nx.Graph()
+        for e in input_list:
+            G.add_edge(e['source'],e['target'], weight=e['weight'],difference=e['edge'])
+            if do_mst==True:
+                G = nx.minimum_spanning_tree(G)
+            return G
+
+def write_network_for_cytoscape(G,output_file,edge_label='difference',weight_label='weight'):
+    """
+    Takes in a networkx graph and outputs an edgelist.csv that cytoscape can import
+    """
+    nx.write_edgelist(G, output_file, data=[edge_label,weight_label],delimiter=',')
+
 
 def remove_ms_vector_noise(msv, threshold=1e-3):
     """
