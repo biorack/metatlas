@@ -1043,6 +1043,7 @@ def search_ms_refs(msv_query, **kwargs):
                                            'inchi_key':str, 'inchi':str, 'smiles':str})
     ref_index = kwargs.pop('ref_index', ['database', 'id'])
     query = kwargs.pop('query', 'index == index or index == @pd.NaT')
+    post_query = kwargs.pop('post_query', 'index == index or index == @pd.NaT')
 
     if 'ref_df' in kwargs:
         ref_df = kwargs.pop('ref_df')
@@ -1078,7 +1079,12 @@ def search_ms_refs(msv_query, **kwargs):
                          index=['score', 'num_matches', # 'sensitivity', 'precision',
                                 'msv_query_aligned', 'msv_ref_aligned'])
 
-    return ref_df['spectrum'].apply(score_and_num_matches)
+    score_df = ref_df['spectrum'].apply(score_and_num_matches)
+
+    if len(score_df) > 0:
+        score_df = score_df.query(post_query)
+
+    return score_df
 
 ################################################################################
 #Isotope Distribution Related Functions
