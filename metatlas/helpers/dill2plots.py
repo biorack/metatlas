@@ -1704,12 +1704,17 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         transform=ax.transAxes)
 
 
-def get_msms_hits(metatlas_dataset, use_labels=False, pre_query=('database == "metatlas"'),
+def get_msms_hits(metatlas_dataset, use_labels=False,
+                  pre_query='database == "metatlas"',
+                  # pre_query = 'index == index or index == @pd.NaT',
                   query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
+                  # query='(@inchi_key == inchi_key) and (@polarity == polarity) and (@rt-.1 < rt < @rt+.1)  and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
+                  # ref_loc = '/global/u1/d/dgct/Projects/Anlys/20180502_KBL_C18_PT_SwtPotVeggies/20181008_C18_fl500-npl800-ndl3000/msms_refs.tab'
                   **kwargs):
 
     resolve_by = kwargs.pop('resolve_by', 'shape')
     frag_mz_tolerance = kwargs.pop('frag_mz_tolerance', .005)
+
 
     # Reference parameters
     ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab')
@@ -1777,7 +1782,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, pre_query=('database == "m
     if len(msms_hits)>0:
         return pd.concat(msms_hits)
     else:
-        return None
+        return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches']
+                           ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
 
 def make_identification_figure_v2(
@@ -1841,7 +1847,7 @@ def make_identification_figure_v2(
             msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
             rt_list = comp_msms_hits['msms_scan'].values.tolist()
 
-        except:# (IndexError, AssertionError) as e:
+        except (IndexError, AssertionError, TypeError) as e:
 
             file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
             if file_idx is not None:
