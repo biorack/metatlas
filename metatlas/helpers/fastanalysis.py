@@ -99,11 +99,10 @@ def make_stats_table(input_fname = '', input_dataset = [],
         inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
 
         for file_idx, file_name in enumerate(file_names):
-
             rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) &
                                 (msms_hits_df['file_name'] == file_name) &
-                                (np.isclose(msms_hits_df['precursor_mz'].values.astype(float), metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid'],
-                                 atol=0, rtol=metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6))]
+                                (abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz) \
+                                   <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
 
             if len(rows) == 0:
                 dfs['msms_score'].iat[compound_idx, file_idx] = np.nan
@@ -200,9 +199,9 @@ def make_scores_df(metatlas_dataset):
         if len(msms_hits_df) == 0:
             comp_msms_hits = msms_hits_df
         else:
-            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key) \
-                                          & (np.isclose(msms_hits_df['precursor_mz'].values.astype(float), metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid'],
-                                             atol=0, rtol=metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6))]
+            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) \
+                                          & (abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz) \
+                                             <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
 
         for file_idx in range(len(file_names)):
             try:
