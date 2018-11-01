@@ -199,7 +199,7 @@ def make_scores_df(metatlas_dataset):
         if len(msms_hits_df) == 0:
             comp_msms_hits = msms_hits_df
         else:
-            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) \
+            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key) \
                                           & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz)/metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
 
