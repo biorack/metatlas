@@ -1709,7 +1709,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
                   # pre_query = 'index == index or index == @pd.NaT',
                   query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
                   # query='(@inchi_key == inchi_key) and (@polarity == polarity) and (@rt-.1 < rt < @rt+.1)  and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
-                  # ref_loc = '/global/u1/d/dgct/Projects/Anlys/20180502_KBL_C18_PT_SwtPotVeggies/20181008_C18_fl500-npl800-ndl3000/msms_refs.tab'
+                  # ref_loc = '/global/homes/d/dgct/Projects/Debug/adduct_msms/msms_refs_2.tab'
                   **kwargs):
 
     resolve_by = kwargs.pop('resolve_by', 'shape')
@@ -1834,7 +1834,7 @@ def make_identification_figure_v2(
         #Find 5 best file and reference pairs by score
         try:
             comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) \
-                                          & (abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz) \
+                                          & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz)/data[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)].drop_duplicates('file_name').head(5)
 
             assert len(comp_msms_hits) > 0

@@ -101,7 +101,7 @@ def make_stats_table(input_fname = '', input_dataset = [],
         for file_idx, file_name in enumerate(file_names):
             rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) &
                                 (msms_hits_df['file_name'] == file_name) &
-                                (abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz) \
+                                ((abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz)/data[0][compound_idx]['identification'].mz_references[0].mz) \
                                    <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
 
             if len(rows) == 0:
@@ -200,7 +200,7 @@ def make_scores_df(metatlas_dataset):
             comp_msms_hits = msms_hits_df
         else:
             comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) \
-                                          & (abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz) \
+                                          & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz)/data[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
 
         for file_idx in range(len(file_names)):
