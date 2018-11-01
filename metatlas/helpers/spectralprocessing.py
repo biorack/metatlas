@@ -25,7 +25,7 @@ def make_feature_label(row,polarity_attr='polarity',mz_attr='mz',rt_attr='rt_pea
     * rt: float (typically rt_peak)
 
     Returns:
-    * string that looks like "+1234.1234@1.23" for 
+    * string that looks like "+1234.1234@1.23" for
     positive mode, m/z=1234.1234, & rt=1.23
     """
     return '%s%.4f@%.2f'%(row[polarity_attr],row[mz_attr],row[rt_attr])
@@ -46,7 +46,7 @@ def make_edges(mz_vec,label_vec,delta_mass,tolerance=5,edge_label=''):
        - source and target identified by the label_vec
        - edge labeled by "edge_label"
        - weight: calculated by the 1/num_edges for a particular difference
-    
+
     See Also: metatlas.spectralprocessing.make_feature_label() for a consistent way to label features.
 
     Usage:
@@ -62,14 +62,14 @@ def make_edges(mz_vec,label_vec,delta_mass,tolerance=5,edge_label=''):
                    edge_label=mass_differences.loc[i,'formula'])
         all_edges.extend(e)
     """
-    
+
     mz_vec = np.asarray(mz_vec)
     label_vec = np.asarray(label_vec)
     delta_mass = float(delta_mass)
     tolerance = float(tolerance)
-    
+
     m = np.abs(np.abs(mz_vec[:,np.newaxis] - mz_vec) - delta_mass)
-    e = (mz_vec[:,np.newaxis] + mz_vec) * tolerance / 2. / 1000000. 
+    e = (mz_vec[:,np.newaxis] + mz_vec) * tolerance / 2. / 1000000.
     idx = np.argwhere(m<e)
     idx = idx[idx[:,0]<idx[:,1],:] #keep lower left triangle
     zipped_lists = zip(label_vec[idx[:,0]],label_vec[idx[:,1]])
@@ -85,7 +85,7 @@ def histogram_edge_frequency(edge_count):
 
     Output:
     * fig, ax: a figure and axes handles for the frequency of occurnce of various edges in your network
-    
+
     See Also:
     metatlas.spectralprocessing.make_edges()
 
@@ -113,7 +113,7 @@ def transform_network_type(input_list,output_type=('dataframe','networkx'),do_ms
 
     See Also:
     * metatlas.spectralprocessing.make_edges()
-    
+
     """
     if output_type=='dataframe':
         return pd.DataFrame(input_list)
@@ -1149,6 +1149,7 @@ def search_ms_refs(msv_query, **kwargs):
 
     :return: results_df
     """
+    kwargs = dict(locals(), **kwargs)
 
     # Alignment parameters
     resolve_by = kwargs.pop('resolve_by', 'shape')

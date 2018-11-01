@@ -1709,8 +1709,9 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
                   # pre_query = 'index == index or index == @pd.NaT',
                   query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
                   # query='(@inchi_key == inchi_key) and (@polarity == polarity) and (@rt-.1 < rt < @rt+.1)  and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
-                  # ref_loc = '/global/homes/d/dgct/Projects/Debug/adduct_msms/msms_refs_2.tab'
+                  # ref_loc = '/global/homes/d/dgct/Projects/Debug/adduct_msms/msms_refs_2.tab',
                   **kwargs):
+    kwargs = dict(locals(), **kwargs)
 
     resolve_by = kwargs.pop('resolve_by', 'shape')
     frag_mz_tolerance = kwargs.pop('frag_mz_tolerance', .005)
@@ -1752,7 +1753,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
 
         inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
         pre_mz_ppm = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance
-        precursor_mz = metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid']
+        precursor_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
 
         compound_hits = []
 
@@ -1836,7 +1837,6 @@ def make_identification_figure_v2(
             comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) \
                                           & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz)/data[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)].drop_duplicates('file_name').head(5)
-
             assert len(comp_msms_hits) > 0
 
             inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
