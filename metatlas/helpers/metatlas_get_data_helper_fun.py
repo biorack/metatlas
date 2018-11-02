@@ -188,7 +188,7 @@ def make_atlas_df(atlas):
     atlas_df = pd.concat([metob.to_dataframe(rt),metob.to_dataframe(mz), compound_df],axis=1)
     # atlas_df['label'] = label
 
-    atlas_keys = [u'inchi_key','compound_name',u'rt_max', u'rt_min', u'rt_peak',u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units','mono_isotopic_molecular_weight','pubchem_compound_id','synonyms','inchi']
+    atlas_keys = [u'inchi_key','compound_name',u'rt_max', u'rt_min', u'rt_peak',u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units','mono_isotopic_molecular_weight','pubchem_compound_id','synonyms','inchi','adduct']
 
     # atlas_keys = [u'label','compound_name','compound_description',u'synonyms', u'num_free_radicals', u'number_components', u'permanent_charge', u'rt_max', u'rt_min', u'rt_peak',
     #        u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units',
@@ -201,7 +201,7 @@ def make_atlas_df(atlas):
     atlas_df['label'] = label
     return atlas_df
 
-def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.3,use_mz = 'mz',extra_mz = 0.0):
+def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz',extra_mz = 0.0):
     min_mz = '(%s >= %5.4f & '%(use_mz,row.mz - row.mz*row.mz_tolerance / 1e6 - extra_mz)
     rt_min = 'rt >= %5.4f & '%(row.rt_min - extra_time)
     rt_max = 'rt <= %5.4f & '%(row.rt_max + extra_time)
