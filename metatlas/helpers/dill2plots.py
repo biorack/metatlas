@@ -1809,7 +1809,9 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
 
 
     # Reference parameters
-    ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab')
+    #ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab')
+    ref_loc = '/global/homes/b/bpb/Downloads/msms_refs_2.tab'
+    pre_query='(database != "nist") & (database != "mona")' 
     ref_dtypes = kwargs.pop('ref_dtypes', {'database':str, 'id':str, 'name':str,
                                            'spectrum':object,'decimal':int, 'precursor_mz':float,
                                            'polarity':str, 'adduct':str, 'fragmentation_method':str,
@@ -2202,6 +2204,7 @@ def export_atlas_to_spreadsheet(myAtlas, output_filename='', input_type = 'atlas
     This function can also work on a MetAtlas dataset (list of lists returned by get_data_for_atlas_and_groups).
     """
     cols = [c for c in metob.Compound.class_trait_names() if not c.startswith('_')]
+    cols = sorted(cols)
     atlas_export = pd.DataFrame( )
 
     if input_type != 'atlas':
@@ -2221,6 +2224,8 @@ def export_atlas_to_spreadsheet(myAtlas, output_filename='', input_type = 'atlas
                 g = getattr(my_id.compound[0],c)
                 if g:
                     atlas_export.loc[i,c] = g
+                else:
+                    atlas_export.loc[i,c] = ''
         atlas_export.loc[i, 'label'] = my_id.name
         atlas_export.loc[i, 'id_notes'] = my_id.description
         atlas_export.loc[i,'rt_min'] = my_id.rt_references[0].rt_min
@@ -2230,11 +2235,11 @@ def export_atlas_to_spreadsheet(myAtlas, output_filename='', input_type = 'atlas
         atlas_export.loc[i,'mz_tolerance'] = my_id.mz_references[0].mz_tolerance
         atlas_export.loc[i,'adduct'] = my_id.mz_references[0].adduct
         atlas_export.loc[i,'polarity'] = my_id.mz_references[0].detected_polarity
-        if my_id.frag_references:
-            atlas_export.loc[i,'has_fragmentation_reference'] = True
-            # TODO: Gather the frag reference information and export it
-        else:
-            atlas_export.loc[i,'has_fragmentation_reference'] = False
+        # if my_id.frag_references:
+        #     atlas_export.loc[i,'has_fragmentation_reference'] = True
+        #     # TODO: Gather the frag reference information and export it
+        # else:
+        #     atlas_export.loc[i,'has_fragmentation_reference'] = False
 
     if output_filename:
         if not os.path.exists(os.path.dirname(output_filename)):
