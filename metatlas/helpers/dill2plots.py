@@ -1798,7 +1798,7 @@ def plot_score_and_ref_file(ax, score, rt, ref):
 def get_msms_hits(metatlas_dataset, use_labels=False,
                   pre_query='database == "metatlas"',
                   # pre_query = 'index == index or index == @pd.NaT',
-                  query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)) <= precursor_mz <= (@precursor_mz + .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)))'
+                  query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)) <= precursor_mz <= (@precursor_mz + .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)))',
                   # query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
                   # query='(@inchi_key == inchi_key) and (@polarity == polarity) and (@rt-.1 < rt < @rt+.1)  and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
                   **kwargs):
