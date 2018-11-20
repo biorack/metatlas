@@ -1798,20 +1798,17 @@ def plot_score_and_ref_file(ax, score, rt, ref):
 def get_msms_hits(metatlas_dataset, use_labels=False,
                   pre_query='database == "metatlas"',
                   # pre_query = 'index == index or index == @pd.NaT',
-                  query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
+                  query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)) <= precursor_mz <= (@precursor_mz + .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)))'
+                  # query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
                   # query='(@inchi_key == inchi_key) and (@polarity == polarity) and (@rt-.1 < rt < @rt+.1)  and ((@precursor_mz - (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - @pre_mz_ppm*(@precursor_mz*1e-6)) <= precursor_mz <= (@precursor_mz + (.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + @pre_mz_ppm*(@precursor_mz*1e-6)))',
-                  # ref_loc = '/global/homes/d/dgct/Projects/Debug/adduct_msms/msms_refs_2.tab',
                   **kwargs):
     kwargs = dict(locals(), **kwargs)
 
     resolve_by = kwargs.pop('resolve_by', 'shape')
     frag_mz_tolerance = kwargs.pop('frag_mz_tolerance', .005)
 
-
     # Reference parameters
-    #ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab')
-    ref_loc = '/global/homes/b/bpb/Downloads/msms_refs_2.tab'
-    pre_query='(database != "nist") & (database != "mona")' 
+    ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab')
     ref_dtypes = kwargs.pop('ref_dtypes', {'database':str, 'id':str, 'name':str,
                                            'spectrum':object,'decimal':int, 'precursor_mz':float,
                                            'polarity':str, 'adduct':str, 'fragmentation_method':str,
