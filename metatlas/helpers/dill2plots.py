@@ -1851,8 +1851,14 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
 
             polarity = metatlas_dataset[file_idx][compound_idx]['identification'].mz_references[0].detected_polarity
 
+            try:
+                assert set(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'].keys()) == set(['rt', 'mz', 'i', 'precursor_MZ'])
+            except (KeyError, AssertionError):
+                continue
+
             rt_mz_i_df = pd.DataFrame({k:metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'][k]
-                                      for k in ('rt', 'mz', 'i', 'precursor_MZ')}).sort_values(['rt', 'mz'])
+                                      for k in ['rt', 'mz', 'i', 'precursor_MZ']}
+                                      ).sort_values(['rt', 'mz'])
 
             for rt in rt_mz_i_df.rt.unique():
                 msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
