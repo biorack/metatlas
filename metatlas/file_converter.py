@@ -20,7 +20,7 @@ from metatlas.mzml_loader import mzml_to_hdf
 from metatlas.mzml_loader import VERSION_TIMESTAMP
 from metatlas.system_utils import send_mail
 
-NPROC = 32
+NPROC = 8
 
 manager = mp.Manager()
 readonly_files = manager.dict() # username | a set of files associated with them
