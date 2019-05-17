@@ -1853,7 +1853,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
 
             try:
                 assert set(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'].keys()) == set(['rt', 'mz', 'i', 'precursor_MZ'])
-            except (KeyError, AssertionError):
+            except (KeyError, AssertionError, AttributeError):
                 continue
 
             rt_mz_i_df = pd.DataFrame({k:metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'][k]
