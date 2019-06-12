@@ -102,6 +102,11 @@ ADDUCT_INFO = {'[2M+H]': {'charge': '1',
               'common': False,
               'comp_num': '1',
               'mass': '59.0139'},
+             '[M+formate]': {'charge': '-1',
+              'color': '#5500FF',
+              'common': False,
+              'comp_num': '1',
+              'mass': '44.998201'},
              '[M-2H]': {'charge': '-2',
               'color': '#f032e6',
               'common': True,
@@ -1854,7 +1859,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
             try:
                 assert set(['rt', 'i', 'precursor_MZ', 'mz']).issubset(set(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'].keys()))
             except (KeyError, AssertionError, AttributeError):
-                
+
                 continue
 
             rt_mz_i_df = pd.DataFrame({k:metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'][k]
