@@ -58,6 +58,8 @@ class ChromPlotPlus:
         self.num_x_hashes = num_x_hashes
         self.num_y_hashes = num_y_hashes
 
+        plt.ioff()
+
         self.fig, self.ax = plt.subplots()
         plt.setp(self.ax, 'frame_on', False)
         self.ax.set_xticks([])
@@ -66,6 +68,8 @@ class ChromPlotPlus:
         self.ax.margins(1)
 
         self.__make_figure()
+
+        plt.ion()
 
     def __make_figure(self):
 
