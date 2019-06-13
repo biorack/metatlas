@@ -1,317 +1,328 @@
 from matplotlib import pyplot as plt
-from matplotlib import collections  as mc
 from matplotlib.backends.backend_pdf import PdfPages
+
+from matplotlib import collections as mc
 import numpy as np
-import warnings
-from time import time
+from scipy.interpolate import interp1d
 from textwrap import wrap
-from sys import maxsize
 
-#######################
-#letter gen
-#######################
-def letter_gen():
-    label = 'A'
-    yield label
+def chromplotplus(kwargs):
+    ChromPlotPlus(**kwargs)
 
-    while True:
-        label_noz = label.rstrip('Z')
-        label_list = [ord(l) for l in label_noz]
+class CompoundFileEIC:
+    def __init__(self, compound_file_data):
+        self.group_name = compound_file_data['group'].name
+        self.file_name = compound_file_data['lcmsrun'].name
+        try:
+            self.eic = np.asarray([compound_file_data['data']['eic']['rt'],
+                                   compound_file_data['data']['eic']['intensity']]).astype(float)
+        except (KeyError, AttributeError):
+            self.eic = np.array([[],[]])
 
-        if len(label_noz) != 0:
-            label_list[-1] += 1
-        else:
-            label_list.append(65)
+class ChromPlotPlus:
 
-        for i in range(len(label) - len(label_noz)):
-            label_list.append(65)
+    def __init__(self, compound_data,
+                 group, file_name,
+                 x_scale = .8, y_scale = .75,
+                 x_ratio = 13.0, y_ratio=11.0,
+                 num_x_hashes=4, num_y_hashes=4,
+                 **kwargs):
 
-        label = ''.join(chr(l) for l in label_list)
+        assert len(compound_data) > 0
+
+        self.compound_eics = [CompoundFileEIC(compound_file_data)
+                              for compound_file_data in compound_data]
+        self.compound_eics = sorted(self.compound_eics,
+                                    key = lambda c: (c.group_name,
+                                                     c.file_name))
+
+        self.rt_peak = compound_data[0]['identification'].rt_references[0].rt_peak
+        self.rt_bounds = np.array([compound_data[0]['identification'].rt_references[0].rt_min,
+                                   compound_data[0]['identification'].rt_references[0].rt_max])
+
+        self.rt_min = np.concatenate([c.eic[0] for c in self.compound_eics]).min()
+        self.rt_max = np.concatenate([c.eic[0] for c in self.compound_eics]).max()
+
+        self.rt_min = min(self.rt_min, self.rt_bounds[0])
+        self.rt_max = max(self.rt_max, self.rt_bounds[1])
+
+        self.intensity_max = np.concatenate([c.eic[1] for c in self.compound_eics]).max()
+        self.intensity_scale = np.floor(np.log10(1.1*self.intensity_max))
+
+        self.group = group
+        self.file_name =  file_name
+        self.x_scale = x_scale
+        self.y_scale = y_scale
+        self.x_ratio = x_ratio
+        self.y_ratio = y_ratio
+        self.num_x_hashes = num_x_hashes
+        self.num_y_hashes = num_y_hashes
+
+        self.fig, self.ax = plt.subplots()
+        plt.setp(self.ax, 'frame_on', False)
+        self.ax.set_xticks([])
+        self.ax.set_yticks([])
+        self.ax.grid('off')
+        self.ax.margins(1)
+
+        self.__make_figure()
+
+    def __make_figure(self):
+
+        if self.group:
+            num_group_labels = len(set([c.group_name for c in self.compound_eics]))
+
+            self.compound_eics = ['^'] + self.compound_eics
+            idxs = [i for
+                    i,c in enumerate(zip(self.compound_eics,
+                                         self.compound_eics[1:]))
+                    if c[0] == '^'
+                    or c[0].group_name != c[1].group_name]
+
+            label = self.__yield_label()
+            labels = [next(label) for _ in range(len(idxs))]
+
+            for i,l in zip(idxs[::-1], labels[::-1]):
+                self.compound_eics.insert(i+1, l)
+            self.compound_eics = self.compound_eics[1:]
+
+        num_cols = int(np.ceil((self.x_scale*(len(self.compound_eics))/self.y_scale)**.5))
+        num_rows = int(np.ceil(float(len(self.compound_eics))/num_cols))
+
+        self.ax.set_xlim((-.1,num_cols+.1))
+        self.ax.set_ylim((-.1,num_rows+.1))
+
+        is_subplot = np.array([(np.nan if isinstance(s,str) else 1)
+                               for s in self.compound_eics])
+
+        #Affine Transformations
+        orgin_transform = np.array([[1, 0, -.5],
+                                    [0, 1, -.5],
+                                    [0, 0, 1]])
+        scale_transform = np.array([[self.x_scale, 0, 0],
+                                    [0, self.y_scale, 0],
+                                    [0, 0, 1]])
+        translate_transform = np.array([[[1, 0, (i%num_cols)+.5],
+                                         [0, 1, num_rows-np.ceil(i/num_cols)-.5],
+                                         [0, 0, 1]]
+                                         for i in range(len(self.compound_eics))])
+        tso_transform = np.matmul(translate_transform, np.matmul(scale_transform, orgin_transform))
+
+        #Boxes
+        boxes = np.matmul(tso_transform,
+                          self.__make_boxes(is_subplot)
+                         )[:,0:2].transpose(0,2,1)
+        self.ax.add_collection(mc.LineCollection(boxes, colors=(0,0,0,1), linewidths=1.0/(num_cols*num_rows)**.5))
+
+        #EICs
+        eic_lines = [np.matmul(tso_transform[i], e)[0:2].T
+                     for i,e in enumerate(self.__make_eics())]
+        self.ax.add_collection(mc.LineCollection(eic_lines, 2.0/(num_cols*num_rows)**.5))
+
+        #RT bounds
+        rt_bound_lines = np.matmul(tso_transform,
+                                   self.__make_rt_bounds(is_subplot)
+                                  )[:,:,0:2].reshape(-1,2,2,order='F').transpose(0,2,1)
+        # rt_bound_lines = rt_bound_lines[~np.isnan(rt_bound_lines[:,0,0])]
+        # print np.isnan(rt_bound_lines[:,0,0])
+        self.ax.add_collection(mc.LineCollection(rt_bound_lines, colors=(0,0,0,1), linewidths=2.0/(num_cols*num_rows)**.5))
+
+        #Fills
+        between = [(rt_bound_lines[2*i,0,0] <= e[:,0]) & (e[:,0] <= rt_bound_lines[(2*i)+1,0,0])
+                   for i,e in enumerate(eic_lines)]
+        for i,(e,b) in enumerate(zip(eic_lines, between)):
+            self.ax.fill_between(e[:,0], e[:,1], np.full_like(e[:,0], np.matmul(tso_transform[i], np.array([0,0,1]))[1]),
+            where=b, interpolate=False, facecolor='c', edgecolor='c', linewidth=0, alpha=0.3)
+        # self.ax.add_collection(mc.PolyCollection(self.__make_fill(eic_lines, rt_bound_lines, is_subplot)))
+
+        #RT peak
+        self.rt_peak_lines = np.matmul(tso_transform,
+                                  self.__make_rt_peaks(is_subplot)
+                                 )[:,0:2].transpose(0,2,1)
+        self.ax.add_collection(mc.LineCollection(self.rt_peak_lines, colors=(1,0,0,1), linewidths=2.0/(num_cols*num_rows)**.5))
+
+        #Hashes
+        hashes = np.matmul(tso_transform,
+                           self.__make_hashes(is_subplot)
+                          )[:,:,0:2].transpose(3,1,0,2).reshape(-1,2,2)
+        self.ax.add_collection(mc.LineCollection(hashes, colors=(0,0,0,1), linewidths=1.0/(num_cols*num_rows)**.5))
+
+        # X-axis labels
+        x_labels = self.__make_x_labels()
+        x_coordinates = np.matmul(tso_transform,
+                                  self.__make_x_hash_coordinates(is_subplot)
+                                 )[:,0:2].transpose(0,2,1)
+        for subplot_xy in x_coordinates:
+            for l,xy in zip(x_labels, subplot_xy):
+                self.ax.annotate(l, xy, ha='center', va='top', size = 8./(num_cols+.25))
+
+        # Y-axis labels
+        y_labels = self.__make_y_labels()
+        y_coordinates = np.matmul(tso_transform,
+                                  self.__make_y_hash_coordinates(is_subplot)
+                                 )[:,0:2].transpose(0,2,1)
+        for subplot_xy in y_coordinates:
+            for l,xy in zip(y_labels, subplot_xy):
+                self.ax.annotate(l, xy, ha='right', va='center', size = 8./(num_rows+.25))
+
+        # Y-scale label
+        self.y_scale_coordinates = np.matmul(tso_transform,
+                                  self.__make_y_scale_coordinates(is_subplot)
+                                 )[:,0:2].transpose(0,2,1)
+        for subplot_xy in self.y_scale_coordinates:
+            for xy in subplot_xy:
+                self.ax.annotate('1E%d'%int(self.intensity_scale), xy, ha='right', va='bottom', size = 8./(num_rows+.25), weight='bold')
+
+        # Titles
+        title_coordinates = np.matmul(tso_transform,
+                                  self.__make_title_coordinates(is_subplot)
+                                 )[:,0:2].transpose(0,2,1)
+
+        for i,subplot_xy in enumerate(title_coordinates):
+            if not isinstance(self.compound_eics[i], str):
+                self.ax.annotate('\n'.join(wrap(self.compound_eics[i].file_name,48)),
+                                 subplot_xy[0], ha='center', va='bottom', size = 8./(num_cols+.25), weight='bold')
+
+        # Groups
+        if self.group:
+            group_label_coordinates = boxes = np.matmul(tso_transform,
+                                                        self.__make_group_label_coordinates(is_subplot)
+                                                        )[:,0:2].transpose(0,2,1)
+            for i,subplot_xy in enumerate(group_label_coordinates):
+                if isinstance(self.compound_eics[i], str):
+                    self.ax.annotate(self.compound_eics[i],
+                                     subplot_xy[0], ha='center', va='center', size = 100./(num_cols+.25), weight='bold')
+
+        with PdfPages(self.file_name) as pdf:
+            plt.rcParams['pdf.fonttype'] = 42
+            plt.rcParams['pdf.use14corefonts'] = True
+            plt.rcParams['text.usetex'] = False
+            pdf.savefig(self.fig)
+            plt.close()
+
+
+    @staticmethod
+    def __yield_label():
+        label = 'A'
         yield label
 
+        while True:
+            label_noz = label.rstrip('Z')
+            label_list = [ord(l) for l in label_noz]
 
-#######################
-#normalize_data
-#######################
-def normalize_data(data, Names, x_offset, y_offset, sub_x, sub_y):
-
-    X_min = maxsize
-    X_max = 0
-    Y_min = maxsize
-    Y_max = 0
-
-    for d in data:
-        for r in d['data']['eic']['rt']:
-            if np.amin(np.asarray(r)) < X_min:
-               X_min = r
-            if np.amax(np.asarray(r)) > X_max:
-               X_max = r
-        for i in d['data']['eic']['intensity']:
-            if np.amin(np.asarray(i)) < Y_min:
-               Y_min = i
-            if np.amax(np.asarray(i)) > Y_max:
-               Y_max = i
-
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            x_mag = int(np.log10(X_max - X_min))
-    except (ValueError, OverflowError):
-        x_mag = 0
-
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            y_mag = int(np.log10(Y_max - Y_min))
-    except (ValueError, OverflowError):
-        y_mag = 0
-
-
-    x_range = (max(0, np.round(X_min - .5*(10 ** x_mag), int(-1*x_mag))), np.round(X_max + .5*(10 ** x_mag), int(-1*x_mag)))
-    y_range = (max(0, np.round(Y_min - .5*(10 ** y_mag), int(-1*y_mag))), np.round(Y_max + .5*(10 ** y_mag), int(-1*y_mag)))
-
-
-    def scale_x(x):
-        return (x_offset - (x_offset - sub_x))*(x - x_range[0])/(x_range[1] - x_range[0])
-
-    def scale_y(y):
-        return (y_offset - (y_offset - sub_y))*(y - y_range[0])/(y_range[1] - y_range[0])
-
-    Groups = [d['group'].name for d in data]
-    X =  [scale_x(np.asarray(d['data']['eic']['rt'])) for d in data]
-    Y = [scale_y(np.asarray(d['data']['eic']['intensity'])) for d in data]
-    RT_mins = [scale_x(d['identification'].rt_references[0].rt_min) for d in data]
-    RT_maxs = [scale_x(d['identification'].rt_references[0].rt_max) for d in data]
-    RT_peaks = [scale_x(d['identification'].rt_references[0].rt_peak) for d in data]
-
-    return {'x_range': x_range,
-            'y_range': y_range,
-            'y_mag': y_mag,
-            'data': np.array(zip(Groups, Names, X, Y, RT_mins, RT_maxs, RT_peaks),
-                             dtype=[('group', 'object'),('name', 'object'),('x','object'),('y','object'),('rt_min','float'),('rt_max','float'),('rt_peak','float')])
-           }
-
-
-#######################
-#chromplotplus
-#######################
-def chromplotplus(kwargs):
-
-    file_name = kwargs['file_name']
-
-    ##Options
-    warnings.simplefilter('ignore', FutureWarning)
-    share_y = kwargs['share_y']
-    group = kwargs['group']
-
-    #Subplot size and seperations
-    sub_x = 8
-    sub_y = 6
-    x_offset = 9
-    y_offset = 7
-
-    #Normalize data
-    norm = normalize_data(kwargs['data'], kwargs['names'], y_offset, x_offset, sub_x, sub_y)
-
-    x_range = norm['x_range']
-    y_range = norm['y_range']
-    y_mag = norm['y_mag']
-    data = norm['data']
-
-    #Groups
-    groups = {} # stores "group name: [index of first data of group, # of data belonging to group]"
-    if group == 'page' or group == 'index' or group == 'sort':
-        data = sorted(data, key=lambda d: d['group'])
-        for i, d in enumerate(data):
-            if groups.get(d['group']) == None:
-                groups[d['group']] = [i, 1]
+            if len(label_noz) != 0:
+                label_list[-1] += 1
             else:
-                groups[d['group']][1] += 1
+                label_list.append(65)
+
+            for i in range(len(label) - len(label_noz)):
+                label_list.append(65)
+
+            label = ''.join(chr(l) for l in label_list)
+            yield label
 
 
-    #Subplot arrangement
-    n_plots_list = []
-    n_rows_list = []
-    n_cols_list = []
+    def __make_boxes(self, is_subplot):
+        return np.array([[[0,0,1,1,0],
+                          [0,1,1,0,0],
+                          [1,1,1,1,1]]]*len(self.compound_eics)
+                       )*is_subplot[:,None,None]
 
-    if group == 'page':
-        for g in sorted(groups.keys()):
-            n_plots_list.append(groups[g][1])
-            n_rows_list.append(int(np.ceil(np.sqrt(13.0*(groups[g][1])/11))))
-            n_cols_list.append(int(np.ceil((groups[g][1])/float(n_rows_list[-1]))))
-    elif group == 'index':
-        n_plots_list.append(len(data))
-        n_rows_list.append(int(np.ceil(np.sqrt(13.0*(n_plots_list[0]+len(groups))/11))))
-        n_cols_list.append(int(np.ceil((n_plots_list[0]+len(groups))/float(n_rows_list[0]))))
-    else:
-        n_plots_list.append(len(data))
-        n_rows_list.append(int(np.ceil(np.sqrt(13.0*n_plots_list[0]/11))))
-        n_cols_list.append(int(np.ceil(n_plots_list[0]/float(n_rows_list[0]))))
+    def __make_eics(self):
+        return [np.asarray([(s.eic[0]-self.rt_min)/(self.rt_max-self.rt_min),
+                             s.eic[1]/(1.1*self.intensity_max),
+                             [1]*s.eic.shape[1]]) if not isinstance(s,str)
+                            else [[np.nan], [np.nan], [np.nan]]
+                           for s in self.compound_eics]
 
-    #Hashmark variables
-    hash_n = 5
-    hash_m = 5
-    hash_l = .02*min(sub_x, sub_y)
+    def __make_rt_bounds(self, is_subplot):
+        return (np.array([[[(self.rt_bounds[0]-self.rt_min)/(self.rt_max-self.rt_min)]*2,
+                           [0,1],
+                           [1,1]],
+                          [[(self.rt_bounds[1]-self.rt_min)/(self.rt_max-self.rt_min)]*2,
+                           [0,1],
+                           [1,1]]]*len(self.compound_eics)).reshape(len(self.compound_eics),2,3,2).transpose(1,0,2,3)
+                )*is_subplot[None,:,None,None]
 
-    #Axis values
-    x_values = np.linspace(x_range[0], x_range[1], num=hash_n)
-    y_values = np.linspace(y_range[0]/(10 ** int(y_mag)), y_range[1]/(10 ** y_mag), num=hash_m)
+    # def __make_fill(self, eic_lines, rt_bound_lines, is_subplot):
+    #     rt_bound_intensities = [interp1d(eic_lines[i][:,0],
+    #                                      eic_lines[i][:,1],
+    #                                      bounds_error=False, copy=False, assume_sorted=True
+    #                                      )(rt_bound_lines[2*i:2*(i+1),0,0])
+    #                             if ~np.isnan(is_subplot[i]) and eic_lines[i].shape[0] > 1
+    #                             else np.array([np.nan, np.nan])
+    #                             for i in range(len(eic_lines))]
+    #
+    #     return [[[rt_bound_lines[2*i:2*(i+1),0,0].min(),
+    #               rt_bound_lines[2*i,0,1]]]+
+    #             [[rt_bound_lines[2*i:2*(i+1),0,0].min(),
+    #               rt_bound_intensities[i][rt_bound_lines[2*i:2*(i+1),0,0].argmin()]]]+
+    #             eic_lines[i][(eic_lines[i][:,0] > rt_bound_lines[2*i:2*(i+1),0,0].min()) &
+    #                     (eic_lines[i][:,0] < rt_bound_lines[2*i:2*(i+1),0,0].max())
+    #                    ].tolist()+
+    #             [[rt_bound_lines[2*i:2*(i+1),0,0].max(),
+    #               rt_bound_intensities[i][rt_bound_lines[2*i:2*(i+1),0,0].argmax()]]]+
+    #             [[rt_bound_lines[2*i:2*(i+1),0,0].max(),
+    #               rt_bound_lines[2*i,0,1]]]+
+    #             [[rt_bound_lines[2*i:2*(i+1),0,0].min(),
+    #               rt_bound_lines[2*i,0,1]]]
+    #             for i in range(len(eic_lines))
+    #             if ~(np.isnan(rt_bound_intensities[i]).all())]
 
-    def plot():
-        #Plot creation
-        fig = plt.figure()
-        ax = plt.subplot(111)
-        plt.setp(ax, 'frame_on', False)
-        plt.ioff()
-        ax.set_ylim([sub_y - y_offset, (n_cols)*y_offset + (y_offset - sub_y)])
-        ax.set_xlim([sub_x - x_offset, (n_rows)*x_offset + (x_offset - sub_x)])
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.grid('off')
-        ax.margins(1)
+    def __make_rt_peaks(self, is_subplot):
+        return np.array([[[(self.rt_peak-self.rt_min)/(self.rt_max-self.rt_min)]*2,
+                          [0,1],
+                          [1,1]]]*len(self.compound_eics))*is_subplot[:,None,None]
 
-        #Group title
-        if group == 'page':
-            plt.title("\n".join(wrap(g,54)), size = 12., weight='bold')
+    def __make_hashes(self, is_subplot):
+        return (np.array([[[[[float(i)/(self.num_x_hashes+1),float(i)/(self.num_x_hashes+1)],
+                             [0,.02],
+                             [1,1]]]+
+                           [[[float(i)/(self.num_x_hashes+1),float(i)/(self.num_x_hashes+1)],
+                             [1,.98],
+                             [1,1]]] for i in range(1,self.num_x_hashes+1)]+
+                          [[[[0,.02],
+                             [float(j)/(self.num_y_hashes+1),float(j)/(self.num_y_hashes+1)],
+                             [1,1]]]+
+                           [[[1,.98],
+                             [float(j)/(self.num_y_hashes+1),float(j)/(self.num_y_hashes+1)],
+                             [1,1]]] for j in range(1,self.num_y_hashes+1)]]*len(self.compound_eics)
+                        ).reshape(len(self.compound_eics),2*(self.num_x_hashes+self.num_y_hashes),3,2
+                                 )*is_subplot[:,None,None,None]).transpose(3,0,2,1)
 
-        #Coordinate lists for lines to be drawn
-        boxes = []
-        hashes = []
-        rt_edges = []
-        rt_peaks = []
+    def __make_x_labels(self):
+        return np.linspace(self.rt_min,
+                           self.rt_max,
+                           self.num_x_hashes+2).round(3)
 
-        #Letter generator for labeling groups
-        if group == 'index':
-            lg = letter_gen()
+    def __make_x_hash_coordinates(self, is_subplot):
+        return (np.array([[np.linspace(0,1,self.num_x_hashes+2),
+                          [-.025]*(self.num_x_hashes+2),
+                          [1]*(self.num_x_hashes+2)]]*len(self.compound_eics)))*is_subplot[:,None,None]
 
-        c = 0 #counter for plots
-        for j in np.arange(n_cols - 1, -1, -1):
-            for i in np.arange(n_rows):
+    def __make_y_labels(self):
+        return np.linspace(0,
+                           (1.1*self.intensity_max)/(10**self.intensity_scale),
+                           self.num_y_hashes+2).round(2)
 
-                #Repeating calculations
-                x_delta = i*x_offset
-                y_delta = j*y_offset
+    def __make_y_hash_coordinates(self, is_subplot):
+        return (np.array([[[0]*(self.num_y_hashes+2),
+                           np.linspace(0,1,self.num_y_hashes+2),
+                           [1]*(self.num_y_hashes+2)]]*len(self.compound_eics)))*is_subplot[:,None,None]
 
-                #Break if everything is plotted
-                if c >= n_plots:
-                    break
+    def __make_y_scale_coordinates(self, is_subplot):
+        return (np.array([[[-.075],
+                           [1.05],
+                           [1]]]*len(self.compound_eics)))*is_subplot[:,None,None]
 
-                #Label new groups
-                if group == 'index' and c in [v[0] for v in groups.values() if v is not None]:
-                    ax.annotate("\n".join(wrap(next(lg),54)),
-                            (x_delta + .5*sub_x, y_delta + .5*sub_y - (y_offset - sub_y)),
-                            ha='center', va='center', size = 240./(n_cols+.25), weight='bold')
+    def __make_title_coordinates(self, is_subplot):
+        return (np.array([[[.5],
+                           [1],
+                           [1]]]*len(self.compound_eics)))*is_subplot[:,None,None]
 
-                    for k,v in groups.items():
-                        if v is not None and v[0] == c:
-                            groups[k][0] = None
-                    continue
-
-                #Retention Times
-                rt_min = d[c]['rt_min'] + x_delta
-                rt_max = d[c]['rt_max'] + x_delta
-                rt_peak = d[c]['rt_peak'] + x_delta
-
-                rt_edges.append([(rt_min, y_delta), (rt_min, sub_y + y_delta)])
-                rt_edges.append([(rt_max, y_delta), (rt_max, sub_y + y_delta)])
-                rt_peaks.append([(rt_peak, y_delta), (rt_peak, sub_y + y_delta)])
-
-                #Data
-                if len(d[c]['x']) > 1:
-                    x = d[c]['x'] + x_delta
-                    y = d[c]['y'] + y_delta
-                    ax.plot(x, y, 'k-',linewidth=2.0/np.sqrt(n_cols*n_rows),alpha=1.0)
-                    myWhere = np.logical_and(x>=rt_min, x<=rt_max )
-                    ax.fill_between(x, y_delta, y, myWhere, facecolor='c', edgecolor='c', linewidth=0, alpha=0.3)
-
-                #Boxes
-                boxes.append([(x + x_delta, y + y_delta) for x,y in
-                              [(0, 0), (sub_x, 0), (sub_x, sub_y), (0, sub_y), (0, 0)]])
-
-                #Subplot Titles
-                ax.annotate("\n".join(wrap(d[c]['name'],48)),
-                            (x_delta + .5*sub_x, y_delta + sub_y + .1*(y_offset - sub_y)),
-                            ha='center', size = 8./(n_cols+.25), weight='bold')
-
-                #Hashmarks and associated labels
-                for axis in ['bottom', 'left', 'right', 'top']:
-
-                    #Horizontal range
-                    for k in range(0, hash_n):
-                        if axis == 'bottom':
-                            start = (k*(1.0/hash_n)*sub_x + x_delta, y_delta)
-                            end = (k*(1.0/hash_n)*sub_x + x_delta, hash_l + y_delta)
-
-                            #X-axis labels
-                            ax.annotate(x_values[k], (start[0], start[1] - .15*(y_offset - sub_y)),
-                                        ha='center', size = 8./(n_cols+.25))
-
-                            hashes.append([start, end])
-
-                        if axis == 'top':
-                            start = (k*(1.0/hash_n)*sub_x + x_delta, sub_y + y_delta)
-                            end = (k*(1.0/hash_n)*sub_x + x_delta, sub_y - hash_l + y_delta)
-
-                            #Y-axis magnitude labels
-                            if k == 0 and (share_y == False or i == 0):
-                                ax.annotate('1e{}'.format(y_mag), (start[0], start[1] + .1*(y_offset - sub_y)),
-                                            ha='center', va='center', size = 8./(n_cols+.25))
-
-                            hashes.append([start, end])
-
-                    #Vertical range
-                    for l in range(0, hash_m):
-                        if axis == 'left':
-                            start = (x_delta, l*(1.0/hash_m)*sub_y + y_delta)
-                            end = ((hash_l + x_delta, l*(1.0/hash_m)*sub_y + y_delta))
-
-                            #Y-axis labels for leftmost subplots
-                            if share_y == False or i == 0:
-                                ax.annotate(y_values[l], (start[0] - .15*(x_offset - sub_x), start[1]),
-                                            ha='right', va='center', size = 8./(n_cols+.25))
-
-                            hashes.append([start, end])
-
-                        if axis == 'right':
-                            start = (sub_x + x_delta, l*(1.0/hash_m)*sub_y + y_delta)
-                            end = (sub_x - hash_l + x_delta, l*(1.0/hash_m)*sub_y + y_delta)
-
-                            hashes.append([start, end])
-
-                c += 1 #increment plot counter
-
-        #Make line colelctions
-        bc = mc.LineCollection(boxes, colors=(0,0,0,1), linewidths=1.0/np.sqrt(n_cols*n_rows))
-        hc = mc.LineCollection(hashes, colors=(0,0,0,1), linewidths=1.0/np.sqrt(n_cols*n_rows))
-        rc = mc.LineCollection(rt_edges, colors=(0,0,0,1), linewidths=2.0/np.sqrt(n_cols*n_rows))
-        pc = mc.LineCollection(rt_peaks, colors=(1,0,0,1), linewidths=2.0/np.sqrt(n_cols*n_rows))
-
-        #Draw lines
-        ax.add_collection(bc)
-        ax.add_collection(hc)
-        ax.add_collection(rc)
-        ax.add_collection(pc)
-
-        plt.rcParams['pdf.fonttype'] = 42
-        plt.rcParams['pdf.use14corefonts'] = True
-        plt.rcParams['text.usetex'] = False
-        pdf.savefig()
-        plt.close()
-
-
-    with PdfPages(file_name) as pdf:
-        if group == 'page':
-            for i, g in enumerate(sorted(groups.keys())):
-                n_rows = n_rows_list[i]
-                n_cols = n_cols_list[i]
-                n_plots = n_plots_list[i]
-                d = data[groups[g][0]:groups[g][0] + groups[g][1]]
-
-                plot()
-        else:
-            n_rows = n_rows_list[0]
-            n_cols = n_cols_list[0]
-            n_plots = n_plots_list[0]
-            d = data
-
-            plot()
+    def __make_group_label_coordinates(self, is_subplot):
+        is_not_subplot = np.isnan(is_subplot)
+        is_not_subplot[~is_not_subplot] = np.nan
+        return (np.array([[[.5],
+                           [.5],
+                           [1]]]*len(self.compound_eics)))*is_not_subplot[:,None,None]
