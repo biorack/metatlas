@@ -21,24 +21,24 @@ class CompoundFileEIC:
 
 class ChromPlotPlus:
 
-    def __init__(self, compound_data,
+    def __init__(self, data,
                  group, file_name,
                  x_scale = .8, y_scale = .75,
                  x_ratio = 13.0, y_ratio=11.0,
                  num_x_hashes=4, num_y_hashes=4,
                  **kwargs):
 
-        assert len(compound_data) > 0
+        assert len(data) > 0
 
         self.compound_eics = [CompoundFileEIC(compound_file_data)
-                              for compound_file_data in compound_data]
+                              for compound_file_data in data]
         self.compound_eics = sorted(self.compound_eics,
                                     key = lambda c: (c.group_name,
                                                      c.file_name))
 
-        self.rt_peak = compound_data[0]['identification'].rt_references[0].rt_peak
-        self.rt_bounds = np.array([compound_data[0]['identification'].rt_references[0].rt_min,
-                                   compound_data[0]['identification'].rt_references[0].rt_max])
+        self.rt_peak = data[0]['identification'].rt_references[0].rt_peak
+        self.rt_bounds = np.array([data[0]['identification'].rt_references[0].rt_min,
+                                   data[0]['identification'].rt_references[0].rt_max])
 
         self.rt_min = np.concatenate([c.eic[0] for c in self.compound_eics]).min()
         self.rt_max = np.concatenate([c.eic[0] for c in self.compound_eics]).max()
