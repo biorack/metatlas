@@ -43,8 +43,8 @@ class ChromPlotPlus:
         self.rt_min = np.concatenate([c.eic[0] for c in self.compound_eics]).min()
         self.rt_max = np.concatenate([c.eic[0] for c in self.compound_eics]).max()
 
-        self.rt_min = min(self.rt_min, self.rt_bounds[0])
-        self.rt_max = max(self.rt_max, self.rt_bounds[1])
+        self.rt_min = min(self.rt_min, self.rt_bounds[0], self.rt_peak)
+        self.rt_max = max(self.rt_max, self.rt_bounds[1], self.rt_peak)
 
         self.intensity_max = np.concatenate([c.eic[1] for c in self.compound_eics]).max()
         self.intensity_scale = np.floor(np.log10(1.1*self.intensity_max))
