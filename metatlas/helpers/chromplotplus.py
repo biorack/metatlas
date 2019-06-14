@@ -57,7 +57,7 @@ class ChromPlotPlus:
         try:
             self.intensity_max = np.nanmax([c.intensity_max_inbounds for c in self.compound_eics])
             if np.isnan(self.intensity_max):
-                self.intensity_max = np.concatenate([c.eic[0] for c in self.compound_eics]).max()
+                self.intensity_max = np.concatenate([c.eic[1] for c in self.compound_eics]).max()
             self.intensity_scale = np.floor(np.log10(1.1*self.intensity_max))
             for c in self.compound_eics:
                 c.eic[1] = c.eic[1].clip(0, 1.1*self.intensity_max)
