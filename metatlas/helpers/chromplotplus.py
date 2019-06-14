@@ -60,7 +60,7 @@ class ChromPlotPlus:
                 self.intensity_max = np.concatenate([c.eic[0] for c in self.compound_eics]).max()
             self.intensity_scale = np.floor(np.log10(1.1*self.intensity_max))
             for c in self.compound_eics:
-                c.eic = c.eic.clip(0, 1.1*self.intensity_max)
+                c.eic[1] = c.eic[1].clip(0, 1.1*self.intensity_max)
         except ValueError:
             self.intensity_max = 0
             self.intensity_scale = 0
