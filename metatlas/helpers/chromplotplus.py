@@ -17,13 +17,15 @@ class CompoundFileEIC:
             self.eic = np.asarray([compound_file_data['data']['eic']['rt'],
                                    compound_file_data['data']['eic']['intensity']]).astype(float)
             self.eic = self.eic[:, (rt_min <= self.eic[0]) & (self.eic[0] <= rt_max)]
+
             try:
-                self.eic[1] = self.eic[1].clip(0, 1.1*self.eic[1, (rt_bounds[0] <= self.eic[0]) & (self.eic[0] <= rt_bounds[1])].max())
+                self.intensity_max_inbounds = self.eic[1, (rt_bounds[0] <= self.eic[0]) & (self.eic[0] <= rt_bounds[1])].max()
             except ValueError:
-                pass
+                self.intensity_max_inbounds = np.nan
 
         except (KeyError, AttributeError):
             self.eic = np.array([[],[]])
+            self.intensity_max_inbounds = np.nan
 
 class ChromPlotPlus:
 
@@ -53,8 +55,12 @@ class ChromPlotPlus:
                                                      c.file_name))
 
         try:
-            self.intensity_max = np.concatenate([c.eic[1] for c in self.compound_eics]).max()
+            self.intensity_max = np.nanmax([c.intensity_max_inbounds for c in self.compound_eics])
+            if np.isnan(self.intensity_max):
+                self.intensity_max = np.concatenate([c.eic[0] for c in self.compound_eics]).max()
             self.intensity_scale = np.floor(np.log10(1.1*self.intensity_max))
+            for c in self.compound_eics:
+                c.eic = c.eic.clip(0, 1.1*self.intensity_max)
         except ValueError:
             self.intensity_max = 0
             self.intensity_scale = 0
