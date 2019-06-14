@@ -10,19 +10,25 @@ def chromplotplus(kwargs):
     ChromPlotPlus(**kwargs)
 
 class CompoundFileEIC:
-    def __init__(self, compound_file_data):
+    def __init__(self, compound_file_data, rt_bounds, rt_min, rt_max):
         self.group_name = compound_file_data['group'].name
         self.file_name = compound_file_data['lcmsrun'].name
         try:
             self.eic = np.asarray([compound_file_data['data']['eic']['rt'],
                                    compound_file_data['data']['eic']['intensity']]).astype(float)
+            self.eic = self.eic[:, (rt_min <= self.eic[0]) & (self.eic[0] <= rt_max)]
+            try:
+                self.eic[1] = self.eic[1].clip(0, 1.1*self.eic[1, (rt_bounds[0] <= self.eic[0]) & (self.eic[0] <= rt_bounds[1])].max())
+            except ValueError:
+                pass
+
         except (KeyError, AttributeError):
             self.eic = np.array([[],[]])
 
 class ChromPlotPlus:
 
     def __init__(self, data,
-                 group, file_name,
+                 group, file_name, rt_buffer = .5,
                  x_scale = .8, y_scale = .75,
                  x_ratio = 13.0, y_ratio=11.0,
                  num_x_hashes=4, num_y_hashes=4,
@@ -30,24 +36,28 @@ class ChromPlotPlus:
 
         assert len(data) > 0
 
-        self.compound_eics = [CompoundFileEIC(compound_file_data)
+        self.rt_peak = data[0]['identification'].rt_references[0].rt_peak
+        self.rt_bounds = np.array([data[0]['identification'].rt_references[0].rt_min,
+                                   data[0]['identification'].rt_references[0].rt_max])
+
+        self.rt_min = min(self.rt_bounds[0], self.rt_peak) - rt_buffer
+        self.rt_max = max(self.rt_bounds[1], self.rt_peak) + rt_buffer
+
+        self.compound_eics = [CompoundFileEIC(compound_file_data,
+                                              self.rt_bounds,
+                                              self.rt_min,
+                                              self.rt_max)
                               for compound_file_data in data]
         self.compound_eics = sorted(self.compound_eics,
                                     key = lambda c: (c.group_name,
                                                      c.file_name))
 
-        self.rt_peak = data[0]['identification'].rt_references[0].rt_peak
-        self.rt_bounds = np.array([data[0]['identification'].rt_references[0].rt_min,
-                                   data[0]['identification'].rt_references[0].rt_max])
-
-        self.rt_min = np.concatenate([c.eic[0] for c in self.compound_eics]).min()
-        self.rt_max = np.concatenate([c.eic[0] for c in self.compound_eics]).max()
-
-        self.rt_min = min(self.rt_min, self.rt_bounds[0], self.rt_peak)
-        self.rt_max = max(self.rt_max, self.rt_bounds[1], self.rt_peak)
-
-        self.intensity_max = np.concatenate([c.eic[1] for c in self.compound_eics]).max()
-        self.intensity_scale = np.floor(np.log10(1.1*self.intensity_max))
+        try:
+            self.intensity_max = np.concatenate([c.eic[1] for c in self.compound_eics]).max()
+            self.intensity_scale = np.floor(np.log10(1.1*self.intensity_max))
+        except ValueError:
+            self.intensity_max = 0
+            self.intensity_scale = 0
 
         self.group = group
         self.file_name =  file_name
