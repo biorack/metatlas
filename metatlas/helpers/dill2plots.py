@@ -1850,6 +1850,9 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
         pre_mz_ppm = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance
         precursor_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
 
+        rt_min = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_min
+        rt_max = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_max
+
         compound_hits = []
 
         for file_idx,file_name in enumerate(file_names):
@@ -1859,7 +1862,6 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
             try:
                 assert set(['rt', 'i', 'precursor_MZ', 'mz']).issubset(set(metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'].keys()))
             except (KeyError, AssertionError, AttributeError):
-
                 continue
 
             rt_mz_i_df = pd.DataFrame({k:metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'][k]
@@ -1867,6 +1869,9 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
                                       ).sort_values(['rt', 'mz'])
 
             for rt in rt_mz_i_df.rt.unique():
+                if not rt_min <= rt <= rt_max:
+                    continue
+
                 msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
 
                 msv_sample = msv_sample[:,msv_sample[0] < rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0] + 2.5]
