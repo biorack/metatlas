@@ -151,7 +151,8 @@ ADDUCT_INFO = {'[2M+H]': {'charge': '1',
 
 def get_google_sheet(notebook_name = "Sheet name",
                      token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
-                     sheet_name = 'Sheet1'):
+                     sheet_name = 'Sheet1',
+                    literal_cols=None):
     """
     Returns a pandas data frame from the google sheet.
     Assumes header row is first row.
@@ -179,12 +180,19 @@ def get_google_sheet(notebook_name = "Sheet name",
     headers = istd_qc_data.pop(0)
     df = pd.DataFrame(istd_qc_data,columns=headers)
 
-#     Use round trip through read_csv to infer dtypes
+    # Use round trip through read_csv to infer dtypes
     s = StringIO()
     df.to_csv(s)
     df2 = pd.read_csv(StringIO(s.getvalue()))
     if 'Unnamed: 0' in df2.columns:
         df2.drop(columns=['Unnamed: 0'],inplace=True)
+    
+    #turn list elements into lists instead of strings
+    if literal_cols is not None:
+        for col in literal_cols:
+            df2[col] = df2[col].apply(literal_eval)
+    df2 = df2.fillna('')
+        
     return df2
 
 class VertSlider(AxesWidget):
