@@ -332,9 +332,18 @@ def filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset,
         assert(column in scores_df)
     except AssertionError:
         print 'Error: ' + column + ' not in scores_df. Either set column where pass/fail boolean values are or run test_scores_df().'
+        raise
+    try:
+        assert(scores_df.inchi_key.tolist()
+               == atlas_df.inchi_key.tolist()
+               == [metatlas_dataset[0][i]['identification'].compound[0].inchi_key
+                                   for i in range(len(metatlas_dataset[0]))])
+    except AssertionError:
+        print 'Error: scores_df, atlas_df, and metatlas_dataset must have the same compounds in the same order.'
+        raise
 
-    pass_atlas_df = atlas_df[atlas_df.inchi_key.isin(scores_df[scores_df['passing']].inchi_key.values)]
-    fail_atlas_df = atlas_df[atlas_df.inchi_key.isin(scores_df[~scores_df['passing']].inchi_key.values)]
+    pass_atlas_df = atlas_df[scores_df[column]]
+    fail_atlas_df = atlas_df[~scores_df[column]]
 
     pass_dataset = []
     fail_dataset = []
@@ -344,7 +353,7 @@ def filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset,
         fail_temp = []
 
         for compound_idx in range(len(metatlas_dataset[0])):
-            if metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key in scores_df[scores_df['passing']].inchi_key.values:
+            if scores_df.iloc[compound_idx][column]:
                 pass_temp.append(metatlas_dataset[file_idx][compound_idx])
             else:
                 fail_temp.append(metatlas_dataset[file_idx][compound_idx])

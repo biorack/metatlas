@@ -13,7 +13,7 @@ from .object_helpers import (
     Stub
 )
 
-#Making a new table means adding a new class to metatlas_objects.py. 
+#Making a new table means adding a new class to metatlas_objects.py.
 #Floats are set as single precision by default, unfortunately, so here is the best way to create a table containing floats:
 #Create a new table
 #1) Create a new class in metatlas_objects.py.
@@ -30,7 +30,7 @@ from .object_helpers import (
 # Whether to fetch stubs automatically, disabled when we want to display
 # a large number of objects.
 FETCH_STUBS = True
-ADDUCTS = ('','[M]+','[M+H]+','[M+H]2+','[M+2H]2+','[M+H-H2O]2+','[M+K]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-H+Cl]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M-H+Cl]2-','[M-H+2Na]+')
+ADDUCTS = ('','[M]+','[M+H]+','[M+H]2+','[M+2H]2+','[M+H-H2O]2+','[M+K]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-H+Cl]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M+formate]-','[M-H+Cl]2-','[M-H+2Na]+')
 POLARITY = ('positive', 'negative', 'alternating')
 FRAGMENTATION_TECHNIQUE = ('hcd','cid','etd','ecd','irmpd')
 
@@ -387,7 +387,7 @@ class FunctionalSet(MetatlasObject):
 @set_docstring
 class Compound(MetatlasObject):
     """A Compound is a structurally distinct entry.  The majority of MetAtlas compounds are from a merge
-    of WikiData, miBIG, HMDB, ChEBI, LipidMaps, MetaCyc, GNPS, ENZO-Library, MSMLS-Library.  Compounds that 
+    of WikiData, miBIG, HMDB, ChEBI, LipidMaps, MetaCyc, GNPS, ENZO-Library, MSMLS-Library.  Compounds that
     had an unparseable structural identifier by RDKIT June, 2016, were ignored.  Distinct molecules are found
     by inchi-key of neutralized and de-salted molecules.
     """
@@ -409,7 +409,7 @@ class Compound(MetatlasObject):
     hmdb_url = MetUnicode(help='Reference database table url')
     chebi_url = MetUnicode(help='Reference database table url')
     lipidmaps_url = MetUnicode(help='Reference database table url')
-    
+
     #RDKIT Calculates these with some helper functions
     formula = MetUnicode()
     mono_isotopic_molecular_weight = MetFloat()
@@ -422,7 +422,7 @@ class Compound(MetatlasObject):
     neutralized_inchi_key = MetUnicode()
     neutralized_2d_inchi = MetUnicode()
     neutralized_2d_inchi_key = MetUnicode()
-    
+
     #reference_xrefs = MetList(MetInstance(ReferenceDatabase),
     #                       help='Tag a compound with compound ids from ' +
     #                            'external databases')
@@ -501,7 +501,7 @@ class Group(MetatlasObject):
 
 
 
-    
+
 @set_docstring
 class MzIntensityPair(MetatlasObject):
     mz = MetFloat()
@@ -612,7 +612,7 @@ class MZMineTask(MetatlasObject):
 
     noise_floor = MetFloat(40000.0,help='Signals below this value are not considered')
     min_peak_height = MetFloat(100000.0,help='max of eic must be at least this big')
-    
+
     mzmine_launcher = MetUnicode(help='Path to the shell script that launches mzmine file at NERSC')
 
 # @set_docstring
