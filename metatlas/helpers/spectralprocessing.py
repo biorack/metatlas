@@ -122,14 +122,15 @@ def transform_network_type(input_list,output_type=('dataframe','networkx'),do_ms
         G = nx.Graph()
         for e in input_list:
             G.add_edge(e['source'],e['target'], weight=e['weight'],difference=e['edge'])
-            if do_mst==True:
-                G = nx.minimum_spanning_tree(G)
+        if do_mst==True:
+            G = nx.minimum_spanning_tree(G)
             return G
 
 def write_network_for_cytoscape(G,output_file,edge_label='difference',weight_label='weight'):
     """
     Takes in a networkx graph and outputs an edgelist.csv that cytoscape can import
     """
+    import networkx as nx
     nx.write_edgelist(G, output_file, data=[edge_label,weight_label],delimiter=',')
 
 
