@@ -47,6 +47,12 @@ from matplotlib.widgets import AxesWidget
 import gspread
 from oauth2client.client import SignedJwtAssertionCredentials
 
+import sys
+if sys.version_info[0] < 3: 
+    from StringIO import StringIO
+else:
+    from io import StringIO
+
 ADDUCT_INFO = {'[2M+H]': {'charge': '1',
               'color': '#fabebe',
               'common': True,
@@ -167,7 +173,13 @@ def get_google_sheet(notebook_name = "Sheet name",
     istd_qc_data = wks.worksheet(sheet_name).get_all_values()
     headers = istd_qc_data.pop(0)
     df = pd.DataFrame(istd_qc_data,columns=headers)
-    return df
+
+#     Use round trip through read_csv to infer dtypes
+    s = StringIO()
+    df.to_csv(s)
+    df2 = pd.read_csv(StringIO(s.getvalue()))
+    
+    return df2
 
 class VertSlider(AxesWidget):
     """
