@@ -183,7 +183,8 @@ def get_google_sheet(notebook_name = "Sheet name",
     s = StringIO()
     df.to_csv(s)
     df2 = pd.read_csv(StringIO(s.getvalue()))
-    
+    if 'Unnamed: 0' in df2.columns:
+        df2.drop(columns=['Unnamed: 0'],inplace=True)
     return df2
 
 class VertSlider(AxesWidget):
