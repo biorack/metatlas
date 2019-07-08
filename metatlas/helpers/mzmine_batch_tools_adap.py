@@ -73,7 +73,114 @@ env | grep -i java | sort
 
 """
 
-def mzmine_xml_to_csv(xml_file,csv_file=None,return_df=True):
+def calc_hit_vector(n,df):
+    """
+    for 0,1,2 n will be 3
+    for 0,1,2,3 n will be 4
+    df is the count from true_positives
+    this function makes it a percentation of hits will sum n or more hits in last element
+    """
+    m = np.zeros((n))
+    s = df['count']/df['count'].sum()
+    nf = df['num_features']
+    for i in s.index:
+        if (i>(len(m)-1)) & (len(m) >1):
+            m_idx = len(m)-1
+        else:
+            m_idx = nf[i] 
+        m[m_idx] = m[m_idx] + s[i]
+    return m
+
+def summarize_results(n,true_pos_filename,base_path,project_path,feature_table_extension,rt_column,mz_column,headerrows,sep,mz_tolerance,rt_tolerance):
+    """
+    """
+    path  = os.path.join(base_path,project_path)
+    feature_file = glob.glob(os.path.join(path,'*%s'%feature_table_extension))
+    if len(feature_file)>0:
+        feature_file = feature_file[-1]
+    else:
+        return np.zeros(n),np.zeros(n), 0
+
+    new_path = os.path.join(path,'true_pos_results')
+    if not os.path.isdir(new_path):
+        os.mkdir(new_path)
+
+    new_basename = os.path.basename(feature_file).replace(feature_table_extension,'height.xlsx')
+    output_filename = os.path.join(new_path,new_basename)
+    if os.path.isfile(feature_file): #has the file been made already?
+        with open(feature_file,'r') as fid:
+            s = fid.read()
+
+        if len(s)>0: #does the file have anything in it?
+            df_experimental = pd.read_csv(feature_file,sep=sep,skiprows=headerrows)
+            if df_experimental.shape[0] > 0: #are there any rows?
+                if 'hilic' in feature_file.lower():
+                    sheetname = 'HILIC_POS'
+                    df_true_pos = pd.read_excel(true_pos_filename,sheet_name=sheetname)
+                else:
+                    sheetname = 'CSH_POS'
+                    df_true_pos = pd.read_excel(true_pos_filename,sheet_name=sheetname)
+                istd_count,bio_count,df_grouped,df_hits,total_count = prepare_true_positive_and_export(output_filename,df_experimental,df_true_pos,rt_column=rt_column,mz_column=mz_column,mz_tolerance=mz_tolerance,rt_tolerance=rt_tolerance)
+                return calc_hit_vector(n,istd_count), calc_hit_vector(n,bio_count), total_count.loc[0,'total']
+    return np.zeros(n),np.zeros(n), 0
+
+def make_count_of_knowns(df_hits,df_true_pos):
+    df_grouped = df_hits[['true_pos_index','CompoundName_truepos','experimental_feature_idx']]
+    df_grouped.set_index(['CompoundName_truepos'],inplace=True)
+
+    df_grouped = df_grouped.groupby(['true_pos_index']).count()
+    df_grouped = pd.merge(df_grouped,df_true_pos,left_index=True,right_index=True,how='outer')
+    df_grouped.rename(columns={'experimental_feature_idx':'num_features'},inplace=True)
+    return df_grouped
+
+def map_features_to_known(df_experimental,df_true_pos,rt_column='row retention time',mz_column='row m/z',mz_tolerance=0.01,rt_tolerance=0.1):
+    feature_array = df_experimental[[mz_column,rt_column]].values
+    reference_array = df_true_pos[['MZ','RT']].values
+
+    idx = np.isclose(feature_array[:,None,:], reference_array, rtol=0.0, atol=[mz_tolerance,rt_tolerance]).all(axis=2) #order is m/z, rt, polarity
+    feature_idx, reference_idx = np.where(idx)
+
+    df_hits = df_true_pos.loc[reference_idx].copy()
+    df_hits['experimental_feature_idx'] = feature_idx
+    df_hits = pd.merge(df_hits,df_true_pos,left_index=True,right_index=True,how='outer',suffixes=['_x','_truepos'])
+    df_hits.drop(columns=['%s_x'%c for c in df_true_pos.columns],inplace=True)
+    df_hits = pd.merge(df_hits,df_experimental,how='left',left_on='experimental_feature_idx',right_index=True,suffixes=['_truepos','_experimental'])
+    df_hits.index.name = 'true_pos_index'
+    df_hits.reset_index(inplace=True)
+    return df_hits
+
+def summarize_count_per_type(df_grouped,cpd_type='ISTD'):
+    """
+    cpd_type is either 'ISTD' or 'TargetCPD'
+    """
+    cpd_count = df_grouped[df_grouped['Type']==cpd_type][['num_features','MZ']].groupby('num_features').count()
+    cpd_count.reset_index(inplace=True)
+    cpd_count.rename(columns={'MZ':'count'},inplace=True)
+    return cpd_count
+
+def prepare_true_positive_and_export(output_filename,df_experimental,df_true_pos,rt_column='row retention time',mz_column='row m/z',mz_tolerance=0.01,rt_tolerance=0.1):
+    df_hits = map_features_to_known(df_experimental,df_true_pos,rt_column=rt_column,mz_column=mz_column,mz_tolerance=0.01,rt_tolerance=0.1)
+    df_grouped = make_count_of_knowns(df_hits,df_true_pos)
+    istd_count = summarize_count_per_type(df_grouped,cpd_type='ISTD')
+    bio_count = summarize_count_per_type(df_grouped,cpd_type='TargetCPD')
+    params = pd.DataFrame(columns=['mz_tolerance','rt_tolerance'],data=[[mz_tolerance,rt_tolerance]])
+    total_count = pd.DataFrame(columns=['total'],data=[[df_experimental.shape[0]]])
+
+    # Create a Pandas Excel writer using XlsxWriter as the engine.
+    writer = pd.ExcelWriter(output_filename, engine='xlsxwriter')
+
+    # Write each dataframe to a different worksheet.
+    params.to_excel(writer, sheet_name='params')
+    istd_count.to_excel(writer, sheet_name='istd_count')
+    bio_count.to_excel(writer, sheet_name='bio_count')
+    df_grouped.to_excel(writer, sheet_name='df_grouped')
+    df_hits.to_excel(writer, sheet_name='df_hits')
+    total_count.to_excel(writer, sheet_name='total')
+    return istd_count,bio_count,df_grouped,df_hits,total_count
+    # Close the Pandas Excel writer and output the Excel file.
+#     writer.save()
+
+def mzmine_xml_to_csv(xml_file,csv_file=None,pop_input_files=True,return_df=True):
     """
     given an xml file, turn it into a csv
     optionally return either a dict of the steps or a dataframe of the steps
@@ -81,17 +188,19 @@ def mzmine_xml_to_csv(xml_file,csv_file=None,return_df=True):
     with open(xml_file,'r') as fid:
         xml_str = fid.read()
 
-    d = mzm.xml_to_dict(xml_str)
+    d = xml_to_dict(xml_str)
 
-    t = mzm.dict_to_etree(d)
-    mzm.indent_tree(t)
-    s1 = mzm.tree_to_xml(t)
+#     t = dict_to_etree(d)
+#     indent_tree(t)
+#     s1 = tree_to_xml(t)
+    
     # pop out the files
-    raw_data_import = d['batch']['batchstep'].pop(0)
-    original_file_list = raw_data_import['parameter']['file']
+    if pop_input_files==True:
+        raw_data_import = d['batch']['batchstep'].pop(0)
+        original_file_list = raw_data_import['parameter']['file']
 
     # This is a dict representation of all the steps
-    dflat = mzm.flatten(d,enumerate_types=(list,))
+    dflat = flatten(d,enumerate_types=(list,))
 
     # This is a tabular representation of all the steps
     df = pd.DataFrame([(k,v) for (k,v) in dflat.items()],columns=['parameter','value']).sort_values('parameter').set_index('parameter',drop=True)
@@ -264,7 +373,7 @@ def remove_duplicate_files(files):
             file_names.append(f.name)
     return unique_files
 
-def get_files(groups,filename_substring,file_filters,is_group=False):
+def get_files(groups,filename_substring,file_filters,is_group=False,return_mzml=True):
     """
     if is_group is False, gets files from the experiment/folder name and filters with file_filters
 
