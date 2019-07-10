@@ -10,9 +10,13 @@ import spectralprocessing as sp
 
 import pandas as pd
 import numpy as np
+from scipy.stats import rankdata
 
+def make_nistified(msv):
+    msv[0,~np.isnan(msv[0])] = -1
+    msv[1] = rankdata(msv[1], method='dense')*(msv[1]-msv[1]+1)
 
-def find_spectral_hits(mzml_loc, tab_loc=None, force=False, **kwargs):
+def find_spectral_hits(mzml_loc, tab_loc=None, force=False, nistify=False, **kwargs):
 
     if os.path.isfile(mzml_loc):
         mzml_loc = os.path.realpath(mzml_loc)
@@ -113,11 +117,9 @@ def find_spectral_hits(mzml_loc, tab_loc=None, force=False, **kwargs):
     spectral_hits_df.set_index('rt', append=True, inplace=True)
     spectral_hits_df.reorder_levels(['rt'] + ref_index)
 
-    # def nistify(msv):
-    #     msv[~np.isnan(msv)] = -1
-
     spectral_hits_df['msv_query_aligned'] = spectral_hits_df['msv_query_aligned'].apply(lambda a: a.tolist())
-    # spectral_hits_df.xs('nist', level='database')['msv_ref_aligned'].apply(nistify)
+    if nistify:
+        spectral_hits_df.xs('nist', level='database')['msv_ref_aligned'].apply(make_nistified)
     spectral_hits_df['msv_ref_aligned'] = spectral_hits_df['msv_ref_aligned'].apply(lambda a: a.tolist())
 
     spectral_hits_df.to_csv(tab_loc, columns=['precursor_mz', 'precursor_intensity', 'polarity',
@@ -129,7 +131,7 @@ def find_spectral_hits(mzml_loc, tab_loc=None, force=False, **kwargs):
 
 
 
-def generate_worklist(worklist_loc, mzml_dir, tab_dir=None, force=False):
+def generate_worklist(worklist_loc, mzml_dir, tab_dir=None, force=False, nistify=False):
 
     worklist = []
 
@@ -158,15 +160,14 @@ def generate_worklist(worklist_loc, mzml_dir, tab_dir=None, force=False):
                 out_file = os.path.join(out_path,
                                         name + '_spectral-hits.tab.gz')
 
-                if force:
-                    worklist.append(os.path.realpath(__file__) +
-                                    ' -f -m \"' + os.path.join(root, filename) +
-                                    '\" -l \"' + out_file + '\"')
-
-                elif not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
-                    worklist.append(os.path.realpath(__file__) +
-                                    ' -m \"' + os.path.join(root, filename) +
-                                    '\" -l \"' + out_file + '\"')
+                if force or not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
+                    command = os.path.realpath(__file__)
+                    if force:
+                        command += ' -f'
+                    if nistify:
+                        command += ' -n'
+                    command += ' -m \"' + os.path.join(root, filename) + '\" -l \"' + out_file + '\"'
+                    worklist.append(command)
 
     with open(worklist_loc, 'w') as worklist_file:
         worklist_file.write('\n'.join(worklist))
@@ -176,6 +177,8 @@ def arg_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--force', action='store_true', required=False,
                          help='forces file(s) to be remade if they exist')
+    parser.add_argument('-n', '--nistify', action='store_true', required=False,
+                         help='obfuscates nist reference msms')
     parser.add_argument('-l', '--location', type=str, required=False, metavar='out_dir/loc',
                          help='changes output location for files')
 
@@ -201,10 +204,10 @@ def main():
     args, cmd_kwargs = parser.parse_known_args()
 
     if args.make:
-        find_spectral_hits(args.make, args.location, args.force, **kwargs)
+        find_spectral_hits(args.make, args.location, args.force, args.nistify, **kwargs)
 
     if args.worklist:
-        generate_worklist(args.worklist[0], args.worklist[1], args.location, args.force)
+        generate_worklist(args.worklist[0], args.worklist[1], args.location, args.force, args.nistify)
 
 
 if __name__ == '__main__':
