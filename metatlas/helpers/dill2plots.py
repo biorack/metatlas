@@ -48,7 +48,7 @@ import gspread
 from oauth2client.client import SignedJwtAssertionCredentials
 
 import sys
-if sys.version_info[0] < 3: 
+if sys.version_info[0] < 3:
     from StringIO import StringIO
 else:
     from io import StringIO
@@ -186,13 +186,13 @@ def get_google_sheet(notebook_name = "Sheet name",
     df2 = pd.read_csv(StringIO(s.getvalue()))
     if 'Unnamed: 0' in df2.columns:
         df2.drop(columns=['Unnamed: 0'],inplace=True)
-    
+
     #turn list elements into lists instead of strings
     if literal_cols is not None:
         for col in literal_cols:
             df2[col] = df2[col].apply(literal_eval)
     df2 = df2.fillna('')
-        
+
     return df2
 
 class VertSlider(AxesWidget):
@@ -393,7 +393,8 @@ class adjust_rt_for_selected_compound(object):
                  peak_color = 'darkviolet',
                  slider_color = 'ghostwhite',
                  y_max = 'auto',
-                 y_min = 0):
+                 y_min = 0,
+                 adjustable_rt_peak = False):
         """
         data: a metatlas_dataset where files and compounds are stored.
         for example,
@@ -418,6 +419,7 @@ class adjust_rt_for_selected_compound(object):
         self.slider_color = slider_color
         self.y_max = y_max
         self.y_min = y_min
+        self.adjustable_rt_peak = adjustable_rt_peak
 
         # filter runs from the metatlas dataset
         if include_lcmsruns:
@@ -596,7 +598,8 @@ class adjust_rt_for_selected_compound(object):
     def update_rt(self,val):
         self.my_rt.rt_min = self.rt_min_slider.val
         self.my_rt.rt_max = self.rt_max_slider.val
-        #self.my_rt.rt_peak = self.rt_peak_slider.val
+        if self.adjustable_rt_peak:
+            self.my_rt.rt_peak = self.rt_peak_slider.val
 
         self.rt_min_slider.valinit = self.my_rt.rt_min
         self.rt_max_slider.valinit = self.my_rt.rt_max
