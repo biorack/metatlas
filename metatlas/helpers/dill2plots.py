@@ -1870,6 +1870,18 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
             # exit here if there isn't a compound in the identification
             continue
 
+        if metatlas_dataset[0][compound_idx]['identification'].name:
+            name = metatlas_dataset[0][compound_idx]['identification'].name.split('///')[0]
+        elif metatlas_dataset[0][compound_idx]['identification'].compound[-1].name:
+            name = metatlas_dataset[0][compound_idx]['identification'].compound[-1].name
+        else:
+            name = None
+
+        try:
+            adduct = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].adduct
+        except (KeyError, AttributeError):
+            adduct = None
+
         inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
         pre_mz_ppm = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance
         precursor_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
@@ -1905,6 +1917,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
                 if len(scan_df) > 0:
                     scan_df['file_name'] = file_name
                     scan_df['msms_scan'] = rt
+                    scan_df['name'] = name
+                    scan_df['adduct'] = adduct
 
                     scan_df.set_index('file_name', append=True, inplace=True)
                     scan_df.set_index('msms_scan', append=True, inplace=True)
