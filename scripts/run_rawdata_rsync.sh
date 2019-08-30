@@ -1,5 +1,8 @@
 #!/bin/bash -l
 
+# user has to be whitelisted to use cori21 for cron
+# pasteur and bpb are on the list
+# crontab -e from cori21
 # CRONTAB LOOKS LIKE THIS:
 # */15 * * * * /global/u2/b/bpb/repos/metatlas/scripts/run_rawdata_rsync.sh >/dev/null
 # COPY FROM FIRST *
