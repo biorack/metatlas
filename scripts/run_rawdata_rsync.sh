@@ -1,9 +1,10 @@
 #!/bin/bash -l
 
 # CRONTAB LOOKS LIKE THIS:
-# */15 * * * * /global/u2/b/bpb/repos/metatlas/scripts/run_rawdata_rsync.sh
+# */15 * * * * /global/u2/b/bpb/repos/metatlas/scripts/run_rawdata_rsync.sh >/dev/null
 # COPY FROM FIRST *
 # */15 will run it every 15 minutes
+# will only email if stderr has content since stdout goes to null
 
 mkdir -p "$HOME/tmp"
 PIDFILE="$HOME/tmp/rawdata_rsync.pid"
