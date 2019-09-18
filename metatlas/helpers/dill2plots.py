@@ -384,9 +384,13 @@ class adjust_rt_for_selected_compound(object):
                  exclude_lcmsruns = None,
                  include_groups = None,
                  exclude_groups = None,
+                 msms_hits = None,
+                 color_me_red = '',
                  compound_idx = 0,
-                 width = 12,
-                 height = 6,
+                 #width = 12,
+                 width = 10,
+                 #height = 6,
+                 height = 4,
                  y_scale='linear',
                  alpha = 0.5,
                  min_max_color = 'green',
@@ -400,7 +404,7 @@ class adjust_rt_for_selected_compound(object):
         for example,
         self.metatlas_dataset[file_idx][compound_idx]['identification'].rt_references[-1].unique_id
         is the unique id to the retention time reference for a compound in a file.
-
+        msms_hits: output of get_msms_hits routine
         width: specify a width value in inches for the plots and slides
         height: specify a width value in inches for the plots and slides
         min_max_color & peak_color: specify a valid matplotlib color string for the slider and vertical bars
@@ -408,7 +412,9 @@ class adjust_rt_for_selected_compound(object):
 
         Press Left and Right arrow keys to move to the next or previous compound
         """
-
+        
+        self.msms_hits = msms_hits
+        self.color_me_red = color_me_red
         self.compound_idx = compound_idx
         self.width = width
         self.height = height
@@ -434,8 +440,9 @@ class adjust_rt_for_selected_compound(object):
         self.data = data
 
         # create figure and first axes
-        self.fig,self.ax = plt.subplots(figsize=(width, height))
-        plt.subplots_adjust(left=0.09, bottom=0.275)
+        #self.fig,self.ax = plt.subplots(figsize=(width, height))
+        self.fig,(self.ax, self.ax2) = plt.subplots(2, 1, figsize=(width, height*2))
+        plt.subplots_adjust(left=0.09, bottom=0.275, hspace=0.3)
 #         plt.ticklabel_format(style='plain', axis='x')
 #         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 
@@ -450,8 +457,10 @@ class adjust_rt_for_selected_compound(object):
         #create all event handlers
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
         self.fig.canvas.mpl_connect('key_press_event', self.press)
+        
 
         #create the plot
+        self.hit_ctr = 0
         self.set_plot_data()
 
 
@@ -462,6 +471,7 @@ class adjust_rt_for_selected_compound(object):
             self.ax.set_ylim(self.y_min,self.y_max)
 
         self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+        self.ax2.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 
         default_data = self.data[0][self.compound_idx]
         if default_data['identification'].name:
@@ -471,6 +481,8 @@ class adjust_rt_for_selected_compound(object):
         else:
             compound_str = 'nameless compound'
 
+        cname = compound_str
+        inchi_key = default_data['identification'].compound[-1].inchi_key
         compound_str = '%d, %s'%(self.compound_idx, compound_str)
 
         self.ax.set_title('')
@@ -489,7 +501,13 @@ class adjust_rt_for_selected_compound(object):
                     #y = y - minval
                     x = x[y>0]
                     y = y[y>0]#y[y<0.0] = 0.0
-                    self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                    if self.color_me_red != '' and self.color_me_red in d[self.compound_idx]['lcmsrun'].name:
+                        self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, color='r', label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                    else:
+                        self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                    
+                    #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                    #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
 
 
         self.min_line = self.ax.axvline(self.my_rt.rt_min, color=self.min_max_color,linewidth=4.0)
@@ -546,6 +564,14 @@ class adjust_rt_for_selected_compound(object):
         self.peak_flag_radio.on_clicked(self.set_peak_flag)
         self.peak_flag_radio.set_active(peak_flag_index)
 
+        #self.fig2,self.ax2 = plt.subplots(figsize=(14, 6))
+        hits = self.msms_hits[(self.msms_hits.index.get_level_values(3) > float(self.my_rt.rt_min)) & (self.msms_hits.index.get_level_values(3) < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key)]
+        #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
+        self.hits = hits.sort_values('score', ascending=False)
+        #hit_ctr = 0
+        if len(self.hits) > 0:
+            plot_msms_comparison2(0,self.hits.index.get_level_values(3)[self.hit_ctr],self.hits.index.get_level_values(2)[self.hit_ctr],self.hits['score'][self.hit_ctr],self.ax2,self.hits['msv_query_aligned'][self.hit_ctr],self.hits['msv_ref_aligned'][self.hit_ctr])
+
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
         self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
@@ -566,7 +592,9 @@ class adjust_rt_for_selected_compound(object):
         if event.key == 'right':
             if self.compound_idx + 1 < len(self.data[0]):
                 self.compound_idx += 1
+                self.hit_ctr = 0
                 self.ax.cla()
+                self.ax2.cla()
                 self.rt_peak_ax.cla()
                 self.rt_min_ax.cla()
                 self.rt_max_ax.cla()
@@ -575,12 +603,34 @@ class adjust_rt_for_selected_compound(object):
         if event.key == 'left':
             if self.compound_idx > 0:
                 self.compound_idx -= 1
+                self.hit_ctr = 0
                 self.ax.cla()
+                self.ax2.cla()
                 self.rt_peak_ax.cla()
                 self.rt_min_ax.cla()
                 self.rt_max_ax.cla()
                 self.y_scale_ax.cla()
                 self.set_plot_data()
+        if event.key == 'up':
+            if self.hit_ctr > 0:
+                self.hit_ctr -= 1
+            self.ax.cla()
+            self.ax2.cla()
+            self.rt_peak_ax.cla()
+            self.rt_min_ax.cla()
+            self.rt_max_ax.cla()
+            self.y_scale_ax.cla()
+            self.set_plot_data()
+        if event.key == 'down':
+            if self.hit_ctr < len(self.hits) - 1:
+                self.hit_ctr += 1
+            self.ax.cla()
+            self.ax2.cla()
+            self.rt_peak_ax.cla()
+            self.rt_min_ax.cla()
+            self.rt_max_ax.cla()
+            self.y_scale_ax.cla()
+            self.set_plot_data()
         if event.key == 'x':
             self.peak_flag_radio.set_active(1)
             #This is really hacky, but using set_peak_flag function above didn't work.
@@ -610,6 +660,14 @@ class adjust_rt_for_selected_compound(object):
         self.max_line.set_xdata((self.my_rt.rt_max,self.my_rt.rt_max))
         self.peak_line.set_xdata((self.my_rt.rt_peak,self.my_rt.rt_peak))
         self.fig.canvas.draw_idle()
+        #self.ax.cla()
+        #self.ax2.cla()
+        #self.rt_peak_ax.cla()
+        #self.rt_min_ax.cla()
+        #self.rt_max_ax.cla()
+        #self.y_scale_ax.cla()
+        #self.set_plot_data()
+        #self.fig.canvas.draw_idle()
 
 class adjust_mz_for_selected_compound(object):
     def __init__(self,
@@ -1681,7 +1739,6 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
 
     return zip(*sorted(zip(file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list, rt_list), key=lambda l: l[2], reverse=True)[:5])
 
-
 def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
 
     msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
@@ -1723,6 +1780,66 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
                             rotation=90,
                             horizontalalignment='center', verticalalignment='left',
                             size=4)
+                labels.append(msv_sample_unaligned[0][m])
+
+    if msv_ref_unaligned[0].size > 0:
+        ref_scale = -1 * np.max(msv_sample_unaligned[1]) / np.max(msv_ref_unaligned[1])
+
+        ref_mz = msv_ref_nonmatches[0]
+        ref_zeros = np.zeros(msv_ref_nonmatches[0].shape)
+        ref_intensity = ref_scale * msv_ref_nonmatches[1]
+        shared_ref_intensity = ref_scale * msv_ref_matches[1]
+
+        ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth=1)
+
+        ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth=1)
+
+        ax.axhline()
+
+    ylim = ax.get_ylim()
+    ax.set_ylim(ylim[0], ylim[1] * 1.33)
+
+def plot_msms_comparison2(i, rt, filename, score, ax, msv_sample, msv_ref):
+
+    msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
+
+    msv_sample_unaligned = np.concatenate((msv_sample_matches, msv_sample_nonmatches), axis=1)
+    msv_ref_unaligned = np.concatenate((msv_ref_matches, msv_ref_nonmatches), axis=1)
+
+    sample_mz = msv_sample_nonmatches[0]
+    sample_zeros = np.zeros(msv_sample_nonmatches[0].shape)
+    sample_intensity = msv_sample_nonmatches[1]
+
+    ax.vlines(sample_mz, sample_zeros, sample_intensity, colors='r', linewidth=1)
+
+    shared_mz = msv_sample_matches[0]
+    shared_zeros = np.zeros(msv_sample_matches[0].shape)
+    shared_sample_intensity = msv_sample_matches[1]
+
+    ax.vlines(shared_mz, shared_zeros, shared_sample_intensity, colors='g', linewidth=1)
+
+    most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
+
+    if i == 0:
+        ax.set_title('RT = %.4f, Score = %.4f' % (rt, score), fontsize=10, weight='bold')
+        ax.set_xlabel('m/z\n%s' % filename, fontsize=10)
+        ax.set_ylabel('intensity', fontsize=10)
+        #ax.tick_params(axis='both', which='major', labelsize=8)
+
+        labels = [1.001e9]
+
+        intensity_requirement = [m for m in most_intense_idxs
+                                 if
+                                 np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1
+                                 and msv_sample_unaligned[1][m] > 0.2 * np.max(msv_sample_unaligned[1])]
+
+        for m in max([most_intense_idxs[:6], intensity_requirement], key=len):
+            if np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1 and msv_sample_unaligned[1][m] > 0.02 * np.max(msv_sample_unaligned[1]):
+                ax.annotate('%5.4f' % msv_sample_unaligned[0][m],
+                            xy=(msv_sample_unaligned[0][m], 1.01 * msv_sample_unaligned[1][m]),
+                            rotation=90,
+                            horizontalalignment='center', verticalalignment='left',
+                            size=6)
                 labels.append(msv_sample_unaligned[0][m])
 
     if msv_ref_unaligned[0].size > 0:
@@ -1919,6 +2036,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
                     scan_df['msms_scan'] = rt
                     scan_df['name'] = name
                     scan_df['adduct'] = adduct
+                    scan_df['inchi_key'] = inchi_key
 
                     scan_df.set_index('file_name', append=True, inplace=True)
                     scan_df.set_index('msms_scan', append=True, inplace=True)
