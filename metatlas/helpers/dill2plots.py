@@ -485,6 +485,15 @@ class adjust_rt_for_selected_compound(object):
         inchi_key = default_data['identification'].compound[-1].inchi_key
         compound_str = '%d, %s'%(self.compound_idx, compound_str)
 
+        mz_theoretical = default_data['identification'].mz_references[-1].mz
+        mz_measured = default_data['data']['ms1_summary']['mz_centroid']
+        if not mz_measured:
+            mz_measured = 0
+        
+        delta_mz = abs(mz_theoretical - mz_measured)
+        delta_ppm = delta_mz / mz_theoretical * 1e6
+        mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
+
         self.ax.set_title('')
         self.ax.set_ylabel('%s'%compound_str)
         self.ax.set_xlabel('Retention Time')
@@ -502,9 +511,9 @@ class adjust_rt_for_selected_compound(object):
                     x = x[y>0]
                     y = y[y>0]#y[y<0.0] = 0.0
                     if self.color_me_red != '' and self.color_me_red in d[self.compound_idx]['lcmsrun'].name:
-                        self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, color='r', label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                        self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, color='r', label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     else:
-                        self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                        self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     
                     #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
@@ -570,7 +579,7 @@ class adjust_rt_for_selected_compound(object):
         self.hits = hits.sort_values('score', ascending=False)
         #hit_ctr = 0
         if len(self.hits) > 0:
-            plot_msms_comparison2(0,self.hits.index.get_level_values(3)[self.hit_ctr],self.hits.index.get_level_values(2)[self.hit_ctr],self.hits['score'][self.hit_ctr],self.ax2,self.hits['msv_query_aligned'][self.hit_ctr],self.hits['msv_ref_aligned'][self.hit_ctr])
+            plot_msms_comparison2(0,mz_header, self.hits.index.get_level_values(3)[self.hit_ctr],self.hits.index.get_level_values(2)[self.hit_ctr],self.hits['score'][self.hit_ctr],self.ax2,self.hits['msv_query_aligned'][self.hit_ctr],self.hits['msv_ref_aligned'][self.hit_ctr])
 
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
@@ -585,7 +594,7 @@ class adjust_rt_for_selected_compound(object):
 
     def on_pick(self,event):
         thisline = event.artist
-        thisline.set_color('red')
+        thisline.set_color('cyan')
         self.ax.set_title(thisline.get_label())
 
     def press(self,event):
@@ -1799,7 +1808,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     ylim = ax.get_ylim()
     ax.set_ylim(ylim[0], ylim[1] * 1.33)
 
-def plot_msms_comparison2(i, rt, filename, score, ax, msv_sample, msv_ref):
+def plot_msms_comparison2(i, mz_header, rt, filename, score, ax, msv_sample, msv_ref):
 
     msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
 
@@ -1821,7 +1830,7 @@ def plot_msms_comparison2(i, rt, filename, score, ax, msv_sample, msv_ref):
     most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
 
     if i == 0:
-        ax.set_title('RT = %.4f, Score = %.4f' % (rt, score), fontsize=10, weight='bold')
+        ax.set_title('RT = %.4f, Score = %.4f, %s' % (rt, score, mz_header), fontsize=10, weight='bold')
         ax.set_xlabel('m/z\n%s' % filename, fontsize=10)
         ax.set_ylabel('intensity', fontsize=10)
         #ax.tick_params(axis='both', which='major', labelsize=8)
@@ -1941,7 +1950,7 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         transform=ax.transAxes)
 
 
-def get_msms_hits(metatlas_dataset, use_labels=False,
+def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False,
                   pre_query='database == "metatlas"',
                   # pre_query = 'index == index or index == @pd.NaT',
                   query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)) <= precursor_mz <= (@precursor_mz + .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)))',
@@ -2022,8 +2031,9 @@ def get_msms_hits(metatlas_dataset, use_labels=False,
                                       ).sort_values(['rt', 'mz'])
 
             for rt in rt_mz_i_df.rt.unique():
-                if not rt_min <= rt <= rt_max:
-                    continue
+                if not extra_time:
+                    if not rt_min <= rt <= rt_max:
+                        continue
 
                 msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
 
