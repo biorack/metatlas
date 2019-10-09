@@ -182,6 +182,7 @@ def make_scores_df(metatlas_dataset):
     scores = []
 
     msms_hits_df = dp.get_msms_hits(metatlas_dataset, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
+    msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)
     msms_hits_df.reset_index(inplace=True)
 
     for compound_idx in range(len(compound_names)):
