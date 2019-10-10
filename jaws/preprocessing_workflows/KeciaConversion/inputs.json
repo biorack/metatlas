@@ -1,0 +1,5 @@
+{
+  "raw_to_mzml_wf.raw_dir": "/global/cscratch1/sd/jfroula/JAWS/BenBowen/KeciaConversion/tmp",
+  "raw_to_mzml_wf.out_dir": "/global/cscratch1/sd/jfroula/JAWS/BenBowen/KeciaConversion/MZML",
+  "raw_to_mzml_wf.threads": 2
+}

@@ -1,0 +1,9 @@
+{
+    "atlases": [],
+    "group": "test",
+    "mzml_file_name": "test_ms_ms",
+    "normalization_factor": "11",
+    "polarity": "negative",
+    "retention_correction": "none",
+    "run_file_id": "/Users/ssilvester/workspace/metabolite-atlas/metatlas/metatlas/test_ms_ms.h5"
+}

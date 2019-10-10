@@ -1,0 +1,24 @@
+{
+   "metadata": {
+	   "analysis_project_id"   : [],
+	   "sequencing_project_id" : []
+   }, 
+   "outputs":[
+         {
+            "label":"readme",
+            "file" :"",
+	    "_comment": "template automatically includes a file_format key with default value specified in the template. Please include file_format here if you want a value different from the default"
+         },
+	 {
+	    "label":"results",
+	    "_comment": "template automatically includes a file_format key with default value specified in the template. Please include file_format here if you want a value different from the default",
+	    "file" : ""
+	 },
+         {
+	    "lable":"figures_tarball",
+	    "_comment": "template automatically includes a file_format key with default value specified in the template. Please include file_format here if you want a value different from the default",
+	    "file" : ""
+	 } 
+   ]
+
+}

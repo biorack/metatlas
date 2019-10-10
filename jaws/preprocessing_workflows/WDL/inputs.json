@@ -1,0 +1,6 @@
+{
+    "metatlas_wf.mzml_dir": "/global/cscratch1/sd/jfroula/JAWS/BenBowen/Raw/test",
+    "metatlas_wf.config": "/global/cscratch1/sd/jfroula/JAWS/BenBowen/SpectralHits/spectral_hits.config",
+    "metatlas_wf.tree_lookup": "/global/projectb/sandbox/metatlas/projects/clean_pactolus_trees/tree_lookup.npy",
+    "metatlas_wf.threads": 32
+}

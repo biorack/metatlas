@@ -1,0 +1,18 @@
+Here is the command that I use to run shifter
+the workdir needs to be someplace that is writeable as the wine stuff needs to write to it.
+I think it has to be unique to each task.
+
+shifter --volume=${workdir}:/mywineprefix --image=biocontainers/pwiz:phenomenal-v3.0.18205_cv1.2.54 mywine msconvert --32 --mzML ${rawfile}
+
+we probably also want to add some options to msconvert
+currently it is called with --32 --mzML
+
+# kecia has example file here
+/global/seqfs/metatlas/
+
+
+here is the github repo
+https://github.com/keciad/PWcontainer
+
+and Docker
+https://cloud.docker.com/repository/docker/kduffy/proteowizard/builds
