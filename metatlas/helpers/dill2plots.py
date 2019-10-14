@@ -412,7 +412,7 @@ class adjust_rt_for_selected_compound(object):
 
         Press Left and Right arrow keys to move to the next or previous compound
         """
-        
+
         self.msms_hits = msms_hits
         self.color_me_red = color_me_red
         self.compound_idx = compound_idx
@@ -457,7 +457,7 @@ class adjust_rt_for_selected_compound(object):
         #create all event handlers
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
         self.fig.canvas.mpl_connect('key_press_event', self.press)
-        
+
 
         #create the plot
         self.hit_ctr = 0
@@ -489,7 +489,7 @@ class adjust_rt_for_selected_compound(object):
         mz_measured = default_data['data']['ms1_summary']['mz_centroid']
         if not mz_measured:
             mz_measured = 0
-        
+
         delta_mz = abs(mz_theoretical - mz_measured)
         delta_ppm = delta_mz / mz_theoretical * 1e6
         mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
@@ -514,7 +514,7 @@ class adjust_rt_for_selected_compound(object):
                         self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, color='r', label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     else:
                         self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
-                    
+
                     #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
 
@@ -1950,7 +1950,7 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         transform=ax.transAxes)
 
 
-def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False,
+def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_nonmatches=False,
                   pre_query='database == "metatlas"',
                   # pre_query = 'index == index or index == @pd.NaT',
                   query='(@inchi_key == inchi_key) and (@polarity == polarity) and ((@precursor_mz - .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)) <= precursor_mz <= (@precursor_mz + .5*(((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) + .005 + ((.5*(@pre_mz_ppm**-decimal)/(decimal+1)) - .005)**2)**.5)))',
@@ -2027,7 +2027,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False,
                 continue
 
             rt_mz_i_df = pd.DataFrame({k:metatlas_dataset[file_idx][compound_idx]['data']['msms']['data'][k]
-                                      for k in ['rt', 'mz', 'i', 'precursor_MZ']}
+                                      for k in ['rt', 'mz', 'i', 'precursor_MZ', 'precursor_intensity']}
                                       ).sort_values(['rt', 'mz'])
 
             for rt in rt_mz_i_df.rt.unique():
@@ -2048,6 +2048,29 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False,
                     scan_df['adduct'] = adduct
                     scan_df['inchi_key'] = inchi_key
 
+                    scan_df.set_index('file_name', append=True, inplace=True)
+                    scan_df.set_index('msms_scan', append=True, inplace=True)
+
+                    msms_hits.append(scan_df)
+
+                elif keep_nonmatches:
+                    scan_df = {}
+
+                    scan_df['file_name'] = file_name
+                    scan_df['msms_scan'] = rt
+                    scan_df['name'] = name
+                    scan_df['adduct'] = adduct
+                    scan_df['inchi_key'] = inchi_key
+
+                    scan_df['score'] = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_intensity'].values[0]
+                    scan_df['msv_query_aligned'] = msv_sample
+                    scan_df['msv_ref_aligned'] = np.full_like(msv_sample, np.nan)
+
+                    scan_df = pd.DataFrame([scan_df])
+
+                    for idx in ref_df.index.names:
+                        scan_df[idx] = None
+                        scan_df.set_index(idx, append=True, inplace=True)
                     scan_df.set_index('file_name', append=True, inplace=True)
                     scan_df.set_index('msms_scan', append=True, inplace=True)
 
