@@ -2070,7 +2070,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
 
                     for idx in ref_df.index.names:
                         scan_df[idx] = None
-                        scan_df.set_index(idx, append=True, inplace=True)
+                    scan_df.set_index('database', append=False, inplace=True)
+                    scan_df.set_index('id', append=True, inplace=True)
                     scan_df.set_index('file_name', append=True, inplace=True)
                     scan_df.set_index('msms_scan', append=True, inplace=True)
 
