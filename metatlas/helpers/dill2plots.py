@@ -2684,6 +2684,11 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
     df.dropna(how="all", inplace=True)
     df.columns = [x.lower() for x in df.columns]
 
+    if 'inchi_key' not in df.columns:
+        df['inchi_key'] = ""
+    if 'adduct' not in df.columns:
+        df['adduct'] = ""
+
     bad_names = check_compound_names(df)
     if bad_names:
         return bad_names
