@@ -574,12 +574,14 @@ class adjust_rt_for_selected_compound(object):
         self.peak_flag_radio.set_active(peak_flag_index)
 
         #self.fig2,self.ax2 = plt.subplots(figsize=(14, 6))
-        hits = self.msms_hits[(self.msms_hits.index.get_level_values(3) > float(self.my_rt.rt_min)) & (self.msms_hits.index.get_level_values(3) < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key)]
+        my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
+        my_file_name = self.msms_hits.index.get_level_values('file_name')
+        hits = self.msms_hits[(my_scan_rt > float(self.my_rt.rt_min)) & (my_scan_rt < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['precursor_mz'] - mz_theoretical) <= 0.005)]
         #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
         self.hits = hits.sort_values('score', ascending=False)
         #hit_ctr = 0
         if len(self.hits) > 0:
-            plot_msms_comparison2(0,mz_header, self.hits.index.get_level_values(3)[self.hit_ctr],self.hits.index.get_level_values(2)[self.hit_ctr],self.hits['score'][self.hit_ctr],self.ax2,self.hits['msv_query_aligned'][self.hit_ctr],self.hits['msv_ref_aligned'][self.hit_ctr])
+            plot_msms_comparison2(0,mz_header, my_scan_rt[self.hit_ctr],my_file_name[self.hit_ctr],self.hits['score'][self.hit_ctr],self.ax2,self.hits['msv_query_aligned'][self.hit_ctr],self.hits['msv_ref_aligned'][self.hit_ctr])
 
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
@@ -2036,7 +2038,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                         continue
 
                 msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
-
+                
                 msv_sample = msv_sample[:,msv_sample[0] < rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0] + 2.5]
 
                 scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
@@ -2047,6 +2049,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     scan_df['name'] = name
                     scan_df['adduct'] = adduct
                     scan_df['inchi_key'] = inchi_key
+                    scan_df['precursor_mz'] = precursor_mz
 
                     scan_df.set_index('file_name', append=True, inplace=True)
                     scan_df.set_index('msms_scan', append=True, inplace=True)
@@ -2061,6 +2064,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     scan_df['name'] = name
                     scan_df['adduct'] = adduct
                     scan_df['inchi_key'] = inchi_key
+                    scan_df['precursor_mz'] = precursor_mz
 
                     scan_df['score'] = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_intensity'].values[0]
                     scan_df['msv_query_aligned'] = msv_sample
