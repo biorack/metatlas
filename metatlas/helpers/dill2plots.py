@@ -576,12 +576,20 @@ class adjust_rt_for_selected_compound(object):
         #self.fig2,self.ax2 = plt.subplots(figsize=(14, 6))
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
         my_file_name = self.msms_hits.index.get_level_values('file_name')
-        hits = self.msms_hits[(my_scan_rt > float(self.my_rt.rt_min)) & (my_scan_rt < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['precursor_mz'] - mz_theoretical) <= 0.005)]
+        hits_mz_tolerance = 0.005
+
+        hits = self.msms_hits[(my_scan_rt > float(self.my_rt.rt_min)) & (my_scan_rt < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['precursor_mz'] - mz_theoretical) <= hits_mz_tolerance)]
         #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
         self.hits = hits.sort_values('score', ascending=False)
+
+        hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
+        hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
+        hit_score = self.hits['score'][self.hit_ctr]
+        hit_query = self.hits['msv_query_aligned'][self.hit_ctr]
+        hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr]
         #hit_ctr = 0
         if len(self.hits) > 0:
-            plot_msms_comparison2(0,mz_header, my_scan_rt[self.hit_ctr],my_file_name[self.hit_ctr],self.hits['score'][self.hit_ctr],self.ax2,self.hits['msv_query_aligned'][self.hit_ctr],self.hits['msv_ref_aligned'][self.hit_ctr])
+            plot_msms_comparison2(0, mz_header, hit_rt, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
 
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
