@@ -54,7 +54,7 @@ task mzml_file_conversion {
     String h5_name = sub(output_file,".mzML",".h5")
 
     command {
-        shifter --image=jfroula/jaws-pactolus-spectral:1.0.2 mzml_loader_jaws.py \
+        shifter --image=jfroula/jaws-pactolus-spectral:1.0.7 mzml_loader_jaws.py \
                 -i ${mzml_file} \
                 -o ${h5_name}
     }
@@ -68,7 +68,7 @@ task spectral_hits_create_cmds {
     File config
 
     command {
-        shifter --image=jfroula/jaws-pactolus-spectral:1.0.2 spectral_hits_jaws.py -f -n -c ${config} -w spectral_hits_cmds ${mzml_dir}
+        shifter --image=jfroula/jaws-pactolus-spectral:1.0.7 spectral_hits_jaws.py -f -n -c ${config} -w spectral_hits_cmds ${mzml_dir}
     }
     output {
         File spectral_cmds = "spectral_hits_cmds"
@@ -80,7 +80,7 @@ task spectral_hits_run_cmds {
    File config
 
    command {
-       shifter --image=jfroula/jaws-pactolus-spectral:1.0.2 ${spectral_single_cmd} -c ${config}
+       shifter --image=jfroula/jaws-pactolus-spectral:1.0.7 ${spectral_single_cmd} -c ${config}
    }
    output {
         String out = read_string(stdout())
@@ -93,7 +93,7 @@ task pactolus {
     Int threads = 2
 
     command {
-        shifter --image=jfroula/jaws-pactolus-spectral:1.0.2 score_mzmlfile.py \
+        shifter --image=jfroula/jaws-pactolus-spectral:1.0.7 score_mzmlfile.py \
         --infile ${mzml_file} \
         --ms2_tolerance 0.0100 \
         --ms1_tolerance 0.0100 \
