@@ -45,33 +45,79 @@ DATA_PATH = '/global/cscratch1/sd/bpb/raw_data'
 #remove this line
 #SBATCH -C haswell
 
-
 SLURM_HEADER = """#!/bin/bash
-#SBATCH -N 1 -c 64
-#SBATCH --exclusive
+#SBATCH -t 04:00:00
+#SBATCH -C haswell
+#SBATCH -N 1
 #SBATCH --error="slurm.err"
 #SBATCH --output="slurm.out"
-#SBATCH --qos=genepool
-#SBATCH -A pkscell
-#SBATCH -t 00:30:00
-#SBATCH -L project
-
-export MPLBACKEND="agg"
-export HDF5_USE_FILE_LOCKING=FALSE
-# cori specific tells it to not allocate memory on a per thread basis
-export MALLOC_ARENA_MAX=1
-
-#module load java
-
-# echo every command and terminate script if there is an error
-set -ex
-
-env | grep -i java | sort
-
-# to see the resources a job used:
-# sacct -j <job_id> --format jobidraw,jobname,maxrss,maxvmsize --unit G
+#SBATCH -q realtime
+#SBATCH -A m1541
+#SBATCH --exclusive
+module load java
 
 """
+
+# SLURM_HEADER = """#!/bin/bash
+# #SBATCH -N 1 -c 64
+# #SBATCH --exclusive
+# #SBATCH --error="slurm.err"
+# #SBATCH --output="slurm.out"
+# #SBATCH --qos=genepool
+# #SBATCH -A pkscell
+# #SBATCH -t 24:00:00
+# #SBATCH -L project
+
+# # export MPLBACKEND="agg"
+# # export HDF5_USE_FILE_LOCKING=FALSE
+# # # cori specific tells it to not allocate memory on a per thread basis
+# export MALLOC_ARENA_MAX=1
+
+# module load java
+
+# # # echo every command and terminate script if there is an error
+# # set -ex
+
+# # env | grep -i java | sort
+
+# # # to see the resources a job used:
+# # # sacct -j <job_id> --format jobidraw,jobname,maxrss,maxvmsize --unit G
+
+# # """
+
+
+#Alicia Clum: The best nodes we have right now are ExVivo, they are 1.5 Tb nodes and very fast you can submit there by changing to --qos=jgi_shared and adding -C skylake. Prior to submitting you must type "module load esslurm" since these nodes are controlled by a different scheduler.
+# Set the python to this one:
+#/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-2.39/startMZmine_NERSC_Headless_Cori_exvivo.sh 
+
+# SLURM_HEADER = """#!/bin/bash
+# #SBATCH -N 1
+# #SBATCH --exclusive
+# #SBATCH --error="slurm.err"
+# #SBATCH --output="slurm.out"
+# #SBATCH --qos=jgi_shared
+# #SBATCH -A pkscell
+# #SBATCH -C skylake
+# #SBATCH -t 6:00:00
+# #SBATCH -L project
+
+# # export MPLBACKEND="agg"
+# # export HDF5_USE_FILE_LOCKING=FALSE
+# # # cori specific tells it to not allocate memory on a per thread basis
+# export MALLOC_ARENA_MAX=1
+
+# module load java
+
+# # # echo every command and terminate script if there is an error
+# # set -ex
+
+# # env | grep -i java | sort
+
+# # # to see the resources a job used:
+# # # sacct -j <job_id> --format jobidraw,jobname,maxrss,maxvmsize --unit G
+
+# # """
+
 
 def calc_hit_vector(n,df):
     """

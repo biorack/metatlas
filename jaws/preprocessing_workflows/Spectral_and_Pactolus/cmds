@@ -1,0 +1,1 @@
+java -jar /global/dna/projectdirs/DSI/workflows/cromwell/java/cromwell.jar run metatlas.wdl -i metatlas.inputs.json

@@ -1,2 +1,0 @@
-db_name: meta_atlas
-db_passwd_file: '/project/projectdirs/metatlas/mysql_user.txt'
