@@ -28,10 +28,10 @@ from rdkit.Chem import Descriptors, rdMolDescriptors, AllChem, Draw, rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D, IPythonConsole
 from itertools import cycle
 from collections import defaultdict
-from IPython.display import SVG,display
+from IPython.display import SVG,display,clear_output
 
 
-from ipywidgets import interact, interactive, fixed
+from ipywidgets import interact, interactive, fixed, IntProgress
 import ipywidgets as widgets
 from IPython.display import display
 
@@ -2002,6 +2002,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
     msms_hits = []
 
     for compound_idx,compound_name in enumerate(compound_names):
+        sys.stdout.write('\r'+'Processing: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
+        sys.stdout.flush()
         if len(metatlas_dataset[0][compound_idx]['identification'].compound) == 0:
             # exit here if there isn't a compound in the identification
             continue
@@ -2089,6 +2091,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
 
                     msms_hits.append(scan_df)
 
+    sys.stdout.write('\n'+'Done!!!')
     if len(msms_hits)>0:
         return pd.concat(msms_hits)
     else:
