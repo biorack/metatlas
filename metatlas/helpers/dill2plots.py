@@ -482,7 +482,11 @@ class adjust_rt_for_selected_compound(object):
             compound_str = 'nameless compound'
 
         cname = compound_str
-        inchi_key = default_data['identification'].compound[-1].inchi_key
+        #if inchi_key in default_data['identification'].compound[-1].keys():
+        if len(default_data['identification'].compound) > 0 and hasattr(default_data['identification'].compound[-1],"inchi_key"):
+            inchi_key = default_data['identification'].compound[-1].inchi_key
+        else:
+            inchi_key = ""
         compound_str = '%d, %s'%(self.compound_idx, compound_str)
 
         mz_theoretical = default_data['identification'].mz_references[-1].mz
