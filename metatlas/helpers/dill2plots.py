@@ -2612,7 +2612,7 @@ def check_compound_names(df):
     for i,row in df.iterrows():
         #if type(df.name[x]) != float or type(df.label[x]) != float:
             #if type(df.name[x]) != float:
-        if not pd.isnull(row.inchi_key):# or type(df.inchi_key[x]) != float:
+        if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key)>0):# or type(df.inchi_key[x]) != float:
             if not metob.retrieve('Compounds',inchi_key=row.inchi_key, username = '*'):
                 print(row.inchi_key, "compound is not in database. Exiting Without Completing Task!")
                 bad_names.append(row.inchi_key)
@@ -2733,7 +2733,7 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
 
             myID = metob.CompoundIdentification()
 
-            if not pd.isnull(row.inchi_key): # this logic is where an identified metabolite has been specified
+            if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key)>0): # this logic is where an identified metabolite has been specified
                 c = metob.retrieve('Compounds',inchi_key=row.inchi_key,username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one.
                 if c:
                     c = c[-1]
