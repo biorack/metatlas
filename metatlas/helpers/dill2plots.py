@@ -514,9 +514,9 @@ class adjust_rt_for_selected_compound(object):
                     x = x[y>0]
                     y = y[y>0]#y[y<0.0] = 0.0
                     if self.color_me_red != '' and self.color_me_red in d[self.compound_idx]['lcmsrun'].name:
-                        self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, color='r', label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                        self.ax.plot(x,y,'k-',zorder=2,linewidth=2.0,alpha=self.alpha, picker=5, color='r', label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     else:
-                        self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                        self.ax.plot(x,y,'k-',zorder=1,linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
 
                     #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
