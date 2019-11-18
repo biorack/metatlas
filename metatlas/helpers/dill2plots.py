@@ -585,13 +585,13 @@ class adjust_rt_for_selected_compound(object):
         #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
         self.hits = hits.sort_values('score', ascending=False)
 
-        hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
-        hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
-        hit_score = self.hits['score'][self.hit_ctr]
-        hit_query = self.hits['msv_query_aligned'][self.hit_ctr]
-        hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr]
         #hit_ctr = 0
         if len(self.hits) > 0:
+            hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
+            hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
+            hit_score = self.hits['score'][self.hit_ctr]
+            hit_query = self.hits['msv_query_aligned'][self.hit_ctr]
+            hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr]
             plot_msms_comparison2(0, mz_header, hit_rt, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
 
     def set_lin_log(self,label):
