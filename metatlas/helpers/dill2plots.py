@@ -2007,9 +2007,11 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
     for compound_idx,compound_name in enumerate(compound_names):
         sys.stdout.write('\r'+'Processing: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
         sys.stdout.flush()
-        if len(metatlas_dataset[0][compound_idx]['identification'].compound) == 0:
+        
+        #Code below is commented out to make get_msms_hits work when there isn't a compound in identification - VS, Nov 2019
+        #if len(metatlas_dataset[0][compound_idx]['identification'].compound) == 0:
             # exit here if there isn't a compound in the identification
-            continue
+        #    continue
 
         if metatlas_dataset[0][compound_idx]['identification'].name:
             name = metatlas_dataset[0][compound_idx]['identification'].name.split('///')[0]
@@ -2023,7 +2025,10 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
         except (KeyError, AttributeError):
             adduct = None
 
-        inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+        if len(metatlas_dataset[0][compound_idx]['identification'].compound) > 0:
+            inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+        else:
+            inchi_key = ''
         pre_mz_ppm = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance
         precursor_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
 
