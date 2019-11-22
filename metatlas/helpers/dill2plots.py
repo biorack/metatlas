@@ -2138,7 +2138,7 @@ def make_identification_figure_v2(
     if msms_hits_df is not None:
         if 'inchi_key' in msms_hits_df.columns:
             msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)
-        msms_hits_df.reset_index(['inchi_key', 'precursor_mz'], inplace=True)
+        #msms_hits_df.reset_index(['inchi_key', 'precursor_mz'], inplace=True)
         msms_hits_df.reset_index(inplace = True)
         msms_hits_df.sort_values('score', ascending=False, inplace=True)
         # msms_hits_df.drop_duplicates(['inchi_key', 'file_name'], keep='first', inplace=True)
