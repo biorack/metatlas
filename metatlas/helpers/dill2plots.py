@@ -2134,7 +2134,7 @@ def make_identification_figure_v2(
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
 
     #msms_hits_df = get_msms_hits(data, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
-    msms_hits_df = msms_hits
+    msms_hits_df = msms_hits.copy()
 
     if msms_hits_df is not None:
         #if 'inchi_key' in msms_hits_df.columns:
