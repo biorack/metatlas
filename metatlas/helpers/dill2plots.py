@@ -2109,7 +2109,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
 
 def make_identification_figure_v2(
     input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [],
-    exclude_groups = [], output_loc = [],use_labels=False,intensity_sorted_matches=False):
+    exclude_groups = [], output_loc = [], msms_hits = None, use_labels=False,intensity_sorted_matches=False):
     #empty can look like this:
     # {'eic': {'rt': [], 'intensity': [], 'mz': []}, 'ms1_summary': {'num_ms1_datapoints': 0.0, 'rt_centroid': nan, 'mz_peak': nan, 'peak_height': nan, 'rt_peak': nan, 'peak_area': nan, 'mz_centroid': nan},
     #'msms': {'data': {'rt': array([], dtype=float64), 'collision_energy': array([], dtype=float64), 'i': array([], dtype=float64), 'precursor_intensity': array([], dtype=float64), 'precursor_MZ': array([], dtype=float64), 'mz': array([], dtype=float64)}}}
@@ -2134,7 +2134,7 @@ def make_identification_figure_v2(
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
 
     #msms_hits_df = get_msms_hits(data, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
-    msms_hits_df = get_msms_hits(data, use_labels, ref_index=['database', 'id'])
+    msms_hits_df = msms_hits
 
     if msms_hits_df is not None:
         #if 'inchi_key' in msms_hits_df.columns:
