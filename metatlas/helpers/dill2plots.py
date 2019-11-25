@@ -2133,11 +2133,12 @@ def make_identification_figure_v2(
     if exclude_groups:
         data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
 
-    msms_hits_df = get_msms_hits(data, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
+    #msms_hits_df = get_msms_hits(data, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
+    msms_hits_df = get_msms_hits(data, use_labels, ref_index=['database', 'id'])
 
     if msms_hits_df is not None:
-        if 'inchi_key' in msms_hits_df.columns:
-            msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)
+        #if 'inchi_key' in msms_hits_df.columns:
+        #    msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)
         #msms_hits_df.reset_index(['inchi_key', 'precursor_mz'], inplace=True)
         msms_hits_df.reset_index(inplace = True)
         msms_hits_df.sort_values('score', ascending=False, inplace=True)
