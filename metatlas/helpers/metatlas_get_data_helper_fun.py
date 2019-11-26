@@ -217,7 +217,7 @@ def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz'
             all_df = data_df_neg.query(ms1_query_str)
         else:
             return pd.Series()
-    return_df = pd.Series({'padded_feature_data':all_df.T.to_dense(),'in_feature':(all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
+    return_df = pd.Series({'padded_feature_data':all_df.T.to_dense(),'in_feature':(all_df.rt >= row.rt_min - extra_time) & (all_df.rt <= row.rt_max + extra_time)})
     return return_df
 
 def get_ms1_summary(row):
@@ -348,7 +348,7 @@ def get_data_for_atlas_and_lcmsrun(atlas_df,df_container):
     else:
         ms1_eic = ms1_feature_data.apply(get_ms1_eic,axis=1)
     #print ms1_eic
-        ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ',extra_mz = 0.01),axis=1)
+        ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ',extra_mz = 0.01, extra_time=1.0),axis=1)
         ms2_data = ms2_feature_data.apply(get_ms2_data,axis=1)
         dict_ms1_summary = [dict(row) for i,row in ms1_summary.iterrows()]
     
