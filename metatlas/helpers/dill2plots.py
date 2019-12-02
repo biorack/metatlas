@@ -2162,7 +2162,6 @@ def make_identification_figure_v2(
             comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) \
                                           & (msms_hits_df['msms_scan'] >= data[0][compound_idx]['identification'].rt_references[0].rt_min) \
                                           & (msms_hits_df['msms_scan'] <= data[0][compound_idx]['identification'].rt_references[0].rt_max) \
-                                          #& data[0][compound_idx]['identification'].rt_references[0].rt_min <= msms_hits_df['msms_scan'] <= data[0][compound_idx]['identification'].rt_references[0].rt_max \
                                           & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz)/data[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)].drop_duplicates('file_name').head(5)
             assert len(comp_msms_hits) > 0
