@@ -2153,6 +2153,8 @@ def make_identification_figure_v2(
     plt.ioff()
     #Iterate over compounds
     for compound_idx in range(len(compound_names)):
+        sys.stdout.write('\r'+'Making Identification Figure for: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
+        sys.stdout.flush()
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
 
         #Find 5 best file and reference pairs by score
