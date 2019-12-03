@@ -55,14 +55,16 @@ def get_data_for_atlas_df_and_file(input_tuple):
     my_group = input_tuple[1]
     atlas_df = input_tuple[2]
     myAtlas = input_tuple[3]
-    if len(input_tuple) == 5:
+    extra_time = 0.5
+    extra_mz = 0.0
+    if len(input_tuple) >= 5:
         extra_time = input_tuple[4]
-    else:
-        extra_time = 1.0
+    if len(input_tuple) == 6:
+        extra_mz = input_tuple[5]
 
     df_container = df_container_from_metatlas_file(my_file)
     df_container = remove_ms1_data_not_in_atlas(atlas_df,df_container)
-    dict_ms1_summary,dict_eic,dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time)
+    dict_ms1_summary,dict_eic,dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time, extra_mz)
     row = []
     for i in range(atlas_df.shape[0]):
         result = {}
@@ -221,7 +223,7 @@ def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz'
             all_df = data_df_neg.query(ms1_query_str)
         else:
             return pd.Series()
-    return_df = pd.Series({'padded_feature_data':all_df.T.to_dense(),'in_feature':(all_df.rt >= row.rt_min - extra_time) & (all_df.rt <= row.rt_max + extra_time)})
+    return_df = pd.Series({'padded_feature_data':all_df.T.to_dense(),'in_feature':(all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
     return return_df
 
 def get_ms1_summary(row):
@@ -264,7 +266,10 @@ def get_ms2_data(row):
     all_df = row.padded_feature_data.T
     
     #slice out ms2 data that is NOT padded by extra_time
-    ms2_df = all_df[(row.in_feature == True)]#[['collision_energy','i','mz','polarity','precursor_MZ','precursor_intensity','rt']]
+    #ms2_df = all_df[(row.in_feature == True)]#[['collision_energy','i','mz','polarity','precursor_MZ','precursor_intensity','rt']]
+
+    #Allow for extra_time for ms2 data
+    ms2_df = all_df
 
     num_ms2_datapoints = ms2_df.shape[0]
         
@@ -273,11 +278,11 @@ def get_ms2_data(row):
     return return_df
 
 
-def prefilter_ms1_dataframe_with_boundaries(data_df,rt_max,rt_min,mz_min,mz_max, extra_time = 1, extra_mz = 1):
+def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_max, extra_time = 0.5, extra_mz = 0.01):
     import math
     if (data_df.shape[0]==0) | (math.isnan(rt_max)):
         return []
-    prefilter_query_str = 'rt < %5.4f & rt > %5.4f & mz > %5.4f & mz < %5.4f'%(rt_max+extra_time,rt_min-extra_time,mz_min - extra_mz, mz_max+extra_mz)
+    prefilter_query_str = 'rt < %5.4f & rt > %5.4f & mz > %5.4f & mz < %5.4f'%(rt_max+extra_time, rt_min-extra_time, mz_min-extra_mz, mz_max+extra_mz)
     new_df = data_df.query(prefilter_query_str)
     return new_df
 
@@ -310,7 +315,7 @@ def retrieve_most_intense_msms_scan(data):
     msms_data['precursor_intensity'] = pintensity
     return msms_data
 
-def get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time):
+def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz):
     '''
     Accepts 
     an atlas dataframe made by make_atlas_df
@@ -325,29 +330,33 @@ def get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time):
                                                                atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
                                                                atlas_df[atlas_df.detected_polarity == 'positive'].mz.min(),
                                                                atlas_df[atlas_df.detected_polarity == 'positive'].mz.max(),
-                                                               extra_time = extra_time)
+                                                               extra_time = extra_time,
+                                                               extra_mz = extra_mz)
     filtered_ms1_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_neg'],
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].mz.min(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].mz.max(),
-                                                           extra_time = extra_time)
+                                                           extra_time = extra_time,
+                                                           extra_mz = extra_mz)
     filtered_ms2_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_pos'],
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
                                                            0,
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].mz.max(),
-                                                           extra_time = extra_time)
+                                                           extra_time = extra_time,
+                                                           extra_mz = extra_mz)
     
     filtered_ms2_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_neg'],
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
                                                            0,
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].mz.max(),
-                                                           extra_time = extra_time)
+                                                           extra_time = extra_time,
+                                                           extra_mz = extra_mz)
     
 
-    ms1_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms1_pos,filtered_ms1_neg, extra_time=extra_time),axis=1)
+    ms1_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms1_pos,filtered_ms1_neg, extra_time=extra_time, extra_mz = extra_mz),axis=1)
     ms1_summary = ms1_feature_data.apply(get_ms1_summary,axis=1)
     #if ms1_summary.size == 0:
     #    return [],[],[]
@@ -356,7 +365,7 @@ def get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time):
     else:
         ms1_eic = ms1_feature_data.apply(get_ms1_eic,axis=1)
     #print ms1_eic
-        ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ',extra_mz = 0.01, extra_time=extra_time),axis=1)
+        ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ', extra_mz = extra_mz, extra_time=extra_time),axis=1)
         ms2_data = ms2_feature_data.apply(get_ms2_data,axis=1)
         dict_ms1_summary = [dict(row) for i,row in ms1_summary.iterrows()]
     
