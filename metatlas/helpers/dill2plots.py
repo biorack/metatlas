@@ -526,11 +526,11 @@ class adjust_rt_for_selected_compound(object):
         self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color,linewidth=4.0)
         self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color,linewidth=4.0)
 
-        self.rt_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.03], facecolor=self.slider_color)
-        self.rt_max_ax = plt.axes([0.09, 0.1, 0.81, 0.03], facecolor=self.slider_color)
-        self.rt_min_ax = plt.axes([0.09, 0.15, 0.81, 0.03], facecolor=self.slider_color)
+        self.rt_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.02], facecolor=self.slider_color)
+        self.rt_max_ax = plt.axes([0.09, 0.08, 0.81, 0.02], facecolor=self.slider_color)
+        self.rt_min_ax = plt.axes([0.09, 0.11, 0.81, 0.02], facecolor=self.slider_color)
 
-        self.y_scale_ax = plt.axes([0.925, 0.275, 0.02, 0.63], facecolor=self.slider_color)
+        self.y_scale_ax = plt.axes([0.925, 0.62, 0.02, 0.26], facecolor=self.slider_color)
 
         min_x = self.ax.get_xlim()[0]
         max_x = self.ax.get_xlim()[1]
@@ -608,7 +608,7 @@ class adjust_rt_for_selected_compound(object):
     def on_pick(self,event):
         thisline = event.artist
         thisline.set_color('cyan')
-        self.ax.set_title(thisline.get_label())
+        self.ax.set_title(thisline.get_label(), fontsize=7)
 
     def press(self,event):
         if event.key == 'right':
@@ -839,7 +839,7 @@ class adjust_mz_for_selected_compound(object):
     def on_pick(self,event):
         thisline = event.artist
         thisline.set_color('red')
-        self.ax.set_title(thisline.get_label())
+        self.ax.set_title(thisline.get_label(), fontsize=7)
 
     def press(self,event):
         if event.key == 'right':
@@ -1844,7 +1844,7 @@ def plot_msms_comparison2(i, mz_header, rt, filename, score, ax, msv_sample, msv
 
     if i == 0:
         ax.set_title('RT = %.4f, Score = %.4f, %s' % (rt, score, mz_header), fontsize=10, weight='bold')
-        ax.set_xlabel('m/z\n%s' % filename, fontsize=10)
+        ax.set_xlabel('m/z\n%s' % filename, fontsize=7)
         ax.set_ylabel('intensity', fontsize=10)
         #ax.tick_params(axis='both', which='major', labelsize=8)
 
