@@ -57,11 +57,12 @@ def get_data_for_atlas_df_and_file(input_tuple):
     myAtlas = input_tuple[3]
     extra_time = 0.5
     extra_mz = 0.0
-    if len(input_tuple) >= 5:
-        extra_time = input_tuple[4]
     if len(input_tuple) == 6:
+        extra_time = input_tuple[4]
         extra_mz = input_tuple[5]
-
+    elif len(input_tuple) == 5:
+        extra_time = input_tuple[4]
+    
     df_container = df_container_from_metatlas_file(my_file)
     df_container = remove_ms1_data_not_in_atlas(atlas_df,df_container)
     dict_ms1_summary,dict_eic,dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time, extra_mz)
