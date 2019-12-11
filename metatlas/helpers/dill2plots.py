@@ -398,6 +398,7 @@ class adjust_rt_for_selected_compound(object):
                  slider_color = 'ghostwhite',
                  y_max = 'auto',
                  y_min = 0,
+                 peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape'),
                  adjustable_rt_peak = False):
         """
         data: a metatlas_dataset where files and compounds are stored.
@@ -425,6 +426,7 @@ class adjust_rt_for_selected_compound(object):
         self.slider_color = slider_color
         self.y_max = y_max
         self.y_min = y_min
+        self.peak_flags = peak_flags
         self.adjustable_rt_peak = adjustable_rt_peak
 
         # filter runs from the metatlas dataset
@@ -441,8 +443,8 @@ class adjust_rt_for_selected_compound(object):
 
         # create figure and first axes
         #self.fig,self.ax = plt.subplots(figsize=(width, height))
-        self.fig,(self.ax, self.ax2) = plt.subplots(2, 1, figsize=(width, height*2))
-        plt.subplots_adjust(left=0.09, bottom=0.275, hspace=0.3)
+        self.fig,(self.ax2, self.ax) = plt.subplots(2, 1, figsize=(width, height*2))
+        plt.subplots_adjust(left=0.09, bottom=0.275, hspace=0.36)
 #         plt.ticklabel_format(style='plain', axis='x')
 #         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 
@@ -526,11 +528,11 @@ class adjust_rt_for_selected_compound(object):
         self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color,linewidth=4.0)
         self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color,linewidth=4.0)
 
-        self.rt_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.03], facecolor=self.slider_color)
-        self.rt_max_ax = plt.axes([0.09, 0.1, 0.81, 0.03], facecolor=self.slider_color)
-        self.rt_min_ax = plt.axes([0.09, 0.15, 0.81, 0.03], facecolor=self.slider_color)
+        self.rt_peak_ax = plt.axes([0.09, 0.11, 0.81, 0.02], facecolor=self.slider_color)
+        self.rt_max_ax = plt.axes([0.09, 0.14, 0.81, 0.02], facecolor=self.slider_color)
+        self.rt_min_ax = plt.axes([0.09, 0.17, 0.81, 0.02], facecolor=self.slider_color)
 
-        self.y_scale_ax = plt.axes([0.925, 0.275, 0.02, 0.63], facecolor=self.slider_color)
+        self.y_scale_ax = plt.axes([0.925, 0.2755555, 0.02, 0.26], facecolor=self.slider_color)
 
         min_x = self.ax.get_xlim()[0]
         max_x = self.ax.get_xlim()[1]
@@ -558,14 +560,14 @@ class adjust_rt_for_selected_compound(object):
         self.y_scale_slider.vline.set_linewidth(8)
         self.y_scale_slider.on_changed(self.update_yscale)
 
-        self.lin_log_ax = plt.axes([0.1, 0.75, 0.1, 0.15])#, axisbg=axcolor)
+        self.lin_log_ax = plt.axes([0.1, 0.38, 0.1, 0.15])#, axisbg=axcolor)
         self.lin_log_ax.axis('off')
         self.lin_log_radio = RadioButtons(self.lin_log_ax, ('linear', 'log'))
         self.lin_log_radio.on_clicked(self.set_lin_log)
 
-        self.peak_flag_ax = plt.axes([0.8, 0.75, 0.1, 0.15])#, axisbg=axcolor)
+        self.peak_flag_ax = plt.axes([0.76, 0.38, 0.1, 0.15])#, axisbg=axcolor)
         self.peak_flag_ax.axis('off')
-        peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape')
+        peak_flags = self.peak_flags
         my_id = metob.retrieve('CompoundIdentification',
                                unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
         if my_id.description in peak_flags:
@@ -608,7 +610,7 @@ class adjust_rt_for_selected_compound(object):
     def on_pick(self,event):
         thisline = event.artist
         thisline.set_color('cyan')
-        self.ax.set_title(thisline.get_label())
+        self.ax.set_title(thisline.get_label(), fontsize=7)
 
     def press(self,event):
         if event.key == 'right':
@@ -839,7 +841,7 @@ class adjust_mz_for_selected_compound(object):
     def on_pick(self,event):
         thisline = event.artist
         thisline.set_color('red')
-        self.ax.set_title(thisline.get_label())
+        self.ax.set_title(thisline.get_label(), fontsize=7)
 
     def press(self,event):
         if event.key == 'right':
@@ -1843,8 +1845,8 @@ def plot_msms_comparison2(i, mz_header, rt, filename, score, ax, msv_sample, msv
     most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
 
     if i == 0:
-        ax.set_title('RT = %.4f, Score = %.4f, %s' % (rt, score, mz_header), fontsize=10, weight='bold')
-        ax.set_xlabel('m/z\n%s' % filename, fontsize=10)
+        ax.set_title('%s' % (filename), fontsize=7)
+        ax.set_xlabel('m/z\nRT = %.4f, Score = %.4f, %s' % (rt, score, mz_header), fontsize=10, weight='bold')
         ax.set_ylabel('intensity', fontsize=10)
         #ax.tick_params(axis='both', which='major', labelsize=8)
 
