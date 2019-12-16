@@ -490,6 +490,11 @@ class adjust_rt_for_selected_compound(object):
             inchi_key = ""
         compound_str = '%d, %s'%(self.compound_idx, compound_str)
 
+        try:
+            adduct = default_data['identification'].mz_references[0].adduct
+        except (KeyError, AttributeError):
+            adduct = None
+        
         mz_theoretical = default_data['identification'].mz_references[-1].mz
         mz_measured = default_data['data']['ms1_summary']['mz_centroid']
         if not mz_measured:
@@ -500,7 +505,11 @@ class adjust_rt_for_selected_compound(object):
         mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
 
         self.ax.set_title('')
-        self.ax.set_ylabel('%s'%compound_str)
+        if adduct != None:
+            self.ax.set_ylabel('%s\n%s'%(compound_str,adduct))
+        else:
+            self.ax.set_ylabel('%s'%compound_str)
+
         self.ax.set_xlabel('Retention Time')
         self.my_rt = metob.retrieve('RTReference',
                                unique_id = default_data['identification'].rt_references[-1].unique_id, username='*')[-1]
