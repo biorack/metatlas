@@ -82,7 +82,8 @@ def make_stats_table(input_fname = '', input_dataset = [],
 
     passing['peak_height'] = (np.nan_to_num(dfs['peak_height'].values) >= min_peak_height).astype(float)
 
-    msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
+    #msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
+    msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key'])
     msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)   
     msms_hits_df.reset_index(inplace=True)
 
