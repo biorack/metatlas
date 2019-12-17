@@ -494,7 +494,7 @@ class adjust_rt_for_selected_compound(object):
             adduct = default_data['identification'].mz_references[0].adduct
         except (KeyError, AttributeError):
             adduct = None
-        
+
         mz_theoretical = default_data['identification'].mz_references[-1].mz
         mz_measured = default_data['data']['ms1_summary']['mz_centroid']
         if not mz_measured:
@@ -1941,13 +1941,16 @@ def plot_eic(ax, data, compound_idx):
         rt_max = data[file_idx][compound_idx]['identification'].rt_references[0].rt_max
         rt_peak = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
 
-        if len(data[file_idx][compound_idx]['data']['eic']['rt']) > 1:
+        try:
+            assert len(data[file_idx][compound_idx]['data']['eic']['rt']) > 1
             x = np.asarray(data[file_idx][compound_idx]['data']['eic']['rt'])
             y = np.asarray(data[file_idx][compound_idx]['data']['eic']['intensity'])
 
             ax.plot(x, y, 'k-', linewidth=.1, alpha=min(1, 10*(1./len(data))))
             myWhere = np.logical_and(x>=rt_min, x<=rt_max )
             ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=min(1, 2*(1./len(data))))
+        except (AssertionError, TypeError):
+            pass
 
     # ax.tick_params(labelbottom='off')
     ax.xaxis.set_tick_params(labelsize=5)
@@ -2018,7 +2021,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
     for compound_idx,compound_name in enumerate(compound_names):
         sys.stdout.write('\r'+'Processing: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
         sys.stdout.flush()
-        
+
         #Code below is commented out to make get_msms_hits work when there isn't a compound in identification - VS, Nov 2019
         #if len(metatlas_dataset[0][compound_idx]['identification'].compound) == 0:
             # exit here if there isn't a compound in the identification
@@ -2067,7 +2070,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                         continue
 
                 msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
-                
+
                 msv_sample = msv_sample[:,msv_sample[0] < rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0] + 2.5]
 
                 scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
@@ -2207,7 +2210,7 @@ def make_identification_figure_v2(
                         if temp > max_intensity:
                             file_idx = fi
                             max_intensity = temp
-                    except ValueError:
+                    except (ValueError,TypeError):
                         continue
 
                 file_idxs = [file_idx]
