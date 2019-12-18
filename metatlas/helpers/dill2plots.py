@@ -2163,6 +2163,7 @@ def make_identification_figure_v2(
     compound_names = ma_data.get_compound_names(data,use_labels)[0]
     file_names = ma_data.get_file_names(data)
 
+    df = pd.DataFrame()
     #Turn off interactive plotting
     plt.ioff()
     #Iterate over compounds
@@ -2311,12 +2312,17 @@ def make_identification_figure_v2(
                          fill('Matching M/Zs above 1E-3*max: ' + ', '.join(['%5.3f'%m for m in threshold_mz_sample_matches]), width=90) + '\n\n' +
                          fill('All Matching M/Zs: ' + ', '.join(['%5.3f'%m for m in mz_sample_matches]), width=90),
                          fontsize=6, verticalalignment='top')
+                df.loc[compound_idx, 'label'] = compound_names[compound_idx]
+                df.loc[compound_idx, 'score'] = scores[0]
+                df.loc[compound_idx, 'Matching M/Zs above 1E-3*max'] =', '.join(['%5.3f'%m for m in threshold_mz_sample_matches])
+                df.loc[compound_idx, 'All matching M/Zs'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
 
             ax7.set_ylim(.5,1.1)
             ax7.axis('off')
 
             plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
             plt.close()
+    df.to_csv(os.path.join(output_loc, 'MatchingMZs.tab'),sep='\t')
 
 
 def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', input_dataset = [], compound_names = [],  include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
