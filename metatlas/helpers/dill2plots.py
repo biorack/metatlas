@@ -2313,6 +2313,8 @@ def make_identification_figure_v2(
                          fill('All Matching M/Zs: ' + ', '.join(['%5.3f'%m for m in mz_sample_matches]), width=90),
                          fontsize=6, verticalalignment='top')
                 df.loc[compound_idx, 'label'] = compound_names[compound_idx]
+                df.loc[compound_idx, 'file name'] = file_names[file_idxs[0]]
+                df.loc[compound_idx, 'RT'] = rt_list[0]
                 df.loc[compound_idx, 'score'] = scores[0]
                 df.loc[compound_idx, 'Matching M/Zs above 1E-3*max'] =', '.join(['%5.3f'%m for m in threshold_mz_sample_matches])
                 df.loc[compound_idx, 'All matching M/Zs'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
