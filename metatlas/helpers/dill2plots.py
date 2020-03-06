@@ -590,8 +590,8 @@ class adjust_rt_for_selected_compound(object):
         #self.fig2,self.ax2 = plt.subplots(figsize=(14, 6))
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
         my_file_name = self.msms_hits.index.get_level_values('file_name')
-        hits_mz_tolerance = 0.005
-        #hits_mz_tolerance = default_data['identification'].mz_references[-1].mz_tolerance*1e-6
+        #hits_mz_tolerance = 0.005
+        hits_mz_tolerance = default_data['identification'].mz_references[-1].mz_tolerance*1e-6
 
         #hits = self.msms_hits[(my_scan_rt > float(self.my_rt.rt_min)) & (my_scan_rt < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['precursor_mz'] - mz_theoretical) <= hits_mz_tolerance)]
         hits = self.msms_hits[(my_scan_rt >= float(self.my_rt.rt_min)) & (my_scan_rt <= float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) \
