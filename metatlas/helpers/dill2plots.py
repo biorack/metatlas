@@ -591,8 +591,11 @@ class adjust_rt_for_selected_compound(object):
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
         my_file_name = self.msms_hits.index.get_level_values('file_name')
         hits_mz_tolerance = 0.005
+        #hits_mz_tolerance = default_data['identification'].mz_references[-1].mz_tolerance*1e-6
 
-        hits = self.msms_hits[(my_scan_rt > float(self.my_rt.rt_min)) & (my_scan_rt < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['precursor_mz'] - mz_theoretical) <= hits_mz_tolerance)]
+        #hits = self.msms_hits[(my_scan_rt > float(self.my_rt.rt_min)) & (my_scan_rt < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['precursor_mz'] - mz_theoretical) <= hits_mz_tolerance)]
+        hits = self.msms_hits[(my_scan_rt >= float(self.my_rt.rt_min)) & (my_scan_rt <= float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) \
+                & (abs(self.msms_hits['precursor_mz'] - mz_theoretical)/mz_theoretical <= hits_mz_tolerance)]
         #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
         self.hits = hits.sort_values('score', ascending=False)
 
@@ -601,8 +604,17 @@ class adjust_rt_for_selected_compound(object):
             hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
             hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
             hit_score = self.hits['score'][self.hit_ctr]
-            hit_query = self.hits['msv_query_aligned'][self.hit_ctr]
-            hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr]
+            #print self.hits['msv_query_aligned'][0:1]
+            #print self.hits['msv_query_aligned'][0]
+            #print self.hits['msv_ref_aligned'][0:1]
+            #print self.hits['msv_query_aligned'][0]
+            #print self.hits['msv_query_aligned'][0:1][0]
+            #print self.hits['msv_query_aligned'][0].dtypes
+            #print self.hits['msv_query_aligned'][0]
+            #print self.hits['msv_query_aligned'].head(2).dtypes
+            #print self.hits['msv_ref_aligned']
+            hit_query = self.hits['msv_query_aligned'][self.hit_ctr:self.hit_ctr+1][0]
+            hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr:self.hit_ctr+1][0]
             plot_msms_comparison2(0, mz_header, hit_rt, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
 
     def set_lin_log(self,label):
@@ -2112,6 +2124,10 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     scan_df.set_index('msms_scan', append=True, inplace=True)
 
                     msms_hits.append(scan_df)
+
+                #if compound_idx >= 22 and compound_idx <= 25:
+                #    print compound_idx
+                #    print scan_df['msv_query_aligned'][0]
 
     sys.stdout.write('\n'+'Done!!!')
     if len(msms_hits)>0:
