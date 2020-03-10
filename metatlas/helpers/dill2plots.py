@@ -441,6 +441,8 @@ class adjust_rt_for_selected_compound(object):
             data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
         self.data = data
 
+        #Turn On interactive plot
+        plt.ion()
         # create figure and first axes
         #self.fig,self.ax = plt.subplots(figsize=(width, height))
         self.fig,(self.ax2, self.ax) = plt.subplots(2, 1, figsize=(width, height*2))
@@ -598,21 +600,14 @@ class adjust_rt_for_selected_compound(object):
                 & (abs(self.msms_hits['precursor_mz'] - mz_theoretical)/mz_theoretical <= hits_mz_tolerance)]
         #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
         self.hits = hits.sort_values('score', ascending=False)
-
+        
         #hit_ctr = 0
         if len(self.hits) > 0:
             hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
             hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
             hit_score = self.hits['score'][self.hit_ctr]
             #print self.hits['msv_query_aligned'][0:1]
-            #print self.hits['msv_query_aligned'][0]
-            #print self.hits['msv_ref_aligned'][0:1]
-            #print self.hits['msv_query_aligned'][0]
             #print self.hits['msv_query_aligned'][0:1][0]
-            #print self.hits['msv_query_aligned'][0].dtypes
-            #print self.hits['msv_query_aligned'][0]
-            #print self.hits['msv_query_aligned'].head(2).dtypes
-            #print self.hits['msv_ref_aligned']
             hit_query = self.hits['msv_query_aligned'][self.hit_ctr:self.hit_ctr+1][0]
             hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr:self.hit_ctr+1][0]
             plot_msms_comparison2(0, mz_header, hit_rt, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
@@ -2182,6 +2177,7 @@ def make_identification_figure_v2(
     df = pd.DataFrame()
     #Turn off interactive plotting
     plt.ioff()
+    plt.clf()
     #Iterate over compounds
     for compound_idx in range(len(compound_names)):
         sys.stdout.write('\r'+'Making Identification Figure for: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
