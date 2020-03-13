@@ -617,6 +617,28 @@ class adjust_rt_for_selected_compound(object):
             delta_ppm = delta_mz / mz_theoretical * 1e6
             mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
             plot_msms_comparison2(0, mz_header, hit_rt, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
+        
+        else:
+            file_idx = file_with_max_precursor_intensity(self.data,self.compound_idx)[0]
+            if file_idx is not None:
+                precursor_intensity = self.data[file_idx][self.compound_idx]['data']['msms']['data']['precursor_intensity']
+                idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
+
+                file_idxs = [file_idx]
+                hit_query = np.array([self.data[file_idx][self.compound_idx]['data']['msms']['data']['mz'][idx_max],
+                                             self.data[file_idx][self.compound_idx]['data']['msms']['data']['i'][idx_max]])
+                hit_ref = np.full_like(hit_query, np.nan)
+                hit_score = 0
+                mz_theoretical = self.data[file_idx][self.compound_idx]['identification'].mz_references[0].mz
+                mz_measured = self.data[file_idx][self.compound_idx]['data']['ms1_summary']['mz_centroid']
+                delta_mz = abs(mz_theoretical - mz_measured)
+                delta_ppm = delta_mz / mz_theoretical * 1e6
+                hit_rt = self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
+                #print self.data[file_idx][self.compound_idx]['data']['msms']['data']['rt']
+                #print self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
+                #print self.data[file_idx][self.compound_idx]['data']['ms1_summary']['rt_peak']
+                mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
+                plot_msms_comparison2(0, mz_header, hit_rt, file_names[file_idx], hit_score, self.ax2, hit_query, hit_ref)
 
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
