@@ -462,7 +462,6 @@ class adjust_rt_for_selected_compound(object):
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
         self.fig.canvas.mpl_connect('key_press_event', self.press)
 
-
         #create the plot
         self.hit_ctr = 0
         self.set_plot_data()
@@ -470,6 +469,7 @@ class adjust_rt_for_selected_compound(object):
 
     def set_plot_data(self):
         #set y-scale and bounds if provided
+        file_names = ma_data.get_file_names(self.data)
         self.ax.set_yscale(self.y_scale)
         if self.y_max != 'auto':
             self.ax.set_ylim(self.y_min,self.y_max)
@@ -497,13 +497,14 @@ class adjust_rt_for_selected_compound(object):
         except (KeyError, AttributeError):
             adduct = None
 
-        mz_theoretical = default_data['identification'].mz_references[-1].mz
+        mz_theoretical = default_data['identification'].mz_references[0].mz
         mz_measured = default_data['data']['ms1_summary']['mz_centroid']
         if not mz_measured:
             mz_measured = 0
-
+        
         delta_mz = abs(mz_theoretical - mz_measured)
         delta_ppm = delta_mz / mz_theoretical * 1e6
+
         mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
 
         self.ax.set_title('')
@@ -547,7 +548,7 @@ class adjust_rt_for_selected_compound(object):
 
         min_x = self.ax.get_xlim()[0]
         max_x = self.ax.get_xlim()[1]
-
+#
         self.rt_min_slider = Slider(self.rt_min_ax, 'RT min', min_x, max_x, valinit=self.my_rt.rt_min,color=self.min_max_color)
         self.rt_min_slider.vline.set_color('black')
         self.rt_min_slider.vline.set_linewidth(4)
@@ -610,6 +611,11 @@ class adjust_rt_for_selected_compound(object):
             #print self.hits['msv_query_aligned'][0:1][0]
             hit_query = self.hits['msv_query_aligned'][self.hit_ctr:self.hit_ctr+1][0]
             hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr:self.hit_ctr+1][0]
+            mz_theoretical = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['identification'].mz_references[0].mz
+            mz_measured = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['mz_centroid']
+            delta_mz = abs(mz_theoretical - mz_measured)
+            delta_ppm = delta_mz / mz_theoretical * 1e6
+            mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
             plot_msms_comparison2(0, mz_header, hit_rt, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
 
     def set_lin_log(self,label):
