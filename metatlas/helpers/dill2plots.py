@@ -604,9 +604,12 @@ class adjust_rt_for_selected_compound(object):
         
         #hit_ctr = 0
         if len(self.hits) > 0:
-            hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
+            #hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
             hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
             hit_score = self.hits['score'][self.hit_ctr]
+            rt_ms2 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['msms']['data']['rt'][0]
+            rt_theoretical = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['identification'].rt_references[0].rt_peak
+            rt_ms1 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['rt_peak']
             #print self.hits['msv_query_aligned'][0:1]
             #print self.hits['msv_query_aligned'][0:1][0]
             hit_query = self.hits['msv_query_aligned'][self.hit_ctr:self.hit_ctr+1][0]
@@ -615,30 +618,31 @@ class adjust_rt_for_selected_compound(object):
             mz_measured = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['mz_centroid']
             delta_mz = abs(mz_theoretical - mz_measured)
             delta_ppm = delta_mz / mz_theoretical * 1e6
-            mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
-            plot_msms_comparison2(0, mz_header, hit_rt, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
+            rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f, RT MS2 measured = %3.2f" % (rt_theoretical, rt_ms2, rt_ms2)
+            mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_theoretical, mz_measured, delta_ppm)
+            plot_msms_comparison2(0, mz_header, rt_header, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
         
-        else:
-            file_idx = file_with_max_precursor_intensity(self.data,self.compound_idx)[0]
-            if file_idx is not None:
-                precursor_intensity = self.data[file_idx][self.compound_idx]['data']['msms']['data']['precursor_intensity']
-                idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
-
-                file_idxs = [file_idx]
-                hit_query = np.array([self.data[file_idx][self.compound_idx]['data']['msms']['data']['mz'][idx_max],
-                                             self.data[file_idx][self.compound_idx]['data']['msms']['data']['i'][idx_max]])
-                hit_ref = np.full_like(hit_query, np.nan)
-                hit_score = 0
-                mz_theoretical = self.data[file_idx][self.compound_idx]['identification'].mz_references[0].mz
-                mz_measured = self.data[file_idx][self.compound_idx]['data']['ms1_summary']['mz_centroid']
-                delta_mz = abs(mz_theoretical - mz_measured)
-                delta_ppm = delta_mz / mz_theoretical * 1e6
-                hit_rt = self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
-                #print self.data[file_idx][self.compound_idx]['data']['msms']['data']['rt']
-                #print self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
-                #print self.data[file_idx][self.compound_idx]['data']['ms1_summary']['rt_peak']
-                mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
-                plot_msms_comparison2(0, mz_header, hit_rt, file_names[file_idx], hit_score, self.ax2, hit_query, hit_ref)
+        #else:
+        #    file_idx = file_with_max_precursor_intensity(self.data,self.compound_idx)[0]
+        #    if file_idx is not None:
+        #        precursor_intensity = self.data[file_idx][self.compound_idx]['data']['msms']['data']['precursor_intensity']
+        #        idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
+        #
+        #        file_idxs = [file_idx]
+        #        hit_query = np.array([self.data[file_idx][self.compound_idx]['data']['msms']['data']['mz'][idx_max],
+        #                                     self.data[file_idx][self.compound_idx]['data']['msms']['data']['i'][idx_max]])
+        #        hit_ref = np.full_like(hit_query, np.nan)
+        #        hit_score = 0
+        #        mz_theoretical = self.data[file_idx][self.compound_idx]['identification'].mz_references[0].mz
+        #        mz_measured = self.data[file_idx][self.compound_idx]['data']['ms1_summary']['mz_centroid']
+        #        delta_mz = abs(mz_theoretical - mz_measured)
+        #        delta_ppm = delta_mz / mz_theoretical * 1e6
+        #        hit_rt = self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
+        #        #print self.data[file_idx][self.compound_idx]['data']['msms']['data']['rt']
+        #        #print self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
+        #        #print self.data[file_idx][self.compound_idx]['data']['ms1_summary']['rt_peak']
+        #        mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
+        #        plot_msms_comparison2(0, mz_header, hit_rt, file_names[file_idx], hit_score, self.ax2, hit_query, hit_ref)
 
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
@@ -1890,7 +1894,7 @@ def plot_msms_comparison2(i, mz_header, rt, filename, score, ax, msv_sample, msv
 
     if i == 0:
         ax.set_title('%s' % (filename), fontsize=7)
-        ax.set_xlabel('m/z\nRT = %.4f, Score = %.4f, %s' % (rt, score, mz_header), fontsize=10, weight='bold')
+        ax.set_xlabel('m/z\n%s\nScore = %.4f, %s' % (rt, score, mz_header), fontsize=10, weight='bold')
         ax.set_ylabel('intensity', fontsize=10)
         #ax.tick_params(axis='both', which='major', labelsize=8)
 
@@ -2219,7 +2223,8 @@ def make_identification_figure_v2(
                                           & (msms_hits_df['msms_scan'] <= data[0][compound_idx]['identification'].rt_references[0].rt_max) \
                                           & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz)/data[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)].drop_duplicates('file_name').head(5)
-            assert len(comp_msms_hits) > 0
+            # Dont need assert anymore, keep_nonmatch in get_msms_hits should replace the assert
+            #assert len(comp_msms_hits) > 0
 
             inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
 
@@ -2229,35 +2234,36 @@ def make_identification_figure_v2(
             msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
             rt_list = comp_msms_hits['msms_scan'].values.tolist()
 
-        except (IndexError, AssertionError, TypeError) as e:
+        #except (IndexError, AssertionError, TypeError) as e:
+        except (IndexError, TypeError) as e:
 
-            file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
-            if file_idx is not None:
-                precursor_intensity = data[file_idx][compound_idx]['data']['msms']['data']['precursor_intensity']
-                idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
+            #file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
+            #if file_idx is not None:
+            #    precursor_intensity = data[file_idx][compound_idx]['data']['msms']['data']['precursor_intensity']
+            #    idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
 
-                file_idxs = [file_idx]
-                msv_sample_list = [np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max],
-                                             data[file_idx][compound_idx]['data']['msms']['data']['i'][idx_max]])]
-                msv_ref_list = [np.full_like(msv_sample_list[-1], np.nan)]
-                scores = [0]
-            else:
-                file_idx = None
-                max_intensity = 0
+            #    file_idxs = [file_idx]
+            #    msv_sample_list = [np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max],
+            #                                 data[file_idx][compound_idx]['data']['msms']['data']['i'][idx_max]])]
+            #    msv_ref_list = [np.full_like(msv_sample_list[-1], np.nan)]
+            #    scores = [0]
+            #else:
+            file_idx = None
+            max_intensity = 0
 
-                for fi in range(len(data)):
-                    try:
-                        temp = max(data[fi][compound_idx]['data']['eic']['intensity'])
-                        if temp > max_intensity:
-                            file_idx = fi
-                            max_intensity = temp
-                    except (ValueError,TypeError):
-                        continue
+            for fi in range(len(data)):
+                try:
+                    temp = max(data[fi][compound_idx]['data']['eic']['intensity'])
+                    if temp > max_intensity:
+                        file_idx = fi
+                        max_intensity = temp
+                except (ValueError,TypeError):
+                    continue
 
-                file_idxs = [file_idx]
-                msv_sample_list = [np.array([0, np.nan]).T]
-                msv_ref_list = [np.array([0, np.nan]).T]
-                scores = [np.nan]
+            file_idxs = [file_idx]
+            msv_sample_list = [np.array([0, np.nan]).T]
+            msv_ref_list = [np.array([0, np.nan]).T]
+            scores = [np.nan]
 
 
 
