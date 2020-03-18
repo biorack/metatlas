@@ -607,9 +607,10 @@ class adjust_rt_for_selected_compound(object):
             #hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
             hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
             hit_score = self.hits['score'][self.hit_ctr]
-            rt_ms2 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['msms']['data']['rt'][0]
+            #rt_ms2 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['msms']['data']['rt'][0]
             rt_theoretical = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['identification'].rt_references[0].rt_peak
             rt_ms1 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['rt_peak']
+            rt_ms2 = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
             #print self.hits['msv_query_aligned'][0:1]
             #print self.hits['msv_query_aligned'][0:1][0]
             hit_query = self.hits['msv_query_aligned'][self.hit_ctr:self.hit_ctr+1][0]
