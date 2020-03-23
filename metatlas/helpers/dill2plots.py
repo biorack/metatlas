@@ -602,8 +602,6 @@ class adjust_rt_for_selected_compound(object):
         #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
         self.hits = hits.sort_values('score', ascending=False)
         
-        print self.hits
-
         #hit_ctr = 0
         if len(self.hits) > 0:
             #hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
