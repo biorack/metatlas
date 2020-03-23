@@ -284,7 +284,6 @@ def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_
     if (data_df.shape[0]==0) | (math.isnan(rt_max)):
         return []
     prefilter_query_str = 'rt <= %5.4f & rt >= %5.4f & mz >= %5.4f & mz <= %5.4f'%(rt_max+extra_time, rt_min-extra_time, mz_min-extra_mz, mz_max+extra_mz)
-    print prefilter_query_str
     new_df = data_df.query(prefilter_query_str)
     return new_df
 
