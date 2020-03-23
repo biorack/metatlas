@@ -2758,7 +2758,7 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                                 sheetname='only for excel type input',
                                 polarity = ('positive','negative'),
                                 store=False,
-                                mz_tolerance=10):
+                                mz_tolerance=None):
     '''
     specify polarity as 'positive' or 'negative'
 
@@ -2858,8 +2858,11 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                     try:
                         mzRef.mz_tolerance = row.mz_tolerance
                     except:
-                        mzRef.mz_tolerance = row.mz_threshold
-
+                        if 'mz_threshold' in df.columns:
+                            mzRef.mz_tolerance = row.mz_threshold
+                        else:
+                            sys.exit("mz_tolerance or mz_threshold not provided. Can't make atlas.")
+                
                 mzRef.mz_tolerance_units = 'ppm'
                 mzRef.detected_polarity = polarity
                 #if 'file_mz' in df.keys():
