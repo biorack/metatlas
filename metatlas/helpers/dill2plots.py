@@ -606,6 +606,7 @@ class adjust_rt_for_selected_compound(object):
         if len(self.hits) > 0:
             #hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
             hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
+            hit_ref_id = self.hits.index.get_level_values('id')[self.hit_ctr]
             hit_score = self.hits['score'][self.hit_ctr]
             #rt_ms2 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['msms']['data']['rt'][0]
             rt_theoretical = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['identification'].rt_references[0].rt_peak
@@ -621,7 +622,7 @@ class adjust_rt_for_selected_compound(object):
             delta_ppm = delta_mz / mz_theoretical * 1e6
             rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f, RT MS2 measured = %3.2f" % (rt_theoretical, rt_ms2, rt_ms2)
             mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_theoretical, mz_measured, delta_ppm)
-            plot_msms_comparison2(0, mz_header, rt_header, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
+            plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
         
         #else:
         #    file_idx = file_with_max_precursor_intensity(self.data,self.compound_idx)[0]
@@ -1872,7 +1873,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     ylim = ax.get_ylim()
     ax.set_ylim(ylim[0], ylim[1] * 1.33)
 
-def plot_msms_comparison2(i, mz_header, rt, filename, score, ax, msv_sample, msv_ref):
+def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sample, msv_ref):
 
     msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
 
@@ -1894,7 +1895,7 @@ def plot_msms_comparison2(i, mz_header, rt, filename, score, ax, msv_sample, msv
     most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
 
     if i == 0:
-        ax.set_title('%s' % (filename), fontsize=7)
+        ax.set_title('MSMS ref ID = %s\n%s' % (ref_id, filename), fontsize=7)
         ax.set_xlabel('m/z\n%s\nScore = %.4f, %s' % (rt, score, mz_header), fontsize=10, weight='bold')
         ax.set_ylabel('intensity', fontsize=10)
         #ax.tick_params(axis='both', which='major', labelsize=8)
