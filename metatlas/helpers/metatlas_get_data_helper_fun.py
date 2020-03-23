@@ -283,7 +283,8 @@ def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_
     import math
     if (data_df.shape[0]==0) | (math.isnan(rt_max)):
         return []
-    prefilter_query_str = 'rt < %5.4f & rt > %5.4f & mz > %5.4f & mz < %5.4f'%(rt_max+extra_time, rt_min-extra_time, mz_min-extra_mz, mz_max+extra_mz)
+    prefilter_query_str = 'rt <= %5.4f & rt >= %5.4f & mz >= %5.4f & mz <= %5.4f'%(rt_max+extra_time, rt_min-extra_time, mz_min-extra_mz, mz_max+extra_mz)
+    print prefilter_query_str
     new_df = data_df.query(prefilter_query_str)
     return new_df
 
@@ -329,30 +330,30 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
     filtered_ms1_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_pos'],
                                                                atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
                                                                atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.min(),
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.max(),
+                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.min()-1,
+                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.max()+1,
                                                                extra_time = extra_time,
                                                                extra_mz = extra_mz)
     filtered_ms1_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_neg'],
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.min(),
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max(),
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.min()-1,
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max()+1,
                                                            extra_time = extra_time,
                                                            extra_mz = extra_mz)
     filtered_ms2_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_pos'],
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
-                                                           0,
-                                                           atlas_df[atlas_df.detected_polarity == 'positive'].mz.max(),
+                                                           atlas_df[atlas_df.detected_polarity == 'positive'].mz.min()-1,
+                                                           atlas_df[atlas_df.detected_polarity == 'positive'].mz.max()+1,
                                                            extra_time = extra_time,
                                                            extra_mz = extra_mz)
     
     filtered_ms2_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_neg'],
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
-                                                           0,
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max(),
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.min()-1,
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max()+1,
                                                            extra_time = extra_time,
                                                            extra_mz = extra_mz)
     
