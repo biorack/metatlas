@@ -616,15 +616,36 @@ class adjust_rt_for_selected_compound(object):
             #print self.hits['msv_query_aligned'][0:1][0]
             hit_query = self.hits['msv_query_aligned'][self.hit_ctr:self.hit_ctr+1][0]
             hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr:self.hit_ctr+1][0]
+            mz_precursor = self.hits['measured_precursor_mz'][self.hit_ctr]
             mz_theoretical = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['identification'].mz_references[0].mz
             mz_measured = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['mz_centroid']
             delta_mz = abs(mz_theoretical - mz_measured)
             delta_ppm = delta_mz / mz_theoretical * 1e6
             rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f, RT MS2 measured = %3.2f" % (rt_theoretical, rt_ms2, rt_ms2)
-            mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_theoretical, mz_measured, delta_ppm)
+            mz_header = "precursor m/z = %5.4f, m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_precursor, mz_theoretical, mz_measured, delta_ppm)
             plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
         
-        #else:
+        else:
+            hit_query = np.empty((2,2,))
+            hit_query[:] = np.nan
+            hit_ref = hit_query
+            file_idx = file_with_max_ms1_intensity(self.data,self.compound_idx)[0]
+            rt_theoretical = default_data['identification'].rt_references[0].rt_peak
+            mz_theoretical = default_data['identification'].mz_references[0].mz
+            if file_idx != None:
+                rt_ms1 = self.data[file_idx][self.compound_idx]['data']['ms1_summary']['rt_peak']
+                mz_measured = self.data[file_idx][self.compound_idx]['data']['ms1_summary']['mz_centroid']
+            else:
+                rt_ms1 = np.nan
+                mz_measured = np.nan
+            delta_mz = abs(mz_theoretical - mz_measured)
+            delta_ppm = delta_mz / mz_theoretical * 1e6
+            rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f" % (rt_theoretical, rt_ms1)
+            mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_theoretical, mz_measured, delta_ppm)
+            hit_ref_id = "N/A"
+            hit_file_name= file_names[file_idx]
+            hit_score = np.nan
+            plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
         #    file_idx = file_with_max_precursor_intensity(self.data,self.compound_idx)[0]
         #    if file_idx is not None:
         #        precursor_intensity = self.data[file_idx][self.compound_idx]['data']['msms']['data']['precursor_intensity']
@@ -1523,6 +1544,17 @@ def file_with_max_precursor_intensity(data,compound_idx):
                         idx = i
     return idx,my_max
 
+def file_with_max_ms1_intensity(data,compound_idx):
+    idx = None
+    my_max = 0
+    for i,d in enumerate(data):
+        if 'intensity' in d[compound_idx]['data']['eic'].keys():
+            temp = max(d[compound_idx]['data']['eic']['intensity'])
+            if temp > my_max:
+                my_max = temp
+                idx = i
+    return idx,my_max
+
 def file_with_max_score(data, frag_refs, compound_idx, filter_by):
     idx = []
     max_score = np.nan
@@ -1896,7 +1928,7 @@ def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sam
 
     if i == 0:
         ax.set_title('MSMS ref ID = %s\n%s' % (ref_id, filename), fontsize=7)
-        ax.set_xlabel('m/z\n%s\nScore = %.4f, %s' % (rt, score, mz_header), fontsize=10, weight='bold')
+        ax.set_xlabel('m/z\nScore = %.4f, %s\n%s' % (score, rt, mz_header), fontsize=10, weight='bold')
         ax.set_ylabel('intensity', fontsize=10)
         #ax.tick_params(axis='both', which='major', labelsize=8)
 
@@ -2111,7 +2143,10 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                         continue
 
                 msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
+                precursor_mz_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0]
+                precursor_intensity_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_intensity'].values[0]
 
+                #Filter ions greater than 2.5 + precursor M/Z 
                 msv_sample = msv_sample[:,msv_sample[0] < rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0] + 2.5]
 
                 scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
@@ -2123,6 +2158,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     scan_df['adduct'] = adduct
                     scan_df['inchi_key'] = inchi_key
                     scan_df['precursor_mz'] = precursor_mz
+                    scan_df['measured_precursor_mz'] = precursor_mz_sample
+                    scan_df['measured_precursor_intensity'] = precursor_intensity_sample
 
                     scan_df.set_index('file_name', append=True, inplace=True)
                     scan_df.set_index('msms_scan', append=True, inplace=True)
@@ -2138,6 +2175,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     scan_df['adduct'] = adduct
                     scan_df['inchi_key'] = inchi_key
                     scan_df['precursor_mz'] = precursor_mz
+                    scan_df['measured_precursor_mz'] = precursor_mz_sample
+                    scan_df['measured_precursor_intensity'] = precursor_intensity_sample
 
                     scan_df['score'] = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_intensity'].values[0]
                     scan_df['msv_query_aligned'] = msv_sample
@@ -2162,7 +2201,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
     if len(msms_hits)>0:
         return pd.concat(msms_hits)
     else:
-        return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches']
+        return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches','inchi_key','precursor_mz','adduct','score']
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
 
