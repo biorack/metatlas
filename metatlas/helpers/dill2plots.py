@@ -595,14 +595,13 @@ class adjust_rt_for_selected_compound(object):
         my_file_name = self.msms_hits.index.get_level_values('file_name')
         #hits_mz_tolerance = 0.005
         hits_mz_tolerance = default_data['identification'].mz_references[-1].mz_tolerance*1e-6
-
+        
         #hits = self.msms_hits[(my_scan_rt > float(self.my_rt.rt_min)) & (my_scan_rt < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['precursor_mz'] - mz_theoretical) <= hits_mz_tolerance)]
         hits = self.msms_hits[(my_scan_rt >= float(self.my_rt.rt_min)) & (my_scan_rt <= float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) \
-                & (abs(self.msms_hits['precursor_mz'] - mz_theoretical)/mz_theoretical <= hits_mz_tolerance)]
+                & (abs(self.msms_hits['measured_precursor_mz'] - mz_theoretical)/mz_theoretical <= hits_mz_tolerance)]
         #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
         self.hits = hits.sort_values('score', ascending=False)
-        
-        #hit_ctr = 0
+
         if len(self.hits) > 0:
             #hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
             hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
