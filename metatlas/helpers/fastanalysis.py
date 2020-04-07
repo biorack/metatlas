@@ -27,6 +27,7 @@ strict_param = {'min_intensity': 1e5,
 def make_stats_table(input_fname = '', input_dataset = [],
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
                      output_loc = None,
+                     msms_hits = None,
                      min_peak_height=0, rt_tolerance=np.inf, ppm_tolerance=np.inf,
                      min_msms_score=0, min_num_frag_matches=0,
                      allow_no_msms=False, min_relative_frag_intensity=None,
@@ -62,6 +63,7 @@ def make_stats_table(input_fname = '', input_dataset = [],
     if exclude_groups:
         metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset,'group',exclude_groups)
 
+    final_df = pd.DataFrame(columns=['index'])
     file_names = ma_data.get_file_names(metatlas_dataset)
     compound_names = ma_data.get_compound_names(metatlas_dataset,use_labels=use_labels)[0]
 
@@ -83,9 +85,11 @@ def make_stats_table(input_fname = '', input_dataset = [],
     passing['peak_height'] = (np.nan_to_num(dfs['peak_height'].values) >= min_peak_height).astype(float)
 
     #msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
-    msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key'])
-    msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)   
+    #msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key'])
+    #msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)   
+    msms_hits_df = msms_hits.copy()
     msms_hits_df.reset_index(inplace=True)
+
 
     for compound_idx, compound_name in enumerate(compound_names):
 
@@ -99,23 +103,109 @@ def make_stats_table(input_fname = '', input_dataset = [],
         passing['mz_ppm'][compound_idx] = (dfs['mz_ppm'].iloc[compound_idx].values <= ppm_tolerance).astype(float)
 
         inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+        compound_ref_rt_min = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_min
+        compound_ref_rt_max = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_max
+        cid = metatlas_dataset[0][compound_idx]['identification']
+        mz_theoretical = cid.mz_references[0].mz
+        mz_measured = metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid']
+        delta_mz = abs(mz_theoretical - mz_measured)
+        delta_ppm = delta_mz / mz_theoretical * 1e6
+
+        comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) \
+                                    & (msms_hits_df['msms_scan'] >= compound_ref_rt_min) \
+                                    & (msms_hits_df['msms_scan'] <= compound_ref_rt_max) \
+                                    & ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float) - mz_theoretical)/mz_theoretical) \
+                                    <= cid.mz_references[0].mz_tolerance*1e-6)]
+
+        comp_msms_hits = comp_msms_hits.sort_values('score', ascending=False)
+        file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
+        if len(comp_msms_hits) > 0 and not np.isnan(np.concatenate(comp_msms_hits['msv_ref_aligned'].values, axis=1)).all():
+            file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
+            scores = comp_msms_hits['score'].values.tolist()
+            msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
+            msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
+            rt_list = comp_msms_hits['msms_scan'].values.tolist()
+            mz_sample_matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0][0].tolist()
+        
+        avg_mz_measured = []
+        avg_rt_measured = []
+        intensities = pd.DataFrame()
+        for file_idx, file_name in enumerate(file_names):
+            if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']):
+                avg_mz_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid'])
+            if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']):
+                avg_rt_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak'])
+            if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']):
+                intensities.loc[file_idx, 'file_id'] = file_idx
+                intensities.loc[file_idx, 'intensity'] = metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
+
+        avg_mz_measured = np.mean(avg_mz_measured)
+        avg_rt_measured = np.mean(avg_rt_measured)
+
+        final_df = final_df.append({'index':compound_idx}, ignore_index=True)
+        final_df.loc[compound_idx, 'identified_metabolite'] = ""
+        final_df.loc[compound_idx, 'label'] = cid.compound[0].name
+        final_df.loc[compound_idx, 'formula'] = cid.compound[0].formula
+        final_df.loc[compound_idx, 'polarity'] = cid.mz_references[0].detected_polarity
+        final_df.loc[compound_idx, 'exact_mass'] = cid.compound[0].mono_isotopic_molecular_weight
+        final_df.loc[compound_idx, 'inchi_key'] = cid.compound[0].inchi_key
+        final_df.loc[compound_idx, 'msms_quality'] = ""
+        final_df.loc[compound_idx, 'mz_quality'] = ""
+        final_df.loc[compound_idx, 'rt_quality'] = ""
+        final_df.loc[compound_idx, 'total_score'] = ""
+        final_df.loc[compound_idx, 'msi_level'] = ""
+        final_df.loc[compound_idx, 'isomer_details'] = ""
+        final_df.loc[compound_idx, 'identification_notes'] = ""
+        if file_idxs != []:
+            final_df.loc[compound_idx, 'msms_file'] = file_names[file_idxs[0]]
+            final_df.loc[compound_idx, 'msms_rt'] = rt_list[0]
+            final_df.loc[compound_idx, 'msms_numberofions'] = len(mz_sample_matches)
+            final_df.loc[compound_idx, 'msms_matchingions'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
+            final_df.loc[compound_idx, 'msms_score'] = scores[0]
+        else:
+            final_df.loc[compound_idx, 'msms_file'] = ""
+            final_df.loc[compound_idx, 'msms_rt'] = ""
+            final_df.loc[compound_idx, 'msms_numberofions'] = ""
+            final_df.loc[compound_idx, 'msms_matchingions'] = ""
+            final_df.loc[compound_idx, 'msms_score'] = ""
+        final_df.loc[compound_idx, 'mz_adduct'] = cid.mz_references[0].adduct
+        final_df.loc[compound_idx, 'mz_theoretical'] = mz_theoretical
+        final_df.loc[compound_idx, 'mz_measured'] = avg_mz_measured
+        final_df.loc[compound_idx, 'mz_error'] = abs(mz_theoretical - avg_mz_measured)
+        final_df.loc[compound_idx, 'mz_ppmerror'] = abs(mz_theoretical - avg_mz_measured) / mz_theoretical * 1e6
+        final_df.loc[compound_idx, 'rt_min'] = compound_ref_rt_min
+        final_df.loc[compound_idx, 'rt_max'] = compound_ref_rt_max
+        final_df.loc[compound_idx, 'rt_theoretical'] = cid.rt_references[0].rt_peak
+        final_df.loc[compound_idx, 'rt_measured'] = avg_rt_measured
+        final_df.loc[compound_idx, 'rt_error'] = abs(cid.rt_references[0].rt_peak - avg_rt_measured)
+        if len(intensities) > 0:
+            final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].idxmax()]['intensity']
+            final_df.loc[compound_idx, 'max_intensity_file'] = file_names[int(intensities.loc[intensities['intensity'].idxmax()]['file_id'])]
+        else:
+            final_df.loc[compound_idx, 'max_intensity'] = ""
+            final_df.loc[compound_idx, 'max_intensity_file'] = ""
+
 
         for file_idx, file_name in enumerate(file_names):
-            rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) &
-                                (msms_hits_df['file_name'] == file_name) &
-                                ((abs(msms_hits_df['precursor_mz'].values.astype(float) - metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz)/metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz) \
+            rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) & \
+                                (msms_hits_df['file_name'] == file_name) & \
+                                (msms_hits_df['msms_scan'] >= compound_ref_rt_min) & (msms_hits_df['msms_scan'] <= compound_ref_rt_max) & \
+                                ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float) - metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz)/metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz) \
                                    <= metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
 
             if len(rows) == 0:
                 dfs['msms_score'].iat[compound_idx, file_idx] = np.nan
                 dfs['num_frag_matches'].iat[compound_idx, file_idx] = np.nan
             else:
-                dfs['msms_score'].iat[compound_idx, file_idx] = rows.loc[rows['score'].idxmax()]['score']
+                if not np.isnan(np.concatenate(rows['msv_ref_aligned'].values, axis=1)).all():
+                    dfs['msms_score'].iat[compound_idx, file_idx] = rows.loc[rows['score'].idxmax()]['score']
                 dfs['num_frag_matches'].iat[compound_idx, file_idx] = rows.loc[rows['score'].idxmax()]['num_matches']
 
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
+    print final_df
+    final_df.to_csv(os.path.join(output_loc, 'Draft_Final_Idenfications.tab'), sep='\t')
     for metric in metrics:
         passing[metric][passing[metric] == 0] = np.nan
 
@@ -160,7 +250,7 @@ def make_stats_table(input_fname = '', input_dataset = [],
         return stats_table, dfs, passing
 
 
-def make_scores_df(metatlas_dataset):
+def make_scores_df(metatlas_dataset, msms_hits):
     """
     Returns pandas dataframe with columns 'max_intensity', 'median_rt_shift','median_mz_ppm', 'max_msms_score',
     'num_frag_matches', and 'max_relative_frag_intensity', rows of compounds in metatlas_dataset, and values
@@ -174,6 +264,7 @@ def make_scores_df(metatlas_dataset):
     'max_relative_frag_intensity': ratio of second highest to first highest intensity of matching sample mzs
 
     :param metatlas_dataset:
+    :param msms_hits:
 
     :return scores_df: pandas dataframe
     """
@@ -184,8 +275,9 @@ def make_scores_df(metatlas_dataset):
     scores = []
 
     #msms_hits_df = dp.get_msms_hits(metatlas_dataset, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
-    msms_hits_df = dp.get_msms_hits(metatlas_dataset, ref_index=['database', 'id', 'inchi_key'])
-    msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)
+    #msms_hits_df = dp.get_msms_hits(metatlas_dataset, ref_index=['database', 'id', 'inchi_key'])
+    msms_hits_df = msms_hits.copy()
+    #msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)
     msms_hits_df.reset_index(inplace=True)
 
     for compound_idx in range(len(compound_names)):
@@ -197,6 +289,8 @@ def make_scores_df(metatlas_dataset):
         max_relative_frag_intensity = np.nan
 
         compound_ref_rt_peak = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
+        compound_ref_rt_min = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_min
+        compound_ref_rt_max = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_max
         compound_ref_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
         inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
 
@@ -204,6 +298,7 @@ def make_scores_df(metatlas_dataset):
             comp_msms_hits = msms_hits_df
         else:
             comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key) \
+                                          & (msms_hits_df['msms_scan'] >= compound_ref_rt_min) & (msms_hits_df['msms_scan'] <= compound_ref_rt_max) \
                                           & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz)/metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
 
@@ -223,7 +318,10 @@ def make_scores_df(metatlas_dataset):
 
         if len(comp_msms_hits['score']) > 0:
             row = comp_msms_hits.loc[comp_msms_hits['score'].idxmax()]
-            max_msms_score = row['score']
+            if np.isnan(row['msv_ref_aligned']).all():
+                max_msms_score = np.nan
+            else:
+                max_msms_score = row['score']
             num_frag_matches = row['num_matches']
 
             if num_frag_matches > 1:
@@ -499,3 +597,4 @@ def filter_and_output(atlas_df, metatlas_dataset, output_dir,
 
     print 'done'
     return pass_atlas_df, fail_atlas_df, pass_dataset, fail_dataset
+ 

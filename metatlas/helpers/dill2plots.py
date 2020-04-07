@@ -596,10 +596,8 @@ class adjust_rt_for_selected_compound(object):
         #hits_mz_tolerance = 0.005
         hits_mz_tolerance = default_data['identification'].mz_references[-1].mz_tolerance*1e-6
         
-        #hits = self.msms_hits[(my_scan_rt > float(self.my_rt.rt_min)) & (my_scan_rt < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['precursor_mz'] - mz_theoretical) <= hits_mz_tolerance)]
         hits = self.msms_hits[(my_scan_rt >= float(self.my_rt.rt_min)) & (my_scan_rt <= float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) \
                 & (abs(self.msms_hits['measured_precursor_mz'] - mz_theoretical)/mz_theoretical <= hits_mz_tolerance)]
-        #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
         self.hits = hits.sort_values('score', ascending=False)
 
         if len(self.hits) > 0:
@@ -2191,10 +2189,6 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     scan_df.set_index('msms_scan', append=True, inplace=True)
 
                     msms_hits.append(scan_df)
-
-                #if compound_idx >= 22 and compound_idx <= 25:
-                #    print compound_idx
-                #    print scan_df['msv_query_aligned'][0]
 
     sys.stdout.write('\n'+'Done!!!')
     if len(msms_hits)>0:
