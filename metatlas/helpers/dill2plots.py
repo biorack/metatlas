@@ -385,7 +385,6 @@ class adjust_rt_for_selected_compound(object):
                  include_groups = None,
                  exclude_groups = None,
                  msms_hits = None,
-                 extra_time = False,
                  color_me_red = '',
                  compound_idx = 0,
                  #width = 12,
@@ -416,7 +415,6 @@ class adjust_rt_for_selected_compound(object):
         """
 
         self.msms_hits = msms_hits
-        self.extra_time = extra_time
         self.color_me_red = color_me_red
         self.compound_idx = compound_idx
         self.width = width
@@ -598,10 +596,7 @@ class adjust_rt_for_selected_compound(object):
         #hits_mz_tolerance = 0.005
         hits_mz_tolerance = default_data['identification'].mz_references[-1].mz_tolerance*1e-6
         
-        if self.extra_time:
-            hits = self.msms_hits[(self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['measured_precursor_mz'] - mz_theoretical)/mz_theoretical <= hits_mz_tolerance)]
-        else:
-            hits = self.msms_hits[(my_scan_rt >= float(self.my_rt.rt_min)) & (my_scan_rt <= float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) \
+        hits = self.msms_hits[(my_scan_rt >= float(self.my_rt.rt_min)) & (my_scan_rt <= float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) \
                 & (abs(self.msms_hits['measured_precursor_mz'] - mz_theoretical)/mz_theoretical <= hits_mz_tolerance)]
         self.hits = hits.sort_values('score', ascending=False)
 
