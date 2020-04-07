@@ -144,7 +144,10 @@ def make_stats_table(input_fname = '', input_dataset = [],
 
         final_df = final_df.append({'index':compound_idx}, ignore_index=True)
         final_df.loc[compound_idx, 'identified_metabolite'] = ""
-        final_df.loc[compound_idx, 'label'] = cid.compound[0].name
+        if use_labels or len(cid.compound) == 0:
+            final_df.loc[compound_idx, 'label'] = cid.name
+        else:
+            final_df.loc[compound_idx, 'label'] = cid.compound[0].name
         final_df.loc[compound_idx, 'formula'] = cid.compound[0].formula
         final_df.loc[compound_idx, 'polarity'] = cid.mz_references[0].detected_polarity
         final_df.loc[compound_idx, 'exact_mass'] = cid.compound[0].mono_isotopic_molecular_weight
