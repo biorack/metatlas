@@ -2146,7 +2146,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                 #Filter ions greater than 2.5 + precursor M/Z 
                 msv_sample = msv_sample[:,msv_sample[0] < rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0] + 2.5]
 
-                scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
+                if msv_sample.size > 0:
+                    scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
 
                 if len(scan_df) > 0:
                     scan_df['file_name'] = file_name
