@@ -2148,6 +2148,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
 
                 if msv_sample.size > 0:
                     scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
+                else:
+                    scan_df = {}
 
                 if len(scan_df) > 0:
                     scan_df['file_name'] = file_name
