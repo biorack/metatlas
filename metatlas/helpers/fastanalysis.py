@@ -210,7 +210,6 @@ def make_stats_table(input_fname = '', input_dataset = [],
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
-    print final_df
     final_df.to_csv(os.path.join(output_loc, 'Draft_Final_Idenfications.tab'), sep='\t')
     for metric in metrics:
         passing[metric][passing[metric] == 0] = np.nan
