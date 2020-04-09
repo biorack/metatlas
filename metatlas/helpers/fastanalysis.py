@@ -164,7 +164,10 @@ def make_stats_table(input_fname = '', input_dataset = [],
             final_df.loc[compound_idx, 'msms_rt'] = rt_list[0]
             final_df.loc[compound_idx, 'msms_numberofions'] = len(mz_sample_matches)
             final_df.loc[compound_idx, 'msms_matchingions'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
-            final_df.loc[compound_idx, 'msms_score'] = scores[0]
+            if len(mz_sample_matches) == 1:
+                final_df.loc[compound_idx, 'msms_score'] = 0.0
+            else:
+                final_df.loc[compound_idx, 'msms_score'] = scores[0]
         else:
             final_df.loc[compound_idx, 'msms_file'] = ""
             final_df.loc[compound_idx, 'msms_rt'] = ""
