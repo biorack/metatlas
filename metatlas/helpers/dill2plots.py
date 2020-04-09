@@ -2195,7 +2195,12 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
 
     sys.stdout.write('\n'+'Done!!!')
     if len(msms_hits)>0:
-        return pd.concat(msms_hits)
+        hits = pd.concat(msms_hits)
+        #Check if number of matches for a compound across all files is 1 or less and set the score to its maximum intensity.
+        #This will identify MSMS with single ion / no fragmentation
+        idxs = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max) <= 1
+        hits['score'][idxs] = hits['measured_precursor_intensity'][idxs]
+        return hits
     else:
         return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches','inchi_key','precursor_mz','adduct','score']
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
