@@ -24,17 +24,20 @@ strict_param = {'min_intensity': 1e5,
                 'min_msms_score': .6, 'allow_no_msms': False,
                 'min_num_frag_matches': 3, 'min_relative_frag_intensity': .1}
 
-def make_stats_table(input_fname = '', input_dataset = [],
+def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
                      output_loc = None,
+
                      msms_hits = None,
-                     min_peak_height=0, rt_tolerance=np.inf, ppm_tolerance=np.inf,
+                     min_peak_height=0, min_num_data_points=0, rt_tolerance=np.inf, ppm_tolerance=np.inf,
+
                      min_msms_score=0, min_num_frag_matches=0,
                      allow_no_msms=False, min_relative_frag_intensity=None,
                      use_labels=False, return_all=False,
                      msms_refs_loc='/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab',
                      dependencies = {'peak_height': [],
                                      'peak_area': ['peak_height'],
+                                     'num_data_points': ['peak_height'],
                                      'rt_peak': ['peak_height', 'rt_delta'],
                                      'rt_delta': ['peak_height'],
                                      'mz_centroid': ['peak_height', 'mz_ppm'],
@@ -67,7 +70,7 @@ def make_stats_table(input_fname = '', input_dataset = [],
     file_names = ma_data.get_file_names(metatlas_dataset)
     compound_names = ma_data.get_compound_names(metatlas_dataset,use_labels=use_labels)[0]
 
-    metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta', 'peak_height', 'peak_area']
+    metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta', 'peak_height', 'peak_area', 'num_data_points']
 
     dfs = {m:None for m in metrics}
     passing = {m:np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
@@ -78,18 +81,22 @@ def make_stats_table(input_fname = '', input_dataset = [],
     dfs['mz_ppm'] = dfs['peak_height'].copy()
     dfs['mz_ppm'] *= np.nan
 
+    dfs['num_data_points'] = pd.DataFrame([[len(metatlas_dataset[i][j]['data']['eic']['intensity'])
+                                           for i in range(len(metatlas_dataset))]
+                                          for j in range(len(metatlas_dataset[0]))])
+    dfs['num_data_points'].index = dfs['mz_ppm'].index
     dfs['msms_score'] = dfs['mz_ppm'].copy()
     dfs['num_frag_matches'] = dfs['mz_ppm'].copy()
     dfs['rt_delta'] = dfs['mz_ppm'].copy()
 
     passing['peak_height'] = (np.nan_to_num(dfs['peak_height'].values) >= min_peak_height).astype(float)
+    passing['num_data_points'] = (np.nan_to_num(dfs['num_data_points'].values) >= min_num_data_points).astype(float)
 
     #msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
     #msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key'])
-    #msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)   
+    #msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)
     msms_hits_df = msms_hits.copy()
     msms_hits_df.reset_index(inplace=True)
-
 
     for compound_idx, compound_name in enumerate(compound_names):
 
@@ -126,7 +133,7 @@ def make_stats_table(input_fname = '', input_dataset = [],
             msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
             rt_list = comp_msms_hits['msms_scan'].values.tolist()
             mz_sample_matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0][0].tolist()
-        
+
         avg_mz_measured = []
         avg_rt_measured = []
         intensities = pd.DataFrame()
@@ -602,4 +609,3 @@ def filter_and_output(atlas_df, metatlas_dataset, output_dir,
 
     print 'done'
     return pass_atlas_df, fail_atlas_df, pass_dataset, fail_dataset
- 
