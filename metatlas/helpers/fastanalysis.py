@@ -165,7 +165,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         final_df.loc[compound_idx, 'total_score'] = ""
         final_df.loc[compound_idx, 'msi_level'] = ""
         final_df.loc[compound_idx, 'isomer_details'] = ""
-        final_df.loc[compound_idx, 'identification_notes'] = ""
+        final_df.loc[compound_idx, 'identification_notes'] = cid.description
         if file_idxs != []:
             final_df.loc[compound_idx, 'msms_file'] = file_names[file_idxs[0]]
             final_df.loc[compound_idx, 'msms_rt'] = rt_list[0]
@@ -217,10 +217,28 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
-    final_df.to_csv(os.path.join(output_loc, 'Draft_Final_Idenfications.tab'), sep='\t')
+    #print final_df
+    writer = pd.ExcelWriter('Draft_Final_Idenfications.xlsx', engine='xlsxwriter')
+    final_df.to_excel(writer, sheet_name='Final_Identifications', index=False)
+    #set format
+    workbook = writer.book
+    f_blue = workbook.add_format({'bg_color': '#99CCFF'})
+    f_yellow = workbook.add_format({'bg_color': 'yellow'})
+    f_rose = workbook.add_format({'bg_color': '#FF99CC'})
+    worksheet = writer.sheets['Final_Identifications']
+    worksheet.conditional_format('H1:N'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_blue})
+    worksheet.conditional_format('O1:R'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_yellow})
+    worksheet.conditional_format('S1:S'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_rose})
+    worksheet.conditional_format('T1:V'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_yellow})
+    worksheet.conditional_format('W1:X'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_rose})
+    worksheet.conditional_format('Y1:AB'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_yellow})
+    worksheet.conditional_format('AC1:AC'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_rose})
+    writer.save()
+    
+
+    #final_df.to_csv(os.path.join(output_loc, 'Draft_Final_Idenfications.tab'), sep='\t')
     for metric in metrics:
         passing[metric][passing[metric] == 0] = np.nan
-
     stats_table = []
 
     for metric in metrics:
