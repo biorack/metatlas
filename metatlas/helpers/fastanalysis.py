@@ -172,6 +172,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'msms_numberofions'] = len(mz_sample_matches)
             final_df.loc[compound_idx, 'msms_matchingions'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
             if len(mz_sample_matches) == 1:
+                # Set score to zero when there is only one matching ion. precursor intensity is set as score in such cases and need to be set to 0 for final identification.
                 final_df.loc[compound_idx, 'msms_score'] = 0.0
             else:
                 final_df.loc[compound_idx, 'msms_score'] = scores[0]
