@@ -219,7 +219,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
     #print final_df
-    writer = pd.ExcelWriter('Draft_Final_Idenfications.xlsx', engine='xlsxwriter')
+    writer = pd.ExcelWriter(os.path.join(output_loc,'Draft_Final_Idenfications.xlsx'), engine='xlsxwriter')
     final_df.to_excel(writer, sheet_name='Final_Identifications', index=False)
     #set format
     workbook = writer.book
