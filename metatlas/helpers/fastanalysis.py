@@ -161,14 +161,14 @@ def make_stats_table(input_fname = '', input_dataset = [],
         final_df.loc[compound_idx, 'identification_notes'] = cid.description
         if file_idxs != []:
             final_df.loc[compound_idx, 'msms_file'] = file_names[file_idxs[0]]
-            final_df.loc[compound_idx, 'msms_rt'] = rt_list[0]
+            final_df.loc[compound_idx, 'msms_rt'] = float("%.2f" % rt_list[0])
             final_df.loc[compound_idx, 'msms_numberofions'] = len(mz_sample_matches)
             final_df.loc[compound_idx, 'msms_matchingions'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
             if len(mz_sample_matches) == 1:
                 # Set score to zero when there is only one matching ion. precursor intensity is set as score in such cases and need to be set to 0 for final identification.
                 final_df.loc[compound_idx, 'msms_score'] = 0.0
             else:
-                final_df.loc[compound_idx, 'msms_score'] = scores[0]
+                final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
         else:
             final_df.loc[compound_idx, 'msms_file'] = ""
             final_df.loc[compound_idx, 'msms_rt'] = ""
@@ -176,15 +176,15 @@ def make_stats_table(input_fname = '', input_dataset = [],
             final_df.loc[compound_idx, 'msms_matchingions'] = ""
             final_df.loc[compound_idx, 'msms_score'] = ""
         final_df.loc[compound_idx, 'mz_adduct'] = cid.mz_references[0].adduct
-        final_df.loc[compound_idx, 'mz_theoretical'] = mz_theoretical
-        final_df.loc[compound_idx, 'mz_measured'] = avg_mz_measured
-        final_df.loc[compound_idx, 'mz_error'] = abs(mz_theoretical - avg_mz_measured)
-        final_df.loc[compound_idx, 'mz_ppmerror'] = abs(mz_theoretical - avg_mz_measured) / mz_theoretical * 1e6
-        final_df.loc[compound_idx, 'rt_min'] = compound_ref_rt_min
-        final_df.loc[compound_idx, 'rt_max'] = compound_ref_rt_max
-        final_df.loc[compound_idx, 'rt_theoretical'] = cid.rt_references[0].rt_peak
-        final_df.loc[compound_idx, 'rt_measured'] = avg_rt_measured
-        final_df.loc[compound_idx, 'rt_error'] = abs(cid.rt_references[0].rt_peak - avg_rt_measured)
+        final_df.loc[compound_idx, 'mz_theoretical'] = float("%.4f" % mz_theoretical)
+        final_df.loc[compound_idx, 'mz_measured'] = float("%.4f" % avg_mz_measured)
+        final_df.loc[compound_idx, 'mz_error'] = float("%.4f" % abs(mz_theoretical - avg_mz_measured))
+        final_df.loc[compound_idx, 'mz_ppmerror'] = float("%.4f" % (abs(mz_theoretical - avg_mz_measured) / mz_theoretical * 1e6))
+        final_df.loc[compound_idx, 'rt_min'] = float("%.2f" % compound_ref_rt_min)
+        final_df.loc[compound_idx, 'rt_max'] = float("%.2f" % compound_ref_rt_max)
+        final_df.loc[compound_idx, 'rt_theoretical'] = float("%.2f" % cid.rt_references[0].rt_peak)
+        final_df.loc[compound_idx, 'rt_measured'] = float("%.2f" % avg_rt_measured)
+        final_df.loc[compound_idx, 'rt_error'] = float("%.2f" % abs(cid.rt_references[0].rt_peak - avg_rt_measured))
         if len(intensities) > 0:
             final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].idxmax()]['intensity']
             final_df.loc[compound_idx, 'max_intensity_file'] = file_names[int(intensities.loc[intensities['intensity'].idxmax()]['file_id'])]
