@@ -445,8 +445,8 @@ class adjust_rt_for_selected_compound(object):
         plt.ion()
         # create figure and first axes
         #self.fig,self.ax = plt.subplots(figsize=(width, height))
-        self.fig,(self.ax2, self.ax) = plt.subplots(2, 1, figsize=(width, height*2))
-        plt.subplots_adjust(left=0.09, bottom=0.275, hspace=0.36)
+        self.fig,(self.ax2, self.ax) = plt.subplots(2, 1, figsize=(width, height*2.2))
+        plt.subplots_adjust(left=0.09, bottom=0.275, hspace=0.4)
 #         plt.ticklabel_format(style='plain', axis='x')
 #         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 
