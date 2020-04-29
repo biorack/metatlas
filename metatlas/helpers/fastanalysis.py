@@ -102,7 +102,10 @@ def make_stats_table(input_fname = '', input_dataset = [],
         dfs['mz_ppm'].iloc[compound_idx] = 1e6*(abs(ref_mz - dfs['mz_centroid'].iloc[compound_idx]) / ref_mz)
         passing['mz_ppm'][compound_idx] = (dfs['mz_ppm'].iloc[compound_idx].values <= ppm_tolerance).astype(float)
 
-        inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+        try:
+            inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+        except:
+            inchi_key = ''
         compound_ref_rt_min = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_min
         compound_ref_rt_max = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_max
         cid = metatlas_dataset[0][compound_idx]['identification']
@@ -148,10 +151,16 @@ def make_stats_table(input_fname = '', input_dataset = [],
             final_df.loc[compound_idx, 'label'] = cid.name
         else:
             final_df.loc[compound_idx, 'label'] = cid.compound[0].name
-        final_df.loc[compound_idx, 'formula'] = cid.compound[0].formula
-        final_df.loc[compound_idx, 'polarity'] = cid.mz_references[0].detected_polarity
-        final_df.loc[compound_idx, 'exact_mass'] = cid.compound[0].mono_isotopic_molecular_weight
-        final_df.loc[compound_idx, 'inchi_key'] = cid.compound[0].inchi_key
+        if len(cid.compound) == 0:
+            final_df.loc[compound_idx, 'formula'] = ""
+            final_df.loc[compound_idx, 'polarity'] = cid.mz_references[0].detected_polarity
+            final_df.loc[compound_idx, 'exact_mass'] = ""
+            final_df.loc[compound_idx, 'inchi_key'] = ""
+        else:
+            final_df.loc[compound_idx, 'formula'] = cid.compound[0].formula
+            final_df.loc[compound_idx, 'polarity'] = cid.mz_references[0].detected_polarity
+            final_df.loc[compound_idx, 'exact_mass'] = cid.compound[0].mono_isotopic_molecular_weight
+            final_df.loc[compound_idx, 'inchi_key'] = cid.compound[0].inchi_key
         final_df.loc[compound_idx, 'msms_quality'] = ""
         final_df.loc[compound_idx, 'mz_quality'] = ""
         final_df.loc[compound_idx, 'rt_quality'] = ""
@@ -316,14 +325,17 @@ def make_scores_df(metatlas_dataset, msms_hits):
         compound_ref_rt_min = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_min
         compound_ref_rt_max = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_max
         compound_ref_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
-        inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+        try:
+            inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+        except:
+            inchi_key = ""
 
         if len(msms_hits_df) == 0:
             comp_msms_hits = msms_hits_df
         else:
-            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key) \
+            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) \
                                           & (msms_hits_df['msms_scan'] >= compound_ref_rt_min) & (msms_hits_df['msms_scan'] <= compound_ref_rt_max) \
-                                          & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz)/metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz) \
+                                          & ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float) - metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz)/metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
 
         for file_idx in range(len(file_names)):
@@ -370,8 +382,9 @@ def make_scores_df(metatlas_dataset, msms_hits):
             median_mz_ppm = np.nan
 
         # assign scores
-        scores.append([metatlas_dataset[0][compound_idx]['identification'].compound[0].name,
-                       metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key,
+        #scores.append([metatlas_dataset[0][compound_idx]['identification'].compound[0].name,
+        scores.append([compound_names[compound_idx],
+                       inchi_key,
                        max_intensity,
                        median_rt_shift,
                        median_mz_ppm,
@@ -462,7 +475,7 @@ def filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset,
     try:
         assert(scores_df.inchi_key.tolist()
                == atlas_df.inchi_key.tolist()
-               == [metatlas_dataset[0][i]['identification'].compound[0].inchi_key
+               == [metatlas_dataset[0][i]['identification'].compound[0].inchi_key if len(metatlas_dataset[0][i]['identification'].compound) > 0 else ''
                                    for i in range(len(metatlas_dataset[0]))])
     except AssertionError:
         print 'Error: scores_df, atlas_df, and metatlas_dataset must have the same compounds in the same order.'
