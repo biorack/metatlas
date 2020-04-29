@@ -2175,10 +2175,11 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     scan_df['adduct'] = adduct
                     scan_df['inchi_key'] = inchi_key
                     scan_df['precursor_mz'] = precursor_mz
+                    scan_df['num_matches'] = 0
                     scan_df['measured_precursor_mz'] = precursor_mz_sample
                     scan_df['measured_precursor_intensity'] = precursor_intensity_sample
 
-                    scan_df['score'] = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_intensity'].values[0]
+                    scan_df['score'] = precursor_intensity_sample
                     scan_df['msv_query_aligned'] = msv_sample
                     scan_df['msv_ref_aligned'] = np.full_like(msv_sample, np.nan)
 
