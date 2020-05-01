@@ -151,6 +151,7 @@ def make_stats_table(input_fname = '', input_dataset = [],
             final_df.loc[compound_idx, 'label'] = cid.name
         else:
             final_df.loc[compound_idx, 'label'] = cid.compound[0].name
+        final_df.loc[compound_idx, 'overlapping_compound'] = ""
         if len(cid.compound) == 0:
             final_df.loc[compound_idx, 'formula'] = ""
             final_df.loc[compound_idx, 'polarity'] = cid.mz_references[0].detected_polarity
@@ -220,22 +221,46 @@ def make_stats_table(input_fname = '', input_dataset = [],
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
-    #print final_df
     writer = pd.ExcelWriter(os.path.join(output_loc,'Draft_Final_Idenfications.xlsx'), engine='xlsxwriter')
-    final_df.to_excel(writer, sheet_name='Final_Identifications', index=False)
+    final_df.to_excel(writer, sheet_name='Final_Identifications', index=False, startrow=3)
+    
     #set format
     workbook = writer.book
-    f_blue = workbook.add_format({'bg_color': '#99CCFF'})
-    f_yellow = workbook.add_format({'bg_color': 'yellow'})
-    f_rose = workbook.add_format({'bg_color': '#FF99CC'})
+    f_blue = workbook.add_format({'bg_color': '#DCFFFF'})
+    f_yellow = workbook.add_format({'bg_color': '#FFFFDC'})
+    f_rose = workbook.add_format({'bg_color': '#FFDCFF'})
+    cell_format = workbook.add_format({'bold': True, 'align': 'center'})
+    cell_format.set_text_wrap()
+    cell_format.set_border()
     worksheet = writer.sheets['Final_Identifications']
-    worksheet.conditional_format('H1:N'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_blue})
-    worksheet.conditional_format('O1:R'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_yellow})
-    worksheet.conditional_format('S1:S'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_rose})
-    worksheet.conditional_format('T1:V'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_yellow})
-    worksheet.conditional_format('W1:X'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_rose})
-    worksheet.conditional_format('Y1:AB'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_yellow})
-    worksheet.conditional_format('AC1:AC'+str(len(final_df)+1),{ 'type':'no_errors', 'format':f_rose})
+    worksheet.set_row(1,60)
+    worksheet.set_row(2,60)
+    worksheet.merge_range('A1:H1', 'COMPOUND ANNOTATION', cell_format)
+    worksheet.merge_range('I1:O1', 'COMPOUND IDENTIFICATION SCORES', cell_format)
+    worksheet.merge_range('P1:S1', 'MSMS INFORMATION', cell_format)
+    worksheet.write('T1', 'MSMS EVALUATION', cell_format)
+    worksheet.merge_range('U1:W1', 'ION INFORMATION', cell_format)
+    worksheet.merge_range('X1:Y1', 'M/Z EVALUATION', cell_format)
+    worksheet.merge_range('Z1:AC1', 'CHROMATOGRAPHIC PEAK INFORMATION', cell_format)
+    worksheet.write('AD1', 'RT EVALUATION', cell_format)
+
+    HEADER2 = ['Compound #','Identified Metabolite','Name of metabolite searched for','Overlapping Compounds','Molecular Formula','Polarity','Exact Mass','Inchi Key','MSMS Score (0 to 1)','m/z score (0 to 1)','RT score (0 to 1)','Total ID Score (0 to 3)','Mass Spec Inititative Identification Level','','Identification notes','File with highest MSMS match score','RT of highest matched MSMS scan','Number of ion matches in msms spectra to EMA reference spectra','List of ion matches in msms spectra to EMA reference spectra','','Adduct','Theoretical m/z','Measured m/z','mass error (delta Da)','mass error (delta ppm)','Minimum retention time (min.)','Maximum retention time (min.)','Theoretical retention time (min.)','Detected + averaged RT (min.)','RT error (absolute delta min.)']
+
+    for i, header in enumerate(HEADER2):
+        worksheet.write(1,i, header, cell_format)
+
+    HEADER3 = ['Unique for study','Some isomers are not chromatographically or spectrally resolvable.','Name of standard reference compound in library match.','compound with similar mz or monoisotopic molecular weight and RT','','','monoisotopic mass (neutral except for permanently charged molecules)','neutralized version','1 (MSMS matches ref. std.), 0.5 (possible match), 0 (no MSMS collected or no appropriate ref available), -1 (bad match)','1 (delta ppm </= 5 or delta Da </= 0.001), 0.5 (delta ppm 5-10 and delta Da > 0.001), 0 (delta ppm > 10) 1 (delta ppm </= 15 or delta Da </= 0.005), 0.5 (delta ppm 15-20 and delta Da > 0.001), 0 (delta ppm > 20) (NOTE: neg mass accuracy is not as good as pos)','1 (delta RT </= 0.5), 0.5 (delta RT > 0.5 & </= 2), 0 (delta RT > 2 min)','sum of m/z, RT and MSMS score','Level 1 = Two independent and orthogonal properties match authentic standard; else = putative [Metabolomics. 2007 Sep; 3(3): 211-221. doi: 10.1007/s11306-007-0082-2]','','Isomers have same formula (and m/z) and similar RT - MSMS spectra may be used to differentiate (exceptions) or RT elution order','','','mean # of fragment ions matching between compound in sample and reference compound / standard; may include parent and isotope ions and very low intensity background ions (these do not contribute to score)','','MSMS score (highest across all samples), scale of 0 to 1 based on an algorithm. 0 = no match, 1 = perfect match. If no score, then no MSMS was acquired for that compound (@ m/z & RT window).','More than one may be detectable; the one evaluated is listed','theoretical m/z for a given compound / adduct pair','average m/z within 20ppm of theoretical detected across all samples @ RT peak','absolute difference between theoretical and detected m/z','ppm difference between theoretical and detected m/z','Retention range including start and end of detection of an m/z value (Note: Peak Height is calculated as the highest intensity of an m/z within the min/max RT range. Peak Area is calculated as the integrated area under the curve for an m/z within the mix/max RT range.)','theoretical retention time for a compound based upon reference standard at highest intensity point of peak','average retention time for a detected compound at highest intensity point of peak across all samples','absolute difference between theoretical and detected RT peak']
+    
+    for i, header in enumerate(HEADER3):
+        worksheet.write(2,i, header, cell_format)
+
+    worksheet.conditional_format('I1:O'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_blue})
+    worksheet.conditional_format('P1:S'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_yellow})
+    worksheet.conditional_format('T1:T'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_rose})
+    worksheet.conditional_format('U1:W'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_yellow})
+    worksheet.conditional_format('X1:Y'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_rose})
+    worksheet.conditional_format('Z1:AC'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_yellow})
+    worksheet.conditional_format('AD1:AD'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_rose})
     writer.save()
     
 
