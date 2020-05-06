@@ -385,11 +385,9 @@ class adjust_rt_for_selected_compound(object):
                  include_groups = None,
                  exclude_groups = None,
                  msms_hits = None,
-                 color_me_red = '',
+                 color_me = '',
                  compound_idx = 0,
-                 #width = 12,
                  width = 10,
-                 #height = 6,
                  height = 4,
                  y_scale='linear',
                  alpha = 0.5,
@@ -415,7 +413,7 @@ class adjust_rt_for_selected_compound(object):
         """
 
         self.msms_hits = msms_hits
-        self.color_me_red = color_me_red
+        self.color_me = color_me
         self.compound_idx = compound_idx
         self.width = width
         self.height = height
@@ -441,10 +439,12 @@ class adjust_rt_for_selected_compound(object):
             data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
         self.data = data
 
+        if self.peak_flags == '':
+            self.peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape')
+
         #Turn On interactive plot
         plt.ion()
         # create figure and first axes
-        #self.fig,self.ax = plt.subplots(figsize=(width, height))
         self.fig,(self.ax2, self.ax) = plt.subplots(2, 1, figsize=(width, height*2.2))
         plt.subplots_adjust(left=0.09, bottom=0.275, hspace=0.4)
 #         plt.ticklabel_format(style='plain', axis='x')
@@ -527,14 +527,16 @@ class adjust_rt_for_selected_compound(object):
                     #y = y - minval
                     x = x[y>0]
                     y = y[y>0]#y[y<0.0] = 0.0
-                    if self.color_me_red != '' and self.color_me_red in d[self.compound_idx]['lcmsrun'].name:
-                        self.ax.plot(x,y,'k-',zorder=2,linewidth=2.0,alpha=self.alpha, picker=5, color='r', label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                    #for i, colorlist in self.color_me:
+                    if self.color_me != '':
+                        for i, cl in enumerate(self.color_me):
+                            zorder = len(self.color_me)+ 2 - i
+                            if cl[1] in d[self.compound_idx]['lcmsrun'].name:
+                                self.ax.plot(x,y,'k-',zorder=zorder,linewidth=2.0,alpha=self.alpha, picker=5, color=cl[0], label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                            else:
+                                self.ax.plot(x,y,'k-',zorder=1,linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     else:
                         self.ax.plot(x,y,'k-',zorder=1,linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
-
-                    #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
-                    #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
-
 
         self.min_line = self.ax.axvline(self.my_rt.rt_min, color=self.min_max_color,linewidth=4.0)
         self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color,linewidth=4.0)
@@ -562,8 +564,6 @@ class adjust_rt_for_selected_compound(object):
             self.rt_min_slider.on_changed(self.update_rt)
             self.rt_max_slider.on_changed(self.update_rt)
             self.rt_peak_slider.on_changed(self.update_rt)
-
-
 
         (self.slider_y_min,self.slider_y_max) = self.ax.get_ylim()
         self.slider_val = self.slider_y_max
