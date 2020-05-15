@@ -302,7 +302,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     for i, header in enumerate(HEADER3):
         worksheet.write(2,i, header, cell_format)
 
-    worksheet.merge_range('AC3:AD3', 'Retention range including start and end of detection of an m/z value (Note: Peak Height is calculated as the highest intensity of an m/z within the min/max RT range. Peak Area is calculated as the integrated area under the curve for an m/z within the mix/max RT range.)', cell_format)
+    worksheet.merge_range('AD3:AE3', 'Retention range including start and end of detection of an m/z value (Note: Peak Height is calculated as the highest intensity of an m/z within the min/max RT range. Peak Area is calculated as the integrated area under the curve for an m/z within the mix/max RT range.)', cell_format)
     worksheet.conditional_format('J1:P'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_blue})
     worksheet.conditional_format('Q1:W'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_yellow})
     worksheet.conditional_format('X1:X'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_rose})
