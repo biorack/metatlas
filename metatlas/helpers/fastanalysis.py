@@ -54,6 +54,10 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
 
     if output_loc is not None and not os.path.exists(output_loc):
         os.mkdir(output_loc)
+    if output_loc is not None and not os.path.exists(os.path.join(output_loc,'data_sheets')):
+        os.mkdir(os.path.join(output_loc,'data_sheets'))
+    if output_loc is not None and not os.path.exists(os.path.join(output_loc,'stats_tables')):
+        os.mkdir(os.path.join(output_loc,'stats_tables'))
 
     # filter runs from the metatlas dataset
     if include_lcmsruns:
@@ -249,7 +253,10 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
 
 
         for file_idx, file_name in enumerate(file_names):
-            rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) & \
+            if len(msms_hits_df) == 0:
+                rows = []
+            else:
+                rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) & \
                                 (msms_hits_df['file_name'] == file_name) & \
                                 (msms_hits_df['msms_scan'] >= compound_ref_rt_min) & (msms_hits_df['msms_scan'] <= compound_ref_rt_max) & \
                                 ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float) - metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz)/metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz) \
@@ -322,7 +329,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         test = np.product(np.array([passing[dep] for dep in dependencies[metric]]), axis=0)
         # group_df = (dfs[metric] * test).T.groupby('group').describe()
         if output_loc is not None:
-            (dfs[metric] * test).to_csv(os.path.join(output_loc, 'filtered_%s.tab'%metric), sep='\t')
+            (dfs[metric] * test).to_csv(os.path.join(output_loc, 'data_sheets', 'filtered_%s.tab'%metric), sep='\t')
         stats_df = (dfs[metric] * test * passing[metric]).T.describe().T
         stats_df['range'] = stats_df['max'] - stats_df['min']
         stats_df.columns = pd.MultiIndex.from_product([['filtered'], [metric], stats_df.columns])
@@ -330,7 +337,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
 
     for metric in metrics:
         if output_loc is not None:
-            dfs[metric].to_csv(os.path.join(output_loc, 'unfiltered_%s.tab'%metric), sep='\t')
+            dfs[metric].to_csv(os.path.join(output_loc, 'data_sheets', 'unfiltered_%s.tab'%metric), sep='\t')
         stats_df = dfs[metric].T.describe().T
         stats_df['range'] = stats_df['max'] - stats_df['min']
         stats_df.columns = pd.MultiIndex.from_product([['unfiltered'], [metric], stats_df.columns])
@@ -339,9 +346,9 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     stats_table = pd.concat(stats_table, axis=1)
 
     if output_loc is not None:
-        stats_table.to_csv(os.path.join(output_loc, 'stats_table.tab'), sep='\t')
+        stats_table.to_csv(os.path.join(output_loc, 'stats_tables', 'stats_table.tab'), sep='\t')
 
-        with open(os.path.join(output_loc, 'stats_table.readme'), 'w') as readme:
+        with open(os.path.join(output_loc, 'stats_tables/', 'stats_table.readme'), 'w') as readme:
             for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'ppm_tolerance', 'min_msms_score', 'min_num_frag_matches']:
                 readme.write('%s\n'%var)
                 try:
@@ -627,7 +634,7 @@ def filter_and_output(atlas_df, metatlas_dataset, output_dir,
     scores_df['passing'] = test_scores_df(scores_df,
                                           min_intensity, rt_tolerance, mz_tolerance,
                                           min_msms_score, allow_no_msms, min_num_frag_matches, min_relative_frag_intensity)
-    scores_df.to_csv(os.path.join(output_dir, 'compound_scores.csv'))
+    scores_df.to_csv(os.path.join(output_dir, 'stats_tables', 'compound_scores.csv'))
 
     print 'filtering atlas and dataset'
     # filter dataset by scores
