@@ -759,3 +759,26 @@ def get_compound_names(data,use_labels=False):
             compound_names[f] = '%s%d'%(compound_names[f],i)
 
     return (compound_names, compound_objects)
+
+def make_data_sources_tables(groups, myatlas, output_loc):
+    if not os.path.exists(output_loc):
+        os.mkdir(output_loc)
+    output_dir = os.path.join(output_loc,'data_sources')
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+
+    metob.to_dataframe([myatlas]).to_csv(os.path.join(output_dir,'atlas_metadata.tab'), sep='\t')
+    metob.to_dataframe(groups).to_csv(os.path.join(output_dir,'groups_metadata.tab'), sep='\t')
+    
+    atlas_df = make_atlas_df(myatlas)
+    atlas_df['label'] = [cid.name for cid in myatlas.compound_identifications]
+    atlas_df.to_csv(os.path.join(output_dir,myatlas.name+'_originalatlas.tab'), sep='\t')
+
+    group_path_df = pd.DataFrame(columns=['group_name','group_path'])
+    for g in groups:
+        for i, f in enumerate(g.items):
+        #print f.name
+            group_path_df.loc[i, 'group_name'] = g.name
+            group_path_df.loc[i, 'group_path'] = os.path.dirname(f.mzml_file)
+
+    group_path_df.to_csv(os.path.join(output_dir,'groups.tab'), sep='\t', index=False)

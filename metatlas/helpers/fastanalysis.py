@@ -27,7 +27,7 @@ strict_param = {'min_intensity': 1e5,
 def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
                      output_loc = None,
-
+                     output_sheetname = 'Draft_Final_Idenfications.xlsx',
                      msms_hits = None,
                      min_peak_height=0, min_num_data_points=0, rt_tolerance=np.inf, ppm_tolerance=np.inf,
 
@@ -273,7 +273,9 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
-    writer = pd.ExcelWriter(os.path.join(output_loc,'Draft_Final_Idenfications.xlsx'), engine='xlsxwriter')
+    if not output_sheetname.endswith('.xlsx'):
+        output_sheetname = output_sheetname + '.xlsx'
+    writer = pd.ExcelWriter(os.path.join(output_loc,output_sheetname), engine='xlsxwriter')
     final_df.to_excel(writer, sheet_name='Final_Identifications', index=False, startrow=3)
     
     #set format
