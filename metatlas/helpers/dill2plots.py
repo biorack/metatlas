@@ -1,6 +1,7 @@
 import sys
 import os
 import os.path
+import multiprocessing as mp
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 #curr_ld_lib_path = ''
 
@@ -9,6 +10,7 @@ from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas.helpers import spectralprocessing as sp
+from metatlas.helpers import chromplotplus as cpp
 # from metatlas import gui
 
 from textwrap import fill, TextWrapper
@@ -2206,6 +2208,37 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
         return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches','inchi_key','precursor_mz','adduct','score']
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
+def make_chromatograms(
+    input_dataset = [], group='index', share_y = True, save=True, output_loc=[]):
+    
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+    file_names = ma_data.get_file_names(input_dataset)
+    compound_names = ma_data.get_compound_names(input_dataset,use_labels=True)[0]
+    args_list = []
+
+    chromatogram_str = 'compound_EIC_chromatograms'
+
+    if not os.path.exists(os.path.join(output_loc,chromatogram_str)):
+        os.makedirs(os.path.join(output_loc,chromatogram_str))
+
+    for compound_idx, my_compound in enumerate(compound_names):
+        my_data = list()
+        for file_idx, my_file in enumerate(file_names):
+            my_data.append(input_dataset[file_idx][compound_idx])
+        kwargs = {'data': my_data,
+                 'file_name': os.path.join(output_loc, chromatogram_str, my_compound+'.pdf'),
+                 'group': group,
+                 'save': save,
+                 'share_y': share_y,
+                 'names': file_names,
+                 'shortname':findcommonstart(file_names)}
+        args_list.append(kwargs)
+    max_processes = 4
+    pool = mp.Pool(processes=min(max_processes, len(input_dataset[0])))
+    pool.map(cpp.chromplotplus, args_list)
+    pool.close()
+    pool.terminate()
 
 def make_identification_figure_v2(
     input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [],
