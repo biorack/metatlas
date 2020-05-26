@@ -498,6 +498,7 @@ class Group(MetatlasObject):
     """
     items = MetList(MetInstance(MetatlasObject),
                  help='Can contain other groups or LCMS Runs')
+    short_name = MetUnicode()
 
 
 
