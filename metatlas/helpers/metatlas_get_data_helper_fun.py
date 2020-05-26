@@ -57,11 +57,12 @@ def get_data_for_atlas_df_and_file(input_tuple):
     myAtlas = input_tuple[3]
     extra_time = 0.5
     extra_mz = 0.0
-    if len(input_tuple) >= 5:
-        extra_time = input_tuple[4]
     if len(input_tuple) == 6:
+        extra_time = input_tuple[4]
         extra_mz = input_tuple[5]
-
+    elif len(input_tuple) == 5:
+        extra_time = input_tuple[4]
+    
     df_container = df_container_from_metatlas_file(my_file)
     df_container = remove_ms1_data_not_in_atlas(atlas_df,df_container)
     dict_ms1_summary,dict_eic,dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time, extra_mz)
@@ -282,7 +283,7 @@ def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_
     import math
     if (data_df.shape[0]==0) | (math.isnan(rt_max)):
         return []
-    prefilter_query_str = 'rt < %5.4f & rt > %5.4f & mz > %5.4f & mz < %5.4f'%(rt_max+extra_time, rt_min-extra_time, mz_min-extra_mz, mz_max+extra_mz)
+    prefilter_query_str = 'rt <= %5.4f & rt >= %5.4f & mz >= %5.4f & mz <= %5.4f'%(rt_max+extra_time, rt_min-extra_time, mz_min-extra_mz, mz_max+extra_mz)
     new_df = data_df.query(prefilter_query_str)
     return new_df
 
@@ -328,22 +329,25 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
     filtered_ms1_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_pos'],
                                                                atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
                                                                atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.min(),
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.max(),
+                                                               0,
+                                                               #atlas_df[atlas_df.detected_polarity == 'positive'].mz.min()-1,
+                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.max()+1,
                                                                extra_time = extra_time,
                                                                extra_mz = extra_mz)
     filtered_ms1_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_neg'],
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.min(),
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max(),
+                                                           0,
+                                                           #atlas_df[atlas_df.detected_polarity == 'negative'].mz.min()-1,
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max()+1,
                                                            extra_time = extra_time,
                                                            extra_mz = extra_mz)
     filtered_ms2_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_pos'],
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
                                                            0,
-                                                           atlas_df[atlas_df.detected_polarity == 'positive'].mz.max(),
+                                                           #atlas_df[atlas_df.detected_polarity == 'positive'].mz.min()-1,
+                                                           atlas_df[atlas_df.detected_polarity == 'positive'].mz.max()+1,
                                                            extra_time = extra_time,
                                                            extra_mz = extra_mz)
     
@@ -351,7 +355,8 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
                                                            0,
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max(),
+                                                           #atlas_df[atlas_df.detected_polarity == 'negative'].mz.min()-1,
+                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max()+1,
                                                            extra_time = extra_time,
                                                            extra_mz = extra_mz)
     
@@ -754,3 +759,26 @@ def get_compound_names(data,use_labels=False):
             compound_names[f] = '%s%d'%(compound_names[f],i)
 
     return (compound_names, compound_objects)
+
+def make_data_sources_tables(groups, myatlas, output_loc):
+    if not os.path.exists(output_loc):
+        os.mkdir(output_loc)
+    output_dir = os.path.join(output_loc,'data_sources')
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+
+    metob.to_dataframe([myatlas]).to_csv(os.path.join(output_dir,'atlas_metadata.tab'), sep='\t')
+    metob.to_dataframe(groups).to_csv(os.path.join(output_dir,'groups_metadata.tab'), sep='\t')
+    
+    atlas_df = make_atlas_df(myatlas)
+    atlas_df['label'] = [cid.name for cid in myatlas.compound_identifications]
+    atlas_df.to_csv(os.path.join(output_dir,myatlas.name+'_originalatlas.tab'), sep='\t')
+
+    group_path_df = pd.DataFrame(columns=['group_name','group_path'])
+    for g in groups:
+        for i, f in enumerate(g.items):
+        #print f.name
+            group_path_df.loc[i, 'group_name'] = g.name
+            group_path_df.loc[i, 'group_path'] = os.path.dirname(f.mzml_file)
+
+    group_path_df.to_csv(os.path.join(output_dir,'groups.tab'), sep='\t', index=False)

@@ -23,7 +23,7 @@ class CompoundFileEIC:
             except ValueError:
                 self.intensity_max_inbounds = np.nan
 
-        except (KeyError, AttributeError):
+        except (KeyError, AttributeError, TypeError):
             self.eic = np.array([[],[]])
             self.intensity_max_inbounds = np.nan
 

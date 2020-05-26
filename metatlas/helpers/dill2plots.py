@@ -1,6 +1,7 @@
 import sys
 import os
 import os.path
+import multiprocessing as mp
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 #curr_ld_lib_path = ''
 
@@ -9,6 +10,7 @@ from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas.helpers import spectralprocessing as sp
+from metatlas.helpers import chromplotplus as cpp
 # from metatlas import gui
 
 from textwrap import fill, TextWrapper
@@ -385,11 +387,9 @@ class adjust_rt_for_selected_compound(object):
                  include_groups = None,
                  exclude_groups = None,
                  msms_hits = None,
-                 color_me_red = '',
+                 color_me = '',
                  compound_idx = 0,
-                 #width = 12,
                  width = 10,
-                 #height = 6,
                  height = 4,
                  y_scale='linear',
                  alpha = 0.5,
@@ -398,6 +398,7 @@ class adjust_rt_for_selected_compound(object):
                  slider_color = 'ghostwhite',
                  y_max = 'auto',
                  y_min = 0,
+                 peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape'),
                  adjustable_rt_peak = False):
         """
         data: a metatlas_dataset where files and compounds are stored.
@@ -414,7 +415,7 @@ class adjust_rt_for_selected_compound(object):
         """
 
         self.msms_hits = msms_hits
-        self.color_me_red = color_me_red
+        self.color_me = color_me
         self.compound_idx = compound_idx
         self.width = width
         self.height = height
@@ -425,6 +426,7 @@ class adjust_rt_for_selected_compound(object):
         self.slider_color = slider_color
         self.y_max = y_max
         self.y_min = y_min
+        self.peak_flags = peak_flags
         self.adjustable_rt_peak = adjustable_rt_peak
 
         # filter runs from the metatlas dataset
@@ -439,10 +441,14 @@ class adjust_rt_for_selected_compound(object):
             data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
         self.data = data
 
+        if self.peak_flags == '':
+            self.peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape')
+
+        #Turn On interactive plot
+        plt.ion()
         # create figure and first axes
-        #self.fig,self.ax = plt.subplots(figsize=(width, height))
-        self.fig,(self.ax, self.ax2) = plt.subplots(2, 1, figsize=(width, height*2))
-        plt.subplots_adjust(left=0.09, bottom=0.275, hspace=0.3)
+        self.fig,(self.ax2, self.ax) = plt.subplots(2, 1, figsize=(width, height*2.2))
+        plt.subplots_adjust(left=0.09, bottom=0.275, hspace=0.4)
 #         plt.ticklabel_format(style='plain', axis='x')
 #         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 
@@ -458,7 +464,6 @@ class adjust_rt_for_selected_compound(object):
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
         self.fig.canvas.mpl_connect('key_press_event', self.press)
 
-
         #create the plot
         self.hit_ctr = 0
         self.set_plot_data()
@@ -466,6 +471,7 @@ class adjust_rt_for_selected_compound(object):
 
     def set_plot_data(self):
         #set y-scale and bounds if provided
+        file_names = ma_data.get_file_names(self.data)
         self.ax.set_yscale(self.y_scale)
         if self.y_max != 'auto':
             self.ax.set_ylim(self.y_min,self.y_max)
@@ -488,17 +494,27 @@ class adjust_rt_for_selected_compound(object):
             inchi_key = ""
         compound_str = '%d, %s'%(self.compound_idx, compound_str)
 
-        mz_theoretical = default_data['identification'].mz_references[-1].mz
+        try:
+            adduct = default_data['identification'].mz_references[0].adduct
+        except (KeyError, AttributeError):
+            adduct = None
+
+        mz_theoretical = default_data['identification'].mz_references[0].mz
         mz_measured = default_data['data']['ms1_summary']['mz_centroid']
         if not mz_measured:
             mz_measured = 0
-
+        
         delta_mz = abs(mz_theoretical - mz_measured)
         delta_ppm = delta_mz / mz_theoretical * 1e6
+
         mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
 
         self.ax.set_title('')
-        self.ax.set_ylabel('%s'%compound_str)
+        if adduct != None:
+            self.ax.set_ylabel('%s\n%s'%(compound_str,adduct))
+        else:
+            self.ax.set_ylabel('%s'%compound_str)
+
         self.ax.set_xlabel('Retention Time')
         self.my_rt = metob.retrieve('RTReference',
                                unique_id = default_data['identification'].rt_references[-1].unique_id, username='*')[-1]
@@ -513,28 +529,30 @@ class adjust_rt_for_selected_compound(object):
                     #y = y - minval
                     x = x[y>0]
                     y = y[y>0]#y[y<0.0] = 0.0
-                    if self.color_me_red != '' and self.color_me_red in d[self.compound_idx]['lcmsrun'].name:
-                        self.ax.plot(x,y,'k-',zorder=2,linewidth=2.0,alpha=self.alpha, picker=5, color='r', label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                    #for i, colorlist in self.color_me:
+                    if self.color_me != '':
+                        for i, cl in enumerate(self.color_me):
+                            zorder = len(self.color_me)+ 2 - i
+                            if cl[1] in d[self.compound_idx]['lcmsrun'].name:
+                                self.ax.plot(x,y,'k-',zorder=zorder,linewidth=2.0,alpha=self.alpha, picker=5, color=cl[0], label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
+                            else:
+                                self.ax.plot(x,y,'k-',zorder=1,linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
                     else:
                         self.ax.plot(x,y,'k-',zorder=1,linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
-
-                    #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
-                    #self.ax.plot(x,y,'k-',linewidth=2.0,alpha=self.alpha, picker=5, label = d[self.compound_idx]['lcmsrun'].name.replace('.mzML',''))
-
 
         self.min_line = self.ax.axvline(self.my_rt.rt_min, color=self.min_max_color,linewidth=4.0)
         self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color,linewidth=4.0)
         self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color,linewidth=4.0)
 
-        self.rt_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.03], facecolor=self.slider_color)
-        self.rt_max_ax = plt.axes([0.09, 0.1, 0.81, 0.03], facecolor=self.slider_color)
-        self.rt_min_ax = plt.axes([0.09, 0.15, 0.81, 0.03], facecolor=self.slider_color)
+        self.rt_peak_ax = plt.axes([0.09, 0.11, 0.81, 0.02], facecolor=self.slider_color)
+        self.rt_max_ax = plt.axes([0.09, 0.14, 0.81, 0.02], facecolor=self.slider_color)
+        self.rt_min_ax = plt.axes([0.09, 0.17, 0.81, 0.02], facecolor=self.slider_color)
 
-        self.y_scale_ax = plt.axes([0.925, 0.275, 0.02, 0.63], facecolor=self.slider_color)
+        self.y_scale_ax = plt.axes([0.925, 0.2755555, 0.02, 0.26], facecolor=self.slider_color)
 
         min_x = self.ax.get_xlim()[0]
         max_x = self.ax.get_xlim()[1]
-
+#
         self.rt_min_slider = Slider(self.rt_min_ax, 'RT min', min_x, max_x, valinit=self.my_rt.rt_min,color=self.min_max_color)
         self.rt_min_slider.vline.set_color('black')
         self.rt_min_slider.vline.set_linewidth(4)
@@ -549,8 +567,6 @@ class adjust_rt_for_selected_compound(object):
             self.rt_max_slider.on_changed(self.update_rt)
             self.rt_peak_slider.on_changed(self.update_rt)
 
-
-
         (self.slider_y_min,self.slider_y_max) = self.ax.get_ylim()
         self.slider_val = self.slider_y_max
         self.y_scale_slider = VertSlider(self.y_scale_ax,'',self.slider_y_min,self.slider_y_max, valfmt = '', valinit=self.slider_y_max,color=self.peak_color)
@@ -558,14 +574,14 @@ class adjust_rt_for_selected_compound(object):
         self.y_scale_slider.vline.set_linewidth(8)
         self.y_scale_slider.on_changed(self.update_yscale)
 
-        self.lin_log_ax = plt.axes([0.1, 0.75, 0.1, 0.15])#, axisbg=axcolor)
+        self.lin_log_ax = plt.axes([0.1, 0.38, 0.1, 0.15])#, axisbg=axcolor)
         self.lin_log_ax.axis('off')
         self.lin_log_radio = RadioButtons(self.lin_log_ax, ('linear', 'log'))
         self.lin_log_radio.on_clicked(self.set_lin_log)
 
-        self.peak_flag_ax = plt.axes([0.8, 0.75, 0.1, 0.15])#, axisbg=axcolor)
+        self.peak_flag_ax = plt.axes([0.76, 0.38, 0.1, 0.15])#, axisbg=axcolor)
         self.peak_flag_ax.axis('off')
-        peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape')
+        peak_flags = self.peak_flags
         my_id = metob.retrieve('CompoundIdentification',
                                unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
         if my_id.description in peak_flags:
@@ -579,20 +595,76 @@ class adjust_rt_for_selected_compound(object):
         #self.fig2,self.ax2 = plt.subplots(figsize=(14, 6))
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
         my_file_name = self.msms_hits.index.get_level_values('file_name')
-        hits_mz_tolerance = 0.005
-
-        hits = self.msms_hits[(my_scan_rt > float(self.my_rt.rt_min)) & (my_scan_rt < float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) & (abs(self.msms_hits['precursor_mz'] - mz_theoretical) <= hits_mz_tolerance)]
-        #hits = self.msms_hits[(self.msms_hits['msms_scan'] > self.my_rt.rt_min) & (self.msms_hits['msms_scan'] < self.my_rt.rt_min) & (self.msms_hits['name'] == compound_str)]
+        #hits_mz_tolerance = 0.005
+        hits_mz_tolerance = default_data['identification'].mz_references[-1].mz_tolerance*1e-6
+        
+        hits = self.msms_hits[(my_scan_rt >= float(self.my_rt.rt_min)) & (my_scan_rt <= float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) \
+                & (abs(self.msms_hits['measured_precursor_mz'] - mz_theoretical)/mz_theoretical <= hits_mz_tolerance)]
         self.hits = hits.sort_values('score', ascending=False)
 
-        #hit_ctr = 0
         if len(self.hits) > 0:
-            hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
+            #hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
             hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
+            hit_ref_id = self.hits.index.get_level_values('id')[self.hit_ctr]
             hit_score = self.hits['score'][self.hit_ctr]
-            hit_query = self.hits['msv_query_aligned'][self.hit_ctr]
-            hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr]
-            plot_msms_comparison2(0, mz_header, hit_rt, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
+            #rt_ms2 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['msms']['data']['rt'][0]
+            rt_theoretical = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['identification'].rt_references[0].rt_peak
+            rt_ms1 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['rt_peak']
+            rt_ms2 = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
+            #print self.hits['msv_query_aligned'][0:1]
+            #print self.hits['msv_query_aligned'][0:1][0]
+            hit_query = self.hits['msv_query_aligned'][self.hit_ctr:self.hit_ctr+1][0]
+            hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr:self.hit_ctr+1][0]
+            mz_precursor = self.hits['measured_precursor_mz'][self.hit_ctr]
+            mz_theoretical = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['identification'].mz_references[0].mz
+            mz_measured = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['mz_centroid']
+            delta_mz = abs(mz_theoretical - mz_measured)
+            delta_ppm = delta_mz / mz_theoretical * 1e6
+            rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f, RT MS2 measured = %3.2f" % (rt_theoretical, rt_ms2, rt_ms2)
+            mz_header = "precursor m/z = %5.4f, m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_precursor, mz_theoretical, mz_measured, delta_ppm)
+            plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
+        
+        else:
+            hit_query = np.empty((2,2,))
+            hit_query[:] = np.nan
+            hit_ref = hit_query
+            file_idx = file_with_max_ms1_intensity(self.data,self.compound_idx)[0]
+            rt_theoretical = default_data['identification'].rt_references[0].rt_peak
+            mz_theoretical = default_data['identification'].mz_references[0].mz
+            if file_idx != None:
+                rt_ms1 = self.data[file_idx][self.compound_idx]['data']['ms1_summary']['rt_peak']
+                mz_measured = self.data[file_idx][self.compound_idx]['data']['ms1_summary']['mz_centroid']
+            else:
+                rt_ms1 = np.nan
+                mz_measured = np.nan
+            delta_mz = abs(mz_theoretical - mz_measured)
+            delta_ppm = delta_mz / mz_theoretical * 1e6
+            rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f" % (rt_theoretical, rt_ms1)
+            mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_theoretical, mz_measured, delta_ppm)
+            hit_ref_id = "N/A"
+            hit_file_name= file_names[file_idx]
+            hit_score = np.nan
+            plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
+        #    file_idx = file_with_max_precursor_intensity(self.data,self.compound_idx)[0]
+        #    if file_idx is not None:
+        #        precursor_intensity = self.data[file_idx][self.compound_idx]['data']['msms']['data']['precursor_intensity']
+        #        idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
+        #
+        #        file_idxs = [file_idx]
+        #        hit_query = np.array([self.data[file_idx][self.compound_idx]['data']['msms']['data']['mz'][idx_max],
+        #                                     self.data[file_idx][self.compound_idx]['data']['msms']['data']['i'][idx_max]])
+        #        hit_ref = np.full_like(hit_query, np.nan)
+        #        hit_score = 0
+        #        mz_theoretical = self.data[file_idx][self.compound_idx]['identification'].mz_references[0].mz
+        #        mz_measured = self.data[file_idx][self.compound_idx]['data']['ms1_summary']['mz_centroid']
+        #        delta_mz = abs(mz_theoretical - mz_measured)
+        #        delta_ppm = delta_mz / mz_theoretical * 1e6
+        #        hit_rt = self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
+        #        #print self.data[file_idx][self.compound_idx]['data']['msms']['data']['rt']
+        #        #print self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
+        #        #print self.data[file_idx][self.compound_idx]['data']['ms1_summary']['rt_peak']
+        #        mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
+        #        plot_msms_comparison2(0, mz_header, hit_rt, file_names[file_idx], hit_score, self.ax2, hit_query, hit_ref)
 
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
@@ -608,7 +680,7 @@ class adjust_rt_for_selected_compound(object):
     def on_pick(self,event):
         thisline = event.artist
         thisline.set_color('cyan')
-        self.ax.set_title(thisline.get_label())
+        self.ax.set_title(thisline.get_label(), fontsize=7)
 
     def press(self,event):
         if event.key == 'right':
@@ -839,7 +911,7 @@ class adjust_mz_for_selected_compound(object):
     def on_pick(self,event):
         thisline = event.artist
         thisline.set_color('red')
-        self.ax.set_title(thisline.get_label())
+        self.ax.set_title(thisline.get_label(), fontsize=7)
 
     def press(self,event):
         if event.key == 'right':
@@ -1471,6 +1543,17 @@ def file_with_max_precursor_intensity(data,compound_idx):
                         idx = i
     return idx,my_max
 
+def file_with_max_ms1_intensity(data,compound_idx):
+    idx = None
+    my_max = 0
+    for i,d in enumerate(data):
+        if 'intensity' in d[compound_idx]['data']['eic'].keys() and d[compound_idx]['data']['eic']['intensity'] != []:
+            temp = max(d[compound_idx]['data']['eic']['intensity'])
+            if temp > my_max:
+                my_max = temp
+                idx = i
+    return idx,my_max
+
 def file_with_max_score(data, frag_refs, compound_idx, filter_by):
     idx = []
     max_score = np.nan
@@ -1821,7 +1904,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     ylim = ax.get_ylim()
     ax.set_ylim(ylim[0], ylim[1] * 1.33)
 
-def plot_msms_comparison2(i, mz_header, rt, filename, score, ax, msv_sample, msv_ref):
+def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sample, msv_ref):
 
     msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
 
@@ -1843,8 +1926,8 @@ def plot_msms_comparison2(i, mz_header, rt, filename, score, ax, msv_sample, msv
     most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
 
     if i == 0:
-        ax.set_title('RT = %.4f, Score = %.4f, %s' % (rt, score, mz_header), fontsize=10, weight='bold')
-        ax.set_xlabel('m/z\n%s' % filename, fontsize=10)
+        ax.set_title('MSMS ref ID = %s\n%s' % (ref_id, filename), fontsize=7)
+        ax.set_xlabel('m/z\nScore = %.4f, %s\n%s' % (score, rt, mz_header), fontsize=10, weight='bold')
         ax.set_ylabel('intensity', fontsize=10)
         #ax.tick_params(axis='both', which='major', labelsize=8)
 
@@ -1930,13 +2013,16 @@ def plot_eic(ax, data, compound_idx):
         rt_max = data[file_idx][compound_idx]['identification'].rt_references[0].rt_max
         rt_peak = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
 
-        if len(data[file_idx][compound_idx]['data']['eic']['rt']) > 1:
+        try:
+            assert len(data[file_idx][compound_idx]['data']['eic']['rt']) > 1
             x = np.asarray(data[file_idx][compound_idx]['data']['eic']['rt'])
             y = np.asarray(data[file_idx][compound_idx]['data']['eic']['intensity'])
 
             ax.plot(x, y, 'k-', linewidth=.1, alpha=min(1, 10*(1./len(data))))
             myWhere = np.logical_and(x>=rt_min, x<=rt_max )
             ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=min(1, 2*(1./len(data))))
+        except (AssertionError, TypeError):
+            pass
 
     # ax.tick_params(labelbottom='off')
     ax.xaxis.set_tick_params(labelsize=5)
@@ -2007,7 +2093,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
     for compound_idx,compound_name in enumerate(compound_names):
         sys.stdout.write('\r'+'Processing: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
         sys.stdout.flush()
-        
+
         #Code below is commented out to make get_msms_hits work when there isn't a compound in identification - VS, Nov 2019
         #if len(metatlas_dataset[0][compound_idx]['identification'].compound) == 0:
             # exit here if there isn't a compound in the identification
@@ -2056,10 +2142,16 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                         continue
 
                 msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
-                
+                precursor_mz_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0]
+                precursor_intensity_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_intensity'].values[0]
+
+                #Filter ions greater than 2.5 + precursor M/Z 
                 msv_sample = msv_sample[:,msv_sample[0] < rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0] + 2.5]
 
-                scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
+                if msv_sample.size > 0:
+                    scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
+                else:
+                    scan_df = {}
 
                 if len(scan_df) > 0:
                     scan_df['file_name'] = file_name
@@ -2068,6 +2160,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     scan_df['adduct'] = adduct
                     scan_df['inchi_key'] = inchi_key
                     scan_df['precursor_mz'] = precursor_mz
+                    scan_df['measured_precursor_mz'] = precursor_mz_sample
+                    scan_df['measured_precursor_intensity'] = precursor_intensity_sample
 
                     scan_df.set_index('file_name', append=True, inplace=True)
                     scan_df.set_index('msms_scan', append=True, inplace=True)
@@ -2083,8 +2177,11 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     scan_df['adduct'] = adduct
                     scan_df['inchi_key'] = inchi_key
                     scan_df['precursor_mz'] = precursor_mz
+                    scan_df['num_matches'] = 0
+                    scan_df['measured_precursor_mz'] = precursor_mz_sample
+                    scan_df['measured_precursor_intensity'] = precursor_intensity_sample
 
-                    scan_df['score'] = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_intensity'].values[0]
+                    scan_df['score'] = precursor_intensity_sample
                     scan_df['msv_query_aligned'] = msv_sample
                     scan_df['msv_ref_aligned'] = np.full_like(msv_sample, np.nan)
 
@@ -2101,11 +2198,47 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
 
     sys.stdout.write('\n'+'Done!!!')
     if len(msms_hits)>0:
-        return pd.concat(msms_hits)
+        hits = pd.concat(msms_hits)
+        #Check if number of matches for a compound across all files is 1 or less and set the score to its maximum intensity.
+        #This will identify MSMS with single ion / no fragmentation
+        idxs = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max) <= 1
+        hits['score'][idxs] = hits['measured_precursor_intensity'][idxs]
+        return hits
     else:
-        return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches']
+        return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches','inchi_key','precursor_mz','adduct','score']
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
+def make_chromatograms(
+    input_dataset = [], group='index', share_y = True, save=True, output_loc=[]):
+    
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+    file_names = ma_data.get_file_names(input_dataset)
+    compound_names = ma_data.get_compound_names(input_dataset,use_labels=True)[0]
+    args_list = []
+
+    chromatogram_str = 'compound_EIC_chromatograms'
+
+    if not os.path.exists(os.path.join(output_loc,chromatogram_str)):
+        os.makedirs(os.path.join(output_loc,chromatogram_str))
+
+    for compound_idx, my_compound in enumerate(compound_names):
+        my_data = list()
+        for file_idx, my_file in enumerate(file_names):
+            my_data.append(input_dataset[file_idx][compound_idx])
+        kwargs = {'data': my_data,
+                 'file_name': os.path.join(output_loc, chromatogram_str, my_compound+'.pdf'),
+                 'group': group,
+                 'save': save,
+                 'share_y': share_y,
+                 'names': file_names,
+                 'shortname':findcommonstart(file_names)}
+        args_list.append(kwargs)
+    max_processes = 4
+    pool = mp.Pool(processes=min(max_processes, len(input_dataset[0])))
+    pool.map(cpp.chromplotplus, args_list)
+    pool.close()
+    pool.terminate()
 
 def make_identification_figure_v2(
     input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [],
@@ -2149,8 +2282,10 @@ def make_identification_figure_v2(
     compound_names = ma_data.get_compound_names(data,use_labels)[0]
     file_names = ma_data.get_file_names(data)
 
+    df = pd.DataFrame()
     #Turn off interactive plotting
     plt.ioff()
+    plt.clf()
     #Iterate over compounds
     for compound_idx in range(len(compound_names)):
         sys.stdout.write('\r'+'Making Identification Figure for: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
@@ -2164,7 +2299,8 @@ def make_identification_figure_v2(
                                           & (msms_hits_df['msms_scan'] <= data[0][compound_idx]['identification'].rt_references[0].rt_max) \
                                           & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz)/data[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)].drop_duplicates('file_name').head(5)
-            assert len(comp_msms_hits) > 0
+            # Dont need assert anymore, keep_nonmatch in get_msms_hits should replace the assert
+            #assert len(comp_msms_hits) > 0
 
             inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
 
@@ -2174,35 +2310,36 @@ def make_identification_figure_v2(
             msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
             rt_list = comp_msms_hits['msms_scan'].values.tolist()
 
-        except (IndexError, AssertionError, TypeError) as e:
+        #except (IndexError, AssertionError, TypeError) as e:
+        except (IndexError, TypeError) as e:
 
-            file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
-            if file_idx is not None:
-                precursor_intensity = data[file_idx][compound_idx]['data']['msms']['data']['precursor_intensity']
-                idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
+            #file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
+            #if file_idx is not None:
+            #    precursor_intensity = data[file_idx][compound_idx]['data']['msms']['data']['precursor_intensity']
+            #    idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
 
-                file_idxs = [file_idx]
-                msv_sample_list = [np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max],
-                                             data[file_idx][compound_idx]['data']['msms']['data']['i'][idx_max]])]
-                msv_ref_list = [np.full_like(msv_sample_list[-1], np.nan)]
-                scores = [0]
-            else:
-                file_idx = None
-                max_intensity = 0
+            #    file_idxs = [file_idx]
+            #    msv_sample_list = [np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max],
+            #                                 data[file_idx][compound_idx]['data']['msms']['data']['i'][idx_max]])]
+            #    msv_ref_list = [np.full_like(msv_sample_list[-1], np.nan)]
+            #    scores = [0]
+            #else:
+            file_idx = None
+            max_intensity = 0
 
-                for fi in range(len(data)):
-                    try:
-                        temp = max(data[fi][compound_idx]['data']['eic']['intensity'])
-                        if temp > max_intensity:
-                            file_idx = fi
-                            max_intensity = temp
-                    except ValueError:
-                        continue
+            for fi in range(len(data)):
+                try:
+                    temp = max(data[fi][compound_idx]['data']['eic']['intensity'])
+                    if temp > max_intensity:
+                        file_idx = fi
+                        max_intensity = temp
+                except (ValueError,TypeError):
+                    continue
 
-                file_idxs = [file_idx]
-                msv_sample_list = [np.array([0, np.nan]).T]
-                msv_ref_list = [np.array([0, np.nan]).T]
-                scores = [np.nan]
+            file_idxs = [file_idx]
+            msv_sample_list = [np.array([0, np.nan]).T]
+            msv_ref_list = [np.array([0, np.nan]).T]
+            scores = [np.nan]
 
 
 
@@ -2297,12 +2434,19 @@ def make_identification_figure_v2(
                          fill('Matching M/Zs above 1E-3*max: ' + ', '.join(['%5.3f'%m for m in threshold_mz_sample_matches]), width=90) + '\n\n' +
                          fill('All Matching M/Zs: ' + ', '.join(['%5.3f'%m for m in mz_sample_matches]), width=90),
                          fontsize=6, verticalalignment='top')
+                df.loc[compound_idx, 'label'] = compound_names[compound_idx]
+                df.loc[compound_idx, 'file name'] = file_names[file_idxs[0]]
+                df.loc[compound_idx, 'RT'] = rt_list[0]
+                df.loc[compound_idx, 'score'] = scores[0]
+                df.loc[compound_idx, 'Matching M/Zs above 1E-3*max'] =', '.join(['%5.3f'%m for m in threshold_mz_sample_matches])
+                df.loc[compound_idx, 'All matching M/Zs'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
 
             ax7.set_ylim(.5,1.1)
             ax7.axis('off')
 
             plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
             plt.close()
+    df.to_csv(os.path.join(output_loc, 'MatchingMZs.tab'),sep='\t')
 
 
 def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', input_dataset = [], compound_names = [],  include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
@@ -2689,7 +2833,7 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                                 sheetname='only for excel type input',
                                 polarity = ('positive','negative'),
                                 store=False,
-                                mz_tolerance=10):
+                                mz_tolerance=None):
     '''
     specify polarity as 'positive' or 'negative'
 
@@ -2789,8 +2933,11 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                     try:
                         mzRef.mz_tolerance = row.mz_tolerance
                     except:
-                        mzRef.mz_tolerance = row.mz_threshold
-
+                        if 'mz_threshold' in df.columns:
+                            mzRef.mz_tolerance = row.mz_threshold
+                        else:
+                            sys.exit("mz_tolerance or mz_threshold not provided. Can't make atlas.")
+                
                 mzRef.mz_tolerance_units = 'ppm'
                 mzRef.detected_polarity = polarity
                 #if 'file_mz' in df.keys():
