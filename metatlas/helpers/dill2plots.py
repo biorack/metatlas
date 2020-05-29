@@ -2725,6 +2725,15 @@ def get_metatlas_files(experiment = '%%',name = '%%',most_recent = True):
         files = filter_metatlas_objects_to_most_recent(files,'mzml_file')
     return files
 
+def make_prefilled_fileinfo_sheet(groups, filename):
+    #make a prefilled fileinfo sheet for editing groups manually and reimport to workflow
+    with open(filename,'w') as fid:
+        fid.write('mzml_file\tgroup\tdescription\tshort_name\n')
+        for g in groups:
+            for f in g.items:
+                fid.write('%s\t%s\t%s\t%s\n'% (f.mzml_file, g.name, f.description, g.short_name))
+
+
 def make_empty_fileinfo_sheet(filename,flist):
     #dump all the files to a spreadheet, download it, and make a "filled in" one.
     with open(filename,'w') as fid:
@@ -2759,8 +2768,6 @@ def make_groups_from_fileinfo_sheet(filename,filetype='tab',store=False):
         if store:
             metob.store(myGroup)
     return return_groups
-
-
 
 def check_compound_names(df):
     # compounds that have the wrong compound name will be listed
