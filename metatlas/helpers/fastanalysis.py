@@ -167,32 +167,37 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         
         overlapping_compounds = []
         inchi_key_map = {}
-        #Loop through compounds to identify overlapping compounds
-        for compound_iterator in range(len(compound_names)):
-            if len(metatlas_dataset[0][compound_iterator]['identification'].compound) == 0:
-                continue
-            if use_labels:
-                cpd_iter_label = metatlas_dataset[0][compound_iterator]['identification'].name
-            else:
-                cpd_iter_label = metatlas_dataset[0][compound_iterator]['identification'].compound[0].name
-            cpd_iter_id = metatlas_dataset[0][compound_iterator]['identification']
-            cpd_iter_mz = cpd_iter_id.mz_references[0].mz
-            cid_mass = cid.compound[0].mono_isotopic_molecular_weight
-            cpd_iter_mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
-            cid_rt_min = cid.rt_references[0].rt_min
-            cid_rt_max = cid.rt_references[0].rt_max
-            cpd_iter_rt_min = cpd_iter_id.rt_references[0].rt_min
-            cpd_iter_rt_max = cpd_iter_id.rt_references[0].rt_max
-            if compound_idx != compound_iterator:
-                if ((cpd_iter_mz-0.005 <= mz_theoretical <= cpd_iter_mz+0.005) or (cpd_iter_mass-0.005 <= cid_mass <= cpd_iter_mass+0.005)) and \
-                        ((cpd_iter_rt_min <= cid_rt_min <=cpd_iter_rt_max) or (cpd_iter_rt_min <= cid_rt_max <= cpd_iter_rt_max) or \
-                        (cid_rt_min <= cpd_iter_rt_min <= cid_rt_max) or (cid_rt_min <= cpd_iter_rt_max <= cid_rt_max)):
-                    overlapping_compounds.append(cpd_iter_label)
-                    inchi_key_map[cpd_iter_label] = cpd_iter_id.compound[0].inchi_key
+
+        if(len(cid.compound) != 0):
+            #Loop through compounds to identify overlapping compounds
+            for compound_iterator in range(len(compound_names)):
+                if len(metatlas_dataset[0][compound_iterator]['identification'].compound) == 0:
+                    continue
+                if use_labels:
+                    cpd_iter_label = metatlas_dataset[0][compound_iterator]['identification'].name
+                else:
+                    cpd_iter_label = metatlas_dataset[0][compound_iterator]['identification'].compound[0].name
+                cpd_iter_id = metatlas_dataset[0][compound_iterator]['identification']
+                cpd_iter_mz = cpd_iter_id.mz_references[0].mz
+                cid_mass = cid.compound[0].mono_isotopic_molecular_weight
+                cpd_iter_mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
+                cid_rt_min = cid.rt_references[0].rt_min
+                cid_rt_max = cid.rt_references[0].rt_max
+                cpd_iter_rt_min = cpd_iter_id.rt_references[0].rt_min
+                cpd_iter_rt_max = cpd_iter_id.rt_references[0].rt_max
+                if compound_idx != compound_iterator:
+                    if ((cpd_iter_mz-0.005 <= mz_theoretical <= cpd_iter_mz+0.005) or (cpd_iter_mass-0.005 <= cid_mass <= cpd_iter_mass+0.005)) and \
+                            ((cpd_iter_rt_min <= cid_rt_min <=cpd_iter_rt_max) or (cpd_iter_rt_min <= cid_rt_max <= cpd_iter_rt_max) or \
+                            (cid_rt_min <= cpd_iter_rt_min <= cid_rt_max) or (cid_rt_min <= cpd_iter_rt_max <= cid_rt_max)):
+                        overlapping_compounds.append(cpd_iter_label)
+                        inchi_key_map[cpd_iter_label] = cpd_iter_id.compound[0].inchi_key
 
         if len(overlapping_compounds) > 0:
             overlapping_compounds.append(cid_label)
-            inchi_key_map[cid_label] = cid.compound[0].inchi_key
+            if len(cid.compound) > 0:
+                inchi_key_map[cid_label] = cid.compound[0].inchi_key
+            else:
+                inchi_key_map[cid_label] = ""
             final_df.loc[compound_idx, 'overlapping_compound'] = "//".join(cpd for cpd in sorted(overlapping_compounds, key=str))
             final_df.loc[compound_idx, 'overlapping_inchi_keys'] = "//".join(inchi_key_map[cpd] for cpd in sorted(overlapping_compounds, key=str))
         else:
