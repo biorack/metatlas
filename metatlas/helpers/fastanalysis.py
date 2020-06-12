@@ -177,7 +177,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                 cpd_iter_label = metatlas_dataset[0][compound_iterator]['identification'].compound[0].name
             cpd_iter_id = metatlas_dataset[0][compound_iterator]['identification']
             cpd_iter_mz = cpd_iter_id.mz_references[0].mz
-            cid_mass = cid.compound[0].mono_isotopic_molecular_weight
+            cid_mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
             cpd_iter_mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
             cid_rt_min = cid.rt_references[0].rt_min
             cid_rt_max = cid.rt_references[0].rt_max
@@ -192,7 +192,10 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
 
         if len(overlapping_compounds) > 0:
             overlapping_compounds.append(cid_label)
-            inchi_key_map[cid_label] = cid.compound[0].inchi_key
+            if len(cid.compound) > 0:
+                inchi_key_map[cid_label] = cid.compound[0].inchi_key
+            else:
+                inchi_key_map[cid_label] = ""
             final_df.loc[compound_idx, 'overlapping_compound'] = "//".join(cpd for cpd in sorted(overlapping_compounds, key=str))
             final_df.loc[compound_idx, 'overlapping_inchi_keys'] = "//".join(inchi_key_map[cpd] for cpd in sorted(overlapping_compounds, key=str))
         else:
