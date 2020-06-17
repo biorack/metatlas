@@ -1136,6 +1136,42 @@ def score_ms_vectors_composite(msv_sample_aligned, msv_ref_aligned,
 ################################################################################
 #Spectral search related functions
 ################################################################################
+def gaussian_kernel(mzs1, mzs2, sigma=.01):
+    return np.exp(-0.5 * np.subtract.outer(mzs1, mzs2)**2 / sigma**2)
+
+def gaussian_dot_product(msv1, msv2, sigma=.01):
+    mzs1,intensities1 = msv1
+    mzs2,intensities2 = msv2
+    K = gaussian_kernel(mzs1, mzs2, sigma=.01)
+
+    return np.sqrt(intensities1).dot(K).dot(np.sqrt(intensities2))
+
+def shifted_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma=.01):
+    mzs1,intensities1 = msv1
+    mzs2,intensities2 = msv2
+
+    K = gaussian_kernel(pmz1-mzs1, pmz2-mzs2, sigma=.01)
+
+    return np.sqrt(intensities1).dot(K).dot(np.sqrt(intensities2))
+
+def hybrid_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma=.01):
+    mzs1,intensities1 = msv1
+    mzs2,intensities2 = msv2
+
+    K =  .5*gaussian_kernel(mzs1, mzs2, sigma=.01)
+    K += .5*gaussian_kernel(pmz1-mzs1, pmz2-mzs2, sigma=.01)
+
+    return np.sqrt(intensities1).dot(K).dot(np.sqrt(intensities2))
+
+def normalized_gaussian_dot_product(msv1, msv2, sigma=.01):
+    return gaussian_dot_product(msv1,msv2,sigma)/(gaussian_dot_product(msv1,msv1,sigma)*gaussian_dot_product(msv2,msv2,sigma))**.5
+
+def normalized_shifted_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma=.01):
+    return shifted_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma)/(gaussian_dot_product(msv1,msv1,sigma)*gaussian_dot_product(msv2,msv2,sigma))**.5
+
+def normalized_hybrid_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma=.01):
+    return hybrid_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma)/(gaussian_dot_product(msv1,msv1,sigma)*gaussian_dot_product(msv2,msv2,sigma))**.5
+
 
 def search_ms_refs(msv_query, **kwargs):
     """
@@ -1167,7 +1203,12 @@ def search_ms_refs(msv_query, **kwargs):
     ref_index = kwargs.pop('ref_index', ['database', 'id'])
     query = kwargs.pop('query', 'index == index or index == @pd.NaT')
     post_query = kwargs.pop('post_query', 'index == index or index == @pd.NaT')
-
+    
+    if 'do_gdp' in kwargs:
+        do_gdp = kwargs.pop('do_gdp')
+    else:
+        do_gdp = False
+        
     if 'ref_df' in kwargs:
         ref_df = kwargs.pop('ref_df')
     else:
@@ -1185,13 +1226,19 @@ def search_ms_refs(msv_query, **kwargs):
 
     # Define function to score msv_qury against msv's in reference dataframe
     def score_and_num_matches(msv_ref):
-
-        msv_query_aligned, msv_ref_aligned = pairwise_align_ms_vectors(msv_query, msv_ref,
-                                                                       frag_mz_tolerance,
-                                                                       resolve_by)
-        num_matches = np.sum(~np.isnan(msv_query_aligned[0]) & ~np.isnan(msv_ref_aligned[0]))
-        score = score_ms_vectors_composite(msv_query_aligned, msv_ref_aligned,
-                                           **kwargs)
+        if do_gdp==True:
+            print('asd')
+            score = normalized_gaussian_dot_product(msv_query,msv_ref,sigma=frag_mz_tolerance)
+            num_matches = 0
+            msv_query_aligned = msv_query
+            msv_ref_aligned = msv_ref
+        else:
+            msv_query_aligned, msv_ref_aligned = pairwise_align_ms_vectors(msv_query, msv_ref,
+                                                                           frag_mz_tolerance,
+                                                                           resolve_by)
+            num_matches = np.sum(~np.isnan(msv_query_aligned[0]) & ~np.isnan(msv_ref_aligned[0]))
+            score = score_ms_vectors_composite(msv_query_aligned, msv_ref_aligned,
+                                               **kwargs)
         # sensitivity = score_ms_vectors_relevance(msv_ref_aligned, msv_query_aligned,
         #                                          **kwargs)
         # precision = score_ms_vectors_relevance(msv_query_aligned, msv_ref_aligned,
