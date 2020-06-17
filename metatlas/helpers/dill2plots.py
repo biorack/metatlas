@@ -2048,7 +2048,7 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         fontsize=2,
         transform=ax.transAxes)
 
-
+sp = reload(sp)
 def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_nonmatches=False,
                   pre_query='database == "metatlas"',
                   # pre_query = 'index == index or index == @pd.NaT',
@@ -2141,7 +2141,9 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     if not rt_min <= rt <= rt_max:
                         continue
 
-                msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
+                msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].copy()
+                msv_sample.sort_values('mz',inplace=True)
+                msv_sample = msv_sample.values.T
                 precursor_mz_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0]
                 precursor_intensity_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_intensity'].values[0]
 
