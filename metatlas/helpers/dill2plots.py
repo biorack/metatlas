@@ -736,6 +736,10 @@ class adjust_rt_for_selected_compound(object):
     def update_yscale(self,val):
         self.y_scale_slider.valinit = self.slider_val
         self.slider_val = self.y_scale_slider.val
+        if self.slider_y_min < 0:
+            self.slider_y_min = -0.2*self.slider_val
+        else:
+            self.slider_y_min = 0.02
         self.ax.set_ylim(self.slider_y_min,self.slider_val)
         self.fig.canvas.draw_idle()
 
@@ -2291,19 +2295,21 @@ def make_identification_figure_v2(
         sys.stdout.write('\r'+'Making Identification Figure for: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
         sys.stdout.flush()
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
+        
+        if len(data[0][compound_idx]['identification'].compound) > 0 and hasattr(data[0][compound_idx]['identification'].compound[0],"inchi_key"):
+            inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
+        else:
+            inchi_key = ""
 
         #Find 5 best file and reference pairs by score
         try:
-            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == data[0][compound_idx]['identification'].compound[0].inchi_key) \
+            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) \
                                           & (msms_hits_df['msms_scan'] >= data[0][compound_idx]['identification'].rt_references[0].rt_min) \
                                           & (msms_hits_df['msms_scan'] <= data[0][compound_idx]['identification'].rt_references[0].rt_max) \
                                           & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz)/data[0][compound_idx]['identification'].mz_references[0].mz) \
                                              <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)].drop_duplicates('file_name').head(5)
             # Dont need assert anymore, keep_nonmatch in get_msms_hits should replace the assert
             #assert len(comp_msms_hits) > 0
-
-            inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
-
             file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
             scores = comp_msms_hits['score'].values.tolist()
             msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
@@ -2387,7 +2393,11 @@ def make_identification_figure_v2(
 
 
             for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
-                plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
+                #plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
+                sample_number = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
+                replicate = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
+                file_short_name = data[file_idxs[i+1]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
+                plot_score_and_ref_file(ax, score, rt_list[i+1], file_short_name)
 
             #Structure
             ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
@@ -2415,7 +2425,11 @@ def make_identification_figure_v2(
             rt_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['rt_peak']
             if not rt_measured:
                 rt_measured = 0
-            ax7.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
+            #ax7.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
+            sample_number = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
+            replicate = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
+            file_short_name = data[file_idxs[0]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
+            ax7.text(0,1,'%s'%fill(file_short_name, width=54),fontsize=8)
             ax7.text(0,0.9,'%s %s'%(compound_names[compound_idx], data[file_idxs[0]][compound_idx]['identification'].mz_references[0].adduct),fontsize=8)
             ax7.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
             ax7.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
