@@ -332,22 +332,24 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         passing[metric][passing[metric] == 0] = np.nan
     stats_table = []
 
-    for metric in metrics:
-        test = np.product(np.array([passing[dep] for dep in dependencies[metric]]), axis=0)
-        # group_df = (dfs[metric] * test).T.groupby('group').describe()
-        if output_loc is not None:
-            (dfs[metric] * test).to_csv(os.path.join(output_loc, 'data_sheets', 'filtered_%s.tab'%metric), sep='\t')
-        stats_df = (dfs[metric] * test * passing[metric]).T.describe().T
-        stats_df['range'] = stats_df['max'] - stats_df['min']
-        stats_df.columns = pd.MultiIndex.from_product([['filtered'], [metric], stats_df.columns])
-        stats_table.append(stats_df)
+
+#    for metric in metrics:
+#        test = np.product(np.array([passing[dep] for dep in dependencies[metric]]), axis=0)
+#        # group_df = (dfs[metric] * test).T.groupby('group').describe()
+#        #if output_loc is not None:
+#        #    (dfs[metric] * test).to_csv(os.path.join(output_loc, 'data_sheets', 'filtered_%s.tab'%metric), sep='\t')
+#        stats_df = (dfs[metric] * test * passing[metric]).T.describe().T
+#        stats_df['range'] = stats_df['max'] - stats_df['min']
+#        stats_df.columns = pd.MultiIndex.from_product([['filtered'], [metric], stats_df.columns])
+#        stats_table.append(stats_df)
 
     for metric in metrics:
-        if output_loc is not None:
-            dfs[metric].to_csv(os.path.join(output_loc, 'data_sheets', 'unfiltered_%s.tab'%metric), sep='\t')
+        #if output_loc is not None:
+        #    dfs[metric].to_csv(os.path.join(output_loc, 'data_sheets', 'unfiltered_%s.tab'%metric), sep='\t')
         stats_df = dfs[metric].T.describe().T
         stats_df['range'] = stats_df['max'] - stats_df['min']
-        stats_df.columns = pd.MultiIndex.from_product([['unfiltered'], [metric], stats_df.columns])
+        #stats_df.columns = pd.MultiIndex.from_product([['unfiltered'], [metric], stats_df.columns])
+        stats_df.columns = pd.MultiIndex.from_product([[metric], stats_df.columns])
         stats_table.append(stats_df)
 
     stats_table = pd.concat(stats_table, axis=1)
