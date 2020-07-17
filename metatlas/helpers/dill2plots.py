@@ -2415,11 +2415,11 @@ def make_identification_figure_v2(
 
 
             for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
-                #plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
-                sample_number = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
-                replicate = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
-                file_short_name = data[file_idxs[i+1]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
-                plot_score_and_ref_file(ax, score, rt_list[i+1], file_short_name)
+                plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
+                #sample_number = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
+                #replicate = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
+                #file_short_name = data[file_idxs[i+1]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
+                #plot_score_and_ref_file(ax, score, rt_list[i+1], file_short_name)
 
             #Structure
             ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
@@ -2447,11 +2447,11 @@ def make_identification_figure_v2(
             rt_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['rt_peak']
             if not rt_measured:
                 rt_measured = 0
-            #ax7.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
-            sample_number = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
-            replicate = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
-            file_short_name = data[file_idxs[0]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
-            ax7.text(0,1,'%s'%fill(file_short_name, width=54),fontsize=8)
+            ax7.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
+            #sample_number = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
+            #replicate = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
+            #file_short_name = data[file_idxs[0]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
+            #ax7.text(0,1,'%s'%fill(file_short_name, width=54),fontsize=8)
             ax7.text(0,0.9,'%s %s'%(compound_names[compound_idx], data[file_idxs[0]][compound_idx]['identification'].mz_references[0].adduct),fontsize=8)
             ax7.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
             ax7.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
