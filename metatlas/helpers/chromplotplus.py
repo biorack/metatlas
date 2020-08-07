@@ -10,9 +10,14 @@ def chromplotplus(kwargs):
     ChromPlotPlus(**kwargs)
 
 class CompoundFileEIC:
-    def __init__(self, compound_file_data, rt_bounds, rt_min, rt_max):
+    def __init__(self, compound_file_data, rt_bounds, rt_min, rt_max, shortname):
         self.group_name = compound_file_data['group'].name
+        #sample_number = compound_file_data['lcmsrun'].name.split('_')[11]
+        #replicate = compound_file_data['lcmsrun'].name.split('_')[13]
+        #self.file_name = compound_file_data['group'].short_name+"_"+sample_number+"_"+replicate # Use short_name_sample#_replicate instead of full file name
         self.file_name = compound_file_data['lcmsrun'].name
+        if not shortname.empty:
+            self.file_name = shortname.loc[compound_file_data['lcmsrun'].name.split('.')[0], 'shortname']
         try:
             self.eic = np.asarray([compound_file_data['data']['eic']['rt'],
                                    compound_file_data['data']['eic']['intensity']]).astype(float)
@@ -29,7 +34,7 @@ class CompoundFileEIC:
 
 class ChromPlotPlus:
 
-    def __init__(self, data,
+    def __init__(self, data, shortname,
                  group, file_name, rt_buffer = .5,
                  x_scale = .8, y_scale = .75,
                  x_ratio = 13.0, y_ratio=11.0,
@@ -48,8 +53,9 @@ class ChromPlotPlus:
         self.compound_eics = [CompoundFileEIC(compound_file_data,
                                               self.rt_bounds,
                                               self.rt_min,
-                                              self.rt_max)
-                              for compound_file_data in data]
+                                              self.rt_max, 
+                                              shortname) for compound_file_data in data]
+        
         self.compound_eics = sorted(self.compound_eics,
                                     key = lambda c: (c.group_name,
                                                      c.file_name))
@@ -66,7 +72,7 @@ class ChromPlotPlus:
             self.intensity_scale = 0
 
         self.group = group
-        self.file_name =  file_name
+        self.file_name = file_name
         self.x_scale = x_scale
         self.y_scale = y_scale
         self.x_ratio = x_ratio
