@@ -566,6 +566,10 @@ class CompoundIdentification(MetatlasObject):
     )
     identification_notes = MetUnicode('',
                              help='notes about this identifiation')
+    ms1_notes = MetUnicode('',
+                             help='notes about ms1 peaks')
+    ms2_notes = MetUnicode('',
+                             help='notes about ms2 matches')
     mz_references = MetList(MetInstance(MzReference))
     rt_references = MetList(MetInstance(RtReference))
     frag_references = MetList(MetInstance(FragmentationReference))

@@ -399,6 +399,7 @@ class adjust_rt_for_selected_compound(object):
                  y_max = 'auto',
                  y_min = 0,
                  peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape'),
+                 msms_flags = ('no selection', '-1, bad match - should remove compound', '0, no ref match available or no MSMS collected', '0.5, co-isolated precursor, partial match', '0.5, partial match of fragments', '1, perfect match to internal reference library', '1, perfect match to external reference library', '1 co-isolated precursor but all reference ions are in sample spectrum'),
                  adjustable_rt_peak = False):
         """
         data: a metatlas_dataset where files and compounds are stored.
@@ -427,6 +428,7 @@ class adjust_rt_for_selected_compound(object):
         self.y_max = y_max
         self.y_min = y_min
         self.peak_flags = peak_flags
+        self.msms_flags = msms_flags
         self.adjustable_rt_peak = adjustable_rt_peak
 
         # filter runs from the metatlas dataset
@@ -443,6 +445,8 @@ class adjust_rt_for_selected_compound(object):
 
         if self.peak_flags == '':
             self.peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape')
+        if self.msms_flags == '':
+            self.msms_flags = ('no selection','-1, bad match - should remove compound', '0, no ref match available or no MSMS collected', '0.5, co-isolated precursor, partial match', '0.5, partial match of fragments', '1, perfect match to internal reference library', '1, perfect match to external reference library', '1 co-isolated precursor but all reference ions are in sample spectrum')
 
         #Turn On interactive plot
         plt.ion()
@@ -584,13 +588,25 @@ class adjust_rt_for_selected_compound(object):
         peak_flags = self.peak_flags
         my_id = metob.retrieve('CompoundIdentification',
                                unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
-        if my_id.description in peak_flags:
-            peak_flag_index = peak_flags.index(my_id.description)
+        if my_id.ms1_notes in peak_flags:
+            peak_flag_index = peak_flags.index(my_id.ms1_notes)
         else:
             peak_flag_index = 0
         self.peak_flag_radio = RadioButtons(self.peak_flag_ax, peak_flags)
         self.peak_flag_radio.on_clicked(self.set_peak_flag)
         self.peak_flag_radio.set_active(peak_flag_index)
+        
+        self.msms_flag_ax = plt.axes([0.76, 0.68, 0.1, 0.15])#, axisbg=axcolor)
+        self.msms_flag_ax.axis('off')
+        msms_flags = self.msms_flags
+        if my_id.ms2_notes in msms_flags:
+            msms_flag_index = msms_flags.index(my_id.ms2_notes)
+        else:
+            msms_flag_index = 0
+        self.msms_flag_radio = RadioButtons(self.msms_flag_ax, msms_flags)
+        self.msms_flag_radio.on_clicked(self.set_msms_flag)
+        self.msms_flag_radio.set_active(msms_flag_index)
+
 
         #self.fig2,self.ax2 = plt.subplots(figsize=(14, 6))
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
@@ -674,7 +690,13 @@ class adjust_rt_for_selected_compound(object):
     def set_peak_flag(self,label):
         my_id = metob.retrieve('CompoundIdentification',
                                unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
-        my_id.description = label
+        my_id.ms1_notes = label
+        metob.store(my_id)
+
+    def set_msms_flag(self,label):
+        my_id = metob.retrieve('CompoundIdentification',
+                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+        my_id.ms2_notes = label
         metob.store(my_id)
 
     def on_pick(self,event):
@@ -2413,11 +2435,11 @@ def make_identification_figure_v2(
 
 
             for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
-                #plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
-                sample_number = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
-                replicate = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
-                file_short_name = data[file_idxs[i+1]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
-                plot_score_and_ref_file(ax, score, rt_list[i+1], file_short_name)
+                plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
+                #sample_number = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
+                #replicate = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
+                #file_short_name = data[file_idxs[i+1]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
+                #plot_score_and_ref_file(ax, score, rt_list[i+1], file_short_name)
 
             #Structure
             ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
@@ -2445,11 +2467,11 @@ def make_identification_figure_v2(
             rt_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['rt_peak']
             if not rt_measured:
                 rt_measured = 0
-            #ax7.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
-            sample_number = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
-            replicate = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
-            file_short_name = data[file_idxs[0]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
-            ax7.text(0,1,'%s'%fill(file_short_name, width=54),fontsize=8)
+            ax7.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
+            #sample_number = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
+            #replicate = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
+            #file_short_name = data[file_idxs[0]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
+            #ax7.text(0,1,'%s'%fill(file_short_name, width=54),fontsize=8)
             ax7.text(0,0.9,'%s %s'%(compound_names[compound_idx], data[file_idxs[0]][compound_idx]['identification'].mz_references[0].adduct),fontsize=8)
             ax7.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
             ax7.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
