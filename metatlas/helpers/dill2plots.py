@@ -2235,11 +2235,31 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
 def make_chromatograms(
-    input_dataset = [], group='index', share_y = True, save=True, output_loc=[]):
+    input_dataset = [], group='index', share_y = True, save=True, output_loc=[], use_short_samplename=False, use_short_filename=False, short_names_df=pd.DataFrame()):
     
+    file_names = ma_data.get_file_names(input_dataset)
+    
+    if use_short_samplename and use_short_filename:
+        sys.exit("short_samplename and short_filename both cant be True. Please choose one ! Exiting")
+    elif use_short_samplename:
+        if short_names_df.empty:
+            sys.stdout.write("short_names_df is not provided. Using full_filename !")
+        else:
+            short_names_df = short_names_df[['short_samplename']]
+            short_names_df.columns=['shortname'] # Renaming column header to shortname to be used in CPP
+    elif use_short_filename:
+        if short_names_df.empty:
+            sys.stdout.write("short_names_df is not provided. Using full_filename !")
+        else:
+            short_names_df = short_names_df[['short_filename']]
+            short_names_df.columns=['shortname'] # Renaming column header to shortname to be used in CPP
+    else:
+        if not short_names_df.empty:
+            sys.stdout.write("use_short_filename and use_short_samplename are set to False. Using full_filename !")
+            short_names_df = pd.DataFrame()
+
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
-    file_names = ma_data.get_file_names(input_dataset)
     compound_names = ma_data.get_compound_names(input_dataset,use_labels=True)[0]
     args_list = []
 
@@ -2258,7 +2278,8 @@ def make_chromatograms(
                  'save': save,
                  'share_y': share_y,
                  'names': file_names,
-                 'shortname':findcommonstart(file_names)}
+                 #'shortname':findcommonstart(file_names)}
+                 'shortname':short_names_df}
         args_list.append(kwargs)
     max_processes = 4
     pool = mp.Pool(processes=min(max_processes, len(input_dataset[0])))
