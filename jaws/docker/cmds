@@ -1,0 +1,5 @@
+# to create dockerfile
+git clone https://github.com/biorack/metatlas.git
+git clone https://github.com/biorack/pactolus.git
+cp -r ../scripts .
+docker build --tag jfroula/jaws-pactolus-spectral:1.0.2 --file Dockerfile.jaws-pactolus-spectral

@@ -1,0 +1,6 @@
+{
+    "metatlas_wf.api_file": "./lims-token",
+    "metatlas_wf.config": "./spectral_hits.config",
+    "metatlas_wf.threads": 2,
+    "metatlas_wf.tree_lookup": "./tree_lookup.npy"
+}

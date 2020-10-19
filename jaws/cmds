@@ -1,0 +1,53 @@
+# you need to clean up the mzML files especially from the source/dest folder before a run 
+find raw_data \( -name "*.mzML" -o -name "*.gz" -o -name "*.h5" \) -exec rm {} \; ; ls raw_data/ENIGMA/somefolder/
+
+# jar command
+java -jar /global/cfs/projectdirs/jaws/cromwell/cromwell.jar run raw_to_mzml.wdl -i raw_to_mzml.json
+
+# suzie Kosina added raw files to here that I can use for testing
+/global/project/projectdirs/metatlas/raw_data
+
+# test with this
+java -Dconfig.file=cromwell-cori.conf -jar /global/cfs/projectdirs/jaws/cromwell/cromwell.jar run raw_to_mzml.wdl -i inputs.json
+
+# all ben's samples (510 samples)
+git clone https://gitlab.com/jfroula/jaws-benbowen.git
+ java -Dconfig.file=cromwell-cori.conf -jar /global/cfs/projectdirs/jaws/cromwell/cromwell.jar run raw_to_mzml.wdl -i raw_to_mzml.json
+ => 1:45mins
+
+
+# try running labkey this way
+python3 -m venv labkey-env
+. labkey-env/bin/activate
+pip install labkey
+source ~/jaws-prod/bin/activate && jaws run submit metatlas.wdl inputs.json out nersc && deactivate
+
+
+# run on command-line using cromwell.jar
+# log onto interactive node
+salloc -N 1 --exclusive --qos=interactive -C haswell -A m342 -t 4:0:0
+source /global/cscratch1/sd/jfroula/JAWS/jgi-wdl-catalog/jaws-benbowen/labkey-env/bin/activate
+# set head() to 200 in scripts/files_per_task.py
+memtime java -Dbackend.providers.Local.config.concurrent-job-limit=8 -jar $(crom) run metatlas.wdl -i inputs.json > log 2>&1 &
+
+# get too small mzml files
+mzml_files_too_small.cmds
+
+# get list of h5 error file paths
+mzml_to_h5_error.sh > h5.err
+this is table of 
+  1) lims key
+  2) file
+  3) error 
+
+
+
+scripts/copy_results.sh -i cromwell-executions/metatlas_wf/2b0673bf-7918-470f-8fac-01716a4ef0c0
+
+I replaced old spectral hits file (08/10/2020)
+ref_loc = '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs.tab'
+to be
+ref_loc = '/global/dna/shared/rqc/ref_databases/metatlas/msmsrefs_nist20only.tab'
+
+09/21/20
+impletented bens latest (09/14/20) update_lims code copied from metatlas
