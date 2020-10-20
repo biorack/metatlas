@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import rankdata
 
+
 def make_nistified(msv):
     msv[0,~np.isnan(msv[0])] = -1
     msv[1] = rankdata(msv[1], method='dense')*(msv[1]-msv[1]+1)

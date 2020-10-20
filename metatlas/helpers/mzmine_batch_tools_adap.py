@@ -45,6 +45,9 @@ DATA_PATH = '/global/cscratch1/sd/bpb/raw_data'
 #remove this line
 #SBATCH -C haswell
 
+# /////////////////////////////////////////////////////////////////////
+# /////////////////// REALTIME QUEUE SBATCH PARAMS ////////////////////
+# /////////////////////////////////////////////////////////////////////
 SLURM_HEADER = """#!/bin/bash
 #SBATCH -t 04:00:00
 #SBATCH -C haswell
@@ -58,6 +61,10 @@ module load java
 
 """
 
+
+# /////////////////////////////////////////////////////////////////////
+# /////////////////// CORI REGULAR SBATCH PARAMS //////////////////////
+# /////////////////////////////////////////////////////////////////////
 # SLURM_HEADER = """#!/bin/bash
 # #SBATCH -N 1 -c 64
 # #SBATCH --exclusive
@@ -68,28 +75,15 @@ module load java
 # #SBATCH -t 24:00:00
 # #SBATCH -L project
 
-# # export MPLBACKEND="agg"
-# # export HDF5_USE_FILE_LOCKING=FALSE
-# # # cori specific tells it to not allocate memory on a per thread basis
-# export MALLOC_ARENA_MAX=1
-
-# module load java
-
-# # # echo every command and terminate script if there is an error
-# # set -ex
-
-# # env | grep -i java | sort
-
-# # # to see the resources a job used:
-# # # sacct -j <job_id> --format jobidraw,jobname,maxrss,maxvmsize --unit G
-
-# # """
+# """
 
 
 #Alicia Clum: The best nodes we have right now are ExVivo, they are 1.5 Tb nodes and very fast you can submit there by changing to --qos=jgi_shared and adding -C skylake. Prior to submitting you must type "module load esslurm" since these nodes are controlled by a different scheduler.
 # Set the python to this one:
 #/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-2.39/startMZmine_NERSC_Headless_Cori_exvivo.sh 
-
+# /////////////////////////////////////////////////////////////////////
+# /////////////////// SKYLAKE 1.5TB QUEUE SBATCH PARAMS ///////////////
+# /////////////////////////////////////////////////////////////////////
 # SLURM_HEADER = """#!/bin/bash
 # #SBATCH -N 1
 # #SBATCH --exclusive
@@ -98,25 +92,10 @@ module load java
 # #SBATCH --qos=jgi_shared
 # #SBATCH -A pkscell
 # #SBATCH -C skylake
-# #SBATCH -t 6:00:00
+# #SBATCH -t 12:00:00
 # #SBATCH -L project
 
-# # export MPLBACKEND="agg"
-# # export HDF5_USE_FILE_LOCKING=FALSE
-# # # cori specific tells it to not allocate memory on a per thread basis
-# export MALLOC_ARENA_MAX=1
-
-# module load java
-
-# # # echo every command and terminate script if there is an error
-# # set -ex
-
-# # env | grep -i java | sort
-
-# # # to see the resources a job used:
-# # # sacct -j <job_id> --format jobidraw,jobname,maxrss,maxvmsize --unit G
-
-# # """
+# """
 
 
 def calc_hit_vector(n,df):
@@ -419,7 +398,7 @@ def remove_duplicate_files(files):
             file_names.append(f.name)
     return unique_files
 
-def get_files(groups,filename_substring,file_filters,is_group=False,return_mzml=True):
+def get_files(groups,filename_substring,file_filters,keep_strings,is_group=False,return_mzml=True):
     """
     if is_group is False, gets files from the experiment/folder name and filters with file_filters
 
@@ -446,6 +425,8 @@ def get_files(groups,filename_substring,file_filters,is_group=False,return_mzml=
             all_files.extend(new_files)
         if len(new_files) == 0:
             print('##### %s has ZERO files!'%g)
+            
+    # only keep files that don't have substrings in list
     if len(file_filters) > 0:
         for i,ff in enumerate(file_filters):
             if i == 0:
@@ -454,6 +435,22 @@ def get_files(groups,filename_substring,file_filters,is_group=False,return_mzml=
                 files = [f for f in files if not ff in f.name]
     else:
         files = all_files
+        
+    # kick out any files that don't match atleast one of the keep_strings
+    keep_this = []
+    filter_used = [] #good to keep track if a filter isn't used.  likely a typo
+    if len(keep_strings) > 0:
+        for i,ff in enumerate(files):
+            keep_this.append(any([True if f in ff.name else False for f in keep_strings]))
+        for i,ff in enumerate(keep_strings):
+            filter_used.append(any([True if ff in f.name else False for f in files]))
+        if not all(filter_used):
+            for i,f in enumerate(filter_used):
+                if f==False:
+                    print('%s keep string is not used'%keep_strings[i])
+                    
+        files = [files[i] for i,j in enumerate(keep_this) if j==True]
+    
     files = remove_duplicate_files(files)
     return files
 

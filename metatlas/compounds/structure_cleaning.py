@@ -29,6 +29,12 @@ def _InitialiseNeutralisationReactions():
         )
     return [(Chem.MolFromSmarts(x),Chem.MolFromSmiles(y)) for x,y in patts]
 
+def neutralizeRadicals(mol):
+    for a in mol.GetAtoms():
+        if a.GetNumRadicalElectrons()==1 and a.GetFormalCharge()==1:
+            a.SetNumRadicalElectrons(0)         
+            a.SetFormalCharge(0)
+            
 _reactions=None
 def NeutraliseCharges(mol, reactions=None):
     global _reactions
@@ -38,6 +44,7 @@ def NeutraliseCharges(mol, reactions=None):
         reactions=_reactions
 #     mol = Chem.MolFromSmiles(smiles)
     replaced = False
+    neutralizeRadicals(mol)
     for i,(reactant, product) in enumerate(reactions):
         while mol.HasSubstructMatch(reactant):
             replaced = True
@@ -60,6 +67,9 @@ def desalt(mol):
     #returns an rdkit mol keeping the biggest component
     #returns original mol if only one component
     #returns a boolean indicated if cleaning was necessary
+    mol = MolToInchi(mol)
+    mol = MolFromInchi(mol)
+    SanitizeMol(mol)
     d = Chem.rdmolops.GetMolFrags(mol) #these are atom indices
     if len(d) == 1: #If there are fragments or multiple molecules this will be greater than 1 
         return mol,False

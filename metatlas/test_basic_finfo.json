@@ -5,5 +5,5 @@
     "normalization_factor": "11",
     "polarity": "negative",
     "retention_correction": "none",
-    "run_file_id": "/Users/ssilvester/workspace/metabolite-atlas/metatlas/metatlas/test_basic.h5"
+    "run_file_id": "/global/u2/b/bpb/repos/metatlas/metatlas/test_basic.h5"
 }

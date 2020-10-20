@@ -178,15 +178,17 @@ def update_metatlas(directory):
         sys.stdout.flush()
         files = list(enumerate(new_files))
 
-        if sys.version_info[0] < 3: 
-            pool = mp.Pool(min(NPROC,len(new_files)))
-            pool.map(convert, files)
-            pool.close()
-            pool.join()
-        else:
-            # #Python3
-            with mp.Pool(min(NPROC,len(new_files))) as pool:
-                pool.map(convert, files)
+#         if sys.version_info[0] < 3: 
+#             pool = mp.Pool(min(NPROC,len(new_files)))
+#             pool.map(convert, files)
+#             pool.close()
+#             pool.join()
+#         else:
+#             # #Python3
+#             with mp.Pool(min(NPROC,len(new_files))) as pool:
+#                 pool.map(convert, files)
+        for ffff in files:
+            convert(ffff)
 
 
         if readonly_files:
