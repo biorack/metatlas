@@ -17,8 +17,8 @@ if [ -e "${PIDFILE}" ] && (ps -u $(whoami) -opid= |
   echo "Already running."
   exit 99
 fi
-export PYTHONPATH="/global/homes/b/bpb/repos/metatlas:${PYTHONPATH}"
-
+#export PYTHONPATH="/global/homes/b/bpb/repos/metatlas:${PYTHONPATH}"
+export PYTHONPATH="/global/cscratch1/sd/bpb/repos/metatlas_backup_20201020/metatlas:${PYTHONPATH}"
 LOGFILE="/global/homes/b/bpb/file_converter.log"
 MET_PATH=/project/projectdirs/metatlas
 BIN_PATH=/global/common/software/m2650/python-cori
