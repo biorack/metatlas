@@ -2116,7 +2116,7 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         fontsize=2,
         transform=ax.transAxes)
 
-
+sp = reload(sp)
 def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_nonmatches=False,
                   pre_query='database == "metatlas"',
                   # pre_query = 'index == index or index == @pd.NaT',
@@ -2139,7 +2139,11 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                                            'inchi_key':str, 'inchi':str, 'smiles':str})
 
     ref_index = kwargs.pop('ref_index', ['database', 'id'])
-
+    if 'do_centroid' in kwargs:
+        do_centroid = kwargs.pop('do_centroid')
+    else:
+        do_centroid = False
+        
     if 'ref_df' in kwargs:
         ref_df = kwargs.pop('ref_df')
     else:
@@ -2209,14 +2213,26 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                     if not rt_min <= rt <= rt_max:
                         continue
 
-                msv_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt][['mz', 'i']].values.T
-                precursor_mz_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0]
-                precursor_intensity_sample = rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_intensity'].values[0]
-
+                msv_sample = rt_mz_i_df.loc[rt_mz_i_df['rt'] == rt,['mz', 'i','rt','precursor_MZ','precursor_intensity']]
+                precursor_mz_sample = msv_sample['precursor_MZ'].values[0]
+                precursor_intensity_sample = msv_sample['precursor_intensity'].values[0]
+                msv_sample = msv_sample[['mz','i']].values.T
+                
+                if do_centroid:
+                    max_peaks, min_peaks = sp.peakdet(msv_sample[1], 1000.0)
+                    if max_peaks.shape[0]>0:
+                        idx = max_peaks[:,0].astype(int).flatten()
+                        msv_sample = msv_sample[:,idx]
+                    else:
+                        msv_sample = np.zeros((0,0))
+#                 msv_sample.sort_values('mz',inplace=True)
+#                 msv_sample = msv_sample
+ 
                 #Filter ions greater than 2.5 + precursor M/Z 
-                msv_sample = msv_sample[:,msv_sample[0] < rt_mz_i_df[rt_mz_i_df['rt'] == rt]['precursor_MZ'].values[0] + 2.5]
-
+#                 msv_sample[1] = msv_sample[1] / msv_sample[1].sum()
+#                 print(msv_sample)
                 if msv_sample.size > 0:
+                    msv_sample = msv_sample[:,msv_sample[0] < precursor_mz_sample + 2.5]
                     scan_df = sp.search_ms_refs(msv_sample, **dict(locals(), **kwargs))
                 else:
                     scan_df = {}
@@ -2269,8 +2285,9 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
         hits = pd.concat(msms_hits)
         #Check if number of matches for a compound across all files is 1 or less and set the score to its maximum intensity.
         #This will identify MSMS with single ion / no fragmentation
-        idxs = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max) <= 1
-        hits['score'][idxs] = hits['measured_precursor_intensity'][idxs]
+        if keep_nonmatches==True:
+            idxs = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max) <= 1 
+            hits['score'][idxs] = hits['measured_precursor_intensity'][idxs]
         return hits
     else:
         return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches','inchi_key','precursor_mz','adduct','score']

@@ -680,11 +680,11 @@ def to_dataframe(objects):
             [o.__setitem__(tname, str([i.unique_id for i in o[tname]]))
              for o in objs]
         if isinstance(trait, MetInstance):
-            # for obj_id,o in enumerate(objs):
-                # if tname not in o:
-                    # o[tname] = 'None'
+            for obj_id,o in enumerate(objs):
+                if tname not in o:
+                    o[tname] = 'None'
 
-            [o.__setitem__(tname, getattr(o[tname], 'unique_id', 'None')) for o in objs]
+#             [o.__setitem__(tname, getattr(o[tname], 'unique_id', 'None')) for o in objs]
 
         if isinstance(trait, MetEnum):
             enums.append(tname)
