@@ -22,7 +22,7 @@ except NameError:  # python3
     basestring = str
 
 # setting this very high easily causes out of memory
-NUM_THREADS = 4
+NUM_THREADS = 12
 
 BATCH_FILE_PATH = '/project/projectdirs/metatlas/projects/mzmine_parameters/batch_files/'
 PYTHON_BINARY = '/global/common/software/m2650/python-cori/bin/python'
@@ -32,33 +32,43 @@ BINARY_PATH = '/project/projectdirs/metatlas/projects/mzmine_parameters/MZmine'
 #remove this line
 #SBATCH -C haswell
 
-
 SLURM_HEADER = """#!/bin/bash
-#SBATCH -N 1 -c 64
+#SBATCH -t 04:00:00
+#SBATCH -C haswell
+#SBATCH -N 1
+#SBATCH -q realtime
+#SBATCH -A m1541
 #SBATCH --exclusive
-#SBATCH --error="slurm.err"
-#SBATCH --output="slurm.out"
-#SBATCH --qos=genepool
-#SBATCH -A pkscell
-#SBATCH -t 24:00:00
-#SBATCH -L project
-
-export MPLBACKEND="agg"
-export HDF5_USE_FILE_LOCKING=FALSE
-# cori specific tells it to not allocate memory on a per thread basis
-export MALLOC_ARENA_MAX=1
-
-#module load java
-
-# echo every command and terminate script if there is an error
-set -ex
-
-env | grep -i java | sort
-
-# to see the resources a job used:
-# sacct -j <job_id> --format jobidraw,jobname,maxrss,maxvmsize --unit G
 
 """
+
+
+# SLURM_HEADER = """#!/bin/bash
+# #SBATCH -N 1 -c 64
+# #SBATCH --exclusive
+# #SBATCH --error="slurm.err"
+# #SBATCH --output="slurm.out"
+# #SBATCH --qos=genepool
+# #SBATCH -A pkscell
+# #SBATCH -t 4:00:00
+# #SBATCH -L project
+
+# export MPLBACKEND="agg"
+# export HDF5_USE_FILE_LOCKING=FALSE
+# # cori specific tells it to not allocate memory on a per thread basis
+# export MALLOC_ARENA_MAX=1
+
+# #module load java
+
+# # echo every command and terminate script if there is an error
+# set -ex
+
+# env | grep -i java | sort
+
+# # to see the resources a job used:
+# # sacct -j <job_id> --format jobidraw,jobname,maxrss,maxvmsize --unit G
+
+# """
 
 def see_if_plots_work():
     print('I am here')
@@ -90,11 +100,11 @@ def make_figures_from_filtered_data(params,all_files,my_atlas):
     rt_peak = dp.make_output_dataframe(input_fname = '', input_dataset = metatlas_dataset,include_lcmsruns = [],exclude_lcmsruns = [],fieldname='rt_peak' , output_loc=os.path.join(output_dir,'sheets'))
     mz_centroid = dp.make_output_dataframe(input_fname = '',input_dataset = metatlas_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='mz_centroid' , output_loc=os.path.join(output_dir,'sheets'))
     rt_centroid = dp.make_output_dataframe(input_fname = '',input_dataset = metatlas_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='rt_centroid' , output_loc=os.path.join(output_dir,'sheets'))
-    print('$$$$ Making ID FIGURES')
-    dp.make_identification_figure_v2(input_dataset = metatlas_dataset, input_fname = '', include_lcmsruns = [],exclude_lcmsruns = params['blank_str'].append('QC'), output_loc=os.path.join(output_dir,'identification'))
-    print('$$$$ Done Making FIGURES')
+    # print('$$$$ Making ID FIGURES')
+    # dp.make_identification_figure_v2(input_dataset = metatlas_dataset, input_fname = '', include_lcmsruns = [],exclude_lcmsruns = params['blank_str'].append('QC'), output_loc=os.path.join(output_dir,'identification'))
+    # print('$$$$ Done Making FIGURES')
 
-def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000,do_test=False):
+def clean_and_filter_mzmine_output(json_filename=None,n_peaks=3000,do_test=False):
     """
     This is a command line function that runs after the first feature finding is complete.
     After mzmine runs, make an atlas, get data, and filter
@@ -197,6 +207,60 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=1000,do_test=False
         pool.join()
         # pool.terminate()
         print('data acquired')
+
+
+        # remove peaks with identical intensity
+        df = peak_height_df(metatlas_dataset)
+
+        from scipy.spatial.distance import pdist, squareform
+        df = df.reset_index(drop=True).fillna(0)
+        distances = pdist(df.values, metric='euclidean')
+        dist_matrix = squareform(distances)
+        result = pd.DataFrame(dist_matrix)#,columns=df.columns,index=df.columns)
+        result = result.stack().reset_index()
+        result.columns = ['var1', 'var2','value']
+        result=result.loc[(result['var1'] < result['var2']) & (result['value'] == 0 )]#< params['noise_floor']) ]
+
+
+        # dd = []
+        # for i,row in result.iterrows():
+        #     d1 = atlas_df.loc[row.var1,'rt_max'] - atlas_df.loc[row.var1,'rt_min']
+        #     d2 = atlas_df.loc[row.var2,'rt_max'] - atlas_df.loc[row.var2,'rt_min']
+        #     dd.append(d1-d2)
+        # result['duration'] = dd
+        atlas_df['duration'] = atlas_df['rt_max'] - atlas_df['rt_min']
+        result = pd.merge(result,atlas_df[['duration']],left_on='var1',right_index=True,how='left',suffixes=('1','2'))
+        result = pd.merge(result,atlas_df[['duration']],left_on='var2',right_index=True,how='left',suffixes=('1','2'))
+
+        bad_idx = result['duration2'] > result['duration1']
+        bad2s = result[bad_idx]['var2'].tolist()
+
+        bad_idx = result['duration2'] < result['duration1']
+        bad1s = result[bad_idx]['var1'].tolist()
+
+        bads = bad2s + bad1s
+        bads = pd.unique(bads)
+        atlas_df = atlas_df[~atlas_df.index.isin(bads)]
+        my_atlas.compound_identifications = [my_atlas.compound_identifications[idx] for idx in atlas_df.index[~atlas_df.index.isin(bads)].tolist()]
+
+        #Get Data 
+        print('getting data after duplicate peak removal')
+        print('using',NUM_THREADS,'cores')
+        all_files = []
+        for my_file in groups.items:
+            all_files.append((my_file,groups,atlas_df,my_atlas))
+        # print('trying it without multiprocessing')
+        # metatlas_dataset = []
+        # for f in all_files:
+            # metatlas_dataset.append(ma_data.get_data_for_atlas_df_and_file(f))
+
+        pool = mp.Pool(processes=min(NUM_THREADS, len(all_files)))
+        metatlas_dataset = pool.map(ma_data.get_data_for_atlas_df_and_file, all_files)
+        pool.close()
+        pool.join()
+        # pool.terminate()
+        print('data acquired')
+
         # remove peaks that aren't valid.  See pk_checker for details on validity.
         num_features = len(metatlas_dataset[0])
         num_files = len(metatlas_dataset)
@@ -271,7 +335,7 @@ def peak_in_top_n(metatlas_dataset,n_peaks=1000,prior_boolean=None):
 
 def metatlas_formatted_atlas_from_mzmine_output(filename,polarity,make_atlas=True,atlas_name=None,
     do_store=False,min_rt=None,max_rt=None,min_mz=None,mz_tolerance=8,
-    max_mz=None,remove_adducts=False,remove_fragments=False,remove_clusters=False):
+    max_mz=None,remove_adducts=False,remove_fragments=False,remove_clusters=False,max_duration=1.0):
     # 
     '''
     Turn mzmine output into conforming metatlas_atlas input
@@ -386,7 +450,7 @@ def make_task_and_job(params):#basedir,basename,polarity,files):
     new_d = configure_duplicate_filter(new_d,task.mz_tolerance,task.rt_tol_perfile)
     new_d = configure_gap_filling(new_d,task.mz_tolerance)
     new_d = configure_csv_output(new_d,task.output_csv)
-    new_d = configure_workspace_output(new_d,task.output_workspace)
+    #new_d = configure_workspace_output(new_d,task.output_workspace)
 
     t = dict_to_etree(new_d)
     indent_tree(t)
@@ -570,13 +634,13 @@ def min_checker(met_data,atlas_df,compound_idx,params):
             condition_3 = np.asarray(eic['rt']) < measured_rt_peak
             condition_4 = np.asarray(eic['rt']) > (measured_rt_peak - params['rt_timespan'])
             intensity = np.asarray(eic['intensity'])
-            
+
             forward_idx = (condition_1) & (condition_2)
             if any(forward_idx):
                 forward_pass = peak_height > (intensity[forward_idx].min() * params['peak_to_valley_ratio'])
             else:
                 forward_pass = False
-            
+
             backward_idx = (condition_3) & (condition_4)
             if any(backward_idx):
                 backward_pass = peak_height > (intensity[backward_idx].min() * params['peak_to_valley_ratio'])

@@ -1164,13 +1164,13 @@ def hybrid_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma=.01):
     return np.sqrt(intensities1).dot(K).dot(np.sqrt(intensities2))
 
 def normalized_gaussian_dot_product(msv1, msv2, sigma=.01):
-    return gaussian_dot_product(msv1,msv2,sigma)/(gaussian_dot_product(msv1,msv1,sigma)*gaussian_dot_product(msv2,msv2,sigma))**.5
+    return gaussian_dot_product(msv1,msv2,sigma)/np.sqrt(gaussian_dot_product(msv1,msv1,sigma)*gaussian_dot_product(msv2,msv2,sigma))
 
 def normalized_shifted_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma=.01):
-    return shifted_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma)/(gaussian_dot_product(msv1,msv1,sigma)*gaussian_dot_product(msv2,msv2,sigma))**.5
+    return shifted_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma)/np.sqrt(gaussian_dot_product(msv1,msv1,sigma)*gaussian_dot_product(msv2,msv2,sigma))
 
 def normalized_hybrid_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma=.01):
-    return hybrid_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma)/(gaussian_dot_product(msv1,msv1,sigma)*gaussian_dot_product(msv2,msv2,sigma))**.5
+    return hybrid_gaussian_dot_product(msv1, msv2, pmz1, pmz2, sigma)/np.sqrt(gaussian_dot_product(msv1,msv1,sigma)*gaussian_dot_product(msv2,msv2,sigma))
 
 
 def search_ms_refs(msv_query, **kwargs):
@@ -1227,9 +1227,9 @@ def search_ms_refs(msv_query, **kwargs):
     # Define function to score msv_qury against msv's in reference dataframe
     def score_and_num_matches(msv_ref):
         if do_gdp==True:
-            print('asd')
+#             print(msv_query)
             score = normalized_gaussian_dot_product(msv_query,msv_ref,sigma=frag_mz_tolerance)
-            num_matches = 0
+            num_matches = gaussian_kernel(msv_query[0],msv_ref[0],sigma=frag_mz_tolerance).sum()
             msv_query_aligned = msv_query
             msv_ref_aligned = msv_ref
         else:

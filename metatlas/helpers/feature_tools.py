@@ -32,7 +32,7 @@ warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 # on cori, burst buffer: 4.1962 minutes repeated: 4.157 minutes
 # on cori, scratch: 4.31 minutes
 
-def setup_file_slicing_parameters(atlas,filenames,extra_time=0.1,ppm_tolerance=20,polarity='positive',project_dir=False,base_dir = '/project/projectdirs/metatlas/projects/'):
+def setup_file_slicing_parameters(atlas,filenames,extra_time=0.1,ppm_tolerance=20,polarity='positive',project_dir=False,base_dir = '/project/projectdirs/metatlas/projects/',overwrite=True):
     """
     Make parameters that have to be setup to run the fast feature finding process.
     
@@ -123,10 +123,11 @@ def setup_file_slicing_parameters(atlas,filenames,extra_time=0.1,ppm_tolerance=2
     """
     wipe out all the files and put the atlas in each one
     """
-    for i in input_data:
-        if i['outfile'] is not None: #user doesn't want to save their results
-            with pd.HDFStore(i['outfile'],mode='w',complib='zlib',complevel=9) as f:
-                f.put('atlas',atlas,data_columns=True)
+    if overwrite==True:
+        for i in input_data:
+            if i['outfile'] is not None: #user doesn't want to save their results
+                with pd.HDFStore(i['outfile'],mode='w',complib='zlib',complevel=9) as f:
+                    f.put('atlas',atlas,data_columns=True)
 
     return input_data
 
@@ -214,7 +215,7 @@ def df_container_from_metatlas_file(filename,desired_key=None):
 
 
 
-def group_duplicates(df,group_col,make_string=False):
+def group_duplicates(df,group_col,make_string=False,precision={'i':0,'mz':4,'rt':2}):
     """
     takes in a list of grouping columns and turns the rest into arrays
     """
@@ -250,7 +251,12 @@ def group_duplicates(df,group_col,make_string=False):
     if make_string==True:
         for c in cols:
 #             df2[c] = df2[c].apply(lambda x: np.array2string(x, precision=5, separator=','))
-            df2[c] = df2[c].apply(lambda x: str(x.tolist()))
+            if c in precision.keys():
+                pre_str = '{:.%df}'%precision[c]
+            else:
+                pre_str = '{:.4f}'
+            df2[c] = df2[c].apply(lambda x: [pre_str.format(n) for n in x.tolist()])
+#             df2[c] = df2[c].apply(lambda x: str(x.tolist()))
             
     df2.index = df2.index.set_names(group_col)
     df2.reset_index(inplace=True)
@@ -274,7 +280,6 @@ def get_atlas_data_from_file(filename,atlas,desired_key='ms1_pos'):#,bundle=True
                                msdata['mz'].values[:])
     msdata['group_index'] = g#[:,1]
 #     msdata['group_index_ppm'] = g[:,0]
-
     df = pd.merge(atlas,msdata,left_on='group_index',right_on='group_index',how='outer',suffixes=('_atlas','_data'))
     
     #grab all datapoints including "extra"
@@ -293,12 +298,12 @@ def get_atlas_data_from_file(filename,atlas,desired_key='ms1_pos'):#,bundle=True
     df = df.rename(columns={'mz_data':'mz'})
     if 'ms2' in desired_key:
         # keep in mind we don't have intensity or scan attributes
-        df = df[['label','rt','mz','in_feature']]
+        df = df[['label','rt','in_feature']]
         # you've got to add it back in; so reload original file
         msdata = df_container_from_metatlas_file(filename,desired_key=desired_key)
         # This will merge back into the MSMS data 
         # the missing intensity and scan attributes
-        mcols = ['rt','i','precursor_MZ','precursor_intensity','collision_energy']
+        mcols = ['rt','i','mz','precursor_MZ','precursor_intensity','collision_energy']
         df = pd.merge(df,msdata[mcols],left_on='rt',right_on='rt',how='left')
         return df.reset_index(drop=True)
     else:
@@ -384,7 +389,7 @@ def get_data(input_data,return_data=False,save_file=True):
         with pd.HDFStore(input_data['outfile'],mode='a',complib='zlib',complevel=9) as f:
             f.put('ms1_summary',d,data_columns=True)
     
-    input_data['atlas']['extra_time'] = 0.0 # set extratime here to be zero for msms getting
+#     input_data['atlas']['extra_time'] = 0.0 # set extratime here to be zero for msms getting
     d = get_atlas_data_from_file(input_data['lcmsrun'],input_data['atlas'],desired_key='ms2_%s'%polarity_short_string)#,bundle=True,make_string=True)
     if return_data is True:
         out_data['ms2_data'] = d
