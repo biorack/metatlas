@@ -1,0 +1,14 @@
+#!/bin/sh
+
+GLOBALWINEPREFIX=/wineprefix64
+MYWINEPREFIX=/mywineprefix/
+
+if [ ! -L "$MYWINEPREFIX"/dosdevices/z: ] ; then 
+  mkdir -p "$MYWINEPREFIX"/dosdevices
+  cp "$GLOBALWINEPREFIX"/*.reg "$MYWINEPREFIX"
+  ln -sf "$GLOBALWINEPREFIX/drive_c" "$MYWINEPREFIX/dosdevices/c:"
+  ln -sf "/" "$MYWINEPREFIX/dosdevices/z:"
+fi 
+
+export WINEPREFIX=$MYWINEPREFIX
+wine "$@"

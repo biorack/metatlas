@@ -69,8 +69,8 @@ def find_spectral_hits(mzml_loc, tab_loc=None, force=False, nistify=False, **kwa
         mzml_df = mzml_df[mzml_df['mz'] < mzml_df['precursor_mz'] + 2.5]
 
     except ValueError:
-        sys.stderr.write('error: ' + mzml_loc + ' not convertable to dataframe\n')
-        sys.exit(1)
+        sys.stderr.write('warning: ' + mzml_loc + ' not convertable to dataframe\n')
+        sys.exit(0)
 
     mzml_rt_group = mzml_df.groupby('rt')
 
@@ -159,7 +159,7 @@ def generate_worklist(worklist_loc, mzml_dir, tab_dir=None, force=False, nistify
                         command += ' -f'
                     if nistify:
                         command += ' -n'
-                    command += ' -m \"' + os.path.join(root, filename) + '\" -l \"' + out_file + '\"'
+                    command += ' -m ' + os.path.join(root, filename) + ' -l ' + root + '/' + out_file 
                     worklist.append(command)
 
     with open(worklist_loc, 'w') as worklist_file:

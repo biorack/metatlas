@@ -1,6 +1,0 @@
-{
-    "metatlas_wf.mzml_dir": "../Raw/test",
-    "metatlas_wf.config": "./spectral_hits.config",
-    "metatlas_wf.tree_lookup": "./tree_lookup.npy",
-    "metatlas_wf.threads": 2
-}

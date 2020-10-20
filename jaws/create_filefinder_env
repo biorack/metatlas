@@ -1,0 +1,4 @@
+conda create -n filefinder python=3
+conda activate filefinder
+conda install requests
+conda install -y pandas

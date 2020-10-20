@@ -1507,7 +1507,7 @@ def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns
 #print all chromatograms
 #structure
 
-def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height', use_labels=False):
+def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height', use_labels=False, short_names_df=pd.DataFrame()):
     """
     fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
     """
@@ -1530,6 +1530,7 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
     compound_names = ma_data.get_compound_names(data,use_labels=use_labels)[0]
     file_names = ma_data.get_file_names(data)
     group_names = ma_data.get_group_names(data)
+    group_shortnames = ma_data.get_group_shortnames(data)
     output_loc = os.path.expandvars(output_loc)
     fieldname = fieldname
 
@@ -1544,9 +1545,16 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
             else:
                 df.ix[compound_names[j],file_names[i]] = d['data']['ms1_summary'][fieldname]
     columns = []
-    for i,f in enumerate(file_names):
-        columns.append((group_names[i],f))
-    df.columns = pd.MultiIndex.from_tuples(columns,names=['group', 'file'])
+    if short_names_df.empty:
+        for i,f in enumerate(file_names):
+            columns.append((group_names[i],f))
+        df.columns = pd.MultiIndex.from_tuples(columns,names=['group', 'file'])
+    else:
+        for i,f in enumerate(file_names):
+            temp = [group_names[i],f, group_shortnames[i]]
+            temp.extend(short_names_df.loc[f.split('.')[0]].values.tolist())
+            columns.append(tuple(temp))
+        df.columns = pd.MultiIndex.from_tuples(columns,names=['group', 'file', 'short groupname', 'sample treatment', 'short filename','short samplename'])
 
     if output_loc:
         if not os.path.exists(output_loc):
@@ -1617,9 +1625,7 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
 
     return idx, max_score, best_ref_spec
 
-def plot_errorbar_plots(df,output_loc=''):
-    
-    import textwrap
+def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
 
     output_loc = os.path.expandvars(output_loc)
     if not os.path.exists(output_loc):
@@ -1627,9 +1633,14 @@ def plot_errorbar_plots(df,output_loc=''):
 
     plt.ioff()
     for compound in df.index:
-        m = df.ix[compound].groupby(level='group').mean()
-        e = df.ix[compound].groupby(level='group').std()
-        c = df.ix[compound].groupby(level='group').count()
+        if 'short groupname' in df.columns.names and use_shortnames:
+            m = df.ix[compound].groupby(level='short groupname').mean()
+            e = df.ix[compound].groupby(level='short groupname').std()
+            c = df.ix[compound].groupby(level='short groupname').count()
+        else:
+            m = df.ix[compound].groupby(level='group').mean()
+            e = df.ix[compound].groupby(level='group').std()
+            c = df.ix[compound].groupby(level='group').count()
 
         for i in range(len(e)):
             if c[i]>0:
@@ -1637,11 +1648,39 @@ def plot_errorbar_plots(df,output_loc=''):
 
         f, ax = plt.subplots(1, 1,figsize=(12,12))
         m.plot(yerr=e, kind='bar',ax=ax)
-#         ax.set_title(compound,fontsize=12,weight='bold')
-        ax.set_title("\n".join(textwrap.wrap(compound,80)),fontsize=12,weight='bold')
+        ax.set_title(compound,fontsize=12,weight='bold')
+        if ylabel != "":
+            plt.ylabel(ylabel)
         plt.tight_layout()
         f.savefig(os.path.join(output_loc, compound + '_errorbar.pdf'))
 
+        #f.clear()
+        plt.close(f)#f.clear()
+
+def make_boxplot_plots(df,output_loc='', use_shortnames=True, ylabel=""):
+
+    output_loc = os.path.expandvars(output_loc)
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+
+    plt.ioff()
+    for compound in df.index:
+        f, ax = plt.subplots(1, 1,figsize=(12,12))
+        if 'short groupname' in df.columns.names and use_shortnames:
+            df.ix[compound].groupby(level='short groupname').apply(pd.DataFrame).plot(kind='box',ax=ax)
+        else:
+            df.ix[compound].groupby(level='group').apply(pd.DataFrame).plot(kind='box',ax=ax)
+        
+        for i, (n, grp) in enumerate(df.ix[compound].groupby(level='short groupname')):
+            x = [i+1] *len(grp)
+            x = np.random.normal(x, 0.04, size=len(x))
+            plt.scatter(x, grp)
+        ax.set_title(compound,fontsize=12,weight='bold')
+        plt.xticks(rotation=90)
+        if ylabel != "":
+            plt.ylabel(ylabel)
+        plt.tight_layout()
+        f.savefig(os.path.join(output_loc, compound + '_boxplot.pdf'))
         #f.clear()
         plt.close(f)#f.clear()
 
@@ -2255,11 +2294,26 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
 def make_chromatograms(
-    input_dataset = [], group='index', share_y = True, save=True, output_loc=[]):
+    input_dataset = [], group='index', share_y = True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None):
     
+    file_names = ma_data.get_file_names(input_dataset)
+    
+    if short_names_df.empty:
+        if short_names_header != None:
+            sys.stdout.write('short_names_df not provided. Using full_filename for the plots!')
+            short_names_df = pd.DataFrame()
+    elif short_names_header == None:
+            sys.stdout.write('short_names_header not provided. Using full_filename for the plots!')
+            short_names_df = pd.DataFrame()
+    elif short_names_header not in short_names_df.columns:
+            sys.stdout.write('short_names_header not found in short_names_df. Using full_filename for the plots!')
+            short_names_df = pd.DataFrame()
+    else:
+        short_names_df = short_names_df[[short_names_header]]
+        short_names_df.columns=['shortname']
+
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
-    file_names = ma_data.get_file_names(input_dataset)
     compound_names = ma_data.get_compound_names(input_dataset,use_labels=True)[0]
     args_list = []
 
@@ -2278,7 +2332,8 @@ def make_chromatograms(
                  'save': save,
                  'share_y': share_y,
                  'names': file_names,
-                 'shortname':findcommonstart(file_names)}
+                 #'shortname':findcommonstart(file_names)}
+                 'shortname':short_names_df}
         args_list.append(kwargs)
     max_processes = 4
     pool = mp.Pool(processes=min(max_processes, len(input_dataset[0])))
@@ -2288,7 +2343,7 @@ def make_chromatograms(
 
 def make_identification_figure_v2(
     input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [],
-    exclude_groups = [], output_loc = [], msms_hits = None, use_labels=False,intensity_sorted_matches=False):
+    exclude_groups = [], output_loc = [], msms_hits = None, use_labels=False,intensity_sorted_matches=False, short_names_df=pd.DataFrame()):
     #empty can look like this:
     # {'eic': {'rt': [], 'intensity': [], 'mz': []}, 'ms1_summary': {'num_ms1_datapoints': 0.0, 'rt_centroid': nan, 'mz_peak': nan, 'peak_height': nan, 'rt_peak': nan, 'peak_area': nan, 'mz_centroid': nan},
     #'msms': {'data': {'rt': array([], dtype=float64), 'collision_energy': array([], dtype=float64), 'i': array([], dtype=float64), 'precursor_intensity': array([], dtype=float64), 'precursor_MZ': array([], dtype=float64), 'mz': array([], dtype=float64)}}}
@@ -2434,8 +2489,14 @@ def make_identification_figure_v2(
             ax4d.axis('off')
 
 
-            for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
-                plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
+            if short_names_df.empty:
+                for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
+                    plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
+            else:
+                for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
+                    short_samplename  = short_names_df.loc[os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 'short_samplename']
+                    plot_score_and_ref_file(ax, score, rt_list[i+1], short_samplename)
+
                 #sample_number = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
                 #replicate = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
                 #file_short_name = data[file_idxs[i+1]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
@@ -2720,6 +2781,29 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
             data.append(row)
         with open(output_filename,'w') as f:
             dill.dump(data,f)
+
+def filter_atlas(atlas_df = '', input_dataset = [], num_data_points_passing = 5, peak_height_passing = 1e6, rt_peak_passing = 0.8):
+    metatlas_dataset = input_dataset
+    num_data_points_passing = np.array([[((metatlas_dataset[i][j]['identification'].rt_references[0].rt_min <= 
+                                       np.array(metatlas_dataset[i][j]['data']['eic']['rt'])) &
+                                      (np.array(metatlas_dataset[i][j]['data']['eic']['rt']) <=
+                                       metatlas_dataset[i][j]['identification'].rt_references[0].rt_max)).sum()>num_data_points_passing
+                                    for i in range(len(metatlas_dataset))]
+                                    for j in range(len(metatlas_dataset[0]))]).any(axis=1)
+    peak_height_passing = np.array([[('data' in metatlas_dataset[i][j].keys()) &
+                                 ('ms1_summary' in metatlas_dataset[i][j]['data'].keys()) &
+                                 (metatlas_dataset[i][j]['data']['ms1_summary']['peak_height']>=peak_height_passing)
+                                for i in range(len(metatlas_dataset))]
+                                for j in range(len(metatlas_dataset[0]))]).any(axis=1)
+    rt_peak_passing = np.median([[(('data' in metatlas_dataset[i][j].keys()) &
+                                 ('ms1_summary' in metatlas_dataset[i][j]['data'].keys())) *
+                                 (metatlas_dataset[i][j]['data']['ms1_summary']['rt_peak'])
+                                for i in range(len(metatlas_dataset))]
+                                for j in range(len(metatlas_dataset[0]))], axis=1) > rt_peak_passing
+    compound_passing = num_data_points_passing & peak_height_passing & rt_peak_passing
+    #atlas_df.reset_index(inplace=True)
+    return atlas_df[compound_passing].reset_index(drop=True)
+#.reset_index(drop=True, inplace=True)
 
 def filter_metatlas_objects_to_most_recent(object_list,field):
     #from datetime import datetime, date

@@ -1,0 +1,12 @@
+java -jar /global/dna/projectdirs/DSI/workflows/cromwell/java/cromwell.jar run metatlas.wdl -i metatlas.inputs.json
+
+# Daniel treen 
+# jamo submission
+Wed, Feb 12, 4:19 PM
+
+./jamo_submit.py -m jamo_submissions.csv
+
+module load jamo/dev
+
+at import metabolomics_raw 0_raw_data.json
+

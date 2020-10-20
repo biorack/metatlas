@@ -676,6 +676,26 @@ def get_group_names(data):
 
     return group_names
 
+def get_group_shortnames(data):
+    """
+    Parameters
+    ----------
+    data: either a file name (str) or a list generated from loading the dill file
+
+    Returns list containing the group short names present in the dill file
+    -------
+    """
+
+    # if data is a string then it's a file name - get its data
+    if isinstance(data, basestring):
+        data = get_dill_data(data)
+
+    group_shortnames = list()
+    for i,d in enumerate(data):
+        group_shortnames.append(d[0]['group'].short_name)
+
+    return group_shortnames
+
 
 def get_file_names(data,full_path=False):
     """
