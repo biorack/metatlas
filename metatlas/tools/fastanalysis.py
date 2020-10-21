@@ -3,11 +3,11 @@ import os
 import multiprocessing as mp
 import pprint
 
-from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
-from metatlas import metatlas_objects as metob
-from metatlas.helpers import dill2plots as dp
-from metatlas.helpers import chromplotplus as cpp
-from metatlas.helpers import spectralprocessing as sp
+from metatlas.io import metatlas_get_data_helper_fun as ma_data
+from metatlas.datastructures import metatlas_objects as metob
+from metatlas.plots import dill2plots as dp
+from metatlas.plots import chromplotplus as cpp
+from metatlas.tools import spectralprocessing as sp
 
 import numpy as np
 import pandas as pd

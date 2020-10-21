@@ -3,7 +3,7 @@ import os.path
 import sys
 import copy
 import tables
-from metatlas import metatlas_objects as metob
+from metatlas.datastructures import metatlas_objects as metob
 import pandas as pd
 from textwrap import wrap
 import matplotlib.pyplot as plt
@@ -505,7 +505,7 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     """
     #TODO : polarity should be handled in the experiment and not a loose parameter
     import numpy as np
-    from metatlas import h5_query as h5q
+    from metatlas.io import h5_query as h5q
     import tables
     
     #get a pointer to the hdf5 file
@@ -786,6 +786,7 @@ def make_data_sources_tables(groups, myatlas, output_loc):
     output_dir = os.path.join(output_loc,'data_sources')
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
+    
 
     metob.to_dataframe([myatlas]).to_csv(os.path.join(output_dir,'atlas_metadata.tab'), sep='\t')
     metob.to_dataframe(groups).to_csv(os.path.join(output_dir,'groups_metadata.tab'), sep='\t')

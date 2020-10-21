@@ -308,47 +308,47 @@ class Sample(MetatlasObject):
     pass
 
 
-def load_lcms_files(mzml_files):
-    """Parse mzML files and load them into LcmsRun objects.
+# def load_lcms_files(mzml_files):
+#     """Parse mzML files and load them into LcmsRun objects.
 
-    Note: This should be done automatically for runs in
-    /project/projectdirs/metatlas/raw_data/<username>
+#     Note: This should be done automatically for runs in
+#     /project/projectdirs/metatlas/raw_data/<username>
 
-    Parameters
-    ----------
-    mzml_files: list of str
-       List of paths to mzml_files.
+#     Parameters
+#     ----------
+#     mzml_files: list of str
+#        List of paths to mzml_files.
 
-    Returns
-    -------
-    runs: list
-       List of LcmsRun objects.
-    """
-    runs = []
-    for fname in mzml_files:
-        hdf5_file = fname.replace('.mzML', '.h5')
-        if os.path.exists(hdf5_file):
-            print('File already exists: %s' % hdf5_file)
-            continue
-        try:
-            from metatlas import LcmsRun, mzml_to_hdf
-            hdf_file = mzml_to_hdf(fname)
-            user = getpwuid(os.stat(fname).st_uid).pw_name
-            filename = os.path.splitext(os.path.basename(fname))[0]
-            dirname = os.path.dirname(fname)
-            experiment = os.path.basename(dirname)
-            description = experiment + ' ' + filename
-            ctime = os.stat(fname).st_ctime
-            run = LcmsRun(name=filename, description=description,
-                          created_by=user,
-                          modified_by=user,
-                          created=ctime, last_modified=ctime,
-                          mzml_file=fname, hdf5_file=hdf_file)
-            runs.append(run)
-        except Exception as e:
-            print(e)
-    store(runs)
-    return runs
+#     Returns
+#     -------
+#     runs: list
+#        List of LcmsRun objects.
+#     """
+#     runs = []
+#     for fname in mzml_files:
+#         hdf5_file = fname.replace('.mzML', '.h5')
+#         if os.path.exists(hdf5_file):
+#             print('File already exists: %s' % hdf5_file)
+#             continue
+#         try:
+#             from metatlas import LcmsRun, mzml_to_hdf
+#             hdf_file = mzml_to_hdf(fname)
+#             user = getpwuid(os.stat(fname).st_uid).pw_name
+#             filename = os.path.splitext(os.path.basename(fname))[0]
+#             dirname = os.path.dirname(fname)
+#             experiment = os.path.basename(dirname)
+#             description = experiment + ' ' + filename
+#             ctime = os.stat(fname).st_ctime
+#             run = LcmsRun(name=filename, description=description,
+#                           created_by=user,
+#                           modified_by=user,
+#                           created=ctime, last_modified=ctime,
+#                           mzml_file=fname, hdf5_file=hdf_file)
+#             runs.append(run)
+#         except Exception as e:
+#             print(e)
+#     store(runs)
+#     return runs
 
 
 @set_docstring

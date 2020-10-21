@@ -14,11 +14,11 @@ import traceback
 from datetime import datetime, time as dtime
 from subprocess import check_output
 
-from metatlas.metatlas_objects import LcmsRun, store, retrieve
-from metatlas.mzml_loader import mzml_to_hdf
+from metatlas.datastructures.metatlas_objects import LcmsRun, store, retrieve
+from metatlas.io.mzml_loader import mzml_to_hdf
 
-from metatlas.mzml_loader import VERSION_TIMESTAMP
-from metatlas.system_utils import send_mail
+from metatlas.io.mzml_loader import VERSION_TIMESTAMP
+from metatlas.io.system_utils import send_mail
 
 NPROC = 8
 

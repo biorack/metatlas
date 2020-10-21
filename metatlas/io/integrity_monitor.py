@@ -7,21 +7,21 @@ import sys
 import os
 import glob
 import pandas as pd
-import metatlas.metatlas_objects as metob
+import metatlas.metatlas_objects.metatlas_objects as metob
 import multiprocessing as mp
 import numpy as np
 
 from datetime import datetime, time as dtime
 from collections import defaultdict
-from metatlas.mzml_loader import VERSION_TIMESTAMP
+from metatlas.io.mzml_loader import VERSION_TIMESTAMP
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email import encoders
 from subprocess import check_output
-from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
-from metatlas.metatlas_objects import find_invalid_runs
-from metatlas.system_utils import send_mail
+from metatlas.io import metatlas_get_data_helper_fun as ma_data
+from metatlas.metatlas_objects.metatlas_objects import find_invalid_runs
+from metatlas.io.system_utils import send_mail
 
 
 # TO-DO: have these vars be defined from external YML (probably nersc.yml?)

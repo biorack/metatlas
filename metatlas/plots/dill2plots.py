@@ -6,11 +6,11 @@ import multiprocessing as mp
 #curr_ld_lib_path = ''
 
 
-from metatlas import metatlas_objects as metob
-from metatlas import h5_query as h5q
-from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
-from metatlas.helpers import spectralprocessing as sp
-from metatlas.helpers import chromplotplus as cpp
+from metatlas.datastructures import metatlas_objects as metob
+from metatlas.io import h5_query as h5q
+from metatlas.io import metatlas_get_data_helper_fun as ma_data
+from metatlas.tools import spectralprocessing as sp
+from metatlas.plots import chromplotplus as cpp
 # from metatlas import gui
 
 from textwrap import fill, TextWrapper
@@ -2933,45 +2933,45 @@ def check_file_names(df,field):
     return bad_files
 
 
-def get_formatted_atlas_from_google_sheet(polarity='POS',
-                                          method='QE_HILIC',
-                                          mz_tolerance=10):
-    import metatlas.ms_monitor_util as mmu
-    df2 = mmu.get_ms_monitor_reference_data()
-    #print df.head()
-    #df2 = pd.DataFrame(df[1:],columns=df[0])
+# def get_formatted_atlas_from_google_sheet(polarity='POS',
+#                                           method='QE_HILIC',
+#                                           mz_tolerance=10):
+#     import metatlas.ms_monitor_util as mmu
+#     df2 = mmu.get_ms_monitor_reference_data()
+#     #print df.head()
+#     #df2 = pd.DataFrame(df[1:],columns=df[0])
 
-    fields_to_keep = [ 'name',
-                    'label',
-                      'inchi_key',
-                    'mz_%s'%polarity,
-                    'rt_min_%s'%method,
-                    'rt_max_%s'%method,
-                    'rt_peak_%s'%method,
-                    'file_mz_%s_%s'%(method,polarity),
-                    'file_rt_%s_%s'%(method,polarity),
-                    'file_msms_%s_%s'%(method,polarity)]
+#     fields_to_keep = [ 'name',
+#                     'label',
+#                       'inchi_key',
+#                     'mz_%s'%polarity,
+#                     'rt_min_%s'%method,
+#                     'rt_max_%s'%method,
+#                     'rt_peak_%s'%method,
+#                     'file_mz_%s_%s'%(method,polarity),
+#                     'file_rt_%s_%s'%(method,polarity),
+#                     'file_msms_%s_%s'%(method,polarity)]
 
-    fields_there = []
-    for f in fields_to_keep:
-         if f in df2.keys():
-                fields_there.append(f)
+#     fields_there = []
+#     for f in fields_to_keep:
+#          if f in df2.keys():
+#                 fields_there.append(f)
 
-    df3 = df2.loc[:,fields_there]
+#     df3 = df2.loc[:,fields_there]
 
-    df3['mz_tolerance'] = mz_tolerance
+#     df3['mz_tolerance'] = mz_tolerance
 
-    if polarity == 'POS':
-        df3['polarity'] = 'positive'
-    else:
-        df3['polarity'] = 'negative'
+#     if polarity == 'POS':
+#         df3['polarity'] = 'positive'
+#     else:
+#         df3['polarity'] = 'negative'
 
-    renamed_columns = [c.replace('_%s'%method,'').replace('_%s'%polarity,'') for c in df3.columns]
-    for i,c in enumerate(df3.columns):
-        df3 = df3.rename(columns = {c:renamed_columns[i]})
-    df3 = df3[df3['mz'] != '']
+#     renamed_columns = [c.replace('_%s'%method,'').replace('_%s'%polarity,'') for c in df3.columns]
+#     for i,c in enumerate(df3.columns):
+#         df3 = df3.rename(columns = {c:renamed_columns[i]})
+#     df3 = df3[df3['mz'] != '']
 
-    return df3
+#     return df3
 
 
 def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
