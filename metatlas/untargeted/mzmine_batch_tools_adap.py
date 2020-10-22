@@ -9,9 +9,9 @@ import os
 from collections import defaultdict
 from xml.etree import cElementTree as ET
 
-import metatlas.metatlas_objects as metob
-from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
-from metatlas.helpers import dill2plots as dp
+from metatlas.datastructures import metatlas_objects as metob
+from metatlas.io import metatlas_get_data_helper_fun as ma_data
+from metatlas.plots import dill2plots as dp
 
 try:
     basestring

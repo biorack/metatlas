@@ -10,7 +10,7 @@ import warnings
 from textwrap import wrap
 #warnings.filterwarnings("ignore")
 
-from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
+from metatlas.io import metatlas_get_data_helper_fun as ma_data
 
 def plot_chromatogram(d,file_name, ax=None):
     """
