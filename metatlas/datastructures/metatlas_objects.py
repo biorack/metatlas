@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import getpass
 import uuid
 import time
@@ -12,6 +14,7 @@ from .object_helpers import (
     MetUnicode, MetFloat, MetInstance, MetInt, MetEnum, MetBool, HasTraits,
     Stub
 )
+from six.moves import zip
 
 #Making a new table means adding a new class to metatlas_objects.py.
 #Floats are set as single precision by default, unfortunately, so here is the best way to create a table containing floats:
@@ -221,7 +224,7 @@ class MetatlasObject(HasTraits):
                             break
             elif val != other:
                 msg.append((tname, str(other), str(val)))
-        print(tabulate(msg))
+        print((tabulate(msg)))
 
     def _on_update(self, name):
         """When the model changes, set the update fields.
@@ -702,4 +705,4 @@ if __name__ == '__main__':
     store(m1)
     m1.description = 'baz'
     store(m1)
-    print(retrieve('group', name='spam'))
+    print((retrieve('group', name='spam')))

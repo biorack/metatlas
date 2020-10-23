@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import os
 import numpy as np
 import pandas as pd
@@ -10,6 +12,8 @@ import time
 # set it as a string.  Bottom line: make it a string and ignore the error.
 # it prints to hdf5 just fine.
 import warnings
+from six.moves import range
+from six.moves import zip
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
 """
@@ -79,7 +83,7 @@ def setup_file_slicing_parameters(atlas,filenames,extra_time=0.1,ppm_tolerance=2
     for compound atlases, label isn't stritly necessary add it if not provided
     """
     if not 'label' in atlas.columns:
-        atlas['label'] = range(atlas.shape[0])
+        atlas['label'] = list(range(atlas.shape[0]))
     atlas['extra_time'] = extra_time
     atlas['ppm_tolerance'] = ppm_tolerance
 
@@ -198,7 +202,7 @@ def df_container_from_metatlas_file(filename,desired_key=None):
 
     pd_h5_file  = pd.HDFStore(filename)
         
-    keys = pd_h5_file.keys()
+    keys = list(pd_h5_file.keys())
     pd_h5_file.close()
     df_container = {}
     if desired_key is not None:
@@ -251,7 +255,7 @@ def group_duplicates(df,group_col,make_string=False,precision={'i':0,'mz':4,'rt'
     if make_string==True:
         for c in cols:
 #             df2[c] = df2[c].apply(lambda x: np.array2string(x, precision=5, separator=','))
-            if c in precision.keys():
+            if c in list(precision.keys()):
                 pre_str = '{:.%df}'%precision[c]
             else:
                 pre_str = '{:.4f}'

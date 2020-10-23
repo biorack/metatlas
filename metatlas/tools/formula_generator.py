@@ -1,4 +1,7 @@
+from __future__ import absolute_import
+from __future__ import print_function
 from copy import deepcopy
+from six.moves import range
 def get_formulae(mass,tol=5,charge=0,tol_type='ppm',max_tests=1e7,
 	min_h=0,max_h=200,
 	min_c=0,max_c=200,

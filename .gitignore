@@ -4,7 +4,7 @@ __pycache__/
 *.ipynb_checkpoints
 # C extensions
 *.so
-
+*.py.bak
 # temporary notebooks
 notebooks/workspace/
 

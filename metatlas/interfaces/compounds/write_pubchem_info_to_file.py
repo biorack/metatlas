@@ -4,6 +4,8 @@
 # In[1]:
 
 
+from __future__ import absolute_import
+from __future__ import print_function
 import os
 import pandas as pd
 import requests
@@ -20,7 +22,7 @@ df.rename(columns = {'monoisotopoic_mw':'monoisotopic_mw'},inplace=True)
 
 
 df = df.convert_objects(convert_numeric=True)
-df.keys()
+list(df.keys())
 
 inchi_keys = df[(~ pd.isnull(df.inchi_key))].inchi_key
 
@@ -39,7 +41,7 @@ for f in files:
     done_inchi_key.append(os.path.basename(f).split('.')[0])
 inchi_keys = list(set(inchi_keys) - set(done_inchi_key))
 
-print len(inchi_keys)
+print(len(inchi_keys))
 
 def write_pubchem_info_to_file(ik):
     suffix = '.json'
@@ -55,11 +57,11 @@ def write_pubchem_info_to_file(ik):
     url = 'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/inchikey/%s/json?record_type=3d'%ik
     response = requests.get(url)
     d = response.json()
-    if 'Fault' in d.keys():
+    if 'Fault' in list(d.keys()):
         url = 'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/inchikey/%s/json'%ik
         response = requests.get(url)
         d = response.json()
-    if not "Fault" in d.keys():
+    if not "Fault" in list(d.keys()):
         with open(fname, 'w') as fid:
             json.dump(d, fid)
 

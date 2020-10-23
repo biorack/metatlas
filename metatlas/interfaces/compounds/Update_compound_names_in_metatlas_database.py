@@ -1,4 +1,7 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
+from six.moves import range
 sys.path.insert(0,'/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages' )
 from metatlas import metatlas_objects as metob
 import pandas as pd
@@ -33,5 +36,5 @@ print('updating first compounds now')
 #data = pool.map(update_compound_table, list_of_updates[:4])
 for i in range(100):
     update_compound_table(list_of_updates[i])
-    print(time.time() - t0)
+    print((time.time() - t0))
 

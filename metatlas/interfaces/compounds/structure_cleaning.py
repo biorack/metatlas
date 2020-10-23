@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import sys
 sys.path.append('/global/project/projectdirs/openmsi/jupyterhub_libs/anaconda/lib/python2.7/site-packages')
 from rdkit import Chem

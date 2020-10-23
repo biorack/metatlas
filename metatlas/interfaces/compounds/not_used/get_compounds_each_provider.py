@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import sys,os
 import pandas as pd
 #import get_compounds_from_wikidata as wd
@@ -45,7 +47,7 @@ def get_wikidata(terms_to_keep):
     df.rename(columns={'InChI': 'inchi'}, inplace=True)
     df.rename(columns={'compoundLabel': 'common_name'}, inplace=True)
     df['source_database'] = 'wikidata'
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''
@@ -60,7 +62,7 @@ def get_img(terms_to_keep):
     df.rename(columns={'Secondary Metabolite (SM) Name': 'common_name'}, inplace=True)
     df['source_database'] = 'img'
     df['ROMol'] = ''
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''
@@ -73,7 +75,7 @@ def get_enzo(terms_to_keep):
     df.rename(columns={'Name': 'common_name'}, inplace=True)
     df['inchi'] = np.nan
     df['source_database'] = 'enzo'
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''
@@ -86,7 +88,7 @@ def get_msmls(terms_to_keep):
     df.rename(columns={'CNAME': 'common_name'}, inplace=True)
     df.rename(columns={'PC_CID': 'pubchem_compound_id'}, inplace=True)
     df['source_database'] = 'msmls'
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''
@@ -116,7 +118,7 @@ def get_metacyc(terms_to_keep):
     df.loc[:,'synonyms'] = [[ dequote(s) for s in mystr] for mystr in df['synonyms'].tolist() ]
 
     df['source_database'] = 'metacyc'
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''
@@ -130,7 +132,7 @@ def get_gnps(terms_to_keep):
     df['source_database'] = 'gnps'
 #     df.rename(columns={'name': 'name'}, inplace=True)
 #name has adduct "Hoiamide B M+H"
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''
@@ -140,7 +142,7 @@ def get_gnps(terms_to_keep):
 def get_dr_dukes():
     df = pd.read_csv('/project/projectdirs/openmsi/projects/compound_data/dr_dukes_phytochemicals/CHEMICALS.csv',delimiter=',')
     df['source_database'] = 'dr_dukes'
-    print df.keys()
+    print(list(df.keys()))
     return df
 
 def get_lipid_maps(terms_to_keep):
@@ -153,7 +155,7 @@ def get_lipid_maps(terms_to_keep):
 #     Decanohydroxamic acid; caprinohydroxamic acid; n-Decanohydroxamic acid
     df.loc[:,'synonyms'] = [[ s.strip() for s in mystr.split(';')] for mystr in df['synonyms'].astype(str).tolist() ]
     df.rename(columns={'ID': 'lipidmaps_id'}, inplace=True) 
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''
@@ -169,7 +171,7 @@ def get_hmdb(terms_to_keep):
 
 #     2-(8S,9S,13S,14S)-3-Hydroxy-2-methoxy-13-methyl-7,8,9,11,12,14,15,16-octahydro-6H-cyclopenta[a]phenanthren-17-one; 2-Hydroxyestrone 2-methyl ether; 2-Methoxy-17-oxoestra-1,3,5(10)-trien-3-ol; 2-Methoxy-3-hydroxyestra-1,3,5(10)-trien-17-one; 3-Hydroxy-2-methoxy-Estra-1,3,5(10)-trien-17-one; 3-Hydroxy-2-methoxyestra-1,3,5(10)-trien-17-one; Methoxy-Estrone	
     df.rename(columns={'HMDB_ID': 'hmdb_id'}, inplace=True)
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''
@@ -180,7 +182,7 @@ def get_chembl(terms_to_keep):
     sdf_file = '/project/projectdirs/openmsi/projects/compound_data/chembl/chembl_21.sdf.gz'
     df = PandasTools.LoadSDF(sdf_file)
     df['source_database'] = 'chembl'
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''
@@ -203,7 +205,7 @@ def get_chebi(terms_to_keep):
 
     # (-)-Epicatechin\n(-)-Epicatechol\n(2R,3R)-(-)-Epicatechin\n(2R,3R)-2-(3,4-dihydroxyphenyl)-3,4-dihydro-2H-1-benzopyran-3,5,7-triol\n3,3',4',5,7-Pentahydroxyflavane\nEpicatechol\nEpigallocatechin\nL(-)-Epicatechin\nL-Acacatechin\nL-Epicatechin\nL-Epicatechol\nalpha-Catechin
     df.rename(columns={'ChEBI ID': 'chebi_id'}, inplace=True)
-    k = df.keys()
+    k = list(df.keys())
     for t in terms_to_keep:
         if not t in k:
             df[t] = ''

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -5,6 +6,8 @@ from matplotlib import collections as mc
 import numpy as np
 from scipy.interpolate import interp1d
 from textwrap import wrap
+from six.moves import range
+from six.moves import zip
 
 def chromplotplus(kwargs):
     ChromPlotPlus(**kwargs)

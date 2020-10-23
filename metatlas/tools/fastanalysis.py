@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
 import os
 import multiprocessing as mp
@@ -11,6 +13,7 @@ from metatlas.tools import spectralprocessing as sp
 
 import numpy as np
 import pandas as pd
+from six.moves import range
 
 loose_param = {'min_intensity': 1e3,
                'rt_tolerance': .25,
@@ -562,7 +565,7 @@ def filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset,
     try:
         assert(column in scores_df)
     except AssertionError:
-        print 'Error: ' + column + ' not in scores_df. Either set column where pass/fail boolean values are or run test_scores_df().'
+        print('Error: ' + column + ' not in scores_df. Either set column where pass/fail boolean values are or run test_scores_df().')
         raise
     try:
         assert(scores_df.inchi_key.tolist()
@@ -570,7 +573,7 @@ def filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset,
                == [metatlas_dataset[0][i]['identification'].compound[0].inchi_key if len(metatlas_dataset[0][i]['identification'].compound) > 0 else ''
                                    for i in range(len(metatlas_dataset[0]))])
     except AssertionError:
-        print 'Error: scores_df, atlas_df, and metatlas_dataset must have the same compounds in the same order.'
+        print('Error: scores_df, atlas_df, and metatlas_dataset must have the same compounds in the same order.')
         raise
 
     pass_atlas_df = atlas_df[scores_df[column]]
@@ -636,18 +639,18 @@ def filter_and_output(atlas_df, metatlas_dataset, output_dir,
                 'min_num_frag_matches=' + str(min_num_frag_matches) + '\n' +
                 'min_relative_frag_intensity=' + str(min_relative_frag_intensity))
 
-    print 'making scores_df'
+    print('making scores_df')
     # scores compounds in metatlas dataset
     scores_df = make_scores_df(metatlas_dataset)
 
-    print 'testing and making compound_scores.csv'
+    print('testing and making compound_scores.csv')
     # scores dataframe
     scores_df['passing'] = test_scores_df(scores_df,
                                           min_intensity, rt_tolerance, mz_tolerance,
                                           min_msms_score, allow_no_msms, min_num_frag_matches, min_relative_frag_intensity)
     scores_df.to_csv(os.path.join(output_dir, 'stats_tables', 'compound_scores.csv'))
 
-    print 'filtering atlas and dataset'
+    print('filtering atlas and dataset')
     # filter dataset by scores
     pass_atlas_df, fail_atlas_df, pass_dataset, fail_dataset = filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset)
 
@@ -672,10 +675,10 @@ def filter_and_output(atlas_df, metatlas_dataset, output_dir,
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        print 'saving atlas'
+        print('saving atlas')
         atlas_df.to_csv(os.path.join(output_dir, 'filtered_atlas_export.csv'))
 
-        print 'making info tables'
+        print('making info tables')
         peak_height = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='peak_height' , output_loc=os.path.join(output_dir,'sheets'))
         peak_area = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='peak_area' , output_loc=os.path.join(output_dir,'sheets'))
         mz_peak = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='mz_peak' , output_loc=os.path.join(output_dir,'sheets'))
@@ -683,16 +686,16 @@ def filter_and_output(atlas_df, metatlas_dataset, output_dir,
         mz_centroid = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='mz_centroid' , output_loc=os.path.join(output_dir,'sheets'))
         rt_centroid = dp.make_output_dataframe(input_fname = '',input_dataset = filtered_dataset,include_lcmsruns = [],exclude_lcmsruns = [], fieldname='rt_peak' , output_loc=os.path.join(output_dir,'sheets'))
 
-        print 'making error bars'
+        print('making error bars')
         #Error bars
         peak_height = dp.make_output_dataframe(input_fname='', input_dataset=filtered_dataset, include_lcmsruns=[], exclude_lcmsruns=[], fieldname='peak_height')
         dp.plot_errorbar_plots(peak_height, output_loc=os.path.join(output_dir, 'error_bar_peak_height'))
 
-        print 'making identification figures'
+        print('making identification figures')
         #Identification figures
         dp.make_identification_figure_v2(input_dataset=filtered_dataset, include_lcmsruns = [],exclude_lcmsruns=[], output_loc=os.path.join(output_dir, 'identification'))
 
-        print 'making chromatograms'
+        print('making chromatograms')
         # Chromatograms
         group = 'sort'  # 'page' or 'index' or 'sort' or None
         save = True
@@ -724,5 +727,5 @@ def filter_and_output(atlas_df, metatlas_dataset, output_dir,
         pool.close()
         pool.terminate()
 
-    print 'done'
+    print('done')
     return pass_atlas_df, fail_atlas_df, pass_dataset, fail_dataset

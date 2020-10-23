@@ -1,4 +1,6 @@
 # import argparse
+from __future__ import absolute_import
+from __future__ import print_function
 import smtplib
 import mimetypes
 import itertools
@@ -22,6 +24,8 @@ from subprocess import check_output
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.metatlas_objects.metatlas_objects import find_invalid_runs
 from metatlas.io.system_utils import send_mail
+from six.moves import range
+from six.moves import zip
 
 
 # TO-DO: have these vars be defined from external YML (probably nersc.yml?)
@@ -192,14 +196,14 @@ def process_files(files):
     samples = []
     if files:
         try:
-            print 'found %d files' % len(files)
+            print('found %d files' % len(files))
             p = mp.Pool(min(32, len(files)))
             samples = p.map(data_verify, files)
         finally:
             p.close()
             p.join()
 
-            print 'done processing files'
+            print('done processing files')
         return samples
     return -1
 
@@ -224,7 +228,7 @@ def clean_up(samples, files):
     csv_name = save_path + '%s_run.csv' % path
     df.to_csv(csv_name, index=False)
 
-    print 'begin clean up'
+    print('begin clean up')
     # abridged report
     df = df.sort_values('file name')
     sorted_cols = ['file name', 'acquisition time', 'ms1 ppm weighted mean',
@@ -244,7 +248,7 @@ def clean_up(samples, files):
     data_filter = df['file name'].str.contains('Blank')
     df_blanks = df[data_filter]
     df_non_blanks = df[~data_filter]
-    print 'done clean up'
+    print('done clean up')
     return [csv_name, (df_non_blanks, df_blanks)]
 
 
@@ -298,7 +302,7 @@ def send_run_email(username, run_file, tables, standard=std_name):
     text = MIMEText(template, 'plain')
     msg.attach(text)
 
-    for title, table in itertools.izip(run_file, tables):
+    for title, table in zip(run_file, tables):
         s = title.replace('run_data/', '').replace('_run.csv', '\n')
         num_files = len(table[0]) + len(table[1])
         txt = '<h2 style="border-top: solid; padding-top: 10px;">Run Report for %s:</h2>' % s
@@ -356,7 +360,7 @@ def run_checker():
     #     std = args.mz_pos
     #     std_neg = args.mz_neg
 
-    print 'starting task'
+    print('starting task')
     start_time = time.time()
     origin_directory = '/project/projectdirs/metatlas/raw_data/'
     # pull users, email them their run info
@@ -374,14 +378,14 @@ def run_checker():
         directory = s[-2]
         files[usr].add(directory)
 
-    print 'detected a total of %d file(s)!\n' % len(valid_files)
+    print('detected a total of %d file(s)!\n' % len(valid_files))
 
     for username in files.keys():
-        print 'observing files from', username
+        print('observing files from', username)
         csvs = []
         html_tables = []
         for directory in files[username]:
-            print 'looking at', directory
+            print('looking at', directory)
             extension = '%s/%s/' % (username, directory)
             # list of all files in a given directory
             dir_files = glob.glob(os.path.join(origin_directory +
@@ -393,11 +397,11 @@ def run_checker():
             info = clean_up(samples, dir_files)
             csvs.append(info[0])
             html_tables.append((info[1][0], info[1][1]))
-        print 'attempting to send email'
+        print('attempting to send email')
         send_run_email(username, csvs, html_tables)
-        print '\n'  # for formatting purposes
+        print('\n')  # for formatting purposes
 
-    print 'finished task in %s seconds' % (time.time() - start_time)
+    print('finished task in %s seconds' % (time.time() - start_time))
 
 # Integrity monitor does two major things:
 # - Checks the database for invalid files and warns the user.

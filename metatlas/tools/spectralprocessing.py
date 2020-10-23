@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import sys
 import re
 from copy import deepcopy
@@ -5,9 +6,17 @@ from collections import Counter
 import os
 import pickle
 import numpy as np
-import numpy.fft.fftpack as F
+try:
+    from numpy.fft.fftpack import fft,ifft
+except:
+    from numpy.fft import fft,ifft
+
+
+
 import pandas as pd
 from matplotlib import pyplot as plt
+from six.moves import range
+from six.moves import zip
 
 # mass differences ranked by commonality in biochemical databases
 mass_differences = pd.DataFrame([{"formula":"Same","mass":0.0,"rank":0},{"formula":"+O","mass":15.99491500,"rank":1.00000000},{"formula":"+H 2","mass":2.01565000,"rank":2.00000000},{"formula":"+H 2+O","mass":18.01056500,"rank":3.00000000},{"formula":"+H 2+C","mass":14.01565000,"rank":4.00000000},{"formula":"+H 2+C+O","mass":30.01056500,"rank":5.00000000},{"formula":"+H 8+C 5","mass":68.06260000,"rank":6.00000000},{"formula":"+O-H 2","mass":13.97926500,"rank":7.00000000},{"formula":"+H12+C 9-O 6","mass":24.12441000,"rank":8.00000000},{"formula":"+C","mass":12.00000000,"rank":9.00000000},{"formula":"+H10+C 6+O 5","mass":162.05282500,"rank":10.00000000},{"formula":"+C+O","mass":27.99491500,"rank":11.00000000},{"formula":"+O-H 3","mass":12.97144000,"rank":12.00000000},{"formula":"+O-H 2-C","mass":1.97926500,"rank":13.00000000},{"formula":"+O-H","mass":14.98709000,"rank":14.00000000},{"formula":"+O 2","mass":31.98983000,"rank":15.00000000},{"formula":"+H 4+C 2","mass":28.03130000,"rank":16.00000000},{"formula":"+H 8+C 5-O","mass":52.06768500,"rank":17.00000000},{"formula":"+H 4","mass":4.03130000,"rank":18.00000000},{"formula":"+O 2-H 3","mass":28.96635500,"rank":19.00000000},{"formula":"+O 3+P-H","mass":77.95068300,"rank":20.00000000},{"formula":"+H 6+C 5-O","mass":50.05203500,"rank":21.00000000},{"formula":"+H 2+C 2","mass":26.01565000,"rank":22.00000000},{"formula":"+C+O 2-H","mass":42.98200500,"rank":23.00000000},{"formula":"+H 4+C","mass":16.03130000,"rank":24.00000000},{"formula":"+H 2+C 2+O","mass":42.01056500,"rank":25.00000000},{"formula":"+O 2-H","mass":30.98200500,"rank":26.00000000},{"formula":"+H12+C 9-O 5","mass":40.11932500,"rank":27.00000000},{"formula":"+H 4+C 2+O","mass":44.02621500,"rank":28.00000000},{"formula":"+O-C","mass":3.99491500,"rank":29.00000000},{"formula":"+H 4+C 2-O","mass":12.03638500,"rank":30.00000000},{"formula":"+H26+C15+O","mass":222.19836500,"rank":31.00000000},{"formula":"+C 2","mass":24.00000000,"rank":32.00000000},{"formula":"+O 9+P-H13-C 9","mass":53.82627300,"rank":33.00000000},{"formula":"+O 2-H 2","mass":29.97418000,"rank":34.00000000},{"formula":"+H 4+C+O","mass":32.02621500,"rank":35.00000000},{"formula":"+O11-H 2-C 3","mass":137.92841500,"rank":36.00000000},{"formula":"+H","mass":1.00782500,"rank":37.00000000},{"formula":"+O-H 4","mass":11.96361500,"rank":38.00000000},{"formula":"+H 2+C+O 2","mass":46.00548000,"rank":39.00000000},{"formula":"+H16+C10","mass":136.12520000,"rank":40.00000000},{"formula":"+H 4+O","mass":20.02621500,"rank":41.00000000},{"formula":"+H14+C10-O 5","mass":54.13497500,"rank":42.00000000},{"formula":"+C+O-H","mass":26.98709000,"rank":43.00000000},{"formula":"+C-H 2","mass":9.98435000,"rank":44.00000000},{"formula":"+O 5-H 4-C 4","mass":27.94327500,"rank":45.00000000},{"formula":"+H 2+C 2-O","mass":10.02073500,"rank":46.00000000},{"formula":"+H+O","mass":17.00274000,"rank":47.00000000},{"formula":"+H 8+C 5+O","mass":84.05751500,"rank":48.00000000},{"formula":"+H 3","mass":3.02347500,"rank":49.00000000},{"formula":"+H 2+O 2","mass":34.00548000,"rank":50.00000000}])
@@ -72,7 +81,7 @@ def make_edges(mz_vec,label_vec,delta_mass,tolerance=5,edge_label=''):
     e = (mz_vec[:,np.newaxis] + mz_vec) * tolerance / 2. / 1000000.
     idx = np.argwhere(m<e)
     idx = idx[idx[:,0]<idx[:,1],:] #keep lower left triangle
-    zipped_lists = zip(label_vec[idx[:,0]],label_vec[idx[:,1]])
+    zipped_lists = list(zip(label_vec[idx[:,0]],label_vec[idx[:,1]]))
     edge_list = [{'source' : v1, 'target' : v2, 'edge':edge_label} for v1,v2 in zipped_lists]
     for item in edge_list:
         item.update({'weight':1.0/float(len(e))})
@@ -198,10 +207,10 @@ def filter_frag_refs(metatlas_dataset, frag_refs, compound_idx, file_idx,
     :return: pandas dataframe, subset of frag_refs meeting condition
     """
 
-    if 'data' in metatlas_dataset[file_idx][compound_idx]['data']['msms'].keys() and \
+    if 'data' in list(metatlas_dataset[file_idx][compound_idx]['data']['msms'].keys()) and \
                  metatlas_dataset[file_idx][compound_idx]['data']['msms']['data']['mz'].size > 0:
 
-        condition_list = list(filter(None, re.split(r"(\w+|[()])", condition)))
+        condition_list = list([_f for _f in re.split(r"(\w+|[()])", condition) if _f])
 
         for i in range(len(condition_list)):
             # Identifiers
@@ -385,7 +394,7 @@ def find_all_ms_matches(msv_1, msv_2, mz_tolerance):
     end_idxs = len(msv_2[0]) - np.searchsorted(-msv_2[0][::-1], -(msv_1[0] + mz_tolerance))
 
     #if the start and end idx is the same, the peak is too far away in mass from the data and will be empty
-    matches = [range(start, end) for start, end in zip(start_idxs, end_idxs)]
+    matches = [list(range(start, end)) for start, end in zip(start_idxs, end_idxs)]
 
     #flattening the list
     unique_matches = np.unique(np.concatenate(matches))
@@ -1288,13 +1297,13 @@ def parse_formula(formula, elements=[]):
         element_count[e] += c
 
     if not elements:
-        elements = element_count.keys()
+        elements = list(element_count.keys())
 
-    return zip(*[(e, element_count[e]) for e in elements])
+    return list(zip(*[(e, element_count[e]) for e in elements]))
 
 
 def make_isotope_matrix(elements,
-                        isotope_dict=pickle.load(open(os.path.join(os.path.dirname(__file__), 'isotope_dict.pkl'), 'rb')),
+                        isotope_file=os.path.join(os.path.dirname(__file__), 'isotope_dict.json'),
                         scale_factor=100000):
     """
     Takes list of elements, and optional isotope dictionary and scaling factor.
@@ -1308,6 +1317,11 @@ def make_isotope_matrix(elements,
     :return isotope_matrix: numpy 3d matrix of shape (max_elements, max_isotopes, 2),
     :return mass_removed_vec: list of ints,
     """
+    
+    import json
+
+    with open(isotope_file) as json_file:
+        isotope_dict = json.load(json_file)
 
     max_elements = len(elements) + 1
     max_isotopes = 0
@@ -1332,7 +1346,7 @@ def make_isotope_matrix(elements,
 
 
 def add_synthetic_element(synthetic,
-                          isotope_dict=pickle.load(open(os.path.join(os.path.dirname(__file__), 'isotope_dict.pkl'), 'rb'))):
+                          isotope_file=os.path.join(os.path.dirname(__file__), 'isotope_dict.json')):
     """
     Takes a dictionary with synthetic element labels (like 'D' for deuterium or 'H' if you wish to override H) as keys
     and tuples as values, and optional isotope dictionary. Tuple[1] is a list of floats which sum to 1 and override the
@@ -1347,6 +1361,12 @@ def add_synthetic_element(synthetic,
 
     :return new_isotope_dict: dictionary with elements as keys and isotope information as values,
     """
+    
+    import json
+
+    with open(isotope_file) as json_file:
+        isotope_dict = json.load(json_file)
+        
     # Make a deep copy of isotope_dict to modify
     new_isotope_dict = deepcopy(isotope_dict)
 
@@ -1440,30 +1460,30 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
 
     ptA = np.ones(window_size)
 
-    for i in xrange(max_elements):
-        for j in xrange(max_isotopes):
+    for i in range(max_elements):
+        for j in range(max_isotopes):
             if isotope_matrix[i, j, 0] != 0:
                 itA = np.zeros(window_size)
                 idx = np.round(isotope_matrix[i, j, 0] * R).astype(int)
 
                 itA[idx] = isotope_matrix[i, j, 1]
-                itAs[i, j] = F.fft(itA)
+                itAs[i, j] = fft(itA)
 
                 tAs[i] += itAs[i, j]
 
-    for i in xrange(max_elements):
+    for i in range(max_elements):
         ptA = ptA * (tAs[i] ** M[i])
 
     fft_ptA = ptA.copy()
-    ptA = F.ifft(ptA).real
+    ptA = ifft(ptA).real
 
     cutoff_idx = np.where(ptA > cutoff)[0]
 
     contributions = np.zeros((max_elements - 1, max_isotopes, cutoff_idx.size), dtype=int)
 
-    for i in xrange(max_elements - 1):
-        for j in xrange(max_isotopes):
-            c = ~np.isclose(ptA[cutoff_idx], F.ifft((fft_ptA / (tAs[i])) * ((tAs[i] - itAs[i, j]))).real[cutoff_idx])
-            contributions[i, j, c] = np.round((F.ifft((fft_ptA / (tAs[i])) * (itAs[i, j])).real[cutoff_idx][c] / ptA[cutoff_idx][c]) * element_vector[i])
+    for i in range(max_elements - 1):
+        for j in range(max_isotopes):
+            c = ~np.isclose(ptA[cutoff_idx], ifft((fft_ptA / (tAs[i])) * ((tAs[i] - itAs[i, j]))).real[cutoff_idx])
+            contributions[i, j, c] = np.round((ifft((fft_ptA / (tAs[i])) * (itAs[i, j])).real[cutoff_idx][c] / ptA[cutoff_idx][c]) * element_vector[i])
 
     return np.array([MA[cutoff_idx], ptA[cutoff_idx]]), contributions

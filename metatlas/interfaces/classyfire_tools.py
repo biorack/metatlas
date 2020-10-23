@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import json
 import requests
 import os
@@ -83,7 +85,7 @@ def make_new_classyfire_entries(not_found):
             
 def make_classyfire_table(classyfire_path='/global/projectb/sandbox/metatlas/projects/classyfire_annotations/',
                           output_filename='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',
-                         compression=True
+                         compression=True,
                          iks=None):
     files = glob.glob(os.path.join(classyfire_path,'*.json'))
     if iks is None:
@@ -111,7 +113,7 @@ def make_classyfire_network(classyfire_obo_filename='ChemOnt_2_1.obo',
     chemont = [c.strip() for c in chemont]
     chemont.pop(0) #remove header
 
-    print('There are %d entries'%len(chemont))
+    print(('There are %d entries'%len(chemont)))
 
     # make an empty dict that has all possible chemont terms
     attributes = {}

@@ -1,4 +1,5 @@
 from __future__ import print_function
+from __future__ import absolute_import
 import numpy as np
 import sys
 import json
@@ -12,11 +13,13 @@ from xml.etree import cElementTree as ET
 import metatlas.metatlas_objects as metob
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas.helpers import dill2plots as dp
+import six
+from six.moves import map
 
 try:
-    basestring
+    six.string_types
 except NameError:  # python3
-    basestring = str
+    six.string_types = str
 
 BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
 BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
@@ -616,16 +619,16 @@ def dict_to_etree(d):
     def _to_etree(d, root):
         if not d:
             pass
-        elif isinstance(d, basestring):
+        elif isinstance(d, six.string_types):
             root.text = d
         elif isinstance(d, dict):
             for k,v in d.items():
-                assert isinstance(k, basestring)
+                assert isinstance(k, six.string_types)
                 if k.startswith('#'):
-                    assert k == '#text' and isinstance(v, basestring)
+                    assert k == '#text' and isinstance(v, six.string_types)
                     root.text = v
                 elif k.startswith('@'):
-                    assert isinstance(v, basestring)
+                    assert isinstance(v, six.string_types)
                     root.set(k[1:], v)
                 elif isinstance(v, list):
                     for e in v:
@@ -668,11 +671,11 @@ def etree_to_dict(t):
     if children:
         dd = defaultdict(list)
         for dc in map(etree_to_dict, children):
-            for k, v in dc.iteritems():
+            for k, v in six.iteritems(dc):
                 dd[k].append(v)
-        d = {t.tag: {k:v[0] if len(v) == 1 else v for k, v in dd.iteritems()}}
+        d = {t.tag: {k:v[0] if len(v) == 1 else v for k, v in six.iteritems(dd)}}
     if t.attrib:
-        d[t.tag].update(('@' + k, v) for k, v in t.attrib.iteritems())
+        d[t.tag].update(('@' + k, v) for k, v in six.iteritems(t.attrib))
     if t.text:
         text = t.text.strip()
         if children or t.attrib:

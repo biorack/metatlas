@@ -1,4 +1,5 @@
 
+from __future__ import absolute_import
 from metatlas import metatlas_objects as mo
 from metatlas.mzml_loader import get_test_data
 import getpass
@@ -105,7 +106,7 @@ def test_escape_glob():
 
 
 def test_load_lcms_files():
-    paths = get_test_data().values()
+    paths = list(get_test_data().values())
     runs = mo.load_lcms_files(paths)
     for run in runs:
         assert run.mzml_file

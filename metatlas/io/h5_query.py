@@ -3,6 +3,7 @@ Module used to define H5 queries.
 """
 from __future__ import print_function
 
+from __future__ import absolute_import
 import tables
 import numpy as np
 

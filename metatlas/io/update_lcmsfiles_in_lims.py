@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
 import os
 import argparse
@@ -123,7 +125,7 @@ def get_table_from_lims(table,columns=None,labkey_server='metatlas-dev.nersc.gov
     schema = 'lists'
     sql_result = lk.query.execute_sql(con, schema, sql,max_rows=1e6)
     if sql_result is None:
-        print('execute_sql: Failed to load results from ' + schema + '.' + table)
+        print(('execute_sql: Failed to load results from ' + schema + '.' + table))
         return None
     else:
         df = pd.DataFrame(sql_result['rows'])
@@ -158,7 +160,7 @@ def update_table_in_lims(df,table,method='update',labkey_server='metatlas-dev.ne
         elif method=='delete':
             lk.query.delete_rows(con, 'lists', table, payload,timeout=10000)
         else:
-            print('ERROR: Nothing to do.  Method %s is not programmed'%method)
+            print(('ERROR: Nothing to do.  Method %s is not programmed'%method))
         print('updated')
 
 def get_union_of_all_lcms_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file'],
@@ -172,7 +174,7 @@ def get_union_of_all_lcms_names(tables=['mzml_file','hdf5_file','pactolus_file',
     schema = 'lists'
     sql_result = lk.query.execute_sql(con, schema, sql,max_rows=1e6)
     if sql_result is None:
-        print('execute_sql: Failed to load results from ' + schema + '.' + table)
+        print(('execute_sql: Failed to load results from ' + schema + '.' + table))
     else:
         return [r['name'] for r in sql_result['rows']]
 
@@ -205,7 +207,7 @@ def update_lcmsrun_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_fi
         schema = 'lists'
         sql_result = lk.query.execute_sql(con, schema, sql,max_rows=1e6)
         if sql_result is None:
-            print('execute_sql: Failed to load results from ' + schema + '.' + table)
+            print(('execute_sql: Failed to load results from ' + schema + '.' + table))
         #     return None
         else:
             temp = pd.DataFrame(sql_result['rows'])
@@ -227,7 +229,7 @@ def update_lcmsrun_matrix(file_type):
     df.rename(columns={'Key_x':'Key','Key_y':file_type},inplace=True)
     df = df[abs(df['%s_existing'%file_type]-df[file_type])>0]
     df.drop(columns=['name','%s_existing'%file_type],inplace=True)
-    print(df.shape)
+    print((df.shape))
 
     if df.shape[0]>0:
         update_table_in_lims(df,'lcmsrun',method='update')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
@@ -244,7 +246,7 @@ def get_lcmsrun_matrix(labkey_server='metatlas-dev.nersc.gov',project_name='/LIM
     schema = 'lists'
     sql_result = lk.query.execute_sql(con, schema, sql,max_rows=1e8)
     if sql_result is None:
-        print('execute_sql: Failed to load results from ' + schema + '.' + table)
+        print(('execute_sql: Failed to load results from ' + schema + '.' + table))
         return None
     else:
         lcmsruns = pd.DataFrame(sql_result['rows'])
@@ -280,14 +282,14 @@ def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None,l
     done_tasks_idx = (task_idx) & (outputfile_idx)
     if sum(done_tasks_idx)>0:
         update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete',labkey_server=labkey_server,project_name=project_name)
-        print('%s: There are %d tasks where output file exist and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0]))
+        print(('%s: There are %d tasks where output file exist and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
     
     
     # This finds where input file is missing
     done_tasks_idx = (task_idx) & (~inputfile_idx)
     if sum(done_tasks_idx)>0:
         update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete',labkey_server=labkey_server,project_name=project_name)
-        print('%s: There are %d tasks where input file is missing and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0]))
+        print(('%s: There are %d tasks where input file is missing and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
 
     right_now_str = datetime.now().strftime("%Y%m%d %H:%M:%S")
 
@@ -308,7 +310,7 @@ def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None,l
     new_tasks = new_tasks[cols]
     new_tasks.reset_index(drop=True,inplace=True)
 
-    print("There are %d new tasks"%new_tasks.shape[0])
+    print(("There are %d new tasks"%new_tasks.shape[0]))
 
     if new_tasks.shape[0]>0:
         update_table_in_lims(new_tasks,'file_conversion_task',method='insert')
@@ -316,20 +318,20 @@ def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None,l
 def update_file_table(file_table):
     file_type = file_table.split('_')[0]
     v = GETTER_SPEC[file_type]
-    print('Getting %s files from disk'%(file_type))
+    print(('Getting %s files from disk'%(file_type)))
     dates,files = get_files_from_disk(PROJECT_DIRECTORY,v['extension'])
     df = pd.DataFrame(data={'filename':files,'file_type':file_type,'timeepoch':dates})
     df['basename'] = df['filename'].apply(os.path.basename)
     df['name'] = df['filename'].apply(complex_name_splitter) #make a name for grouping associated content
-    print('\tThere were %d files on disk'%len(files))
+    print(('\tThere were %d files on disk'%len(files)))
 
     cols = ['filename','name','Key']
     df_lims = get_table_from_lims(v['lims_table'],columns=cols)
-    print('\tThere were %d files from LIMS table %s'%(df_lims.shape[0],v['lims_table']))
+    print(('\tThere were %d files from LIMS table %s'%(df_lims.shape[0],v['lims_table'])))
 
     diff_df = pd.merge(df, df_lims,on=['filename','name'], how='outer', indicator='Exist')
     diff_df = diff_df.loc[diff_df['Exist'] != 'both'] #(left_only, right_only, or both)
-    print('\tThere are %d different'%diff_df.shape[0])
+    print(('\tThere are %d different'%diff_df.shape[0]))
     print('')
 #         diff_df.fillna('',inplace=True)
     diff_df['parameters'] = 1

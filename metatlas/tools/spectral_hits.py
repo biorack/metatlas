@@ -1,16 +1,18 @@
 #!/global/common/software/m2650/python-cori/bin/python
 
+from __future__ import absolute_import
 import sys
 import os
 import argparse
-import ConfigParser
+import six.moves.configparser
 
 import mzml_loader as ml
-import spectralprocessing as sp
+from . import spectralprocessing as sp
 
 import pandas as pd
 import numpy as np
 from scipy.stats import rankdata
+from six.moves import zip
 
 
 def make_nistified(msv):
@@ -76,8 +78,8 @@ def find_spectral_hits(mzml_loc, tab_loc=None, force=False, nistify=False, **kwa
 
     data_df = mzml_df[['rt', 'polarity', 'precursor_mz', 'precursor_intensity', 'collision_energy']].drop_duplicates()
 
-    data_df['spectrum'] = map(lambda s: np.array(list(s)), zip(mzml_rt_group['mz'].apply(list),
-                                                               mzml_rt_group['i'].apply(list)))
+    data_df['spectrum'] = [np.array(list(s)) for s in zip(mzml_rt_group['mz'].apply(list),
+                                                               mzml_rt_group['i'].apply(list))]
 
 
     data_df.set_index(['rt'], inplace=True)
@@ -193,7 +195,7 @@ def arg_parser():
     return parser
 
 def main():
-    config = ConfigParser.SafeConfigParser()
+    config = six.moves.configparser.SafeConfigParser()
     config.read(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                              'spectral_hits.config'))
     kwargs = dict(config.items('DEFAULT'))

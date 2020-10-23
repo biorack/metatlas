@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
 import os
 import os.path
@@ -25,9 +27,9 @@ import re
 import json
 import matplotlib.pyplot as plt
 
-from rdkit import Chem
-from rdkit.Chem import Descriptors, rdMolDescriptors, AllChem, Draw, rdDepictor
-from rdkit.Chem.Draw import rdMolDraw2D, IPythonConsole
+# from rdkit import Chem
+# from rdkit.Chem import Descriptors, rdMolDescriptors, AllChem, Draw, rdDepictor
+# from rdkit.Chem.Draw import rdMolDraw2D, IPythonConsole
 from itertools import cycle
 from collections import defaultdict
 from IPython.display import SVG,display,clear_output
@@ -50,6 +52,10 @@ import gspread
 from oauth2client.client import SignedJwtAssertionCredentials
 
 import sys
+import six
+from six.moves import range
+from six.moves import zip
+from functools import reduce
 if sys.version_info[0] < 3:
     from StringIO import StringIO
 else:
@@ -351,7 +357,7 @@ class VertSlider(AxesWidget):
         self.val = val
         if not self.eventson:
             return
-        for cid, func in self.observers.iteritems():
+        for cid, func in six.iteritems(self.observers):
             func(val)
 
     def on_changed(self, func):
@@ -459,7 +465,7 @@ class adjust_rt_for_selected_compound(object):
         # warn the user if they do not own the atlas; and can not edit its values
         self.enable_edit = True
         self.atlas = metob.retrieve('Atlas',unique_id = self.data[0][0]['atlas_unique_id'],username='*')[-1]
-        print("loaded file for username = ", self.atlas.username)
+        print(("loaded file for username = ", self.atlas.username))
         if getpass.getuser() != self.atlas.username:
             self.ax.set_title("YOUR ARE %s YOU ARE NOT ALLOWED TO EDIT VALUES THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"%getpass.getuser())
             self.enable_edit = False
@@ -852,7 +858,7 @@ class adjust_mz_for_selected_compound(object):
         # warn the user if they do not own the atlas; and can not edit its values
         self.enable_edit = True
         self.atlas = metob.retrieve('Atlas',unique_id = self.data[0][0]['atlas_unique_id'],username='*')[-1]
-        print("loaded file for username = ", self.atlas.username)
+        print(("loaded file for username = ", self.atlas.username))
         if getpass.getuser() != self.atlas.username:
             self.ax.set_title("YOUR ARE %s YOU ARE NOT ALLOWED TO EDIT VALUES THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"%getpass.getuser())
             self.enable_edit = False
@@ -902,7 +908,7 @@ class adjust_mz_for_selected_compound(object):
 
         min_x = self.ax.get_xlim()[0]
         max_x = self.ax.get_xlim()[1]
-        print(min_x,max_x)
+        print((min_x,max_x))
 
         self.mz_peak_ax = plt.axes([0.09, 0.05, 0.81, 0.03], axisbg=self.slider_color)
         self.mz_max_ax = plt.axes([0.09, 0.1, 0.81, 0.03], axisbg=self.slider_color)
@@ -1003,10 +1009,10 @@ def show_compound_grid(input_fname = '',input_dataset=[]):
     else:
         data = input_dataset
     atlas_in_data = metob.retrieve('Atlas',unique_id = data[0][0]['atlas_unique_id'],username='*')
-    print("loaded file for username = ", atlas_in_data[0].username)
+    print(("loaded file for username = ", atlas_in_data[0].username))
     username = getpass.getuser()
     if username != atlas_in_data[0].username:
-        print("YOUR ARE", username, "YOU ARE NOT ALLOWED TO EDIT VALUES THE RT CORRECTOR. USERNAMES ARE NOT THE SAME")
+        print(("YOUR ARE", username, "YOU ARE NOT ALLOWED TO EDIT VALUES THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"))
         #return
     compound_df = make_compound_id_df(data)
     #compound_grid = gui.create_qgrid([])
@@ -1144,7 +1150,7 @@ def plot_all_compounds_for_each_file(input_dataset = [], input_fname = '', inclu
             if len(d['data']['eic']['rt']) > 0:
                 x = d['data']['eic']['rt']
                 y = d['data']['eic']['intensity']
-                y = y/y_max.next()
+                y = y/next(y_max)
                 new_x = (x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
                 xlbl = np.array_str(np.linspace(min(x), max(x), 8), precision=2)
                 rt_min_ = (rt_min-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2)
@@ -1202,7 +1208,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
     output_loc = os.path.expandvars(output_loc)
 
     nRows = int(np.ceil(len(file_names)/float(nCols)))
-    print('nrows = ', nRows)
+    print(('nrows = ', nRows))
 
     xmin = 0
     xmax = 210
@@ -1229,7 +1235,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
                 if len(d['data']['eic']['rt']) > 0:
                     y_max.append(max(d['data']['eic']['intensity']))
 
-    print("length of ymax is ", len(y_max))
+    print(("length of ymax is ", len(y_max)))
     y_max = cycle(y_max)
 
 
@@ -1262,7 +1268,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
             if len(d['data']['eic']['rt']) > 0:
                 x = d['data']['eic']['rt']
                 y = d['data']['eic']['intensity']
-                y = y/y_max.next()
+                y = y/next(y_max)
                 new_x = (x-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2) ## remapping the x-range
                 xlbl = np.array_str(np.linspace(min(x), max(x), 8), precision=2)
                 rt_min_ = (rt_min-x[0])*subrange/float(x[-1]-x[0])+col*(subrange+2)
@@ -1567,7 +1573,7 @@ def file_with_max_precursor_intensity(data,compound_idx):
     idx = None
     my_max = 0
     for i,d in enumerate(data):
-        if 'data' in d[compound_idx]['data']['msms'].keys():
+        if 'data' in list(d[compound_idx]['data']['msms'].keys()):
             if type(d[compound_idx]['data']['msms']['data']) != list:#.has_key('precursor_intensity'):
                 temp = d[compound_idx]['data']['msms']['data']['precursor_intensity']
                 if len(temp)>0:
@@ -1581,7 +1587,7 @@ def file_with_max_ms1_intensity(data,compound_idx):
     idx = None
     my_max = 0
     for i,d in enumerate(data):
-        if 'intensity' in d[compound_idx]['data']['eic'].keys() and d[compound_idx]['data']['eic']['intensity'] != []:
+        if 'intensity' in list(d[compound_idx]['data']['eic'].keys()) and d[compound_idx]['data']['eic']['intensity'] != []:
             temp = max(d[compound_idx]['data']['eic']['intensity'])
             if temp > my_max:
                 my_max = temp
@@ -1599,9 +1605,9 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
         #or empty can look like this:
         # {'eic': None, 'ms1_summary': None, 'msms': {'data': []}}
 
-        if ('data' in data[file_idx][compound_idx]['data']['msms'].keys()) and \
+        if ('data' in list(data[file_idx][compound_idx]['data']['msms'].keys())) and \
             (isinstance(data[file_idx][compound_idx]['data']['msms']['data'],dict)) and \
-            ('rt' in data[file_idx][compound_idx]['data']['msms']['data'].keys()) and \
+            ('rt' in list(data[file_idx][compound_idx]['data']['msms']['data'].keys())) and \
             (len(data[file_idx][compound_idx]['data']['msms']['data']['rt'])>0):
 
             msv_sample_scans = np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'], data[file_idx][compound_idx]['data']['msms']['data']['i']])
@@ -1910,7 +1916,7 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
                 msv_ref_list.append(current_best_msv_ref)
                 rt_list.append(current_best_rt)
 
-    return zip(*sorted(zip(file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list, rt_list), key=lambda l: l[2], reverse=True)[:5])
+    return list(zip(*sorted(zip(file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list, rt_list), key=lambda l: l[2], reverse=True)[:5]))
 
 def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
 
@@ -2620,7 +2626,7 @@ def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', 
     titles = ['Unscaled', 'Scaled', 'Full Range']
 
     for compound_idx in [i for i,c in enumerate(all_compound_names) if c in compound_names]:
-        print('compound is',compound_idx)
+        print(('compound is',compound_idx))
         #Find file_idx of with highest RT peak
         highest = 0
         file_idx = None
@@ -2756,7 +2762,7 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
     #             rt_reference_index = int(treatment_groups.name[-1]) - 1
     #         except:
     #             rt_reference_index = 3
-            print(i, len(group), myFile)
+            print((i, len(group), myFile))
             row = []
             for compound in myAtlas.compound_identifications:
                 result = {}
@@ -2790,13 +2796,13 @@ def filter_atlas(atlas_df = '', input_dataset = [], num_data_points_passing = 5,
                                        metatlas_dataset[i][j]['identification'].rt_references[0].rt_max)).sum()>num_data_points_passing
                                     for i in range(len(metatlas_dataset))]
                                     for j in range(len(metatlas_dataset[0]))]).any(axis=1)
-    peak_height_passing = np.array([[('data' in metatlas_dataset[i][j].keys()) &
-                                 ('ms1_summary' in metatlas_dataset[i][j]['data'].keys()) &
+    peak_height_passing = np.array([[('data' in list(metatlas_dataset[i][j].keys())) &
+                                 ('ms1_summary' in list(metatlas_dataset[i][j]['data'].keys())) &
                                  (metatlas_dataset[i][j]['data']['ms1_summary']['peak_height']>=peak_height_passing)
                                 for i in range(len(metatlas_dataset))]
                                 for j in range(len(metatlas_dataset[0]))]).any(axis=1)
-    rt_peak_passing = np.median([[(('data' in metatlas_dataset[i][j].keys()) &
-                                 ('ms1_summary' in metatlas_dataset[i][j]['data'].keys())) *
+    rt_peak_passing = np.median([[(('data' in list(metatlas_dataset[i][j].keys())) &
+                                 ('ms1_summary' in list(metatlas_dataset[i][j]['data'].keys()))) *
                                  (metatlas_dataset[i][j]['data']['ms1_summary']['rt_peak'])
                                 for i in range(len(metatlas_dataset))]
                                 for j in range(len(metatlas_dataset[0]))], axis=1) > rt_peak_passing
@@ -2832,7 +2838,7 @@ def get_metatlas_atlas(name = '%%',username = '*', most_recent = True,do_print =
         atlas = filter_metatlas_objects_to_most_recent(atlas,'name')
     if do_print:
         for i,a in enumerate(atlas):
-            print(i, len(a.compound_identifications),a.name,  datetime.utcfromtimestamp(a.last_modified))
+            print((i, len(a.compound_identifications),a.name,  datetime.utcfromtimestamp(a.last_modified)))
 
     return atlas
 
@@ -2918,7 +2924,7 @@ def check_compound_names(df):
             #if type(df.name[x]) != float:
         if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key)>0):# or type(df.inchi_key[x]) != float:
             if not metob.retrieve('Compounds',inchi_key=row.inchi_key, username = '*'):
-                print(row.inchi_key, "compound is not in database. Exiting Without Completing Task!")
+                print((row.inchi_key, "compound is not in database. Exiting Without Completing Task!"))
                 bad_names.append(row.inchi_key)
     return bad_names
 
@@ -2928,7 +2934,7 @@ def check_file_names(df,field):
     for i,row in df.iterrows():
         if row[field] != '':
             if not metob.retrieve('Lcmsruns',name = '%%%s%%'%row[field],username = '*'):
-                print(row[field], "file is not in the database. Exiting Without Completing Task!")
+                print((row[field], "file is not in the database. Exiting Without Completing Task!"))
                 bad_files.append(row[field])
     return bad_files
 
@@ -3020,7 +3026,7 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
     #    bad_files = check_file_names(df,'file_mz')
     #    if bad_files:
     #         return bad_files
-    if 'file_msms' in df.keys():
+    if 'file_msms' in list(df.keys()):
         #strip '.mzmL' from cells
         df.file_msms = df.file_msms.str.replace('\..+', '')
         bad_files = check_file_names(df,'file_msms')
@@ -3106,7 +3112,7 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                 #    rtRef.lcms_run = f
                 myID.rt_references = [rtRef]
 
-                if ('file_msms' in df.keys()) and (c != 'use_label'):
+                if ('file_msms' in list(df.keys())) and (c != 'use_label'):
                     if (type(row.file_msms) != float) and (row.file_msms != ''):
                         frag_ref = metob.FragmentationReference()
                         f = metob.retrieve('Lcmsruns',name = '%%%s%%'%row.file_msms,username = '*')[0]
@@ -3129,7 +3135,7 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                             frag_ref.mz_intensities = spectrum
                             myID.frag_references = [frag_ref]
                             print('')
-                            print('found reference msms spectrum for ',myID.compound[0].name, 'in file',row.file_msms)
+                            print(('found reference msms spectrum for ',myID.compound[0].name, 'in file',row.file_msms))
 
                 all_identifications.append(myID)
 
@@ -3233,14 +3239,14 @@ def select_groups_for_analysis(name = '%', description = [], username = '*', do_
     if exclude_list:
         groups = remove_metatlas_objects_by_list(groups,'name',exclude_list)
 
-    print(len(groups))
+    print((len(groups)))
 
     if remove_empty:
         groups = filter_empty_metatlas_objects(groups,'items')
     if do_print:
         from datetime import datetime, date
         for i,a in enumerate(groups):
-            print(i, a.name,  datetime.utcfromtimestamp(a.last_modified))
+            print((i, a.name,  datetime.utcfromtimestamp(a.last_modified)))
 
     return groups
 

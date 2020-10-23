@@ -1,5 +1,6 @@
 #!/global/common/software/m2650/python-cori/bin/python
 
+from __future__ import absolute_import
 import sys
 import os
 import io
@@ -11,6 +12,8 @@ import ijson
 import re
 import argparse
 from decimal import Decimal
+from six.moves import map
+from six.moves import zip
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -211,7 +214,7 @@ def convert_metatlas_to_csv(in_file_loc, out_file_loc, column_names=False):
                     Decimal(str(subitem['_trait_values']['intensity'])))
                     for subitem in
                     item['_trait_values']['frag_references'][0]['_trait_values']['mz_intensities']]
-        spectrum = list(map(list, zip(*spectrum)))
+        spectrum = list(map(list, list(zip(*spectrum))))
     except Exception:
         pass
 

@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import numpy as np
 import os.path
 import sys
@@ -7,6 +9,10 @@ from metatlas.datastructures import metatlas_objects as metob
 import pandas as pd
 from textwrap import wrap
 import matplotlib.pyplot as plt
+import six
+from six.moves import map
+from six.moves import range
+from six.moves import zip
 
 
 def create_msms_dataframe(df):
@@ -21,8 +27,8 @@ def create_msms_dataframe(df):
     grouped.mz = grouped.mz.apply(list)
     grouped.i = grouped.i.apply(list)
     grouped = grouped.reset_index()
-    grouped['spectrum'] = map(lambda x,y:(x,y),grouped['mz'],grouped['i'])
-    grouped['spectrum'] = grouped['spectrum'].apply(lambda x: zip(x[0],x[1]))
+    grouped['spectrum'] = list(map(lambda x,y:(x,y),grouped['mz'],grouped['i']))
+    grouped['spectrum'] = grouped['spectrum'].apply(lambda x: list(zip(x[0],x[1])))
     grouped.drop(['mz','i'], axis=1, inplace=True)
     return grouped
 
@@ -124,7 +130,7 @@ def df_container_from_metatlas_file(my_file):
     data_df = pd.DataFrame()
 
     # if my_file is a string then it's a file name - get its data
-    if isinstance(my_file, basestring):
+    if isinstance(my_file, six.string_types):
         filename = my_file
     else:
     # assume its a metatlas lcmsrun object
@@ -132,7 +138,7 @@ def df_container_from_metatlas_file(my_file):
         
     pd_h5_file  = pd.HDFStore(filename)
         
-    keys = pd_h5_file.keys()
+    keys = list(pd_h5_file.keys())
     pd_h5_file.close()
     df_container = {}
     for k in keys:
@@ -204,7 +210,7 @@ def make_atlas_df(atlas):
     #        u'mono_isotopic_molecular_weight', u'pubchem_compound_id', u'kegg_url', u'chebi_url', u'hmdb_url', u'lipidmaps_url', u'pubchem_url',u'wikipedia_url',  u'source']
 
     atlas_df = atlas_df[atlas_keys]
-    print(atlas_df.shape,len(label))
+    print((atlas_df.shape,len(label)))
     atlas_df['label'] = label
     return atlas_df
 
@@ -384,7 +390,7 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
     
     dict_ms2 = []
     for i,row in ms2_data.iterrows():
-        if 'ms2_datapoints' in row.keys():
+        if 'ms2_datapoints' in list(row.keys()):
             dict_ms2.append(row.ms2_datapoints.T.to_dict(orient='list'))
         else:
             dict_ms2.append([])
@@ -648,9 +654,9 @@ def get_dill_data(fname):
             try:
                 data = dill.load(f)
             except IOError as e:
-                print("I/O error({0}): {1}".format(e.errno, e.strerror))
+                print(("I/O error({0}): {1}".format(e.errno, e.strerror)))
             except:  # handle other exceptions such as attribute errors
-                print("Unexpected error:", sys.exc_info()[0])
+                print(("Unexpected error:", sys.exc_info()[0]))
 
 
     return data
@@ -667,7 +673,7 @@ def get_group_names(data):
     """
 
     # if data is a string then it's a file name - get its data
-    if isinstance(data, basestring):
+    if isinstance(data, six.string_types):
         data = get_dill_data(data)
 
     group_names = list()
@@ -687,7 +693,7 @@ def get_group_shortnames(data):
     """
 
     # if data is a string then it's a file name - get its data
-    if isinstance(data, basestring):
+    if isinstance(data, six.string_types):
         data = get_dill_data(data)
 
     group_shortnames = list()
@@ -709,7 +715,7 @@ def get_file_names(data,full_path=False):
     import os.path
 
     # if data is a string then it's a file name - get its data
-    if isinstance(data, basestring):
+    if isinstance(data, six.string_types):
         data = get_dill_data(data)
 
     file_names = list()
@@ -735,7 +741,7 @@ def get_compound_names(data,use_labels=False):
     import re
 
     # if data is a string then it's a file name - get its data
-    if isinstance(data, basestring):
+    if isinstance(data, six.string_types):
         data = get_dill_data(data)
 
     compound_names = list()

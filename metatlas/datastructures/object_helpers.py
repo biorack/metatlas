@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
 import os
 import getpass
@@ -12,6 +14,7 @@ import pandas as pd
 import socket
 import os.path
 import yaml
+from six.moves import input
 
 try:
     from traitlets import (
@@ -25,7 +28,7 @@ except ImportError:
 
 # Whether we are running from NERSC
 ON_NERSC = 'METATLAS_LOCAL' not in os.environ
-print('NERSC=',ON_NERSC)
+print(('NERSC=',ON_NERSC))
 
 # Observable List from
 # http://stackoverflow.com/a/13259435
@@ -398,9 +401,9 @@ class Workspace(object):
         if not override:
             msg = 'Are you sure you want to delete the entries? (Y/N)'
             if sys.version.startswith('2'):
-                ans = raw_input(msg)
-            else:
                 ans = input(msg)
+            else:
+                ans = eval(input(msg))
             if not ans[0].lower().startswith('y'):
                 print('Aborting')
                 return
@@ -470,9 +473,9 @@ class Workspace(object):
             msg = ('Are you sure you want to delete the %s object(s)? (Y/N)'
                    % len(objects))
             if sys.version.startswith('2'):
-                ans = raw_input(msg)
-            else:
                 ans = input(msg)
+            else:
+                ans = eval(input(msg))
             if not ans[0].lower().startswith('y'):
                 print('Aborting')
                 return
@@ -498,7 +501,7 @@ class Workspace(object):
             query += '" , "'.join(uids)
             query += '")'
             self.db.query(query)
-        print('Removed %s object(s)' % len(objects))
+        print(('Removed %s object(s)' % len(objects)))
         self.db = None
 
 
@@ -599,9 +602,9 @@ def get_from_nersc(user, relative_path):
     proc = pexpect.spawn(cmd)
     proc.expect("assword:*")
     if sys.version.startswith('3'):
-        passwd = input()
+        passwd = eval(input())
     else:
-        passwd = raw_input()
+        passwd = input()
     clear_output()
     proc.send(passwd)
     proc.send('\r')

@@ -3,13 +3,13 @@
 DISTNAME = 'metatlas'
 DESCRIPTION = 'Metabolite Atlas'
 LONG_DESCRIPTION = open('README.rst', 'rb').read().decode('utf-8')
-MAINTAINER = 'Steven Silvester'
-MAINTAINER_EMAIL = 'steven.silvester@ieee.org'
+MAINTAINER = 'Ben Bowen'
+MAINTAINER_EMAIL = 'ben.bowen@gmail.com'
 URL = 'http://github.com/biorack/metatlas'
 LICENSE = 'MIT'
-REQUIRES = ["numpy", "pyyaml", "pytables", "pymzml (==0.7.8)", "simplejson", "rpy2", "pandas",
-            "dataset", "ipython", "traitlets (==4.1.0)", "six", "tabulate", "dill",
-            "gspread","pymysql", "qgrid", "pillow", 'oauth2client (== 1.5.2)']
+# REQUIRES = ["pyyaml", "pytables", "pymzml", "simplejson", "rpy2",
+#             "dataset", "traitlets", "six", "dill",
+#             "gspread","pymysql", "qgrid", "pillow", 'oauth2client (== 1.5.2)']
 CLASSIFIERS = """\
 Development Status :: 2 - Pre-Alpha
 Intended Audience :: Developers
@@ -17,24 +17,29 @@ Intended Audience :: Science/Research
 License :: OSI Approved :: BSD License
 Operating System :: OS Independent
 Programming Language :: Python
-Programming Language :: Python :: 2.7
-Programming Language :: Python :: 3.4
+Programming Language :: Python :: 3.8
 Topic :: Scientific/Engineering
 Topic :: Software Development
 """
-import imp
 import shutil
-from setuptools import setup, find_packages
+from importlib import util
+
+from setuptools import setup
+# , find_packages
 from setuptools.command.install import install
 
+#Make sure /global/common/software/m2650/nersc_python_install/metatlas/metatlas/helpers/isotope_dict.pkl /global/common/software/m2650/python3-cori/lib/python3.7/site-packages/metatlas/helpers/
+
+# also copy /global/homes/b/bpb/repos/metatlas/metatlas/tools/isotope_dict.json
 
 class custom_install(install):
 
     def run(self):
         install.run(self)
         # patch pymzml to use new obo file
-        dirname = imp.find_module('pymzml')[1]
-        shutil.copy('psi-ms-1.2.0.obo', '%s/obo' % dirname)
+#         dirname = imp.find_module('pymzml')[1]
+        dirname = util.find_spec("pymzml").submodule_search_locations[0]
+        shutil.copy('data/other/psi-ms-1.2.0.obo', '%s/obo' % dirname)
         with open('%s/obo.py' % dirname, 'r') as fid:
             lines = fid.readlines()
         with open('%s/obo.py' % dirname, 'w') as fid:
@@ -44,14 +49,14 @@ class custom_install(install):
                 fid.write(line)
 
 
-with open('metatlas/__init__.py') as fid:
-    for line in fid:
-        if line.startswith('__version__'):
-            version = line.strip().split()[-1][1:-1]
-            break
 
 
 if __name__ == "__main__":
+    with open('metatlas/__init__.py') as fid:
+        for line in fid:
+            if line.startswith('__version__'):
+                version = line.strip().split()[-1][1:-1]
+                break
 
     setup(
         name=DISTNAME,
@@ -65,13 +70,14 @@ if __name__ == "__main__":
         description=DESCRIPTION,
         long_description=LONG_DESCRIPTION,
         classifiers=list(filter(None, CLASSIFIERS.split('\n'))),
-        packages=find_packages(exclude=['doc']),
-        include_package_data=True,
+#         packages=find_packages(exclude=['doc']),
+#         include_package_data=True,
         zip_safe=False,  # the package can run out of an .egg file
-        install_requires=['pymzml==0.7.8', 'pyyaml','simplejson', 'requests_toolbelt',
-                          'dataset', 'ipython', 'traitlets==4.1.0', 'six',
-                          'tabulate', 'dill', 'oauth2client==1.5.2', 'gspread',
-                          'qgrid', 'pillow'],
-        requires=REQUIRES,
+#         install_requires=REQUIRES,
+#         install_requires=['pymzml', 'pyyaml','simplejson', 'requests_toolbelt',
+#                           'dataset', 'ipython', 'traitlets', 'six',
+#                           'tabulate', 'dill', 'oauth2client==1.5.2', 'gspread',
+#                           'qgrid', 'pillow'],
+#         requires=REQUIRES,
         cmdclass={'install': custom_install},
      )

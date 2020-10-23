@@ -1,4 +1,5 @@
 
+from __future__ import absolute_import
 def plot_chromatogram(x, y, title='XIC for Sample', **kwargs):
     """
     Plots a Chromatogram.

@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from __future__ import absolute_import
 import sys
 from metatlas import metatlas_objects as metob
 from metatlas import h5_query as h5q
@@ -37,12 +38,15 @@ from rdkit.Chem.Draw import IPythonConsole
 from IPython.display import SVG,display
 
 from PIL import Image
+import six
+from six.moves import range
+from six.moves import zip
 
 
 def import_network(network_file='network_v1p0.cyjs'):
     with open(network_file) as data_file:    
         data = json.load(data_file)
-    print(data['elements']['nodes'][0]['data'].keys())
+    print(list(data['elements']['nodes'][0]['data'].keys()))
     network = {}
     network['data'] = data
     network['x'] = []
@@ -74,7 +78,7 @@ def merge_sheets(my_sheets,score_cutoff=0.1,mz_cutoff=0.1):
     df_all_files = pd.concat(dfs)
     #print 'making key'
     #df_all_files['inchi_key'] = df_all_files.inchi.apply(lambda x: Chem.InchiToInchiKey(str(x)))
-    print(df_all_files.keys())
+    print(list(df_all_files.keys()))
     #df_all_files.set_index(['inchi','inchi_key','metatlas name'],inplace=True)
     df_all_files.set_index(['inchi_key','mass'],inplace=True)
     return df_all_files
@@ -95,7 +99,7 @@ def read_pacolus_results(pactolus_file,min_score=0.0):
     """
     with h5py.File(pactolus_file,'r') as fid:
     #read score_matrix, convert all by all matrix to lists of scores
-        idx = range(fid['score_matrix'].shape[0])  
+        idx = list(range(fid['score_matrix'].shape[0]))  
         d = {'retention time':fid['scan_metadata']['peak_rt'][idx],
             'precursor intensity':fid['scan_metadata']['peak_intensity'][idx],
             'precursor mz':fid['scan_metadata']['peak_mz'][idx],
@@ -111,7 +115,7 @@ def read_pacolus_results(pactolus_file,min_score=0.0):
             hits.append(sorted([(mm[i],i) for i in idx])[::-1])
         df = pd.DataFrame({'scores':hits})
         b_flat = pd.DataFrame([[i, x[0], x[1]] 
-                           for i, y in df.scores.apply(list).iteritems() 
+                           for i, y in six.iteritems(df.scores.apply(list)) 
                            for x in y], columns=['index','score','compound']).set_index('index')
         scan_df = scan_df.merge(b_flat, how = 'outer',left_index=True, right_index=True)
 
@@ -175,7 +179,7 @@ def join_pactolus_tables(my_sheets,score_cutoff=0.001,mz_cutoff=0.02):#,use_fiel
                     output_df.loc[row['name'],os.path.basename(sheet)] = row['score']
     return output_df
 def is_pactolus_result_file(output_file):
-    my_keys = output_file.keys()
+    my_keys = list(output_file.keys())
     counter = 0
     print('checking file',output_file)
     for k in my_keys:
@@ -429,13 +433,13 @@ def create_pactolus_msms_data_container(myfiles,target_directory,min_intensity,m
                     fpl['peak_arrayindex'][:,2] = np.cumsum([0] + [ s[:,0].shape[0] for s in msms_data['spectra'] ])[:-1]
                     with h5py.File(container_file,'a') as output_file:
                         group_name = os.path.basename(myfile)
-                        if group_name in output_file.keys():
+                        if group_name in list(output_file.keys()):
                             output_file.__delitem__(group_name)
                 #         if group_name not in output_file.keys():
                         output_group = output_file.create_group(group_name)
                 #         else:
                 #             output_group = output_file[group_name]
-                        for key, value in fpl.iteritems():
+                        for key, value in six.iteritems(fpl):
                             output_group[key] = value
                         experiment_group = output_group.create_group('experiment_metadata')
                         experiment_group['filename'] = group_name
@@ -593,7 +597,7 @@ class FragmentManager:
         end_idxs = length - np.searchsorted(-tree['mass_vec'][::-1], -(data_masses+mass_tol))
 
         # if the start and end idx is the same, the peak is too far away in mass from the data and will be empty
-        matching_frag_sets = [range(start, end) for start, end in zip(start_idxs, end_idxs)]  # if range(start, end)]
+        matching_frag_sets = [list(range(start, end)) for start, end in zip(start_idxs, end_idxs)]  # if range(start, end)]
 
         # flattening the list
         unique_matching_frags = np.unique(np.concatenate(matching_frag_sets))
@@ -730,7 +734,7 @@ class PactolusPlotter():
                                  'Proton w/ H: -2.008', 'Proton: -1.007', 'Electron: +0.0005',),
                                   init_buttons)
         self.neut_buttons.on_clicked(lambda x: self.check_update())
-        for line_tup in zip(range(len(self.neut_buttons.lines)),self.neut_buttons.lines):
+        for line_tup in zip(list(range(len(self.neut_buttons.lines))),self.neut_buttons.lines):
             for line in line_tup[1]:
                 line.set_color(self.normalized_colors[line_tup[0]])
 
@@ -793,8 +797,8 @@ class PactolusPlotter():
         Return the tree if want_data is true.
         """
         with h5py.File(self.tree_file,'r') as tr:
-            first = tr.keys()[0]
-            k = tr[first].keys()[0]
+            first = list(tr.keys())[0]
+            k = list(tr[first].keys())[0]
             tree = tr[first][k][:]
         if in_place:
             self.tree = tree
