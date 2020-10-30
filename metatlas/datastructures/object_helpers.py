@@ -516,9 +516,9 @@ def format_timestamp(tstamp):
 
 class MetList(List):
     allow_none = True
-
     def validate(self, obj, value):
-        value = super(MetList, self).validate(obj, value)
+#         value = super(MetList, self).validate(obj, value)
+        value = super().validate(obj, value)
         value = NotifyList(value)
 
         #value.register_callback(lambda: setattr(obj, '_changed', True))

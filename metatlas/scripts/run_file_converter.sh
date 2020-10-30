@@ -23,7 +23,7 @@ LOGFILE="/global/homes/b/bpb/file_converter.log"
 MET_PATH=/project/projectdirs/metatlas
 #MET_PATH=/global/homes/b/bpb
 
-BIN_PATH=/global/common/software/m2650/python-cori
+BIN_PATH=/global/common/software/m2650/python3-metatlas-cori
 "$BIN_PATH/bin/python" -m metatlas.io.file_converter "$MET_PATH/raw_data" &> ${LOGFILE} &
 
 echo $! > "${PIDFILE}"

@@ -27,9 +27,9 @@ import re
 import json
 import matplotlib.pyplot as plt
 
-# from rdkit import Chem
-# from rdkit.Chem import Descriptors, rdMolDescriptors, AllChem, Draw, rdDepictor
-# from rdkit.Chem.Draw import rdMolDraw2D, IPythonConsole
+from rdkit import Chem
+from rdkit.Chem import Descriptors, rdMolDescriptors, AllChem, Draw, rdDepictor
+from rdkit.Chem.Draw import rdMolDraw2D, IPythonConsole
 from itertools import cycle
 from collections import defaultdict
 from IPython.display import SVG,display,clear_output
@@ -49,7 +49,8 @@ from matplotlib.widgets import Slider, Button, RadioButtons
 from matplotlib.widgets import AxesWidget
 
 import gspread
-from oauth2client.client import SignedJwtAssertionCredentials
+# from oauth2client.client import SignedJwtAssertionCredentials
+from oauth2client.service_account import ServiceAccountCredentials
 
 import sys
 import six
@@ -171,18 +172,18 @@ def get_google_sheet(notebook_name = "Sheet name",
     Unique sheet names are a requirement of this approach.
 
     """
-    json_key = json.load(open(token))
-    scope = ['https://spreadsheets.google.com/feeds']
-
+#     scope = ['https://spreadsheets.google.com/feeds']
+#     scope = ['https://www.googleapis.com/auth/spreadsheets']
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     #this is deprecated as of january, but we have pinned the version of oauth2.
     #see https://github.com/google/oauth2client/issues/401
-    credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
-
+#     json_key = json.load(open(token))
+#     credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
     #here is the new way incase the version pin is removed
     #credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
 
     gc = gspread.authorize(credentials)
-
     wks = gc.open(notebook_name)
     istd_qc_data = wks.worksheet(sheet_name).get_all_values()
     headers = istd_qc_data.pop(0)
@@ -1547,9 +1548,9 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
     for i,dd in enumerate(data):
         for j,d in enumerate(dd):
             if (not d['data']['ms1_summary']) or (not d['data']['ms1_summary'][fieldname]):
-                df.ix[compound_names[j],file_names[i]] = 0
+                df.loc[compound_names[j],file_names[i]] = 0
             else:
-                df.ix[compound_names[j],file_names[i]] = d['data']['ms1_summary'][fieldname]
+                df.loc[compound_names[j],file_names[i]] = d['data']['ms1_summary'][fieldname]
     columns = []
     if short_names_df.empty:
         for i,f in enumerate(file_names):
@@ -1640,13 +1641,13 @@ def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
     plt.ioff()
     for compound in df.index:
         if 'short groupname' in df.columns.names and use_shortnames:
-            m = df.ix[compound].groupby(level='short groupname').mean()
-            e = df.ix[compound].groupby(level='short groupname').std()
-            c = df.ix[compound].groupby(level='short groupname').count()
+            m = df.loc[compound].groupby(level='short groupname').mean()
+            e = df.loc[compound].groupby(level='short groupname').std()
+            c = df.loc[compound].groupby(level='short groupname').count()
         else:
-            m = df.ix[compound].groupby(level='group').mean()
-            e = df.ix[compound].groupby(level='group').std()
-            c = df.ix[compound].groupby(level='group').count()
+            m = df.loc[compound].groupby(level='group').mean()
+            e = df.loc[compound].groupby(level='group').std()
+            c = df.loc[compound].groupby(level='group').count()
 
         for i in range(len(e)):
             if c[i]>0:
@@ -1673,11 +1674,11 @@ def make_boxplot_plots(df,output_loc='', use_shortnames=True, ylabel=""):
     for compound in df.index:
         f, ax = plt.subplots(1, 1,figsize=(12,12))
         if 'short groupname' in df.columns.names and use_shortnames:
-            df.ix[compound].groupby(level='short groupname').apply(pd.DataFrame).plot(kind='box',ax=ax)
+            df.loc[compound].groupby(level='short groupname').apply(pd.DataFrame).plot(kind='box',ax=ax)
         else:
-            df.ix[compound].groupby(level='group').apply(pd.DataFrame).plot(kind='box',ax=ax)
+            df.loc[compound].groupby(level='group').apply(pd.DataFrame).plot(kind='box',ax=ax)
         
-        for i, (n, grp) in enumerate(df.ix[compound].groupby(level='short groupname')):
+        for i, (n, grp) in enumerate(df.loc[compound].groupby(level='short groupname')):
             x = [i+1] *len(grp)
             x = np.random.normal(x, 0.04, size=len(x))
             plt.scatter(x, grp)
@@ -1957,7 +1958,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
                 ax.annotate('%5.4f' % msv_sample_unaligned[0][m],
                             xy=(msv_sample_unaligned[0][m], 1.01 * msv_sample_unaligned[1][m]),
                             rotation=90,
-                            horizontalalignment='center', verticalalignment='left',
+                            horizontalalignment='left', verticalalignment='center',
                             size=4)
                 labels.append(msv_sample_unaligned[0][m])
 
@@ -2017,7 +2018,7 @@ def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sam
                 ax.annotate('%5.4f' % msv_sample_unaligned[0][m],
                             xy=(msv_sample_unaligned[0][m], 1.01 * msv_sample_unaligned[1][m]),
                             rotation=90,
-                            horizontalalignment='center', verticalalignment='left',
+                            horizontalalignment='left', verticalalignment='center',
                             size=6)
                 labels.append(msv_sample_unaligned[0][m])
 
@@ -2122,7 +2123,6 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         fontsize=2,
         transform=ax.transAxes)
 
-sp = reload(sp)
 def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_nonmatches=False,
                   pre_query='database == "metatlas"',
                   # pre_query = 'index == index or index == @pd.NaT',
@@ -2289,11 +2289,18 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
     sys.stdout.write('\n'+'Done!!!')
     if len(msms_hits)>0:
         hits = pd.concat(msms_hits)
+        return hits
         #Check if number of matches for a compound across all files is 1 or less and set the score to its maximum intensity.
         #This will identify MSMS with single ion / no fragmentation
-        if keep_nonmatches==True:
-            idxs = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max) <= 1 
-            hits['score'][idxs] = hits['measured_precursor_intensity'][idxs]
+#         print(hits.groupby(['inchi_key', 'adduct'])['num_matches'])
+#         if keep_nonmatches==True:
+#             idxs = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max) <= 1 
+#             hits['score'][idxs] = hits['measured_precursor_intensity'][idxs]
+        g = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max)
+        idxs =  g<= 1
+        proc_idx = g[idxs].index
+        for i in proc_idx:
+            hits.loc[i,'score'] = hits.loc[i,'measured_precursor_intensity']
         return hits
     else:
         return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches','inchi_key','precursor_mz','adduct','score']

@@ -26,9 +26,16 @@ dependencies:
 - pingouin
 - pip
 - rdkit
+- pathlib2
 - pip:
   - sklearn
   - dataset
   - molvs
   - tables
   - tabulate
+  - pyopenssl
+  - xlsxwriter
+  - xmltodict
+  - labkey
+  - ftputil
+  - werkzeug

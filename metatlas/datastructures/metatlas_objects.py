@@ -243,12 +243,14 @@ class MetatlasObject(HasTraits):
         state = dict([(n, getattr(self, n)) for n in names])
         state['creation_time'] = format_timestamp(self.creation_time)
         state['last_modified'] = format_timestamp(self.last_modified)
-        return pprint.pformat(state)
+        return pprint.pformat(state) #str(state)#
 
     def __getattribute__(self, name):
         """Automatically resolve stubs on demand.
         """
-        value = super(MetatlasObject, self).__getattribute__(name)
+#         value = super(MetatlasObject, self).__getattribute__(name)
+        value = super().__getattribute__(name)
+
         if isinstance(value, Stub) and FETCH_STUBS:
             value = value.retrieve()
             setattr(self, name, value)
@@ -662,7 +664,8 @@ workspace = Workspace()
 
 
 def to_dataframe(objects):
-    """Convert a set of Metatlas objects into a dataframe.
+    """
+    Convert a set of Metatlas objects into a dataframe.
     """
     global FETCH_STUBS
     # we want to handle dates, enums, and use ids for objects
@@ -680,21 +683,22 @@ def to_dataframe(objects):
             continue
         cols.append(tname)
         if isinstance(trait, MetList):
-            [o.__setitem__(tname, str([i.unique_id for i in o[tname]]))
+            [o.__setitem__(tname, [i.unique_id for i in o[tname]])
              for o in objs]
-        if isinstance(trait, MetInstance):
+        elif isinstance(trait, MetInstance):
             for obj_id,o in enumerate(objs):
                 if tname not in o:
                     o[tname] = 'None'
-
-#             [o.__setitem__(tname, getattr(o[tname], 'unique_id', 'None')) for o in objs]
-
-        if isinstance(trait, MetEnum):
+        elif isinstance(trait, MetEnum):
             enums.append(tname)
-
+        else:
+            for obj_id,o in enumerate(objs):
+                if tname not in o:
+                    o[tname] = 'None'
+                
     dataframe = pd.DataFrame(objs)[sorted(cols)]
-    for col in enums:
-        dataframe[col] = dataframe[col].astype('category')
+#     for col in enums:
+#         dataframe[col] = dataframe[col].astype('category')
     for col in ['last_modified', 'creation_time']:
         dataframe[col] = pd.to_datetime(dataframe[col], unit='s')
     return dataframe

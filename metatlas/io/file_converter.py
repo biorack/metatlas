@@ -75,19 +75,19 @@ def convert(file):
         sys.stderr.write(str(e) + '\n')
         sys.stderr.flush()
 
-    # Copy the original file to a pasteur backup.
-    if os.environ['USER'] == 'pasteur':
-        pasteur_path = fname.replace('raw_data', 'pasteur_backup')
-        dname = os.path.dirname(pasteur_path)
-        if not os.path.exists(dname):
-            os.makedirs(dname)
-        try:
-            shutil.copy(fname, pasteur_path)
-        except IOError as e:
-            if (username not in readonly_files):
-                readonly_files[username] = set()
-            readonly_files[username].add(dirname)
-            return
+#     # Copy the original file to a pasteur backup.
+#     if os.environ['USER'] == 'pasteur':
+#         pasteur_path = fname.replace('raw_data', 'pasteur_backup')
+#         dname = os.path.dirname(pasteur_path)
+#         if not os.path.exists(dname):
+#             os.makedirs(dname)
+#         try:
+#             shutil.copy(fname, pasteur_path)
+#         except IOError as e:
+#             if (username not in readonly_files):
+#                 readonly_files[username] = set()
+#             readonly_files[username].add(dirname)
+#             return
 
     # Get a lock on the mzml file to prevent interference.
     try:

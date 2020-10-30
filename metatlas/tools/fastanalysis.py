@@ -83,7 +83,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     passing = {m:np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
 
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
-        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels)
+        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels,output_loc=output_loc)
 
     dfs['mz_ppm'] = dfs['peak_height'].copy()
     dfs['mz_ppm'] *= np.nan

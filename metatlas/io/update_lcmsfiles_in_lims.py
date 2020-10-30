@@ -8,8 +8,10 @@ import argparse
 # https://github.com/LabKey/labkey-api-python
 #
 # sys.path.insert(0,'/Users/bpb/repos/labkey-api-python/')
-sys.path.insert(0,'/global/homes/b/bpb/repos/labkey-api-python/')
-import labkey as lk
+# sys.path.insert(0,'/global/homes/b/bpb/repos/labkey-api-python/')
+# import labkey as lk
+from labkey.api_wrapper import APIWrapper
+
 # import requests
 # import json
 import pandas as pd
@@ -48,6 +50,13 @@ GETTER_SPEC = {'raw':{'extension':'.raw',
                             'lims_table':'spectralhits_file'},
               'pactolus':{'extension':'.pactolus.gz',
                             'lims_table':'pactolus_file'}}
+
+key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
+with open(key_file,'r') as fid:
+    api_key = fid.read().strip()
+labkey_server='metatlas-dev.nersc.gov'
+project_name='LIMS/'
+api = APIWrapper(labkey_server, project_name, use_ssl=True,api_key=api_key)
 
 
 def get_files_from_disk(directory,extension):
@@ -115,15 +124,14 @@ def get_acqtime_from_mzml(mzml_file):
     return utc_timestamp
 
 
-def get_table_from_lims(table,columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
+def get_table_from_lims(table,columns=None):
     if columns is None:
         sql = """SELECT * FROM %s;"""%table
     else:
         sql = """SELECT %s FROM %s;"""%(','.join(columns),table)
-    con = lk.utils.create_server_context(labkey_server, project_name, use_ssl=True,)
     # base execute_sql
     schema = 'lists'
-    sql_result = lk.query.execute_sql(con, schema, sql,max_rows=1e6)
+    sql_result = api.query.execute_sql(schema, sql,max_rows=1e6)
     if sql_result is None:
         print(('execute_sql: Failed to load results from ' + schema + '.' + table))
         return None
@@ -132,7 +140,7 @@ def get_table_from_lims(table,columns=None,labkey_server='metatlas-dev.nersc.gov
         df = df[[c for c in df.columns if not c.startswith('_')]]
         return df
 
-def update_table_in_lims(df,table,method='update',labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS',max_size=1000):
+def update_table_in_lims(df,table,method='update',max_size=1000):
 
     """
     Note: Do ~1000 rows at a time.  Any more and you get a 504 error.  Maybe increasing the timeout would help.
@@ -152,37 +160,35 @@ def update_table_in_lims(df,table,method='update',labkey_server='metatlas-dev.ne
     N = math.ceil(float(df.shape[0]) / max_size)
     for sub_df in np.array_split(df, N):
         payload = sub_df.to_dict('records')
-        con = lk.utils.create_server_context(labkey_server, project_name, use_ssl=True,)
+
         if method=='update':
-            lk.query.update_rows(con, 'lists', table, payload,timeout=10000)
+            api.query.update_rows('lists', table, payload,timeout=10000)
         elif method=='insert':
-            lk.query.insert_rows(con, 'lists', table, payload,timeout=10000)
+            api.query.insert_rows('lists', table, payload,timeout=10000)
         elif method=='delete':
-            lk.query.delete_rows(con, 'lists', table, payload,timeout=10000)
+            api.query.delete_rows('lists', table, payload,timeout=10000)
         else:
             print(('ERROR: Nothing to do.  Method %s is not programmed'%method))
         print('updated')
 
-def get_union_of_all_lcms_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file'],
-                                labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
+def get_union_of_all_lcms_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']):
     # sort out the lcmsrun table
     sql = ['select name from %s'%t for t in tables]
     sql = ' union '.join(sql)
 
-    con = lk.utils.create_server_context(labkey_server, project_name, use_ssl=True,)
+#     con = lk.utils.create_server_context(labkey_server, project_name, use_ssl=True,)
     # base execute_sql
     schema = 'lists'
-    sql_result = lk.query.execute_sql(con, schema, sql,max_rows=1e6)
+    sql_result = api.query.execute_sql(schema, sql,max_rows=1e6)
     if sql_result is None:
         print(('execute_sql: Failed to load results from ' + schema + '.' + table))
     else:
         return [r['name'] for r in sql_result['rows']]
 
 
-def update_lcmsrun_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file'],
-                                labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
+def update_lcmsrun_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']):
     #get all the names in the various raw data tables
-    names = get_union_of_all_lcms_names(tables,labkey_server=labkey_server,project_name=project_name)
+    names = get_union_of_all_lcms_names(tables)
     #get all the names in lcmsrun (rawdata relationship) table
     lcmsruns = get_table_from_lims('lcmsrun',columns=['name'])
     lcmsruns = lcmsruns['name'].tolist()
@@ -197,15 +203,14 @@ def update_lcmsrun_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_fi
     if len(missing_from_lcmsruns)>0:
         temp = pd.DataFrame()
         temp['name'] = missing_from_lcmsruns
-        update_table_in_lims(temp,'lcmsrun',method='insert',labkey_server=labkey_server,project_name=project_name)
+        update_table_in_lims(temp,'lcmsrun',method='insert')
 
     #remove extra ones
     if len(extra_in_lcmsruns)>0:
         sql = """SELECT Key FROM lcmsrun where name IN (%s);"""%','.join(['\'%s\''%e for e in extra_in_lcmsruns])
         # print(sql)
-        con = lk.utils.create_server_context(labkey_server, project_name, use_ssl=True,)
         schema = 'lists'
-        sql_result = lk.query.execute_sql(con, schema, sql,max_rows=1e6)
+        sql_result = api.query.execute_sql(schema, sql,max_rows=1e6)
         if sql_result is None:
             print(('execute_sql: Failed to load results from ' + schema + '.' + table))
         #     return None
@@ -215,7 +220,7 @@ def update_lcmsrun_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_fi
         #     return df
 
         if temp.shape[0]>0:
-            update_table_in_lims(temp,'lcmsrun',method='delete',labkey_server=labkey_server,project_name=project_name)
+            update_table_in_lims(temp,'lcmsrun',method='delete')
 
     return missing_from_lcmsruns,extra_in_lcmsruns
 
@@ -235,16 +240,15 @@ def update_lcmsrun_matrix(file_type):
         update_table_in_lims(df,'lcmsrun',method='update')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
     print('done updating')
 
-def get_lcmsrun_matrix(labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
+def get_lcmsrun_matrix():#labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
     sql = 'select '
     for f in ['mzml','hdf5','raw','spectralhits','pactolus']:
         sql = '%s %s_file.filename as %s_filename,'%(sql,f,f)
     sql = '%s from lcmsrun'%sql
 
-    con = lk.utils.create_server_context(labkey_server, project_name, use_ssl=True,)
     # base execute_sql
     schema = 'lists'
-    sql_result = lk.query.execute_sql(con, schema, sql,max_rows=1e8)
+    sql_result = api.query.execute_sql(schema, sql,max_rows=1e8)
     if sql_result is None:
         print(('execute_sql: Failed to load results from ' + schema + '.' + table))
         return None
@@ -254,7 +258,7 @@ def get_lcmsrun_matrix(labkey_server='metatlas-dev.nersc.gov',project_name='/LIM
 
 
 
-def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
+def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None):#,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
     """
     gets current tasks and current files and determines if new tasks need to be made:
 
@@ -281,14 +285,14 @@ def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None,l
     # This finds where output file exists
     done_tasks_idx = (task_idx) & (outputfile_idx)
     if sum(done_tasks_idx)>0:
-        update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete',labkey_server=labkey_server,project_name=project_name)
+        update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')#,labkey_server=labkey_server,project_name=project_name)
         print(('%s: There are %d tasks where output file exist and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
     
     
     # This finds where input file is missing
     done_tasks_idx = (task_idx) & (~inputfile_idx)
     if sum(done_tasks_idx)>0:
-        update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete',labkey_server=labkey_server,project_name=project_name)
+        update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')#,labkey_server=labkey_server,project_name=project_name)
         print(('%s: There are %d tasks where input file is missing and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
 
     right_now_str = datetime.now().strftime("%Y%m%d %H:%M:%S")

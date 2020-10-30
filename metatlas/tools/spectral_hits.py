@@ -1,4 +1,8 @@
-#!/global/common/software/m2650/python-cori/bin/python
+#!/global/common/software/m2650/python3-metatlas-cori/bin/python
+
+
+# old python kernel
+# /global/common/software/m2650/python-cori/bin/python
 
 from __future__ import absolute_import
 import sys
@@ -6,8 +10,9 @@ import os
 import argparse
 import six.moves.configparser
 
-import mzml_loader as ml
-from . import spectralprocessing as sp
+sys.path.insert(0,'/global/homes/b/bpb/repos/metatlas')
+from metatlas.io import mzml_loader as ml
+from metatlas.tools import spectralprocessing as sp
 
 import pandas as pd
 import numpy as np
@@ -83,6 +88,7 @@ def find_spectral_hits(mzml_loc, tab_loc=None, force=False, nistify=False, **kwa
 
 
     data_df.set_index(['rt'], inplace=True)
+    
 
     spectral_hits_dfs = []
 
@@ -195,7 +201,7 @@ def arg_parser():
     return parser
 
 def main():
-    config = six.moves.configparser.SafeConfigParser()
+    config = six.moves.configparser.ConfigParser()
     config.read(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                              'spectral_hits.config'))
     kwargs = dict(config.items('DEFAULT'))

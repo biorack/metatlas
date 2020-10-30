@@ -70,6 +70,7 @@ def get_data_for_atlas_df_and_file(input_tuple):
         extra_time = input_tuple[4]
     
     df_container = df_container_from_metatlas_file(my_file)
+
     df_container = remove_ms1_data_not_in_atlas(atlas_df,df_container)
     dict_ms1_summary,dict_eic,dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time, extra_mz)
     row = []
@@ -137,8 +138,10 @@ def df_container_from_metatlas_file(my_file):
         filename = my_file.hdf5_file
         
     pd_h5_file  = pd.HDFStore(filename)
-        
-    keys = list(pd_h5_file.keys())
+    try:
+        keys = list(pd_h5_file.keys(include='native'))
+    except:
+        keys = list(pd_h5_file.keys())
     pd_h5_file.close()
     df_container = {}
     for k in keys:
@@ -150,6 +153,8 @@ def df_container_from_metatlas_file(my_file):
             # new_df.rt = new_df.rt.round() 
             df_container[k[1:]] = new_df
     return df_container
+
+
 
 def fast_nearest_interp(xi, x, y):
     """Assumes that x is monotonically increasing!!."""
@@ -165,10 +170,11 @@ def remove_ms1_data_not_in_atlas(atlas_df,data):
     for thing in things_to_do:
         if sum(atlas_df.detected_polarity == thing[0])>0:
             atlas_mz = atlas_df[atlas_df.detected_polarity == thing[0]].mz.copy()
-            atlas_mz = atlas_mz.sort_values().as_matrix()
+            atlas_mz = atlas_mz.sort_values()
+            atlas_mz = atlas_mz.values
             max_mz_tolerance = atlas_df[atlas_df.detected_polarity == thing[0]].mz_tolerance.max()
             if data[thing[1]].shape[0]>1:
-                original_mz = data[thing[1]].mz.as_matrix()
+                original_mz = data[thing[1]].mz.values
                 nearest_mz = fast_nearest_interp(original_mz,atlas_mz,atlas_mz)
                 data[thing[1]]['ppm_difference'] = abs(original_mz - nearest_mz) / original_mz * 1e6
                 query_str = 'ppm_difference < %f'%(max_mz_tolerance)
@@ -230,12 +236,12 @@ def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz'
             all_df = data_df_neg.query(ms1_query_str)
         else:
             return pd.Series()
-    return_df = pd.Series({'padded_feature_data':all_df.T.to_dense(),'in_feature':(all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
+    return_df = pd.Series({'padded_feature_data':all_df,'in_feature':(all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
     return return_df
 
 def get_ms1_summary(row):
     #A DataFrame of all points typically padded by "extra time"
-    all_df = row.padded_feature_data.T
+    all_df = row.padded_feature_data
     
     #slice out ms1 data that is NOT padded by extra_time
     ms1_df = all_df[(row.in_feature == True)]#[['i','mz','polarity','rt']]
@@ -243,7 +249,7 @@ def get_ms1_summary(row):
     num_ms1_datapoints = ms1_df.shape[0]
     if num_ms1_datapoints > 0:
         idx = ms1_df.i.idxmax()
-        ms1_peak_df = ms1_df.ix[ms1_df['i'].idxmax()]
+        ms1_peak_df = ms1_df.loc[ms1_df['i'].idxmax()]
         mz_peak = ms1_peak_df.mz
         rt_peak = ms1_peak_df.rt
         mz_centroid = sum(ms1_df.mz * ms1_df.i) / sum(ms1_df.i)
@@ -270,7 +276,7 @@ def get_ms1_summary(row):
 
 def get_ms2_data(row):
     #A DataFrame of all points typically padded by "extra time"
-    all_df = row.padded_feature_data.T
+    all_df = row.padded_feature_data
     
     #slice out ms2 data that is NOT padded by extra_time
     #ms2_df = all_df[(row.in_feature == True)]#[['collision_energy','i','mz','polarity','precursor_MZ','precursor_intensity','rt']]
@@ -280,7 +286,7 @@ def get_ms2_data(row):
 
     num_ms2_datapoints = ms2_df.shape[0]
         
-    return_df = pd.Series({'ms2_datapoints':ms2_df.T.to_dense(),
+    return_df = pd.Series({'ms2_datapoints':ms2_df.T,
                             'num_ms2_datapoints':num_ms2_datapoints})
     return return_df
 
@@ -295,12 +301,12 @@ def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_
 
 def get_ms1_eic(row):
     #A DataFrame of all points typically padded by "extra time"
-    all_df = row.padded_feature_data.T
+    all_df = row.padded_feature_data
     ms1_df = all_df[['i','mz','rt']]
     ms1_df = ms1_df.sort_values('rt',ascending=True)
     if ms1_df.shape[1] == 0:
         ms1_df = pd.DataFrame({'i','mz','rt'})
-    return pd.Series({'eic':ms1_df.T.to_dense()})
+    return pd.Series({'eic':ms1_df.T})
 
 
 def retrieve_most_intense_msms_scan(data):

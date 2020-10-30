@@ -13,6 +13,11 @@ from xml.etree import cElementTree as ET
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.plots import dill2plots as dp
+
+# imports for the xml to dictionary round trip
+from collections import Mapping
+import six
+from pathlib2 import PurePath
 from six.moves import map
 
 try:
@@ -50,18 +55,18 @@ DATA_PATH = '/global/cscratch1/sd/bpb/raw_data'
 # /////////////////////////////////////////////////////////////////////
 # /////////////////// REALTIME QUEUE SBATCH PARAMS ////////////////////
 # /////////////////////////////////////////////////////////////////////
-SLURM_HEADER = """#!/bin/bash
-#SBATCH -t 04:00:00
-#SBATCH -C haswell
-#SBATCH -N 1
-#SBATCH --error="slurm.err"
-#SBATCH --output="slurm.out"
-#SBATCH -q realtime
-#SBATCH -A m1541
-#SBATCH --exclusive
-module load java
+# SLURM_HEADER = """#!/bin/bash
+# #SBATCH -t 04:00:00
+# #SBATCH -C haswell
+# #SBATCH -N 1
+# #SBATCH --error="slurm.err"
+# #SBATCH --output="slurm.out"
+# #SBATCH -q realtime
+# #SBATCH -A m1541
+# #SBATCH --exclusive
+# module load java
 
-"""
+# """
 
 
 # /////////////////////////////////////////////////////////////////////
@@ -86,18 +91,18 @@ module load java
 # /////////////////////////////////////////////////////////////////////
 # /////////////////// SKYLAKE 1.5TB QUEUE SBATCH PARAMS ///////////////
 # /////////////////////////////////////////////////////////////////////
-# SLURM_HEADER = """#!/bin/bash
-# #SBATCH -N 1
-# #SBATCH --exclusive
-# #SBATCH --error="slurm.err"
-# #SBATCH --output="slurm.out"
-# #SBATCH --qos=jgi_shared
-# #SBATCH -A pkscell
-# #SBATCH -C skylake
-# #SBATCH -t 12:00:00
-# #SBATCH -L project
+SLURM_HEADER = """#!/bin/bash
+#SBATCH -N 1
+#SBATCH --exclusive
+#SBATCH --error="slurm.err"
+#SBATCH --output="slurm.out"
+#SBATCH --qos=jgi_shared
+#SBATCH -A pkscell
+#SBATCH -C skylake
+#SBATCH -t 48:00:00
+#SBATCH -L project
 
-# """
+"""
 
 
 def calc_hit_vector(n,df):
@@ -939,6 +944,8 @@ def tree_to_xml(t,filename=None):
             fid.write(xml_str)
     return xml_str
 
+
+
 def dict_to_etree(d):
     """
     Convert a python dictionary to an xml str
@@ -958,9 +965,15 @@ def dict_to_etree(d):
 
     """
     def _to_etree(d, root):
+        print(type(d),d)
+        print('\n\n\n')
         if not d:
             pass
-        elif isinstance(d, six.string_types):
+
+        if type(d) is {}.values().__class__:
+            d = list(d.values)
+        
+        if isinstance(d, six.string_types):
             root.text = d
         elif isinstance(d, dict):
             for k,v in d.items():
@@ -976,6 +989,9 @@ def dict_to_etree(d):
                         _to_etree(e, ET.SubElement(root, k))
                 else:
                     _to_etree(v, ET.SubElement(root, k))
+#         elif isinstance(d,dict_values):
+#             d = [d]
+#             _to_etree(d,ET.SubElement(root, k))
         else: assert d == 'invalid type', (type(d), d)
     assert isinstance(d, dict) and len(d) == 1
     tag, body = next(iter(d.items()))
@@ -1034,9 +1050,7 @@ def etree_to_dict(t):
 ##########################################################
 ##########################################################
 
-from collections import Mapping
-import six
-from pathlib2 import PurePath
+
 
 def tuple_reducer(k1, k2):
     if k1 is None:

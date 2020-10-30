@@ -198,7 +198,7 @@ def df_container_from_metatlas_file(filename,desired_key=None):
     """
     
     """
-    data_df = pd.DataFrame()
+#     data_df = pd.DataFrame()
 
     pd_h5_file  = pd.HDFStore(filename)
         
