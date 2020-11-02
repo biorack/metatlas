@@ -2109,7 +2109,7 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         fontsize=4,
         transform=ax.transAxes)
 
-    ax.text(0, .45, fill(ref + ' RT=%5.3f'%rt, width=26),
+    ax.text(0, .45, fill(str(ref) + ' RT=%5.3f'%rt, width=26),
         horizontalalignment='left',
         verticalalignment='center',
         rotation='vertical',
@@ -2312,6 +2312,8 @@ def make_chromatograms(
         short_names_df = short_names_df[[short_names_header]]
         short_names_df.columns=['shortname']
 
+
+    
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
     compound_names = ma_data.get_compound_names(input_dataset,use_labels=True)[0]
@@ -2494,7 +2496,7 @@ def make_identification_figure_v2(
                     plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
             else:
                 for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
-                    short_samplename  = short_names_df.loc[os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 'short_samplename']
+                    short_samplename  = short_names_df.loc[os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 'short_samplename'][0]
                     plot_score_and_ref_file(ax, score, rt_list[i+1], short_samplename)
 
                 #sample_number = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
