@@ -12,12 +12,9 @@ def chromplotplus(kwargs):
 class CompoundFileEIC:
     def __init__(self, compound_file_data, rt_bounds, rt_min, rt_max, shortname):
         self.group_name = compound_file_data['group'].name
-        #sample_number = compound_file_data['lcmsrun'].name.split('_')[11]
-        #replicate = compound_file_data['lcmsrun'].name.split('_')[13]
-        #self.file_name = compound_file_data['group'].short_name+"_"+sample_number+"_"+replicate # Use short_name_sample#_replicate instead of full file name
         self.file_name = compound_file_data['lcmsrun'].name
         if not shortname.empty:
-            self.file_name = shortname.loc[compound_file_data['lcmsrun'].name.split('.')[0], 'shortname']
+            self.file_name = shortname.loc[compound_file_data['lcmsrun'].name.split('.')[0], 'shortname'][0]
         try:
             self.eic = np.asarray([compound_file_data['data']['eic']['rt'],
                                    compound_file_data['data']['eic']['intensity']]).astype(float)
