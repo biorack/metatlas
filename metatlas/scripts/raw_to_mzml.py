@@ -7,7 +7,7 @@ import labkey as lk
 import pandas as pd
 from labkey.api_wrapper import APIWrapper
 
-
+import glob as glob
 
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
@@ -31,7 +31,7 @@ def get_tasks_from_lims():
         df = df[[c for c in df.columns if not c.startswith('_')]]
         return df
     
-def convert_raw(input_file):
+def convert_raw(input_file,do_centroid=False):
     """
     shifter --volume=$DATADIR:/mywineprefix --image=biocontainers/pwiz:phenomenal-v3.0.18205_cv1.2.54 mywine msconvert --32 --mzML $DATAFILE -o /global/cfs/cdirs/metatlas/projects/fake_rawdata/fakeuser/fake_experiment_for_tests
 
@@ -52,6 +52,8 @@ def convert_raw(input_file):
         if "/project/projectdirs" in input_file:
             input_file = input_file.replace("/project/projectdirs","/cfs/cdirs")
         wd = os.path.dirname(input_file)
+        if do_centroid:
+            command = command.replace('--32','--32 --filter "peakPicking true 1-"')
         command = command.replace('DATADIR',wd)
         command = command.replace('OUTDIR',wd)
         command = command.replace('DATAFILE',input_file)
@@ -60,21 +62,39 @@ def convert_raw(input_file):
     
        
 def main():
+    """
+    /global/common/software/m2650/python3-metatlas-cori/bin/python /global/homes/b/bpb/repos/metatlas/metatlas/scripts/raw_to_mzml.py --input_file /global/cscratch1/sd/bpb/Cornell_Metabolomics_National_Soils/Sample_files --do_centroid True
+
+"""
     parser = argparse.ArgumentParser(description='a command line tool for converting raw to mzml at nersc.')
     # query the lims for files to convert
     parser.add_argument('-input_file','--input_file', help='Full path to input raw file', default=False)
+    parser.add_argument('-do_centroid','--do_centroid', help='Use msconvert to do centroiding', default=False)
+
 #     parser.add_argument('-output_file','--output_file', help='Full path to output mzML file', default=False)
 #     parser.add_argument('-temp_dir','--temp_dir', help='Full path to directory where files are actually converted', default='/global/cscratch1/sd/bpb/temp_raw')
 
     args = vars(parser.parse_args())
-    df = get_tasks_from_lims()
+    
+    if os.path.isdir(args['input_file']):
+        files = glob.glob(os.path.join(args['input_file'],'*.raw'))
+        for f in files:
+    #         args['input_file']
+            try:
+                convert_raw(f,do_centroid=args['do_centroid'])
+            except:
+                pass
 
-    for i,row in df.iterrows():
-#         args['input_file']
-        try:
-            convert_raw(row['input_file'])
-        except:
-            pass
+    elif os.path.isfile(args['input_file']):
+        convert_raw(row['input_file'],do_centroid=args['do_centroid'])
+    else:
+        df = get_tasks_from_lims()
+        for i,row in df.iterrows():
+    #         args['input_file']
+            try:
+                convert_raw(row['input_file'],do_centroid=args['do_centroid'])
+            except:
+                pass
     
     # update tasks in the lims that are completed
     

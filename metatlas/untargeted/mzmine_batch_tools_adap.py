@@ -55,19 +55,33 @@ DATA_PATH = '/global/cscratch1/sd/bpb/raw_data'
 # /////////////////////////////////////////////////////////////////////
 # /////////////////// REALTIME QUEUE SBATCH PARAMS ////////////////////
 # /////////////////////////////////////////////////////////////////////
+SLURM_HEADER = """#!/bin/bash
+#SBATCH -t 04:00:00
+#SBATCH -C haswell
+#SBATCH -N 1
+#SBATCH --error="slurm.err"
+#SBATCH --output="slurm.out"
+#SBATCH -q realtime
+#SBATCH -A m1541
+#SBATCH --exclusive
+module load java
+
+"""
+
+
+# /////////////////////////////////////////////////////////////////////
+# # /////////////////// CORI BIGMEME QUEUE SBATCH PARAMS ////////////////////
+# # /////////////////////////////////////////////////////////////////////
 # SLURM_HEADER = """#!/bin/bash
-# #SBATCH -t 04:00:00
-# #SBATCH -C haswell
 # #SBATCH -N 1
-# #SBATCH --error="slurm.err"
-# #SBATCH --output="slurm.out"
-# #SBATCH -q realtime
 # #SBATCH -A m1541
-# #SBATCH --exclusive
-# module load java
+# #SBATCH -t 00:30:00
 
+# #SBATCH --clusters=escori
+# #SBATCH --qos=bigmem
+# #SBATCH --job-name=my_big_job
+# #SBATCH --mem=550GB
 # """
-
 
 # /////////////////////////////////////////////////////////////////////
 # /////////////////// CORI REGULAR SBATCH PARAMS //////////////////////
@@ -91,18 +105,18 @@ DATA_PATH = '/global/cscratch1/sd/bpb/raw_data'
 # /////////////////////////////////////////////////////////////////////
 # /////////////////// SKYLAKE 1.5TB QUEUE SBATCH PARAMS ///////////////
 # /////////////////////////////////////////////////////////////////////
-SLURM_HEADER = """#!/bin/bash
-#SBATCH -N 1
-#SBATCH --exclusive
-#SBATCH --error="slurm.err"
-#SBATCH --output="slurm.out"
-#SBATCH --qos=jgi_shared
-#SBATCH -A pkscell
-#SBATCH -C skylake
-#SBATCH -t 48:00:00
-#SBATCH -L project
+# SLURM_HEADER = """#!/bin/bash
+# #SBATCH -N 1
+# #SBATCH --exclusive
+# #SBATCH --error="slurm.err"
+# #SBATCH --output="slurm.out"
+# #SBATCH --qos=jgi_shared
+# #SBATCH -A pkscell
+# #SBATCH -C skylake
+# #SBATCH -t 48:00:00
+# #SBATCH -L project
 
-"""
+# """
 
 
 def calc_hit_vector(n,df):
