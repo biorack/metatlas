@@ -39,3 +39,5 @@ dependencies:
   - labkey
   - ftputil
   - werkzeug
+  - xlrd
+  - sortedcollections
