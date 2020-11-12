@@ -1,7 +1,8 @@
 name: metatlas
 channels:
-- conda-forge
 - anaconda
+- conda-forge
+- bioconda
 dependencies:
 - python=3.8
 - numpy
