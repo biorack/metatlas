@@ -324,15 +324,25 @@ def update_file_table(file_table):
     v = GETTER_SPEC[file_type]
     print(('Getting %s files from disk'%(file_type)))
     dates,files = get_files_from_disk(PROJECT_DIRECTORY,v['extension'])
-    df = pd.DataFrame(data={'filename':files,'file_type':file_type,'timeepoch':dates})
-    df['basename'] = df['filename'].apply(os.path.basename)
-    df['name'] = df['filename'].apply(complex_name_splitter) #make a name for grouping associated content
+    if len(files)>0:
+        df = pd.DataFrame(data={'filename':files,'file_type':file_type,'timeepoch':dates})
+        df['basename'] = df['filename'].apply(os.path.basename)
+        df['name'] = df['filename'].apply(complex_name_splitter) #make a name for grouping associated content
+    else:
+        df = pd.DataFrame()
+        df['filename'] = 'None'
+        df['file_type'] = file_type
+        df['timeepoch'] = 0
+        df['basename'] = 'None'
+        df['name'] = 'None'
+    
     print(('\tThere were %d files on disk'%len(files)))
 
     cols = ['filename','name','Key']
     df_lims = get_table_from_lims(v['lims_table'],columns=cols)
     print(('\tThere were %d files from LIMS table %s'%(df_lims.shape[0],v['lims_table'])))
 
+        
     diff_df = pd.merge(df, df_lims,on=['filename','name'], how='outer', indicator='Exist')
     diff_df = diff_df.loc[diff_df['Exist'] != 'both'] #(left_only, right_only, or both)
     print(('\tThere are %d different'%diff_df.shape[0]))
@@ -377,10 +387,10 @@ def main():
     args = vars(parser.parse_args())
     # trees = np.load(args['tree_file'])
     print(args)
-    
+    tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']
+#     tables=['spectralhits_file']
     if str2bool(args['update_file_tables'])==True:
         # 1. Update each table individually
-        tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']
         for t in tables:
             update_file_table(t)
 
@@ -390,7 +400,6 @@ def main():
 
     if str2bool(args['update_lcmsrun_items'])==True:
         # 3. populate lcmsrun table that associates all the file types under one entry
-        tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']
         for t in tables:
             update_lcmsrun_matrix(t)
 
