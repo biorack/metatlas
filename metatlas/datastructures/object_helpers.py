@@ -132,7 +132,7 @@ class Workspace(object):
 
         if ON_NERSC:
             with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
-                nersc_info = yaml.load(fid)
+                nersc_info = yaml.safe_load(fid)
 
             with open(nersc_info['db_passwd_file']) as fid:
                 pw = fid.read().strip()
