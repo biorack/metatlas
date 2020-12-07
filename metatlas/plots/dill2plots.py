@@ -536,11 +536,8 @@ class adjust_rt_for_selected_compound(object):
                     y = d[self.compound_idx]['data']['eic']['intensity']
                     x = np.asarray(x)
                     y = np.asarray(y)
-                    #minval = np.min(y[np.nonzero(y)])
-                    #y = y - minval
                     x = x[y>0]
                     y = y[y>0]#y[y<0.0] = 0.0
-                    #for i, colorlist in self.color_me:
                     if self.color_me != '':
                         for i, cl in enumerate(self.color_me):
                             zorder = len(self.color_me)+ 2 - i
@@ -626,19 +623,15 @@ class adjust_rt_for_selected_compound(object):
         self.hits = hits.sort_values('score', ascending=False)
 
         if len(self.hits) > 0:
-            #hit_rt = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
             hit_file_name = self.hits.index.get_level_values('file_name')[self.hit_ctr]
             hit_ref_id = self.hits.index.get_level_values('id')[self.hit_ctr]
-            hit_score = self.hits['score'][self.hit_ctr]
-            #rt_ms2 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['msms']['data']['rt'][0]
+            hit_score = self.hits['score'].iloc[self.hit_ctr]
             rt_theoretical = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['identification'].rt_references[0].rt_peak
             rt_ms1 = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['rt_peak']
             rt_ms2 = self.hits.index.get_level_values('msms_scan')[self.hit_ctr]
-            #print self.hits['msv_query_aligned'][0:1]
-            #print self.hits['msv_query_aligned'][0:1][0]
-            hit_query = self.hits['msv_query_aligned'][self.hit_ctr:self.hit_ctr+1][0]
-            hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr:self.hit_ctr+1][0]
-            mz_precursor = self.hits['measured_precursor_mz'][self.hit_ctr]
+            hit_query = self.hits['msv_query_aligned'][self.hit_ctr:self.hit_ctr+1].iloc[0]
+            hit_ref = self.hits['msv_ref_aligned'][self.hit_ctr:self.hit_ctr+1].iloc[0]
+            mz_precursor = self.hits['measured_precursor_mz'].iloc[self.hit_ctr]
             mz_theoretical = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['identification'].mz_references[0].mz
             mz_measured = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['mz_centroid']
             delta_mz = abs(mz_theoretical - mz_measured)
@@ -668,26 +661,6 @@ class adjust_rt_for_selected_compound(object):
             hit_file_name= file_names[file_idx]
             hit_score = np.nan
             plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
-        #    file_idx = file_with_max_precursor_intensity(self.data,self.compound_idx)[0]
-        #    if file_idx is not None:
-        #        precursor_intensity = self.data[file_idx][self.compound_idx]['data']['msms']['data']['precursor_intensity']
-        #        idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
-        #
-        #        file_idxs = [file_idx]
-        #        hit_query = np.array([self.data[file_idx][self.compound_idx]['data']['msms']['data']['mz'][idx_max],
-        #                                     self.data[file_idx][self.compound_idx]['data']['msms']['data']['i'][idx_max]])
-        #        hit_ref = np.full_like(hit_query, np.nan)
-        #        hit_score = 0
-        #        mz_theoretical = self.data[file_idx][self.compound_idx]['identification'].mz_references[0].mz
-        #        mz_measured = self.data[file_idx][self.compound_idx]['data']['ms1_summary']['mz_centroid']
-        #        delta_mz = abs(mz_theoretical - mz_measured)
-        #        delta_ppm = delta_mz / mz_theoretical * 1e6
-        #        hit_rt = self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
-        #        #print self.data[file_idx][self.compound_idx]['data']['msms']['data']['rt']
-        #        #print self.data[file_idx][self.compound_idx]['identification'].rt_references[0].rt_peak
-        #        #print self.data[file_idx][self.compound_idx]['data']['ms1_summary']['rt_peak']
-        #        mz_header = "m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %5.4f" % (mz_theoretical, mz_measured, delta_ppm)
-        #        plot_msms_comparison2(0, mz_header, hit_rt, file_names[file_idx], hit_score, self.ax2, hit_query, hit_ref)
 
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
@@ -2428,18 +2401,6 @@ def make_identification_figure_v2(
 
         #except (IndexError, AssertionError, TypeError) as e:
         except (IndexError, TypeError) as e:
-
-            #file_idx = file_with_max_precursor_intensity(data,compound_idx)[0]
-            #if file_idx is not None:
-            #    precursor_intensity = data[file_idx][compound_idx]['data']['msms']['data']['precursor_intensity']
-            #    idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
-
-            #    file_idxs = [file_idx]
-            #    msv_sample_list = [np.array([data[file_idx][compound_idx]['data']['msms']['data']['mz'][idx_max],
-            #                                 data[file_idx][compound_idx]['data']['msms']['data']['i'][idx_max]])]
-            #    msv_ref_list = [np.full_like(msv_sample_list[-1], np.nan)]
-            #    scores = [0]
-            #else:
             file_idx = None
             max_intensity = 0
 
@@ -2456,7 +2417,6 @@ def make_identification_figure_v2(
             msv_sample_list = [np.array([0, np.nan]).T]
             msv_ref_list = [np.array([0, np.nan]).T]
             scores = [np.nan]
-
 
 
         #Plot if compound yields any scores
@@ -2485,11 +2445,6 @@ def make_identification_figure_v2(
                 plot_msms_comparison(i, score, ax, msv_sample_list[i], msv_ref_list[i])
 
 
-            #EMA Compound Info
-            ax3 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
-            plot_ema_compound_info(ax3, data[file_idxs[0]][compound_idx]['identification'])#,
-                                   # ma_data.get_compound_names(data,use_labels=True)[0][compound_idx])
-
 
             #Next Best Scores and Filenames
             ax4a = plt.subplot2grid((24, 24), (0, 15), rowspan=3, colspan=1)
@@ -2510,24 +2465,39 @@ def make_identification_figure_v2(
                     short_samplename  = short_names_df.loc[os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 'short_samplename']
                     plot_score_and_ref_file(ax, score, rt_list[i+1], short_samplename)
 
-                #sample_number = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
-                #replicate = os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
-                #file_short_name = data[file_idxs[i+1]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
-                #plot_score_and_ref_file(ax, score, rt_list[i+1], file_short_name)
+        
+        #EMA Compound Info
+        if file_idxs and file_idxs[0] is not None:
+            ax3 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
+            plot_ema_compound_info(ax3, data[file_idxs[0]][compound_idx]['identification'])#,
+                               # ma_data.get_compound_names(data,use_labels=True)[0][compound_idx])
+        else:
+            ax3 = plt.subplot2grid((24, 24), (0, 0), rowspan=6, colspan=8)
+            plot_ema_compound_info(ax3, data[0][compound_idx]['identification'])#,
 
-            #Structure
+
+        #Structure
+        if file_idxs and file_idxs[0] is not None:
             ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
             plot_structure(ax5, data[file_idxs[0]][compound_idx]['identification'].compound, 100)
+        else:
+            ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
+            plot_structure(ax5, data[0][compound_idx]['identification'].compound, 100)
 
-            #EIC
+        #EIC
+        if file_idxs and file_idxs[0] is not None:
             ax6 = plt.subplot2grid((24, 24), (6, 16), rowspan=6, colspan=6)
+            plot_eic(ax6, data, compound_idx)
+        else:
+            ax6 = plt.subplot2grid((24, 24), (6, 0), rowspan=6, colspan=6)
             plot_eic(ax6, data, compound_idx)
 
 #             #Reference and Sample Info
 #             ax10 = plt.subplot2grid((24, 24), (14, 6), rowspan=10, colspan=20)
 #             plot_ref_sample_info(ax10, 1, 1)
 
-            #Old code
+        #Old code
+        if file_idxs and file_idxs[0] is not None:
             ax7 = plt.subplot2grid((24, 24), (15, 6), rowspan=9, colspan=20)
             mz_theoretical = data[file_idxs[0]][compound_idx]['identification'].mz_references[0].mz
             mz_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['mz_centroid']
@@ -2542,10 +2512,6 @@ def make_identification_figure_v2(
             if not rt_measured:
                 rt_measured = 0
             ax7.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
-            #sample_number = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[11]
-            #replicate = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file).split("_")[13]
-            #file_short_name = data[file_idxs[0]][compound_idx]['group'].short_name+"_"+sample_number+"_"+replicate
-            #ax7.text(0,1,'%s'%fill(file_short_name, width=54),fontsize=8)
             ax7.text(0,0.9,'%s %s'%(compound_names[compound_idx], data[file_idxs[0]][compound_idx]['identification'].mz_references[0].adduct),fontsize=8)
             ax7.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
             ax7.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
@@ -2574,8 +2540,8 @@ def make_identification_figure_v2(
             ax7.set_ylim(.5,1.1)
             ax7.axis('off')
 
-            plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
-            plt.close()
+        plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
+        plt.close()
     df.to_csv(os.path.join(output_loc, 'MatchingMZs.tab'),sep='\t')
 
 

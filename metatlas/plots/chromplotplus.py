@@ -20,7 +20,7 @@ class CompoundFileEIC:
         #self.file_name = compound_file_data['group'].short_name+"_"+sample_number+"_"+replicate # Use short_name_sample#_replicate instead of full file name
         self.file_name = compound_file_data['lcmsrun'].name
         if not shortname.empty:
-            self.file_name = shortname.loc[compound_file_data['lcmsrun'].name.split('.')[0], 'shortname']
+            self.file_name = shortname.loc[compound_file_data['lcmsrun'].name.split('.')[0], 'shortname'][0]
         try:
             self.eic = np.asarray([compound_file_data['data']['eic']['rt'],
                                    compound_file_data['data']['eic']['intensity']]).astype(float)
