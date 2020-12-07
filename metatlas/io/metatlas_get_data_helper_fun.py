@@ -808,10 +808,11 @@ def make_data_sources_tables(groups, myatlas, output_loc):
     atlas_df.to_csv(os.path.join(output_dir,myatlas.name+'_originalatlas.tab'), sep='\t')
 
     group_path_df = pd.DataFrame(columns=['group_name','group_path'])
+    loc_counter = 0
     for g in groups:
-        for i, f in enumerate(g.items):
-        #print f.name
-            group_path_df.loc[i, 'group_name'] = g.name
-            group_path_df.loc[i, 'group_path'] = os.path.dirname(f.mzml_file)
+        for f in g.items:
+            group_path_df.loc[loc_counter, 'group_name'] = g.name
+            group_path_df.loc[loc_counter, 'group_path'] = os.path.dirname(f.mzml_file)
+            loc_counter += 1
 
     group_path_df.to_csv(os.path.join(output_dir,'groups.tab'), sep='\t', index=False)
