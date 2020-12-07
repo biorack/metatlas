@@ -70,6 +70,8 @@ def main():
     # query the lims for files to convert
     parser.add_argument('-input_file','--input_file', help='Full path to input raw file', default=False)
     parser.add_argument('-do_centroid','--do_centroid', help='Use msconvert to do centroiding', default=False)
+    parser.add_argument('-overwrite','--overwrite', help='Overwrite existing Files?', default=False)
+
 
 #     parser.add_argument('-output_file','--output_file', help='Full path to output mzML file', default=False)
 #     parser.add_argument('-temp_dir','--temp_dir', help='Full path to directory where files are actually converted', default='/global/cscratch1/sd/bpb/temp_raw')
