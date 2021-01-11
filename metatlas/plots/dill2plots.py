@@ -1534,6 +1534,7 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
             temp = [group_names[i],f, group_shortnames[i]]
             temp.extend(short_names_df.loc[f.split('.')[0]].values.tolist())
             columns.append(tuple(temp))
+        print(columns)
         df.columns = pd.MultiIndex.from_tuples(columns,names=['group', 'file', 'short groupname', 'sample treatment', 'short filename','short samplename'])
 
     if output_loc:
@@ -2761,12 +2762,12 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
         with open(output_filename,'w') as f:
             dill.dump(data,f)
 
-def filter_atlas(atlas_df = '', input_dataset = [], num_data_points_passing = 5, peak_height_passing = 1e6, rt_peak_passing = 0.8):
+def filter_atlas(atlas_df = '', input_dataset = [], num_data_points_passing = 5, peak_height_passing = 1e6):
     metatlas_dataset = input_dataset
-    num_data_points_passing = np.array([[((metatlas_dataset[i][j]['identification'].rt_references[0].rt_min <= 
+    num_data_points_passing = np.array([[((metatlas_dataset[i][j]['identification'].rt_references[0].rt_min-0.75 <= 
                                        np.array(metatlas_dataset[i][j]['data']['eic']['rt'])) &
                                       (np.array(metatlas_dataset[i][j]['data']['eic']['rt']) <=
-                                       metatlas_dataset[i][j]['identification'].rt_references[0].rt_max)).sum()>num_data_points_passing
+                                       metatlas_dataset[i][j]['identification'].rt_references[0].rt_max+0.75)).sum()>num_data_points_passing
                                     for i in range(len(metatlas_dataset))]
                                     for j in range(len(metatlas_dataset[0]))]).any(axis=1)
     peak_height_passing = np.array([[('data' in list(metatlas_dataset[i][j].keys())) &
@@ -2774,15 +2775,8 @@ def filter_atlas(atlas_df = '', input_dataset = [], num_data_points_passing = 5,
                                  (metatlas_dataset[i][j]['data']['ms1_summary']['peak_height']>=peak_height_passing)
                                 for i in range(len(metatlas_dataset))]
                                 for j in range(len(metatlas_dataset[0]))]).any(axis=1)
-    rt_peak_passing = np.median([[(('data' in list(metatlas_dataset[i][j].keys())) &
-                                 ('ms1_summary' in list(metatlas_dataset[i][j]['data'].keys()))) *
-                                 (metatlas_dataset[i][j]['data']['ms1_summary']['rt_peak'])
-                                for i in range(len(metatlas_dataset))]
-                                for j in range(len(metatlas_dataset[0]))], axis=1) > rt_peak_passing
-    compound_passing = num_data_points_passing & peak_height_passing & rt_peak_passing
-    #atlas_df.reset_index(inplace=True)
+    compound_passing = num_data_points_passing & peak_height_passing
     return atlas_df[compound_passing].reset_index(drop=True)
-#.reset_index(drop=True, inplace=True)
 
 def filter_metatlas_objects_to_most_recent(object_list,field):
     #from datetime import datetime, date
