@@ -15,12 +15,9 @@ def chromplotplus(kwargs):
 class CompoundFileEIC:
     def __init__(self, compound_file_data, rt_bounds, rt_min, rt_max, shortname):
         self.group_name = compound_file_data['group'].name
-        #sample_number = compound_file_data['lcmsrun'].name.split('_')[11]
-        #replicate = compound_file_data['lcmsrun'].name.split('_')[13]
-        #self.file_name = compound_file_data['group'].short_name+"_"+sample_number+"_"+replicate # Use short_name_sample#_replicate instead of full file name
         self.file_name = compound_file_data['lcmsrun'].name
         if not shortname.empty:
-            self.file_name = shortname.loc[compound_file_data['lcmsrun'].name.split('.')[0], 'shortname'][0]
+            self.file_name = shortname.loc[compound_file_data['lcmsrun'].name.split('.')[0], 'shortname']
         try:
             self.eic = np.asarray([compound_file_data['data']['eic']['rt'],
                                    compound_file_data['data']['eic']['intensity']]).astype(float)
@@ -62,7 +59,6 @@ class ChromPlotPlus:
         self.compound_eics = sorted(self.compound_eics,
                                     key = lambda c: (c.group_name,
                                                      c.file_name))
-
         try:
             self.intensity_max = np.nanmax([c.intensity_max_inbounds for c in self.compound_eics])
             if np.isnan(self.intensity_max):
@@ -116,7 +112,7 @@ class ChromPlotPlus:
             self.compound_eics = self.compound_eics[1:]
 
         num_cols = int(np.ceil((self.x_scale*(len(self.compound_eics))/self.y_scale)**.5))
-        num_rows = int(np.ceil(float(len(self.compound_eics))/num_cols))
+        num_rows = int(np.ceil(float(len(self.compound_eics))/num_cols)) + 1
 
         self.ax.set_xlim((-.1,num_cols+.1))
         self.ax.set_ylim((-.1,num_rows+.1))
