@@ -1,0 +1,45 @@
+name: metatlas
+channels:
+- anaconda
+- conda-forge
+- bioconda
+dependencies:
+- python=3.8
+- numpy
+- pyyaml
+- pytables
+- pymzml
+- simplejson
+- traitlets
+- six
+- dill
+- gspread
+- pymysql
+- qgrid
+- pillow
+- oauth2client
+- pandas
+- seaborn
+- matplotlib
+- scipy
+- h5py
+- networkx
+- pingouin
+- pip
+- rdkit
+- pathlib2
+- pip:
+  - sklearn
+  - dataset
+  - molvs
+  - tables
+  - tabulate
+  - pyopenssl
+  - xlsxwriter
+  - xmltodict
+  - labkey
+  - ftputil
+  - werkzeug
+  - xlrd
+  - sortedcollections
+  - gdown

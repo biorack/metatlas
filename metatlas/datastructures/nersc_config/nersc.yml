@@ -1,0 +1,2 @@
+db_name: meta_atlas
+db_passwd_file: '/global/cfs/cdirs/metatlas/mysql_user.txt'
