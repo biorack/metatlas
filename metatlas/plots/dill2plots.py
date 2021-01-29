@@ -596,9 +596,8 @@ class adjust_rt_for_selected_compound(object):
             peak_flag_index = peak_flags.index(my_id.ms1_notes)
         else:
             peak_flag_index = 0
-        self.peak_flag_radio = RadioButtons(self.peak_flag_ax, peak_flags)
+        self.peak_flag_radio = RadioButtons(self.peak_flag_ax, peak_flags, active=peak_flag_index)
         self.peak_flag_radio.on_clicked(self.set_peak_flag)
-        self.peak_flag_radio.set_active(peak_flag_index)
         
         self.msms_flag_ax = plt.axes([0.76, 0.68, 0.1, 0.15])#, axisbg=axcolor)
         self.msms_flag_ax.axis('off')
@@ -607,9 +606,8 @@ class adjust_rt_for_selected_compound(object):
             msms_flag_index = msms_flags.index(my_id.ms2_notes)
         else:
             msms_flag_index = 0
-        self.msms_flag_radio = RadioButtons(self.msms_flag_ax, msms_flags)
+        self.msms_flag_radio = RadioButtons(self.msms_flag_ax, msms_flags, active=msms_flag_index)
         self.msms_flag_radio.on_clicked(self.set_msms_flag)
-        self.msms_flag_radio.set_active(msms_flag_index)
 
 
         #self.fig2,self.ax2 = plt.subplots(figsize=(14, 6))
