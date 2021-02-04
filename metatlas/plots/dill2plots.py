@@ -2764,17 +2764,17 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
 
 def filter_atlas(atlas_df = '', input_dataset = [], num_data_points_passing = 5, peak_height_passing = 1e6):
     metatlas_dataset = input_dataset
-    num_data_points_passing = np.array([[((metatlas_dataset[i][j]['identification'].rt_references[0].rt_min-0.75 <= 
-                                       np.array(metatlas_dataset[i][j]['data']['eic']['rt'])) &
-                                      (np.array(metatlas_dataset[i][j]['data']['eic']['rt']) <=
-                                       metatlas_dataset[i][j]['identification'].rt_references[0].rt_max+0.75)).sum()>num_data_points_passing
-                                    for i in range(len(metatlas_dataset))]
-                                    for j in range(len(metatlas_dataset[0]))]).any(axis=1)
-    peak_height_passing = np.array([[('data' in list(metatlas_dataset[i][j].keys())) &
-                                 ('ms1_summary' in list(metatlas_dataset[i][j]['data'].keys())) &
-                                 (metatlas_dataset[i][j]['data']['ms1_summary']['peak_height']>=peak_height_passing)
-                                for i in range(len(metatlas_dataset))]
-                                for j in range(len(metatlas_dataset[0]))]).any(axis=1)
+    num_data_points_passing = np.array([[(metatlas_dataset[i][j]['data']['eic'] is not None) and
+        (metatlas_dataset[i][j]['data']['eic']['intensity'] is not None) and
+        (len(metatlas_dataset[i][j]['data']['eic']['intensity']) > num_data_points_passing)
+                                     for i in range(len(metatlas_dataset))]
+                                     for j in range(len(metatlas_dataset[0]))]).any(axis=1)
+
+    peak_height_passing = np.array([[(metatlas_dataset[i][j]['data']['eic'] is not None) and
+        (metatlas_dataset[i][j]['data']['eic']['intensity'] is not None) and
+        (np.array(metatlas_dataset[i][j]['data']['eic']['intensity']+[0]).max()>peak_height_passing)
+                                 for i in range(len(metatlas_dataset))]
+                                 for j in range(len(metatlas_dataset[0]))]).any(axis=1)
     compound_passing = num_data_points_passing & peak_height_passing
     return atlas_df[compound_passing].reset_index(drop=True)
 
