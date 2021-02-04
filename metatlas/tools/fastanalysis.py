@@ -423,7 +423,7 @@ def make_scores_df(metatlas_dataset, msms_hits):
         try:
             inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
         except:
-            inchi_key = ""
+            inchi_key = 'None'
 
         if len(msms_hits_df) == 0:
             comp_msms_hits = msms_hits_df
@@ -570,7 +570,7 @@ def filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset,
     try:
         assert(scores_df.inchi_key.tolist()
                == atlas_df.inchi_key.tolist()
-               == [metatlas_dataset[0][i]['identification'].compound[0].inchi_key if len(metatlas_dataset[0][i]['identification'].compound) > 0 else ''
+               == [metatlas_dataset[0][i]['identification'].compound[0].inchi_key if len(metatlas_dataset[0][i]['identification'].compound) > 0 else 'None'
                                    for i in range(len(metatlas_dataset[0]))])
     except AssertionError:
         print('Error: scores_df, atlas_df, and metatlas_dataset must have the same compounds in the same order.')
