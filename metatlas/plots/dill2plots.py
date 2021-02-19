@@ -1485,7 +1485,7 @@ def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns
 #print all chromatograms
 #structure
 
-def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height', use_labels=False, short_names_df=pd.DataFrame()):
+def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height', use_labels=False, short_names_df=pd.DataFrame(), summarize=False):
     """
     fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
     """
@@ -1532,7 +1532,6 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
             temp = [group_names[i],f, group_shortnames[i]]
             temp.extend(short_names_df.loc[f.split('.')[0]].values.tolist())
             columns.append(tuple(temp))
-        print(columns)
         df.columns = pd.MultiIndex.from_tuples(columns,names=['group', 'file', 'short groupname', 'sample treatment', 'short filename','short samplename'])
 
     if output_loc:
@@ -1540,6 +1539,23 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
             os.makedirs(output_loc)
         df.to_csv(os.path.join(output_loc, fieldname + '.tab'),sep='\t')
 
+    if summarize:
+        df.columns = df.columns.droplevel()
+        df_mean = df.mean(numeric_only=True, axis=1)
+        df_median = df.median(numeric_only=True, axis=1)
+        df_min = df.min(numeric_only=True, axis=1)
+        df_max = df.max(numeric_only=True, axis=1)
+        df_std = df.std(numeric_only=True, axis=1)
+        df_sem = df.sem(numeric_only=True, axis=1)
+        df_nan = df.isin(['NaN']).sum(axis=1)
+        df['mean'] = df_mean
+        df['median'] = df_median
+        df['max'] = df_max
+        df['min'] = df_min
+        df['standard deviation'] = df_std
+        df['standard error'] = df_sem
+        df['#NaNs'] = df_nan
+    
     return df
 
 def file_with_max_precursor_intensity(data,compound_idx):
