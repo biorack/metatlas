@@ -414,8 +414,8 @@ class adjust_rt_for_selected_compound(object):
         self.metatlas_dataset[file_idx][compound_idx]['identification'].rt_references[-1].unique_id
         is the unique id to the retention time reference for a compound in a file.
         msms_hits: output of get_msms_hits routine
-        width: specify a width value in inches for the plots and slides
-        height: specify a width value in inches for the plots and slides
+        width: specify a width value in inches for the full figure
+        height: specify a height value in inches for a single plot within the figure
         min_max_color & peak_color: specify a valid matplotlib color string for the slider and vertical bars
         slider_color: background color for the sliders. Must be a valid matplotlib color
 
@@ -455,11 +455,22 @@ class adjust_rt_for_selected_compound(object):
         if self.msms_flags == '':
             self.msms_flags = ('no selection','-1, bad match - should remove compound', '0, no ref match available or no MSMS collected', '0.5, co-isolated precursor, partial match', '0.5, partial match of fragments', '1, perfect match to internal reference library', '1, perfect match to external reference library', '1 co-isolated precursor but all reference ions are in sample spectrum')
 
+        max_radio_label_len = max([len(x) for x in self.peak_flags+self.msms_flags])
+
+        self.plot_hspace = 2.7/(height*2)
+        self.plot_left_pos = 1.0/width
+        # not using a fixed width font, so this assume a even distribution of character widths
+        # in the radio button labels
+        self.plot_right_pos = 1.0-(0.7/width+max_radio_label_len*0.075/width)
+        self.plot_top_pos = 1.0-(0.396/(height*(2+self.plot_hspace)))
+        self.plot_bottom_pos = 1.32/(height*(2+self.plot_hspace))
+
         #Turn On interactive plot
         plt.ion()
         # create figure and first axes
-        self.fig,(self.ax2, self.ax) = plt.subplots(2, 1, figsize=(width, height*2.2))
-        plt.subplots_adjust(left=0.09, bottom=0.275, hspace=0.4)
+        self.fig,(self.ax2, self.ax) = plt.subplots(2, 1, figsize=(width, height*(2+self.plot_hspace)))
+        plt.subplots_adjust(left=self.plot_left_pos, right=self.plot_right_pos,
+                bottom=self.plot_bottom_pos, top=self.plot_top_pos, hspace=self.plot_hspace)
 #         plt.ticklabel_format(style='plain', axis='x')
 #         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 
@@ -552,11 +563,21 @@ class adjust_rt_for_selected_compound(object):
         self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color,linewidth=4.0)
         self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color,linewidth=4.0)
 
-        self.rt_peak_ax = plt.axes([0.09, 0.11, 0.81, 0.02], facecolor=self.slider_color)
-        self.rt_max_ax = plt.axes([0.09, 0.14, 0.81, 0.02], facecolor=self.slider_color)
-        self.rt_min_ax = plt.axes([0.09, 0.17, 0.81, 0.02], facecolor=self.slider_color)
+        x_axis_label_height = 0.5
+        RT_slider_height = (self.plot_bottom_pos-x_axis_label_height/(self.height*(2+self.plot_hspace)))/4.0
+        RT_slider_width = self.plot_right_pos - self.plot_left_pos
 
-        self.y_scale_ax = plt.axes([0.925, 0.2755555, 0.02, 0.26], facecolor=self.slider_color)
+        self.rt_peak_ax = plt.axes([self.plot_left_pos, 0, RT_slider_width, RT_slider_height],
+                                   facecolor=self.slider_color)
+        self.rt_max_ax = plt.axes([self.plot_left_pos, RT_slider_height*1.5, RT_slider_width, RT_slider_height],
+                                  facecolor=self.slider_color)
+        self.rt_min_ax = plt.axes([self.plot_left_pos, RT_slider_height*3.0, RT_slider_width, RT_slider_height],
+                                   facecolor=self.slider_color)
+
+        y_axis_height = (self.plot_top_pos - self.plot_bottom_pos)*(1-self.plot_hspace/(2+self.plot_hspace))/2
+        Y_slider_width = 0.01
+        self.y_scale_ax = plt.axes([self.plot_right_pos, self.plot_bottom_pos, Y_slider_width, y_axis_height],
+                                    facecolor=self.slider_color)
 
         min_x = self.ax.get_xlim()[0]
         max_x = self.ax.get_xlim()[1]
@@ -582,12 +603,18 @@ class adjust_rt_for_selected_compound(object):
         self.y_scale_slider.vline.set_linewidth(8)
         self.y_scale_slider.on_changed(self.update_yscale)
 
-        self.lin_log_ax = plt.axes([0.1, 0.38, 0.1, 0.15])#, axisbg=axcolor)
+        radio_button_width = 1-self.plot_right_pos
+        radio_button_height = 0.11 # height of a single radio button
+        log_ax_height = (2+1)*radio_button_height/self.height
+        self.lin_log_ax = plt.axes([self.plot_left_pos, self.plot_bottom_pos+y_axis_height-log_ax_height,
+                                    radio_button_width, log_ax_height], anchor='NW', aspect='equal')
         self.lin_log_ax.axis('off')
         self.lin_log_radio = RadioButtons(self.lin_log_ax, ('linear', 'log'))
         self.lin_log_radio.on_clicked(self.set_lin_log)
 
-        self.peak_flag_ax = plt.axes([0.76, 0.38, 0.1, 0.15])#, axisbg=axcolor)
+        self.peak_flag_ax = plt.axes([self.plot_right_pos + Y_slider_width, self.plot_bottom_pos,
+                                      radio_button_width, (len(self.peak_flags)+1)*radio_button_height/self.height],
+                                      anchor='SW', aspect='equal')
         self.peak_flag_ax.axis('off')
         peak_flags = self.peak_flags
         my_id = metob.retrieve('CompoundIdentification',
@@ -599,7 +626,9 @@ class adjust_rt_for_selected_compound(object):
         self.peak_flag_radio = RadioButtons(self.peak_flag_ax, peak_flags, active=peak_flag_index)
         self.peak_flag_radio.on_clicked(self.set_peak_flag)
         
-        self.msms_flag_ax = plt.axes([0.76, 0.68, 0.1, 0.15])#, axisbg=axcolor)
+        self.msms_flag_ax = plt.axes([self.plot_right_pos, self.plot_top_pos - y_axis_height,
+                                      radio_button_width, (len(self.msms_flags)+1)*radio_button_height/self.height],
+                                      anchor='SW', aspect='equal')
         self.msms_flag_ax.axis('off')
         msms_flags = self.msms_flags
         if my_id.ms2_notes in msms_flags:
@@ -608,7 +637,6 @@ class adjust_rt_for_selected_compound(object):
             msms_flag_index = 0
         self.msms_flag_radio = RadioButtons(self.msms_flag_ax, msms_flags, active=msms_flag_index)
         self.msms_flag_radio.on_clicked(self.set_msms_flag)
-
 
         #self.fig2,self.ax2 = plt.subplots(figsize=(14, 6))
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
