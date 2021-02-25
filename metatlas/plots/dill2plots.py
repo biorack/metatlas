@@ -711,7 +711,7 @@ class adjust_rt_for_selected_compound(object):
         self.ax.set_title(thisline.get_label(), fontsize=7)
 
     def press(self,event):
-        if event.key == 'right':
+        if event.key in ['right', 'l']:
             if self.compound_idx + 1 < len(self.data[0]):
                 self.compound_idx += 1
                 self.hit_ctr = 0
@@ -722,7 +722,7 @@ class adjust_rt_for_selected_compound(object):
                 self.rt_max_ax.cla()
                 self.y_scale_ax.cla()
                 self.set_plot_data()
-        if event.key == 'left':
+        if event.key in ['left', 'h']:
             if self.compound_idx > 0:
                 self.compound_idx -= 1
                 self.hit_ctr = 0
@@ -733,7 +733,7 @@ class adjust_rt_for_selected_compound(object):
                 self.rt_max_ax.cla()
                 self.y_scale_ax.cla()
                 self.set_plot_data()
-        if event.key == 'up':
+        if event.key in ['up', 'k']:
             if self.hit_ctr > 0:
                 self.hit_ctr -= 1
             self.ax.cla()
@@ -743,7 +743,7 @@ class adjust_rt_for_selected_compound(object):
             self.rt_max_ax.cla()
             self.y_scale_ax.cla()
             self.set_plot_data()
-        if event.key == 'down':
+        if event.key in ['down', 'j']:
             if self.hit_ctr < len(self.hits) - 1:
                 self.hit_ctr += 1
             self.ax.cla()
