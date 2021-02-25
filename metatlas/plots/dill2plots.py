@@ -449,19 +449,24 @@ class adjust_rt_for_selected_compound(object):
         if exclude_groups:
             data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
         self.data = data
+        self.compounds = self.retrieve_compounds()
 
         if self.peak_flags == '':
             self.peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape')
         if self.msms_flags == '':
             self.msms_flags = ('no selection','-1, bad match - should remove compound', '0, no ref match available or no MSMS collected', '0.5, co-isolated precursor, partial match', '0.5, partial match of fragments', '1, perfect match to internal reference library', '1, perfect match to external reference library', '1 co-isolated precursor but all reference ions are in sample spectrum')
 
+        base_font_size = 10
+        self.gui_scale_factor = height/3.25 if height < 3.25 else 1
+        plt.rcParams.update({'font.size': base_font_size * self.gui_scale_factor})
+
         max_radio_label_len = max([len(x) for x in self.peak_flags+self.msms_flags])
 
-        self.plot_hspace = 2.7/(height*2)
+        self.plot_hspace = 2.2/(height*2)
         self.plot_left_pos = 1.0/width
         # not using a fixed width font, so this assume a even distribution of character widths
         # in the radio button labels
-        self.plot_right_pos = 1.0-(0.7/width+max_radio_label_len*0.075/width)
+        self.plot_right_pos = 1.0-(0.7/width+max_radio_label_len*0.075/width*self.gui_scale_factor)
         self.plot_top_pos = 1.0-(0.396/(height*(2+self.plot_hspace)))
         self.plot_bottom_pos = 1.32/(height*(2+self.plot_hspace))
 
@@ -575,8 +580,8 @@ class adjust_rt_for_selected_compound(object):
                                    facecolor=self.slider_color)
 
         y_axis_height = (self.plot_top_pos - self.plot_bottom_pos)*(1-self.plot_hspace/(2+self.plot_hspace))/2
-        Y_slider_width = 0.01
-        self.y_scale_ax = plt.axes([self.plot_right_pos, self.plot_bottom_pos, Y_slider_width, y_axis_height],
+        y_slider_width = 0.01
+        self.y_scale_ax = plt.axes([self.plot_right_pos, self.plot_bottom_pos, y_slider_width, y_axis_height],
                                     facecolor=self.slider_color)
 
         min_x = self.ax.get_xlim()[0]
@@ -603,32 +608,44 @@ class adjust_rt_for_selected_compound(object):
         self.y_scale_slider.vline.set_linewidth(8)
         self.y_scale_slider.on_changed(self.update_yscale)
 
-        radio_button_width = 1-self.plot_right_pos
-        radio_button_height = 0.11 # height of a single radio button
-        log_ax_height = (2+1)*radio_button_height/self.height
-        self.lin_log_ax = plt.axes([self.plot_left_pos, self.plot_bottom_pos+y_axis_height-log_ax_height,
-                                    radio_button_width, log_ax_height], anchor='NW', aspect='equal')
+        radio_button_axes_width = 1-self.plot_right_pos
+        radio_button_radius = 0.02 * self.gui_scale_factor
+        # 0.15 is an x-offset when drawing the RadioButons from the matplotlib code
+        radio_button_center_offset = 0.15
+        self.lin_log_ax = plt.axes([self.plot_left_pos - \
+                                    (radio_button_center_offset - radio_button_radius)/self.width,
+                                    self.plot_bottom_pos, radio_button_axes_width, y_axis_height],
+                                    anchor='NW', aspect='equal')
+        self.lin_log_ax.margins(0)
         self.lin_log_ax.axis('off')
+
         self.lin_log_radio = RadioButtons(self.lin_log_ax, ('linear', 'log'))
+        for circle in self.lin_log_radio.circles:
+                circle.set_radius(radio_button_radius)
         self.lin_log_radio.on_clicked(self.set_lin_log)
 
-        self.peak_flag_ax = plt.axes([self.plot_right_pos + Y_slider_width, self.plot_bottom_pos,
-                                      radio_button_width, (len(self.peak_flags)+1)*radio_button_height/self.height],
+        self.peak_flag_ax = plt.axes([self.plot_right_pos + y_slider_width - \
+                                      (radio_button_center_offset - radio_button_radius)/self.width,
+                                      self.plot_bottom_pos, radio_button_axes_width, y_axis_height],
                                       anchor='SW', aspect='equal')
+        self.peak_flag_ax.margins(0)
         self.peak_flag_ax.axis('off')
         peak_flags = self.peak_flags
-        my_id = metob.retrieve('CompoundIdentification',
-                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+        my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
         if my_id.ms1_notes in peak_flags:
             peak_flag_index = peak_flags.index(my_id.ms1_notes)
         else:
             peak_flag_index = 0
         self.peak_flag_radio = RadioButtons(self.peak_flag_ax, peak_flags, active=peak_flag_index)
+        for circle in self.peak_flag_radio.circles:
+                circle.set_radius(radio_button_radius)
         self.peak_flag_radio.on_clicked(self.set_peak_flag)
-        
-        self.msms_flag_ax = plt.axes([self.plot_right_pos, self.plot_top_pos - y_axis_height,
-                                      radio_button_width, (len(self.msms_flags)+1)*radio_button_height/self.height],
+
+        self.msms_flag_ax = plt.axes([self.plot_right_pos - \
+                                      (radio_button_center_offset - radio_button_radius)/self.width,
+                                      self.plot_top_pos - y_axis_height, radio_button_axes_width, y_axis_height],
                                       anchor='SW', aspect='equal')
+        self.msms_flag_ax.margins(0)
         self.msms_flag_ax.axis('off')
         msms_flags = self.msms_flags
         if my_id.ms2_notes in msms_flags:
@@ -636,6 +653,9 @@ class adjust_rt_for_selected_compound(object):
         else:
             msms_flag_index = 0
         self.msms_flag_radio = RadioButtons(self.msms_flag_ax, msms_flags, active=msms_flag_index)
+        for circle in self.msms_flag_radio.circles:
+                circle.set_radius(radio_button_radius)
+        plt.show()
         self.msms_flag_radio.on_clicked(self.set_msms_flag)
 
         #self.fig2,self.ax2 = plt.subplots(figsize=(14, 6))
@@ -665,7 +685,6 @@ class adjust_rt_for_selected_compound(object):
             rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f, RT MS2 measured = %3.2f" % (rt_theoretical, rt_ms2, rt_ms2)
             mz_header = "precursor m/z = %5.4f, m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_precursor, mz_theoretical, mz_measured, delta_ppm)
             plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
-        
         else:
             hit_query = np.empty((2,2,))
             hit_query[:] = np.nan
@@ -694,14 +713,12 @@ class adjust_rt_for_selected_compound(object):
         self.fig.canvas.draw_idle()
 
     def set_peak_flag(self,label):
-        my_id = metob.retrieve('CompoundIdentification',
-                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+        my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
         my_id.ms1_notes = label
         metob.store(my_id)
 
     def set_msms_flag(self,label):
-        my_id = metob.retrieve('CompoundIdentification',
-                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+        my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
         my_id.ms2_notes = label
         metob.store(my_id)
 
@@ -711,7 +728,7 @@ class adjust_rt_for_selected_compound(object):
         self.ax.set_title(thisline.get_label(), fontsize=7)
 
     def press(self,event):
-        if event.key == 'right':
+        if event.key in ['right', 'l']:
             if self.compound_idx + 1 < len(self.data[0]):
                 self.compound_idx += 1
                 self.hit_ctr = 0
@@ -722,7 +739,7 @@ class adjust_rt_for_selected_compound(object):
                 self.rt_max_ax.cla()
                 self.y_scale_ax.cla()
                 self.set_plot_data()
-        if event.key == 'left':
+        if event.key in ['left', 'h']:
             if self.compound_idx > 0:
                 self.compound_idx -= 1
                 self.hit_ctr = 0
@@ -733,7 +750,7 @@ class adjust_rt_for_selected_compound(object):
                 self.rt_max_ax.cla()
                 self.y_scale_ax.cla()
                 self.set_plot_data()
-        if event.key == 'up':
+        if event.key in ['up', 'k']:
             if self.hit_ctr > 0:
                 self.hit_ctr -= 1
             self.ax.cla()
@@ -743,7 +760,7 @@ class adjust_rt_for_selected_compound(object):
             self.rt_max_ax.cla()
             self.y_scale_ax.cla()
             self.set_plot_data()
-        if event.key == 'down':
+        if event.key in ['down', 'j']:
             if self.hit_ctr < len(self.hits) - 1:
                 self.hit_ctr += 1
             self.ax.cla()
@@ -756,9 +773,8 @@ class adjust_rt_for_selected_compound(object):
         if event.key == 'x':
             self.peak_flag_radio.set_active(1)
             #This is really hacky, but using set_peak_flag function above didn't work.
-            my_id = metob.retrieve('CompoundIdentification',
-                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
-            my_id.description = 'remove'
+            my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
+            my_id.ms1_notes = 'remove'
             metob.store(my_id)
 
     def update_yscale(self,val):
@@ -794,6 +810,11 @@ class adjust_rt_for_selected_compound(object):
         #self.y_scale_ax.cla()
         #self.set_plot_data()
         #self.fig.canvas.draw_idle()
+
+    def retrieve_compounds(self):
+        uids = [x['identification'].unique_id for x in self.data[0]]
+        compounds_list = metob.retrieve('CompoundIdentification', unique_id = uids, username='*')
+        return {c.unique_id:c for c in compounds_list}
 
 class adjust_mz_for_selected_compound(object):
     def __init__(self,
@@ -2017,9 +2038,9 @@ def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sam
     most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
 
     if i == 0:
-        ax.set_title('MSMS ref ID = %s\n%s' % (ref_id, filename), fontsize=7)
-        ax.set_xlabel('m/z\nScore = %.4f, %s\n%s' % (score, rt, mz_header), fontsize=10, weight='bold')
-        ax.set_ylabel('intensity', fontsize=10)
+        ax.set_title('MSMS ref ID = %s\n%s' % (ref_id, filename), fontsize='small', fontstretch='condensed')
+        ax.set_xlabel('m/z\nScore = %.4f, %s\n%s' % (score, rt, mz_header), weight='bold')
+        ax.set_ylabel('intensity')
         #ax.tick_params(axis='both', which='major', labelsize=8)
 
         labels = [1.001e9]

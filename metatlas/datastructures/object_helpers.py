@@ -336,10 +336,11 @@ class Workspace(object):
         query = 'select * from `%s` where (' % object_type
         clauses = []
         for (key, value) in kwargs.items():
-            if not isinstance(value, six.string_types):
+            if type(value) is list and len(value)>0:
+                clauses.append('%s in ("%s")' % (key, '", "'.join(value)))
+            elif not isinstance(value, six.string_types):
                 clauses.append("%s = %s" % (key, value))
-                continue
-            if '%%' in value:
+            elif '%%' in value:
                 clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
             elif '%' in value:
                 clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
