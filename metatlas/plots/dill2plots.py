@@ -449,6 +449,7 @@ class adjust_rt_for_selected_compound(object):
         if exclude_groups:
             data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
         self.data = data
+        self.compounds = self.retrieve_compounds()
 
         if self.peak_flags == '':
             self.peak_flags = ('keep', 'remove', 'unresolvable isomers','poor peak shape')
@@ -630,8 +631,7 @@ class adjust_rt_for_selected_compound(object):
         self.peak_flag_ax.margins(0)
         self.peak_flag_ax.axis('off')
         peak_flags = self.peak_flags
-        my_id = metob.retrieve('CompoundIdentification',
-                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+        my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
         if my_id.ms1_notes in peak_flags:
             peak_flag_index = peak_flags.index(my_id.ms1_notes)
         else:
@@ -713,14 +713,12 @@ class adjust_rt_for_selected_compound(object):
         self.fig.canvas.draw_idle()
 
     def set_peak_flag(self,label):
-        my_id = metob.retrieve('CompoundIdentification',
-                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+        my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
         my_id.ms1_notes = label
         metob.store(my_id)
 
     def set_msms_flag(self,label):
-        my_id = metob.retrieve('CompoundIdentification',
-                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
+        my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
         my_id.ms2_notes = label
         metob.store(my_id)
 
@@ -775,9 +773,8 @@ class adjust_rt_for_selected_compound(object):
         if event.key == 'x':
             self.peak_flag_radio.set_active(1)
             #This is really hacky, but using set_peak_flag function above didn't work.
-            my_id = metob.retrieve('CompoundIdentification',
-                               unique_id = self.data[0][self.compound_idx]['identification'].unique_id, username='*')[-1]
-            my_id.description = 'remove'
+            my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
+            my_id.ms1_notes = 'remove'
             metob.store(my_id)
 
     def update_yscale(self,val):
@@ -813,6 +810,11 @@ class adjust_rt_for_selected_compound(object):
         #self.y_scale_ax.cla()
         #self.set_plot_data()
         #self.fig.canvas.draw_idle()
+
+    def retrieve_compounds(self):
+        uids = [x['identification'].unique_id for x in self.data[0]]
+        compounds_list = metob.retrieve('CompoundIdentification', unique_id = uids, username='*')
+        return {c.unique_id:c for c in compounds_list}
 
 class adjust_mz_for_selected_compound(object):
     def __init__(self,
