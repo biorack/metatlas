@@ -682,7 +682,7 @@ class adjust_rt_for_selected_compound(object):
             mz_measured = self.data[int(file_names.index(hit_file_name))][self.compound_idx]['data']['ms1_summary']['mz_centroid']
             delta_mz = abs(mz_theoretical - mz_measured)
             delta_ppm = delta_mz / mz_theoretical * 1e6
-            rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f, RT MS2 measured = %3.2f" % (rt_theoretical, rt_ms2, rt_ms2)
+            rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f, RT MS2 measured = %3.2f" % (rt_theoretical, rt_ms1, rt_ms2)
             mz_header = "precursor m/z = %5.4f, m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_precursor, mz_theoretical, mz_measured, delta_ppm)
             plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
         else:
