@@ -30,6 +30,7 @@ strict_param = {'min_intensity': 1e5,
 def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
                      output_loc = None,
+                     polarity = '',
                      output_sheetname = 'Draft_Final_Identifications.xlsx',
                      msms_hits = None,
                      min_peak_height=0, min_num_data_points=0, rt_tolerance=np.inf, ppm_tolerance=np.inf,
@@ -62,6 +63,9 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     if output_loc is not None and not os.path.exists(os.path.join(output_loc,'stats_tables')):
         os.mkdir(os.path.join(output_loc,'stats_tables'))
 
+    if polarity != '':
+        output_sheetname = polarity+'_'+output_sheetname
+
     # filter runs from the metatlas dataset
     if include_lcmsruns:
         metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,'lcmsrun',include_lcmsruns)
@@ -83,7 +87,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     passing = {m:np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
 
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
-        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels,output_loc=output_loc)
+        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels,output_loc=os.path.join(output_loc,'data_sheets'), polarity=polarity)
 
     dfs['mz_ppm'] = dfs['peak_height'].copy()
     dfs['mz_ppm'] *= np.nan
@@ -360,9 +364,14 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     stats_table = pd.concat(stats_table, axis=1)
 
     if output_loc is not None:
-        stats_table.to_csv(os.path.join(output_loc, 'stats_tables', 'stats_table.tab'), sep='\t')
+        if polarity == '':
+            readme_file = 'stats_table.readme'
+            stats_table.to_csv(os.path.join(output_loc, 'stats_tables', 'stats_table.tab'), sep='\t')
+        else:
+            readme_file = polarity+'_stats_table.readme'
+            stats_table.to_csv(os.path.join(output_loc, 'stats_tables', polarity+'_stats_table.tab'), sep='\t')
 
-        with open(os.path.join(output_loc, 'stats_tables/', 'stats_table.readme'), 'w') as readme:
+        with open(os.path.join(output_loc, 'stats_tables/', readme_file), 'w') as readme:
             for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'ppm_tolerance', 'min_msms_score', 'min_num_frag_matches']:
                 readme.write('%s\n'%var)
                 try:

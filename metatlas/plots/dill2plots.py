@@ -1534,7 +1534,7 @@ def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns
 #print all chromatograms
 #structure
 
-def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height', use_labels=False, short_names_df=pd.DataFrame(), summarize=False):
+def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height', use_labels=False, short_names_df=pd.DataFrame(), summarize=False, polarity=''):
     """
     fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
     """
@@ -1586,7 +1586,10 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
     if output_loc:
         if not os.path.exists(output_loc):
             os.makedirs(output_loc)
-        df.to_csv(os.path.join(output_loc, fieldname + '.tab'),sep='\t')
+        if polarity == '':
+            df.to_csv(os.path.join(output_loc, fieldname + '.tab'),sep='\t')
+        else:
+            df.to_csv(os.path.join(output_loc, polarity+'_'+fieldname + '.tab'),sep='\t')
 
     if summarize:
         df.columns = df.columns.droplevel()
@@ -2344,7 +2347,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
 def make_chromatograms(
-    input_dataset = [], group='index', share_y = True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None):
+    input_dataset = [], group='index', share_y = True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity=''):
     
     file_names = ma_data.get_file_names(input_dataset)
     
@@ -2363,13 +2366,15 @@ def make_chromatograms(
         short_names_df.columns=['shortname']
 
 
-    
+
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
     compound_names = ma_data.get_compound_names(input_dataset,use_labels=True)[0]
     args_list = []
 
     chromatogram_str = 'compound_EIC_chromatograms'
+    if polarity != '':
+        chromatogram_str = polarity+'_'+chromatogram_str
 
     if not os.path.exists(os.path.join(output_loc,chromatogram_str)):
         os.makedirs(os.path.join(output_loc,chromatogram_str))
@@ -2395,12 +2400,18 @@ def make_chromatograms(
 
 def make_identification_figure_v2(
     input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [],
-    exclude_groups = [], output_loc = [], msms_hits = None, use_labels=False,intensity_sorted_matches=False, short_names_df=pd.DataFrame()):
+    exclude_groups = [], output_loc = [], msms_hits = None, use_labels=False,intensity_sorted_matches=False, short_names_df=pd.DataFrame(), polarity=''):
     #empty can look like this:
     # {'eic': {'rt': [], 'intensity': [], 'mz': []}, 'ms1_summary': {'num_ms1_datapoints': 0.0, 'rt_centroid': nan, 'mz_peak': nan, 'peak_height': nan, 'rt_peak': nan, 'peak_area': nan, 'mz_centroid': nan},
     #'msms': {'data': {'rt': array([], dtype=float64), 'collision_energy': array([], dtype=float64), 'i': array([], dtype=float64), 'precursor_intensity': array([], dtype=float64), 'precursor_MZ': array([], dtype=float64), 'mz': array([], dtype=float64)}}}
     #or empty can look like this:
     # {'eic': None, 'ms1_summary': None, 'msms': {'data': []}}
+    if not os.path.exists(output_loc):
+        os.makedirs(output_loc)
+    if polarity == '':
+        output_loc = os.path.join(output_loc,'msms_mirror_plots')
+    else:
+        output_loc = os.path.join(output_loc, polarity+'_msms_mirror_plots')
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
     if not input_dataset:
@@ -2826,6 +2837,30 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
             data.append(row)
         with open(output_filename,'w') as f:
             dill.dump(data,f)
+
+def filter_by_remove(atlas_df = '', input_dataset=[]):
+    metatlas_dataset = input_dataset
+    notes = []
+    for i,each in enumerate(metatlas_dataset[0]):
+        ls=[]
+        if metatlas_dataset[0][i]['identification'].ms1_notes != None:
+            ls.append(metatlas_dataset[0][i]['identification'].ms1_notes)
+        else:
+            ls.append('')
+        if metatlas_dataset[0][i]['identification'].ms2_notes != None:
+            ls.append(metatlas_dataset[0][i]['identification'].ms2_notes)
+        else:
+            ls.append('')
+        ls.append(metatlas_dataset[0][i]['identification'].name)
+        notes.append(ls)
+    df_info = pd.DataFrame(notes, columns = ['ms1_notes', 'ms2_notes', 'name2'])  #    for item in sublist:
+    atlas_df_all = pd.concat([atlas_df, df_info], axis=1)
+    atlas_df_all=atlas_df_all.sort_values('ms1_notes')
+    atlas_df_all['ms1_notes'] = atlas_df_all['ms1_notes'].apply(lambda x: x.lower())
+    atlas_df_kept=atlas_df_all[~atlas_df_all.ms1_notes.str.startswith('remove')].copy()
+    atlas_df_removed=atlas_df_all[atlas_df_all.ms1_notes.str.startswith('remove')].copy()
+    return(atlas_df_all, atlas_df_kept, atlas_df_removed)
+
 
 def filter_atlas(atlas_df = '', input_dataset = [], num_data_points_passing = 5, peak_height_passing = 1e6):
     metatlas_dataset = input_dataset
