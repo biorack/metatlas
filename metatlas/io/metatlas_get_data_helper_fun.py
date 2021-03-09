@@ -798,7 +798,7 @@ def make_data_sources_tables(groups, myatlas, output_loc, polarity=None):
     """
     if polarity and not polarity in ['POS', 'NEG']:
         raise ValueError
-    prefix = polarity or '' # when None, convert to empty string
+    prefix = polarity + '_' if polarity else ''
     if not os.path.exists(output_loc):
         os.mkdir(output_loc)
     output_dir = os.path.join(output_loc,'data_sources')
