@@ -792,8 +792,13 @@ def get_compound_names(data,use_labels=False):
 
     return (compound_names, compound_objects)
 
-def make_data_sources_tables(groups, myatlas, output_loc, file_name_prefix=None):
-    prefix = file_name_prefix or '' # when None, convert to empty string
+def make_data_sources_tables(groups, myatlas, output_loc, polarity=None):
+    """
+    polarity must be one of None, 'POS', 'NEG' or will throw ValueError
+    """
+    if polarity and not polarity in ['POS', 'NEG']:
+        raise ValueError
+    prefix = polarity or '' # when None, convert to empty string
     if not os.path.exists(output_loc):
         os.mkdir(output_loc)
     output_dir = os.path.join(output_loc,'data_sources')
