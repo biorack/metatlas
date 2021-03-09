@@ -792,20 +792,20 @@ def get_compound_names(data,use_labels=False):
 
     return (compound_names, compound_objects)
 
-def make_data_sources_tables(groups, myatlas, output_loc):
+def make_data_sources_tables(groups, myatlas, output_loc, file_name_prefix=None):
+    prefix = file_name_prefix or '' # when None, convert to empty string
     if not os.path.exists(output_loc):
         os.mkdir(output_loc)
     output_dir = os.path.join(output_loc,'data_sources')
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     
-
-    metob.to_dataframe([myatlas]).to_csv(os.path.join(output_dir,'atlas_metadata.tab'), sep='\t')
-    metob.to_dataframe(groups).to_csv(os.path.join(output_dir,'groups_metadata.tab'), sep='\t')
+    metob.to_dataframe([myatlas]).to_csv(os.path.join(output_dir, prefix+'atlas_metadata.tab'), sep='\t')
+    metob.to_dataframe(groups).to_csv(os.path.join(output_dir, prefix+'groups_metadata.tab'), sep='\t')
     
     atlas_df = make_atlas_df(myatlas)
     atlas_df['label'] = [cid.name for cid in myatlas.compound_identifications]
-    atlas_df.to_csv(os.path.join(output_dir,myatlas.name+'_originalatlas.tab'), sep='\t')
+    atlas_df.to_csv(os.path.join(output_dir,prefix+myatlas.name+'_originalatlas.tab'), sep='\t')
 
     group_path_df = pd.DataFrame(columns=['group_name','group_path'])
     loc_counter = 0
@@ -815,4 +815,4 @@ def make_data_sources_tables(groups, myatlas, output_loc):
             group_path_df.loc[loc_counter, 'group_path'] = os.path.dirname(f.mzml_file)
             loc_counter += 1
 
-    group_path_df.to_csv(os.path.join(output_dir,'groups.tab'), sep='\t', index=False)
+    group_path_df.to_csv(os.path.join(output_dir,prefix+'groups.tab'), sep='\t', index=False)
