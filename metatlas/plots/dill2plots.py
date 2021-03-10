@@ -2346,8 +2346,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
         return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches','inchi_key','precursor_mz','adduct','score']
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
-def make_chromatograms(
-    input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], group='index', share_y = True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity=''):
+def make_chromatograms(input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], group='index', share_y = True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity=''):
     
     #Filter runs from the metatlas dataset
     if include_lcmsruns:
