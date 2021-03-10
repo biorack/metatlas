@@ -92,7 +92,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     dfs['mz_ppm'] = dfs['peak_height'].copy()
     dfs['mz_ppm'] *= np.nan
 
-    dfs['num_data_points'] = pd.DataFrame([[len(metatlas_dataset[i][j]['data']['eic']['intensity'])
+    dfs['num_data_points'] = pd.DataFrame([[len(metatlas_dataset[i][j]['data']['eic']['intensity']) if metatlas_dataset[i][j]['data']['eic'] != None else 0
                                            for i in range(len(metatlas_dataset))]
                                           for j in range(len(metatlas_dataset[0]))])
     dfs['num_data_points'].index = dfs['mz_ppm'].index
@@ -152,13 +152,14 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         avg_rt_measured = []
         intensities = pd.DataFrame()
         for file_idx, file_name in enumerate(file_names):
-            if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']):
-                avg_mz_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid'])
-            if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']):
-                avg_rt_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak'])
-            if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']):
-                intensities.loc[file_idx, 'file_id'] = file_idx
-                intensities.loc[file_idx, 'intensity'] = metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
+            if metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']:
+                if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']):
+                    avg_mz_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid'])
+                if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']):
+                    avg_rt_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak'])
+                if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']):
+                    intensities.loc[file_idx, 'file_id'] = file_idx
+                    intensities.loc[file_idx, 'intensity'] = metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
 
         avg_mz_measured = np.mean(avg_mz_measured)
         avg_rt_measured = np.mean(avg_rt_measured)
