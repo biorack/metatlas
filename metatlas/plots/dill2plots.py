@@ -2346,8 +2346,18 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
         return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches','inchi_key','precursor_mz','adduct','score']
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
-def make_chromatograms(
-    input_dataset = [], group='index', share_y = True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity=''):
+def make_chromatograms(input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], group='index', share_y = True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity=''):
+    
+    #Filter runs from the metatlas dataset
+    if include_lcmsruns:
+        input_dataset = filter_lcmsruns_in_dataset_by_include_list(input_dataset, 'lcmsrun', include_lcmsruns)
+    if exclude_lcmsruns:
+        input_dataset = filter_lcmsruns_in_dataset_by_exclude_list(input_dataset, 'lcmsrun', exclude_lcmsruns)
+    
+    if include_groups:
+        input_dataset = filter_lcmsruns_in_dataset_by_include_list(input_dataset, 'group', include_groups)
+    if exclude_groups:
+        input_dataset = filter_lcmsruns_in_dataset_by_exclude_list(input_dataset, 'group', exclude_groups)
 
     file_names = ma_data.get_file_names(input_dataset)
 
