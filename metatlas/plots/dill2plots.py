@@ -2865,7 +2865,7 @@ def filter_by_remove(atlas_df = '', input_dataset=[]):
         notes.append(ls)
     df_info = pd.DataFrame(notes, columns = ['ms1_notes', 'ms2_notes', 'name2'])  #    for item in sublist:
     atlas_df_all = pd.concat([atlas_df, df_info], axis=1)
-    atlas_df_all=atlas_df_all.sort_values('ms1_notes')
+    #atlas_df_all=atlas_df_all.sort_values('ms1_notes')
     atlas_df_all['ms1_notes'] = atlas_df_all['ms1_notes'].apply(lambda x: x.lower())
     atlas_df_kept=atlas_df_all[~atlas_df_all.ms1_notes.str.startswith('remove')].copy()
     atlas_df_removed=atlas_df_all[atlas_df_all.ms1_notes.str.startswith('remove')].copy()
