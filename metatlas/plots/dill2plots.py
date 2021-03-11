@@ -2480,6 +2480,7 @@ def make_identification_figure_v2(
                                              <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)].drop_duplicates('file_name').head(5)
             # Dont need assert anymore, keep_nonmatch in get_msms_hits should replace the assert
             #assert len(comp_msms_hits) > 0
+            comp_msms_hits = comp_msms_hits[comp_msms_hits['file_name'].isin(file_names)]
             file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
             scores = comp_msms_hits['score'].values.tolist()
             msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
