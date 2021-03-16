@@ -530,7 +530,7 @@ class adjust_rt_for_selected_compound(object):
         mz_measured = default_data['data']['ms1_summary']['mz_centroid']
         if not mz_measured:
             mz_measured = 0
-        
+
         delta_mz = abs(mz_theoretical - mz_measured)
         delta_ppm = delta_mz / mz_theoretical * 1e6
 
@@ -663,7 +663,7 @@ class adjust_rt_for_selected_compound(object):
         my_file_name = self.msms_hits.index.get_level_values('file_name')
         #hits_mz_tolerance = 0.005
         hits_mz_tolerance = default_data['identification'].mz_references[-1].mz_tolerance*1e-6
-        
+
         hits = self.msms_hits[(my_scan_rt >= float(self.my_rt.rt_min)) & (my_scan_rt <= float(self.my_rt.rt_max)) & (self.msms_hits['inchi_key'] == inchi_key) \
                 & (abs(self.msms_hits['measured_precursor_mz'] - mz_theoretical)/mz_theoretical <= hits_mz_tolerance)]
         self.hits = hits.sort_values('score', ascending=False)
@@ -1607,7 +1607,7 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
         df['standard deviation'] = df_std
         df['standard error'] = df_sem
         df['#NaNs'] = df_nan
-    
+
     return df
 
 def file_with_max_precursor_intensity(data,compound_idx):
@@ -1717,7 +1717,7 @@ def make_boxplot_plots(df,output_loc='', use_shortnames=True, ylabel=""):
             df.loc[compound].groupby(level='short groupname').apply(pd.DataFrame).plot(kind='box',ax=ax)
         else:
             df.loc[compound].groupby(level='group').apply(pd.DataFrame).plot(kind='box',ax=ax)
-        
+
         for i, (n, grp) in enumerate(df.loc[compound].groupby(level='short groupname')):
             x = [i+1] *len(grp)
             x = np.random.normal(x, 0.04, size=len(x))
@@ -2135,7 +2135,7 @@ def plot_eic(ax, data, compound_idx):
 
             ax.plot(x, y, 'k-', linewidth=.1, alpha=min(1, 10*(1./len(data))))
             myWhere = np.logical_and(x>=rt_min, x<=rt_max )
-            ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=min(1, 2*(1./len(data))))
+            ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=.25)
         except (AssertionError, TypeError):
             pass
 
@@ -2189,7 +2189,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
         do_centroid = kwargs.pop('do_centroid')
     else:
         do_centroid = False
-        
+
     if 'ref_df' in kwargs:
         ref_df = kwargs.pop('ref_df')
     else:
@@ -2263,7 +2263,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                 precursor_mz_sample = msv_sample['precursor_MZ'].values[0]
                 precursor_intensity_sample = msv_sample['precursor_intensity'].values[0]
                 msv_sample = msv_sample[['mz','i']].values.T
-                
+
                 if do_centroid:
                     max_peaks, min_peaks = sp.peakdet(msv_sample[1], 1000.0)
                     if max_peaks.shape[0]>0:
@@ -2273,8 +2273,8 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                         msv_sample = np.zeros((0,0))
 #                 msv_sample.sort_values('mz',inplace=True)
 #                 msv_sample = msv_sample
- 
-                #Filter ions greater than 2.5 + precursor M/Z 
+
+                #Filter ions greater than 2.5 + precursor M/Z
 #                 msv_sample[1] = msv_sample[1] / msv_sample[1].sum()
 #                 print(msv_sample)
                 if msv_sample.size > 0:
@@ -2334,7 +2334,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
         #This will identify MSMS with single ion / no fragmentation
 #         print(hits.groupby(['inchi_key', 'adduct'])['num_matches'])
 #         if keep_nonmatches==True:
-#             idxs = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max) <= 1 
+#             idxs = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max) <= 1
 #             hits['score'][idxs] = hits['measured_precursor_intensity'][idxs]
         g = hits.groupby(['inchi_key', 'adduct'])['num_matches'].transform(max)
         idxs =  g<= 1
@@ -2347,13 +2347,13 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
 def make_chromatograms(input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], group='index', share_y = True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity=''):
-    
+
     #Filter runs from the metatlas dataset
     if include_lcmsruns:
         input_dataset = filter_lcmsruns_in_dataset_by_include_list(input_dataset, 'lcmsrun', include_lcmsruns)
     if exclude_lcmsruns:
         input_dataset = filter_lcmsruns_in_dataset_by_exclude_list(input_dataset, 'lcmsrun', exclude_lcmsruns)
-    
+
     if include_groups:
         input_dataset = filter_lcmsruns_in_dataset_by_include_list(input_dataset, 'group', include_groups)
     if exclude_groups:
@@ -2465,7 +2465,7 @@ def make_identification_figure_v2(
         sys.stdout.write('\r'+'Making Identification Figure for: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
         sys.stdout.flush()
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
-        
+
         if len(data[0][compound_idx]['identification'].compound) > 0 and hasattr(data[0][compound_idx]['identification'].compound[0],"inchi_key"):
             inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
         else:
@@ -2553,7 +2553,7 @@ def make_identification_figure_v2(
                     short_samplename  = short_names_df.loc[os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 'short_samplename'][0]
                     plot_score_and_ref_file(ax, score, rt_list[i+1], short_samplename)
 
-        
+
         #EMA Compound Info
         if file_idxs and file_idxs[0] is not None:
             ax3 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
@@ -3168,7 +3168,7 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                             mzRef.mz_tolerance = row.mz_threshold
                         else:
                             sys.exit("mz_tolerance or mz_threshold not provided. Can't make atlas.")
-                
+
                 mzRef.mz_tolerance_units = 'ppm'
                 mzRef.detected_polarity = polarity
                 #if 'file_mz' in df.keys():
