@@ -472,6 +472,7 @@ class adjust_rt_for_selected_compound(object):
 
         #Turn On interactive plot
         plt.ion()
+        disable_keyboard_shortcuts({'keymap.yscale': ['l'], 'keymap.xscale': ['k'], 'keymap.home': ['h']})
         # create figure and first axes
         self.fig,(self.ax2, self.ax) = plt.subplots(2, 1, figsize=(width, height*(2+self.plot_hspace)))
         plt.subplots_adjust(left=self.plot_left_pos, right=self.plot_right_pos,
@@ -3328,6 +3329,12 @@ def select_groups_for_analysis(name = '%', description = [], username = '*', do_
 
     return groups
 
-
-
-#
+def disable_keyboard_shortcuts(mapping):
+    """
+    Takes a dictionary with a subset of keys from plot.rcParams and values
+    are arrays of strings, which are keyboard short cuts to be removed
+    """
+    for action, remove_keys_list in mapping.items():
+        for key_combo in remove_keys_list:
+            if action in plt.rcParams and key_combo in plt.rcParams[action]:
+                plt.rcParams[action].remove(key_combo)
