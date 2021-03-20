@@ -3336,4 +3336,5 @@ def disable_keyboard_shortcuts(mapping):
     """
     for action, remove_keys_list in mapping.items():
         for key_combo in remove_keys_list:
+            if action in plt.rcParams and key_combo in plt.rcParams[action]:
             plt.rcParams[action].remove(key_combo)
