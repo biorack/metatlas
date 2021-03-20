@@ -3336,4 +3336,4 @@ def disable_keyboard_shortcuts(mapping):
     """
     for action, remove_keys_list in mapping.items():
         for key_combo in remove_keys_list:
-            plot.rcParams[action].remove(key_combo)
+            plt.rcParams[action].remove(key_combo)
