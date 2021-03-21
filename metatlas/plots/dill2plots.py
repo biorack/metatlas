@@ -456,6 +456,8 @@ class adjust_rt_for_selected_compound(object):
         if self.msms_flags == '':
             self.msms_flags = ('no selection','-1, bad match - should remove compound', '0, no ref match available or no MSMS collected', '0.5, co-isolated precursor, partial match', '0.5, partial match of fragments', '1, perfect match to internal reference library', '1, perfect match to external reference library', '1 co-isolated precursor but all reference ions are in sample spectrum')
 
+        self.msms_zoom_factor = 1  # y axes zoom on msms mirror plot
+
         base_font_size = 10
         self.gui_scale_factor = height/3.25 if height < 3.25 else 1
         plt.rcParams.update({'font.size': base_font_size * self.gui_scale_factor})
@@ -685,7 +687,7 @@ class adjust_rt_for_selected_compound(object):
             delta_ppm = delta_mz / mz_theoretical * 1e6
             rt_header = "RT theoretical = %3.2f, RT MS1 measured = %3.2f, RT MS2 measured = %3.2f" % (rt_theoretical, rt_ms1, rt_ms2)
             mz_header = "precursor m/z = %5.4f, m/z theoretical = %5.4f, m/z measured = %5.4f, ppm diff = %3.2f" % (mz_precursor, mz_theoretical, mz_measured, delta_ppm)
-            plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
+            plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref, self.msms_zoom_factor)
         else:
             hit_query = np.empty((2,2,))
             hit_query[:] = np.nan
@@ -706,7 +708,7 @@ class adjust_rt_for_selected_compound(object):
             hit_ref_id = "N/A"
             hit_file_name= file_names[file_idx]
             hit_score = np.nan
-            plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref)
+            plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score, self.ax2, hit_query, hit_ref, self.msms_zoom_factor)
 
     def set_lin_log(self,label):
         self.ax.set_yscale(label)
@@ -733,6 +735,7 @@ class adjust_rt_for_selected_compound(object):
             if self.compound_idx + 1 < len(self.data[0]):
                 self.compound_idx += 1
                 self.hit_ctr = 0
+                self.msms_zoom_factor = 1
                 self.ax.cla()
                 self.ax2.cla()
                 self.rt_peak_ax.cla()
@@ -744,6 +747,7 @@ class adjust_rt_for_selected_compound(object):
             if self.compound_idx > 0:
                 self.compound_idx -= 1
                 self.hit_ctr = 0
+                self.msms_zoom_factor = 1
                 self.ax.cla()
                 self.ax2.cla()
                 self.rt_peak_ax.cla()
@@ -754,6 +758,7 @@ class adjust_rt_for_selected_compound(object):
         if event.key in ['up', 'k']:
             if self.hit_ctr > 0:
                 self.hit_ctr -= 1
+            self.msms_zoom_factor = 1
             self.ax.cla()
             self.ax2.cla()
             self.rt_peak_ax.cla()
@@ -764,6 +769,8 @@ class adjust_rt_for_selected_compound(object):
         if event.key in ['down', 'j']:
             if self.hit_ctr < len(self.hits) - 1:
                 self.hit_ctr += 1
+            self.msms_zoom_factor = 1
+            self.ax.cla()
             self.ax.cla()
             self.ax2.cla()
             self.rt_peak_ax.cla()
@@ -777,6 +784,10 @@ class adjust_rt_for_selected_compound(object):
             my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
             my_id.ms1_notes = 'remove'
             metob.store(my_id)
+        if event.key == 'z':
+            self.msms_zoom_factor = 1 if self.msms_zoom_factor == 25 else self.msms_zoom_factor * 5
+            self.ax2.cla()
+            self.set_plot_data()
 
     def update_yscale(self,val):
         self.y_scale_slider.valinit = self.slider_val
@@ -2020,7 +2031,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     ylim = ax.get_ylim()
     ax.set_ylim(ylim[0], ylim[1] * 1.33)
 
-def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sample, msv_ref):
+def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sample, msv_ref, zoom_factor=1):
 
     msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
 
@@ -2067,6 +2078,9 @@ def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sam
         ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth=1)
         ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth=1)
         ax.axhline()
+    ylim = ax.get_ylim()
+    new_ylim = 0 if ylim[0] == 0 else ylim[0]/zoom_factor
+    ax.set_ylim(new_ylim, ylim[1]/zoom_factor)
 
 
 def plot_structure(ax, compound, dimensions):
