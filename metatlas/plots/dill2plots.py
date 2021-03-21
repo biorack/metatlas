@@ -2045,7 +2045,6 @@ def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sam
         ax.set_title('MSMS ref ID = %s\n%s' % (ref_id, filename), fontsize='small', fontstretch='condensed')
         ax.set_xlabel('m/z\nScore = %.4f, %s\n%s' % (score, rt, mz_header), weight='bold')
         ax.set_ylabel('intensity')
-        #ax.tick_params(axis='both', which='major', labelsize=8)
 
         labels = [1.001e9]
 
@@ -2053,32 +2052,21 @@ def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sam
                                  if
                                  np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1
                                  and msv_sample_unaligned[1][m] > 0.2 * np.max(msv_sample_unaligned[1])]
-
         for m in max([most_intense_idxs[:6], intensity_requirement], key=len):
             if np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1 and msv_sample_unaligned[1][m] > 0.02 * np.max(msv_sample_unaligned[1]):
                 ax.annotate('%5.4f' % msv_sample_unaligned[0][m],
-                            xy=(msv_sample_unaligned[0][m], 1.01 * msv_sample_unaligned[1][m]),
-                            rotation=90,
-                            horizontalalignment='left', verticalalignment='center',
+                            xy=(msv_sample_unaligned[0][m], msv_sample_unaligned[1][m]),
                             size=6)
                 labels.append(msv_sample_unaligned[0][m])
-
     if msv_ref_unaligned[0].size > 0:
         ref_scale = -1 * np.max(msv_sample_unaligned[1]) / np.max(msv_ref_unaligned[1])
-
         ref_mz = msv_ref_nonmatches[0]
         ref_zeros = np.zeros(msv_ref_nonmatches[0].shape)
         ref_intensity = ref_scale * msv_ref_nonmatches[1]
         shared_ref_intensity = ref_scale * msv_ref_matches[1]
-
         ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth=1)
-
         ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth=1)
-
         ax.axhline()
-
-    ylim = ax.get_ylim()
-    ax.set_ylim(ylim[0], ylim[1] * 1.33)
 
 
 def plot_structure(ax, compound, dimensions):
