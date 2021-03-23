@@ -269,6 +269,7 @@ class adjust_rt_for_selected_compound(object):
         self.adjustable_rt_peak = adjustable_rt_peak
 
         self.compounds = self.retrieve_compounds()
+        self.similar_compounds = self.get_similar_compounds()
         self.file_names = ma_data.get_file_names(self.data)
         self.configure_flags()
         self.filter_runs(include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
@@ -451,12 +452,12 @@ class adjust_rt_for_selected_compound(object):
         if not self.hits.empty:
             hit_file_name, compound = get_hit_metadata(self.data, self.hits, self.file_names,
                                                        self.hit_ctr, self.compound_idx)
-        mz_header, rt_header = get_msms_plot_headers(self.data, self.hits, self.hit_ctr,
-                                                     self.compound_idx, compound)
+        mz_header, rt_header, cpd_header = get_msms_plot_headers(self.data, self.hits, self.hit_ctr,
+                                                     self.compound_idx, compound, self.similar_compounds)
         hit_ref_id, hit_score, hit_query, hit_ref = get_msms_plot_data(self.hits, self.hit_ctr)
         self.ax2.cla()
         self.ax2.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
-        plot_msms_comparison2(0, mz_header, rt_header, hit_ref_id, hit_file_name, hit_score,
+        plot_msms_comparison2(0, mz_header, rt_header, cpd_header, hit_ref_id, hit_file_name, hit_score,
                               self.ax2, hit_query, hit_ref, self.msms_zoom_factor)
 
     def layout_figure(self):
@@ -645,6 +646,33 @@ class adjust_rt_for_selected_compound(object):
         compounds_list = metob.retrieve('CompoundIdentification', unique_id=uids, username='*')
         return {c.unique_id: c for c in compounds_list}
 
+    def get_similar_compounds(self, use_labels=True):
+        similar_compounds = {}
+        compound_names = ma_data.get_compound_names(self.data)[0]
+        for cid in range(len(compound_names)):
+            similar_compounds[cid] = []
+            mz_theoretical = self.data[0][cid]['identification'].mz_references[0].mz
+            cid_rt_min =  self.data[0][cid]['identification'].rt_references[0].rt_min
+            cid_rt_max = self.data[0][cid]['identification'].rt_references[0].rt_max
+            cid_mass = self.data[0][cid]['identification'].compound[0].mono_isotopic_molecular_weight
+            for compound_iterator in range(len(compound_names)):
+                if len(self.data[0][compound_iterator]['identification'].compound) == 0:
+                    continue
+                if use_labels:
+                    cpd_iter_label = self.data[0][compound_iterator]['identification'].name
+                else:
+                    cpd_iter_label = self.data[0][compound_iterator]['identification'].compound[0].name
+                cpd_iter_id = self.data[0][compound_iterator]['identification']
+                cpd_iter_mz = cpd_iter_id.mz_references[0].mz
+                cpd_iter_mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
+                cpd_iter_rt_min = cpd_iter_id.rt_references[0].rt_min
+                cpd_iter_rt_max = cpd_iter_id.rt_references[0].rt_max
+                if cid != compound_iterator:
+                    if ((cpd_iter_mz-0.005 <= mz_theoretical <= cpd_iter_mz+0.005) or (cpd_iter_mass-0.005 <= cid_mass <= cpd_iter_mass+0.005)) and \
+                                    ((cpd_iter_rt_min <= cid_rt_min <=cpd_iter_rt_max) or (cpd_iter_rt_min <= cid_rt_max <= cpd_iter_rt_max) or \
+                                    (cid_rt_min <= cpd_iter_rt_min <= cid_rt_max) or (cid_rt_min <= cpd_iter_rt_max <= cid_rt_max)):
+                                        similar_compounds[cid].append("("+str(compound_iterator)+") "+cpd_iter_label)
+        return similar_compounds
 
 class adjust_mz_for_selected_compound(object):
     def __init__(self,
@@ -1849,7 +1877,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     ylim = ax.get_ylim()
     ax.set_ylim(ylim[0], ylim[1] * 1.33)
 
-def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sample, msv_ref, zoom_factor=1):
+def plot_msms_comparison2(i, mz_header, rt, cpd_header, ref_id, filename, score, ax, msv_sample, msv_ref, zoom_factor=1):
 
     msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
 
@@ -1872,7 +1900,11 @@ def plot_msms_comparison2(i, mz_header, rt, ref_id, filename, score, ax, msv_sam
 
     if i == 0:
         ax.set_title('MSMS ref ID = %s\n%s' % (ref_id, filename), fontsize='small', fontstretch='condensed')
-        ax.set_xlabel('m/z\nScore = %.4f, %s\n%s' % (score, rt, mz_header), weight='bold')
+        if cpd_header == "":
+            ax.set_xlabel('m/z\nScore = %.4f, %s\n%s' % (score, rt, mz_header), weight='bold')
+        else:
+            ax.set_xlabel('m/z\nScore = %.4f, %s\n%s\n%s' % (score, rt, mz_header, cpd_header), weight='bold')
+
         ax.set_ylabel('intensity')
 
         labels = [1.001e9]
@@ -3158,7 +3190,7 @@ def disable_keyboard_shortcuts(mapping):
                 plt.rcParams[action].remove(key_combo)
 
 
-def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound):
+def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_compounds):
     """
     inputs:
         data: metatlas_dataset-like object
@@ -3168,7 +3200,7 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound):
         compound: object for current compound
     returns:
         tuple of strings
-            (mz_header, rt_header)
+            (mz_header, rt_header, cpd_header)
     """
     if not hits.empty:
         rt_ms2 = hits.index.get_level_values('msms_scan')[hit_ctr]
@@ -3185,10 +3217,14 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound):
                  "ppm diff = %3.2f" % delta_ppm]
     rt_header = ["RT theoretical = %3.2f" % rt_theoretical,
                  "RT MS1 measured = %3.2f" % rt_ms1]
+    cpd_header = ""
+    if len(similar_compounds[compound_idx])>0:
+        cpd_header = '; '.join(similar_compounds[compound_idx])
+        cpd_header = 'Similar Compounds = '+cpd_header
     if not hits.empty:
         mz_header.insert(0, "precursor m/z = %5.4f" % mz_precursor)
         rt_header.append("RT MS2 measured = %3.2f" % rt_ms2)
-    return (', '.join(mz_header), ', '.join(rt_header))
+    return (', '.join(mz_header), ', '.join(rt_header), cpd_header)
 
 
 def get_msms_plot_data(hits, hit_ctr):
