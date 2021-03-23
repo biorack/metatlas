@@ -812,12 +812,13 @@ def make_data_sources_tables(groups, myatlas, output_loc, polarity=None):
     atlas_df['label'] = [cid.name for cid in myatlas.compound_identifications]
     atlas_df.to_csv(os.path.join(output_dir,prefix+myatlas.name+'_originalatlas.tab'), sep='\t')
 
-    group_path_df = pd.DataFrame(columns=['group_name','group_path'])
+    group_path_df = pd.DataFrame(columns=['group_name','group_path','file_name'])
     loc_counter = 0
     for g in groups:
         for f in g.items:
             group_path_df.loc[loc_counter, 'group_name'] = g.name
             group_path_df.loc[loc_counter, 'group_path'] = os.path.dirname(f.mzml_file)
+            group_path_df.loc[loc_counter, 'file_name'] = f.mzml_file
             loc_counter += 1
 
     group_path_df.to_csv(os.path.join(output_dir,prefix+'groups.tab'), sep='\t', index=False)
