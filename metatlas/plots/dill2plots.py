@@ -1994,8 +1994,10 @@ def plot_eic(ax, data, compound_idx):
 
     # ax.tick_params(labelbottom='off')
     ax.xaxis.set_tick_params(labelsize=5)
-    ax.get_yaxis().get_major_formatter().set_useOffset(False)
-    ax.get_yaxis().set_visible(False)
+    ax.yaxis.set_tick_params(labelsize=5)
+    ax.tick_params(axis='y', labelsize=5)
+    ax.get_yaxis().get_major_formatter().set_useOffset(True)
+    #ax.get_yaxis().set_visible(False)
     ax.axvline(rt_min, color='k', linewidth=1.0)
     ax.axvline(rt_max, color='k', linewidth=1.0)
     ax.axvline(rt_peak, color='r', linewidth=1.0)
@@ -2425,10 +2427,10 @@ def make_identification_figure_v2(
 
         #EIC
         if file_idxs and file_idxs[0] is not None:
-            ax6 = plt.subplot2grid((24, 24), (6, 16), rowspan=6, colspan=6)
+            ax6 = plt.subplot2grid((21, 21), (6, 15), rowspan=5, colspan=6)
             plot_eic(ax6, data, compound_idx)
         else:
-            ax6 = plt.subplot2grid((24, 24), (6, 0), rowspan=6, colspan=6)
+            ax6 = plt.subplot2grid((21, 21), (6, 0), rowspan=5, colspan=6)
             plot_eic(ax6, data, compound_idx)
 
 #             #Reference and Sample Info
@@ -2479,6 +2481,7 @@ def make_identification_figure_v2(
             ax7.set_ylim(.5,1.1)
             ax7.axis('off')
 
+        plt.tight_layout()
         plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
         plt.close()
     df.to_csv(os.path.join(output_loc, 'MatchingMZs.tab'),sep='\t')
