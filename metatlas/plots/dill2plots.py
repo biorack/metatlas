@@ -384,7 +384,7 @@ class adjust_rt_for_selected_compound(object):
                         zorder = 1
                         color = 'black'
                     self.ax.plot(x, y, 'k-', zorder=zorder, linewidth=2, alpha=self.alpha,
-                                 pickradius=5, color=color, label=label)
+                                 picker=True, pickradius=5, color=color, label=label)
 
     def filter_runs(self, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups):
         # filter runs from the metatlas dataset
