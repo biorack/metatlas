@@ -654,6 +654,8 @@ class adjust_rt_for_selected_compound(object):
             mz_theoretical = self.data[0][cid]['identification'].mz_references[0].mz
             cid_rt_min =  self.data[0][cid]['identification'].rt_references[0].rt_min
             cid_rt_max = self.data[0][cid]['identification'].rt_references[0].rt_max
+            if len(self.data[0][cid]['identification'].compound) == 0:
+                continue
             cid_mass = self.data[0][cid]['identification'].compound[0].mono_isotopic_molecular_weight
             for compound_iterator in range(len(compound_names)):
                 if len(self.data[0][compound_iterator]['identification'].compound) == 0:
