@@ -233,7 +233,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             else:
                 final_df.loc[compound_idx, 'msms_quality'] = ""
         else:
-            final_df.loc[compound_idx, 'msms_quality'] = ""
+            final_df.loc[compound_idx, 'msms_quality'] = 0
         
         if delta_ppm <= 5 or delta_mz <= 0.001:
             final_df.loc[compound_idx, 'mz_quality'] = 1
