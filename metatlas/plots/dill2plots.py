@@ -3007,7 +3007,17 @@ def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
                     # no identification_notes were provided
                     pass
 
+                try:
+                    myID.ms1_notes = row.ms1_notes
+                except:
+                    # no ms1_notes were provided
+                    pass
 
+                try:
+                    myID.ms2_notes = row.ms2_notes
+                except:
+                    # no ms2_notes were provided
+                    pass
 
                 mzRef = metob.MzReference()
                 # take the mz value from the spreadsheet
