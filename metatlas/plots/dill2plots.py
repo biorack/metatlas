@@ -410,7 +410,7 @@ class adjust_rt_for_selected_compound(object):
                         '0.5, partial match of fragments',
                         '1, perfect match to internal reference library',
                         '1, perfect match to external reference library',
-                        '1 co-isolated precursor but all reference ions are in sample spectrum')
+                        '1, co-isolated precursor but all reference ions are in sample spectrum')
         if self.peak_flags is None or self.peak_flags == '':
             self.peak_flags = default_peak
         if self.msms_flags is None or self.msms_flags == '':
