@@ -129,8 +129,6 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         cid = metatlas_dataset[0][compound_idx]['identification']
         mz_theoretical = cid.mz_references[0].mz
         mz_measured = metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid']
-        delta_mz = abs(mz_theoretical - mz_measured)
-        delta_ppm = delta_mz / mz_theoretical * 1e6
 
         comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) \
                                     & (msms_hits_df['msms_scan'] >= compound_ref_rt_min) \
@@ -163,6 +161,9 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
 
         avg_mz_measured = np.mean(avg_mz_measured)
         avg_rt_measured = np.mean(avg_rt_measured)
+        
+        delta_mz = abs(mz_theoretical - avg_mz_measured)
+        delta_ppm = delta_mz / mz_theoretical * 1e6
 
         final_df = final_df.append({'index':compound_idx}, ignore_index=True)
         final_df.loc[compound_idx, 'identified_metabolite'] = ""
