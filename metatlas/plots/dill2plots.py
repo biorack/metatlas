@@ -348,6 +348,11 @@ class adjust_rt_for_selected_compound(object):
         self.y_scale_slider.on_changed(self.update_y_scale)
 
     def rt_bounds(self):
+        # put vlines on plot before creating sliders, as adding the vlines may increase plot
+        # width, as the vline could occur outside of the data points
+        self.min_line = self.ax.axvline(self.my_rt.rt_min, color=self.min_max_color, linewidth=4.0)
+        self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color, linewidth=4.0)
+        self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color, linewidth=4.0)
         self.rt_min_slider = self.rt_slider(self.rt_min_ax, 'RT min', self.my_rt.rt_min,
                                             self.min_max_color, self.update_rt_min)
         self.rt_max_slider = self.rt_slider(self.rt_max_ax, 'RT max', self.my_rt.rt_max,
@@ -357,9 +362,6 @@ class adjust_rt_for_selected_compound(object):
         self.rt_peak_slider.active = self.adjustable_rt_peak and self.enable_edit
         self.rt_min_slider.active = self.enable_edit
         self.rt_max_slider.active = self.enable_edit
-        self.min_line = self.ax.axvline(self.my_rt.rt_min, color=self.min_max_color, linewidth=4.0)
-        self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color, linewidth=4.0)
-        self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color, linewidth=4.0)
 
     def rt_slider(self, axes, label, valinit, color, on_changed):
         min_x, max_x = self.ax.get_xlim()
@@ -410,7 +412,7 @@ class adjust_rt_for_selected_compound(object):
                         '0.5, partial match of fragments',
                         '1, perfect match to internal reference library',
                         '1, perfect match to external reference library',
-                        '1 co-isolated precursor but all reference ions are in sample spectrum')
+                        '1, co-isolated precursor but all reference ions are in sample spectrum')
         if self.peak_flags is None or self.peak_flags == '':
             self.peak_flags = default_peak
         if self.msms_flags is None or self.msms_flags == '':
