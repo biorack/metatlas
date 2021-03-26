@@ -669,11 +669,15 @@ class adjust_rt_for_selected_compound(object):
                 cpd_iter_mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
                 cpd_iter_rt_min = cpd_iter_id.rt_references[0].rt_min
                 cpd_iter_rt_max = cpd_iter_id.rt_references[0].rt_max
+                cpd_iter_rt_peak = cpd_iter_id.rt_references[0].rt_peak
+                cpd_rt = "%.2f" % cpd_iter_rt_peak
                 if cid != compound_iterator:
                     if ((cpd_iter_mz-0.005 <= mz_theoretical <= cpd_iter_mz+0.005) or (cpd_iter_mass-0.005 <= cid_mass <= cpd_iter_mass+0.005)) and \
                                     ((cpd_iter_rt_min <= cid_rt_min <=cpd_iter_rt_max) or (cpd_iter_rt_min <= cid_rt_max <= cpd_iter_rt_max) or \
                                     (cid_rt_min <= cpd_iter_rt_min <= cid_rt_max) or (cid_rt_min <= cpd_iter_rt_max <= cid_rt_max)):
-                                        similar_compounds[cid].append("("+str(compound_iterator)+") "+cpd_iter_label)
+                                        similar_compounds[cid].append(str(compound_iterator)+", "+cpd_iter_label+" {RT-"+cpd_rt+"}")
+                else:
+                    similar_compounds[cid].append("*")
         return similar_compounds
 
 class adjust_mz_for_selected_compound(object):
@@ -1903,9 +1907,9 @@ def plot_msms_comparison2(i, mz_header, rt, cpd_header, ref_id, filename, score,
     if i == 0:
         ax.set_title('MSMS ref ID = %s\n%s' % (ref_id, filename), fontsize='small', fontstretch='condensed')
         if cpd_header == "":
-            ax.set_xlabel('m/z\nScore = %.4f, %s\n%s' % (score, rt, mz_header), weight='bold')
+            ax.set_xlabel('m/z\nScore = %.4f, %s\n%s' % (score, rt, mz_header), weight='bold', fontsize=7)
         else:
-            ax.set_xlabel('m/z\nScore = %.4f, %s\n%s\n%s' % (score, rt, mz_header, cpd_header), weight='bold')
+            ax.set_xlabel('m/z\nScore = %.4f, %s\n%s\n%s' % (score, rt,  mz_header, cpd_header), weight='bold', fontsize=7)
 
         ax.set_ylabel('intensity')
 
@@ -3233,8 +3237,10 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
     rt_header = ["RT theoretical = %3.2f" % rt_theoretical,
                  "RT MS1 measured = %3.2f" % rt_ms1]
     cpd_header = ""
-    if len(similar_compounds[compound_idx])>0:
-        cpd_header = '; '.join(similar_compounds[compound_idx])
+    if len(similar_compounds[compound_idx])>1:
+        cpd_header = '; '.join(similar_compounds[compound_idx][::-1])
+        if len(cpd_header) > 80:
+            cpd_header = cpd_header[:80]+"\n"+cpd_header[80:]
         cpd_header = 'Similar Compounds = '+cpd_header
     if not hits.empty:
         mz_header.insert(0, "precursor m/z = %5.4f" % mz_precursor)
@@ -3295,3 +3301,4 @@ def layout_radio_button_set(area, anchor='SW'):
     axes = plt.axes(area, anchor=anchor, aspect='equal')
     axes.axis('off')
     return axes
+
