@@ -175,8 +175,14 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'label'] = cid_label
         
         overlapping_compounds = []
+        cpd_labels = []
         inchi_key_map = {}
-
+        for compound_iterator in range(len(compound_names)):
+            if use_labels:
+                cpd_labels.append(metatlas_dataset[0][compound_iterator]['identification'].name)
+            else:
+                cpd_labels.append(metatlas_dataset[0][compound_iterator]['identification'].compound[0].name)
+        
         if(len(cid.compound) != 0):
             #Loop through compounds to identify overlapping compounds
             for compound_iterator in range(len(compound_names)):
@@ -198,14 +204,17 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                     if ((cpd_iter_mz-0.005 <= mz_theoretical <= cpd_iter_mz+0.005) or (cpd_iter_mass-0.005 <= cid_mass <= cpd_iter_mass+0.005)) and \
                             ((cpd_iter_rt_min <= cid_rt_min <=cpd_iter_rt_max) or (cpd_iter_rt_min <= cid_rt_max <= cpd_iter_rt_max) or \
                             (cid_rt_min <= cpd_iter_rt_min <= cid_rt_max) or (cid_rt_min <= cpd_iter_rt_max <= cid_rt_max)):
-                        if cid_label == cpd_iter_label:
-                            cid_label = cid_label +" "+ cid.mz_references[0].adduct
-                            cpd_iter_label = cpd_iter_label +" "+ cpd_iter_id.mz_references[0].adduct
-                        overlapping_compounds.append(cpd_iter_label)
+                        if cpd_labels.count(cpd_iter_label)>1:
+                            overlapping_compounds.append(cpd_iter_label +" "+ cpd_iter_id.mz_references[0].adduct)
+                        else:
+                            overlapping_compounds.append(cpd_iter_label)
                         inchi_key_map[cpd_iter_label] = cpd_iter_id.compound[0].inchi_key
 
         if len(overlapping_compounds) > 0:
-            overlapping_compounds.append(cid_label)
+            if cpd_labels.count(cid_label)>1:
+                overlapping_compounds.append(cid_label+" "+cid.mz_references[0].adduct)
+            else:
+                overlapping_compounds.append(cid_label)
             if len(cid.compound) > 0:
                 inchi_key_map[cid_label] = cid.compound[0].inchi_key
             else:
