@@ -3240,7 +3240,7 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
                  "RT MS1 measured = %3.2f" % rt_ms1]
     cpd_header = ""
     if len(similar_compounds[compound_idx])>1:
-        cpd_header = '; '.join(similar_compounds[compound_idx][::-1])
+        cpd_header = '; '.join(similar_compounds[compound_idx])
         if len(cpd_header) > 80:
             cpd_header = cpd_header[:80]+"\n"+cpd_header[80:]
         cpd_header = 'Similar Compounds = '+cpd_header
