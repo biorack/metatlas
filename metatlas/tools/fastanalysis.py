@@ -206,9 +206,10 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                             (cid_rt_min <= cpd_iter_rt_min <= cid_rt_max) or (cid_rt_min <= cpd_iter_rt_max <= cid_rt_max)):
                         if cpd_labels.count(cpd_iter_label)>1:
                             overlapping_compounds.append(cpd_iter_label +" "+ cpd_iter_id.mz_references[0].adduct)
+                            inchi_key_map[cpd_iter_label+" "+ cpd_iter_id.mz_references[0].adduct] = cpd_iter_id.compound[0].inchi_key
                         else:
                             overlapping_compounds.append(cpd_iter_label)
-                        inchi_key_map[cpd_iter_label] = cpd_iter_id.compound[0].inchi_key
+                            inchi_key_map[cpd_iter_label] = cpd_iter_id.compound[0].inchi_key
 
         if len(overlapping_compounds) > 0:
             if cpd_labels.count(cid_label)>1:
@@ -216,7 +217,10 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             else:
                 overlapping_compounds.append(cid_label)
             if len(cid.compound) > 0:
-                inchi_key_map[cid_label] = cid.compound[0].inchi_key
+                if cpd_labels.count(cid_label)>1:
+                    inchi_key_map[cid_label+" "+cid.mz_references[0].adduct] = cid.compound[0].inchi_key
+                else:
+                    inchi_key_map[cid_label] = cid.compound[0].inchi_key
             else:
                 inchi_key_map[cid_label] = ""
             final_df.loc[compound_idx, 'overlapping_compound'] = "//".join(cpd for cpd in sorted(overlapping_compounds, key=str))
