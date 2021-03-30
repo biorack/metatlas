@@ -271,6 +271,7 @@ class adjust_rt_for_selected_compound(object):
         self.adjustable_rt_peak = adjustable_rt_peak
 
         self.compounds = self.retrieve_compounds()
+        self.rts = self.retrieve_rts()
         self.file_names = ma_data.get_file_names(self.data)
         self.configure_flags()
         self.filter_runs(include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
@@ -320,8 +321,6 @@ class adjust_rt_for_selected_compound(object):
         idx = 0 if self.y_scale == 'linear' else 1
         self.lin_log_radio = self.create_radio_buttons(self.lin_log_ax, ('linear', 'log'),
                                                        self.set_lin_log, active_idx=idx)
-        rt_ref_id = self.data[0][self.compound_idx]['identification'].rt_references[-1].unique_id
-        self.my_rt = metob.retrieve('RTReference', unique_id=rt_ref_id, username='*')[-1]
         self.rt_bounds()
         self.highlight_similar_compounds()
 
@@ -355,14 +354,15 @@ class adjust_rt_for_selected_compound(object):
     def rt_bounds(self):
         # put vlines on plot before creating sliders, as adding the vlines may increase plot
         # width, as the vline could occur outside of the data points
-        self.min_line = self.ax.axvline(self.my_rt.rt_min, color=self.min_max_color, linewidth=4.0)
-        self.max_line = self.ax.axvline(self.my_rt.rt_max, color=self.min_max_color, linewidth=4.0)
-        self.peak_line = self.ax.axvline(self.my_rt.rt_peak, color=self.peak_color, linewidth=4.0)
-        self.rt_min_slider = self.rt_slider(self.rt_min_ax, 'RT min', self.my_rt.rt_min,
+        rt = self.rts[self.compound_idx]
+        self.min_line = self.ax.axvline(rt.rt_min, color=self.min_max_color, linewidth=4.0)
+        self.max_line = self.ax.axvline(rt.rt_max, color=self.min_max_color, linewidth=4.0)
+        self.peak_line = self.ax.axvline(rt.rt_peak, color=self.peak_color, linewidth=4.0)
+        self.rt_min_slider = self.rt_slider(self.rt_min_ax, 'RT min', rt.rt_min,
                                             self.min_max_color, self.update_rt_min)
-        self.rt_max_slider = self.rt_slider(self.rt_max_ax, 'RT max', self.my_rt.rt_max,
+        self.rt_max_slider = self.rt_slider(self.rt_max_ax, 'RT max', rt.rt_max,
                                             self.min_max_color, self.update_rt_max)
-        self.rt_peak_slider = self.rt_slider(self.rt_peak_ax, 'RT peak', self.my_rt.rt_peak,
+        self.rt_peak_slider = self.rt_slider(self.rt_peak_ax, 'RT peak', rt.rt_peak,
                                              self.peak_color, self.update_rt_peak)
         self.rt_peak_slider.active = self.adjustable_rt_peak and self.enable_edit
         self.rt_min_slider.active = self.enable_edit
@@ -381,15 +381,23 @@ class adjust_rt_for_selected_compound(object):
 
     def highlight_similar_compounds(self):
         self.unhighlight_similar_compounds()
+        min_y, max_y = self.ax.get_ylim()
+        min_x, max_x = self.ax.get_xlim()
+        height = max_y - min_y
         for compound in self.similar_compounds:
             if compound['index'] == self.compound_idx:
                 continue
-            min_y, max_y = self.ax.get_ylim()
-            height = max_y - min_y
             width = abs(compound['rt'].rt_max - compound['rt'].rt_min)
+            if compound['rt'].rt_min+width < min_x:  # would be off plot
+                continue
+            color = 'red' if compound['overlaps'] else 'blue'
             rect = matplotlib.patches.Rectangle((compound['rt'].rt_min, min_y), width, height,
-                                                linewidth=0, alpha=0.12, facecolor='red')
+                                                linewidth=0, alpha=0.12, facecolor=color)
+            text_x = max(compound['rt'].rt_min, min_x)
+            text_y = max_y - (max_y - min_y)*0.05  # drop just below top of plot
+            text = self.ax.text(text_x, text_y, compound['label'], fontsize='small')
             self.ax.add_patch(rect)
+            self.similar_rects.append(text)
             self.similar_rects.append(rect)
 
     def display_eic_data(self):
@@ -464,8 +472,8 @@ class adjust_rt_for_selected_compound(object):
         mz_theoretical = ident.mz_references[0].mz
 
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
-        self.hits = self.msms_hits[(my_scan_rt >= float(self.my_rt.rt_min)) &
-                                   (my_scan_rt <= float(self.my_rt.rt_max)) &
+        self.hits = self.msms_hits[(my_scan_rt >= float(self.rts[self.compound_idx].rt_min)) &
+                                   (my_scan_rt <= float(self.rts[self.compound_idx].rt_max)) &
                                    (self.msms_hits['inchi_key'] == inchi_key) &
                                    within_tolerance(self.msms_hits['measured_precursor_mz'],
                                                     mz_theoretical, hits_mz_tolerance)]
@@ -653,10 +661,10 @@ class adjust_rt_for_selected_compound(object):
         slider = {'rt_min': self.rt_min_slider, 'rt_peak': self.rt_peak_slider,
                   'rt_max': self.rt_max_slider}
         line = {'rt_min': self.min_line, 'rt_peak': self.peak_line, 'rt_max': self.max_line}
-        setattr(self.my_rt, which, val)
         setattr(self.data[0][self.compound_idx]['identification'].rt_references[-1], which, val)
+        setattr(self.rts[self.compound_idx], which, val)
         slider[which].valinit = val
-        metob.store(self.my_rt)
+        metob.store(self.rts[self.compound_idx])
         line[which].set_xdata((val, val))
         if which != 'rt_peak':
             self.msms_zoom_factor = 1
@@ -680,22 +688,29 @@ class adjust_rt_for_selected_compound(object):
         compounds_list = metob.retrieve('CompoundIdentification', unique_id=uids, username='*')
         return {c.unique_id: c for c in compounds_list}
 
+    def retrieve_rts(self):
+        uids = {i: x['identification'].rt_references[-1].unique_id for i, x in enumerate(self.data[0])}
+        rt_list = metob.retrieve('RTReference', unique_id=list(uids.values()), username='*')
+        rt_dict = {rt.unique_id: rt for rt in rt_list}
+        return {i: rt_dict[uids[i]] for i in uids.keys()}
+
     def get_similar_compounds(self, use_labels=True):
         """
         inputs:
             use_labels: if True use compound labels in output instead of compound names
         returns:
-            list of dicts containing information on compounds with overlapping RT ranges
-            and similar mz values or mono isotopic MW when compared to self.compound_idx
+            list of dicts containing information on compounds with similar mz values or mono
+                 isotopic MW when compared to self.compound_idx
             each dict contains:
                 index: position in self.data[0]
                 label: compound name or label string
                 rt: a metatlas.datastructures.metatlas_objects.RtReference
+                overlaps: True if compound has RT bounds overlapping with those of self.compound_idx
         """
         cid = self.data[0][self.compound_idx]['identification']
         if len(cid.compound) == 0:
             return []
-        similar_compounds = []
+        out = []
         cid_mz_ref = cid.mz_references[0].mz
         cid_mass = cid.compound[0].mono_isotopic_molecular_weight
         for compound_iter_idx, _ in enumerate(self.data[0]):
@@ -704,12 +719,12 @@ class adjust_rt_for_selected_compound(object):
                 continue
             mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
             mz_ref = cpd_iter_id.mz_references[0].mz
-            if ((mz_ref-0.005 <= cid_mz_ref <= mz_ref+0.005) or (mass-0.005 <= cid_mass <= mass+0.005)) and \
-               rt_range_overlaps(cid.rt_references[-1], cpd_iter_id.rt_references[-1]):
-                similar_compounds.append({'index': compound_iter_idx,
-                                          'label': cpd_iter_id.name if use_labels else cpd_iter_id.compound[0].name,
-                                          'rt':  cpd_iter_id.rt_references[-1]})
-        return similar_compounds
+            if (mz_ref-0.005 <= cid_mz_ref <= mz_ref+0.005) or (mass-0.005 <= cid_mass <= mass+0.005):
+                out.append({'index': compound_iter_idx,
+                            'label': cpd_iter_id.name if use_labels else cpd_iter_id.compound[0].name,
+                            'rt': self.rts[compound_iter_idx],
+                            'overlaps': rt_range_overlaps(self.rts[self.compound_idx], self.rts[compound_iter_idx])})
+        return out
 
 class adjust_mz_for_selected_compound(object):
     def __init__(self,
@@ -3275,7 +3290,7 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
             get_similar_compounds_header(similar_compounds, compound_idx))
 
 
-def get_similar_compounds_header(similar_compounds, compound_idx, width=80):
+def get_similar_compounds_header(similar_compounds, compound_idx, width=130):
     """
     inputs:
         similar_compounds: the output from get_similar_compounds()
