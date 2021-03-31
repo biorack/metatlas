@@ -388,8 +388,8 @@ class adjust_rt_for_selected_compound(object):
             if compound['index'] == self.compound_idx:
                 continue
             width = abs(compound['rt'].rt_max - compound['rt'].rt_min)
-            if compound['rt'].rt_min+width < min_x:  # would be off plot
-                continue
+            if compound['rt'].rt_min+width < min_x or compound['rt'].rt_min > max_x:
+                continue  # would be off the plot
             color = 'red' if compound['overlaps'] else 'blue'
             rect = matplotlib.patches.Rectangle((compound['rt'].rt_min, min_y), width, height,
                                                 linewidth=0, alpha=0.12, facecolor=color)
