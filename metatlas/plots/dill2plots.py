@@ -478,7 +478,7 @@ class adjust_rt_for_selected_compound(object):
                                    within_tolerance(self.msms_hits['measured_precursor_mz'],
                                                     mz_theoretical, hits_mz_tolerance)]
 
-    def msms_plot(self):
+    def msms_plot(self, font_scale=10.0):
         compound = None
         hit_file_name = None
         if not self.hits.empty:
@@ -486,11 +486,12 @@ class adjust_rt_for_selected_compound(object):
                                                        self.hit_ctr, self.compound_idx)
         mz_header, rt_header, cpd_header = get_msms_plot_headers(self.data, self.hits, self.hit_ctr,
                                                      self.compound_idx, compound, self.similar_compounds)
+        cpd_header_wrap = fill(cpd_header, width=int(self.width * font_scale))  # text wrap
         hit_ref_id, hit_score, hit_query, hit_ref = get_msms_plot_data(self.hits, self.hit_ctr)
         self.ax2.cla()
         self.ax2.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
-        plot_msms_comparison2(0, mz_header, rt_header, cpd_header, hit_ref_id, hit_file_name, hit_score,
-                              self.ax2, hit_query, hit_ref, self.msms_zoom_factor)
+        plot_msms_comparison2(0, mz_header, rt_header, cpd_header_wrap, hit_ref_id, hit_file_name,
+                              hit_score, self.ax2, hit_query, hit_ref, self.msms_zoom_factor)
 
     def layout_figure(self):
         self.gui_scale_factor = self.height/3.25 if self.height < 3.25 else 1
@@ -3290,18 +3291,17 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
             get_similar_compounds_header(similar_compounds, compound_idx))
 
 
-def get_similar_compounds_header(similar_compounds, compound_idx, width=130):
+def get_similar_compounds_header(similar_compounds, compound_idx):
     """
     inputs:
         similar_compounds: the output from get_similar_compounds()
         compound_index: index of current compound being considered
-        width: maximum line width for text wrapping
     returns:
     """
     if len(similar_compounds) < 2:
         return ''
     joined = '; '.join([_similar_compound_to_str(compound, compound_idx) for compound in similar_compounds])
-    return fill(f"Similar Compounds = {joined}", width=width)
+    return f"Similar Compounds = {joined}"
 
 
 def _similar_compound_to_str(sdict, compound_idx):
