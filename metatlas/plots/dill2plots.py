@@ -485,7 +485,9 @@ class adjust_rt_for_selected_compound(object):
             hit_file_name, compound = get_hit_metadata(self.data, self.hits, self.file_names,
                                                        self.hit_ctr, self.compound_idx)
         mz_header, rt_header, cpd_header = get_msms_plot_headers(self.data, self.hits, self.hit_ctr,
-                                                     self.compound_idx, compound, self.similar_compounds)
+                                                                 self.compound_idx, compound,
+                                                                 self.similar_compounds,
+                                                                 self.file_names)
         cpd_header_wrap = fill(cpd_header, width=int(self.width * font_scale))  # text wrap
         hit_ref_id, hit_score, hit_query, hit_ref = get_msms_plot_data(self.hits, self.hit_ctr)
         self.ax2.cla()
@@ -3257,7 +3259,7 @@ def disable_keyboard_shortcuts(mapping):
                 plt.rcParams[action].remove(key_combo)
 
 
-def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_compounds):
+def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_compounds, file_names):
     """
     inputs:
         data: metatlas_dataset-like object
@@ -3269,14 +3271,18 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
         tuple of strings
             (mz_header, rt_header, cpd_header)
     """
+    avg_mz_measured = []
+    avg_rt_measured = []
     if not hits.empty:
         rt_ms2 = hits.index.get_level_values('msms_scan')[hit_ctr]
         mz_precursor = hits['measured_precursor_mz'].iloc[hit_ctr]
-    mz_measured = compound['data']['ms1_summary']['mz_centroid'] if compound else np.nan
-    rt_ms1 = compound['data']['ms1_summary']['rt_peak'] if compound else np.nan
-    source = data[0][compound_idx] if hits.empty else compound
-    rt_theoretical = source['identification'].rt_references[0].rt_peak
-    mz_theoretical = source['identification'].mz_references[0].mz
+    
+    file_idx = file_with_max_ms1_intensity(data, compound_idx)[0]
+    rt_theoretical = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
+    mz_theoretical = data[file_idx][compound_idx]['identification'].mz_references[0].mz
+    mz_measured = data[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']
+    rt_ms1 = data[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']
+
     delta_mz = abs(mz_theoretical - mz_measured)
     delta_ppm = delta_mz / mz_theoretical * 1e6
     mz_header = ["m/z theoretical = %5.4f" % mz_theoretical,
