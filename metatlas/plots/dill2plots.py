@@ -1626,12 +1626,14 @@ def make_boxplot_plots(df,output_loc='', use_shortnames=True, ylabel=""):
     plt.ioff()
     for compound in df.index:
         f, ax = plt.subplots(1, 1,figsize=(12,12))
-        if 'short groupname' in df.columns.names and use_shortnames:
-            df.loc[compound].groupby(level='short groupname').apply(pd.DataFrame).plot(kind='box',ax=ax)
+        if use_shortnames and 'short groupname' in df.columns.names:
+            g = df.loc[compound].groupby(level='short groupname')
+            g.apply(pd.DataFrame).plot(kind='box',ax=ax)
         else:
-            df.loc[compound].groupby(level='group').apply(pd.DataFrame).plot(kind='box',ax=ax)
+            g = df.loc[compound].groupby(level='group')
+            g.apply(pd.DataFrame).plot(kind='box',ax=ax)
 
-        for i, (n, grp) in enumerate(df.loc[compound].groupby(level='short groupname')):
+        for i, (n, grp) in enumerate(g):
             x = [i+1] *len(grp)
             x = np.random.normal(x, 0.04, size=len(x))
             plt.scatter(x, grp)
@@ -3276,7 +3278,7 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
     if not hits.empty:
         rt_ms2 = hits.index.get_level_values('msms_scan')[hit_ctr]
         mz_precursor = hits['measured_precursor_mz'].iloc[hit_ctr]
-    
+
     file_idx = file_with_max_ms1_intensity(data, compound_idx)[0]
     rt_theoretical = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
     mz_theoretical = data[file_idx][compound_idx]['identification'].mz_references[0].mz
