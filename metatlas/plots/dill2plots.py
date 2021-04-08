@@ -296,6 +296,7 @@ class adjust_rt_for_selected_compound(object):
         # create all event handlers
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
         self.fig.canvas.mpl_connect('key_press_event', self.press)
+        self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
         self.set_plot_data()
 
     def set_plot_data(self):
@@ -492,8 +493,11 @@ class adjust_rt_for_selected_compound(object):
         hit_ref_id, hit_score, hit_query, hit_ref = get_msms_plot_data(self.hits, self.hit_ctr)
         self.ax2.cla()
         self.ax2.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
-        plot_msms_comparison2(0, mz_header, rt_header, cpd_header_wrap, hit_ref_id, hit_file_name,
-                              hit_score, self.ax2, hit_query, hit_ref, self.msms_zoom_factor)
+        self.mz_lines = plot_msms_comparison2(0, mz_header, rt_header, cpd_header_wrap, hit_ref_id,
+                                              hit_file_name, hit_score, self.ax2, hit_query,
+                                              hit_ref, self.msms_zoom_factor)
+        min_x = self.ax2.get_xlim()[0]  # fails if original location is not within plot
+        self.mz_annot = self.ax2.annotate('', xy=(min_x, 0), visible=False)
 
     def layout_figure(self):
         self.gui_scale_factor = self.height/3.25 if self.height < 3.25 else 1
@@ -591,6 +595,23 @@ class adjust_rt_for_selected_compound(object):
         thisline = event.artist
         thisline.set_color('cyan')
         self.ax.set_title(thisline.get_label(), fontsize=7)
+
+    def on_motion(self, event):
+        if event.inaxes == self.ax2:  # in msms mirror plot
+            for collection in self.mz_lines:
+                found, ind = collection.contains(event)
+                if found:
+                    segments = collection.get_segments()
+                    vertice = segments[ind["ind"][0]]
+                    mz = vertice[0][0]
+                    self.mz_annot.set_text(f"{mz:.5f}")
+                    self.mz_annot.xyann = (mz, event.ydata)
+                    self.mz_annot.set_visible(True)
+                    self.fig.canvas.draw_idle()
+                    return
+            if self.mz_annot.get_visible():
+                self.mz_annot.set_visible(False)
+                self.fig.canvas.draw_idle()
 
     def update_plots(self):
         self.msms_zoom_factor = 1
@@ -1935,7 +1956,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     ax.set_ylim(ylim[0], ylim[1] * 1.33)
 
 def plot_msms_comparison2(i, mz_header, rt, cpd_header, ref_id, filename, score, ax, msv_sample, msv_ref, zoom_factor=1):
-
+    pickradius = 10
     msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
 
     msv_sample_unaligned = np.concatenate((msv_sample_matches, msv_sample_nonmatches), axis=1)
@@ -1945,13 +1966,13 @@ def plot_msms_comparison2(i, mz_header, rt, cpd_header, ref_id, filename, score,
     sample_zeros = np.zeros(msv_sample_nonmatches[0].shape)
     sample_intensity = msv_sample_nonmatches[1]
 
-    ax.vlines(sample_mz, sample_zeros, sample_intensity, colors='r', linewidth=1)
+    lines = [ax.vlines(sample_mz, sample_zeros, sample_intensity, colors='r', linewidth=1, pickradius=pickradius)]
 
     shared_mz = msv_sample_matches[0]
     shared_zeros = np.zeros(msv_sample_matches[0].shape)
     shared_sample_intensity = msv_sample_matches[1]
 
-    ax.vlines(shared_mz, shared_zeros, shared_sample_intensity, colors='g', linewidth=1)
+    lines.append(ax.vlines(shared_mz, shared_zeros, shared_sample_intensity, colors='g', linewidth=1, pickradius=pickradius))
 
     most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
 
@@ -1982,12 +2003,13 @@ def plot_msms_comparison2(i, mz_header, rt, cpd_header, ref_id, filename, score,
         ref_zeros = np.zeros(msv_ref_nonmatches[0].shape)
         ref_intensity = ref_scale * msv_ref_nonmatches[1]
         shared_ref_intensity = ref_scale * msv_ref_matches[1]
-        ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth=1)
-        ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth=1)
+        lines.append(ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth=1, pickradius=pickradius))
+        lines.append(ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth=1, pickradius=pickradius))
         ax.axhline()
     ylim = ax.get_ylim()
     new_ylim = 0 if ylim[0] == 0 else ylim[0]/zoom_factor
     ax.set_ylim(new_ylim, ylim[1]/zoom_factor)
+    return lines
 
 
 def plot_structure(ax, compound, dimensions):
