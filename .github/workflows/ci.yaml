@@ -1,0 +1,16 @@
+name: ci
+on:
+  push:
+    branches:
+      - start_ci
+jobs:
+  test:
+    name: Run test suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v2
+      - name: Setup nox
+        uses: excitedleigh/setup-nox@v2.0.0
+      - name: Run system tests
+        run: nox -s system_tests-3.8
