@@ -2,10 +2,11 @@
 Metabolite Atlas is written and maintained by:
 **********************************************
 
-Development Team 
+Development Team
 `````````````````
 - Vasanth Singan, Software design engineer <vrsingan@lbl.gov>
 - Daniel Treen, Software design engineer <dgct@lbl.gov>
+- Will Holtz, Software design engineer <wholtz@lbl.gov>
 - Trent Northen, Mass spectrometry exometabolomics applications <trnorthen@lbl.gov>
 - Ben Bowen, Overall project lead <bpbowen@lbl.gov>
 
