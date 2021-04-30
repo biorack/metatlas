@@ -4,7 +4,7 @@ import nox
 
 py_versions = ['3.8', '3.9']
 
-nox.options.sessions = ["flake8_diff", "pylint", "unit_tests-3.8"]
+nox.options.sessions = ["flake8_diff", "unit_tests-3.8", "update_git_hooks"]
 
 single_py_args = {'venv_backend': 'conda', 'reuse_venv': False}
 multi_py_args = {**single_py_args, **{'python': py_versions}}
@@ -27,6 +27,7 @@ run_deps = [
     'pyyaml=5.4.1',
     'rdkit=2021.03.1',
     'simplejson=3.17.2',
+    'scipy=1.6.3',
     'sqlalchemy=1.4.11',
     'tabulate=0.8.9',
     'xlsxwriter=1.4.0'
@@ -71,7 +72,7 @@ def unit_tests(session):
     test_deps = ['pytest=6.2.3', 'pytest-cov=2.11.1']
     session.conda_install(*(channels+run_deps+test_deps))
     session.install('--no-deps', 'dataset==1.5.0')
-    session.run('pytest', '--cov', 'tests/unit/')
+    session.run('pytest', '--cov', 'metatlas', 'tests/unit/', env={'METATLAS_LOCAL': 'TRUE'})
 
 
 @nox.session(python=py_versions[0])
@@ -85,3 +86,9 @@ def system_tests(session):
 def install_git_hooks(session):
     session.install('pre-commit')
     session.run('pre-commit', 'install')
+
+
+@nox.session(python=py_versions[0])
+def update_git_hooks(session):
+    session.install('pre-commit')
+    session.run('pre-commit', 'autoupdate')
