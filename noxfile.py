@@ -13,6 +13,7 @@ nox.options.error_on_external_run = True
 
 run_deps = [
     'alembic=1.5.8',
+    'banal=1.0.6',
     'dill=0.3.3',
     'gspread=3.7.0',
     'hdf5=1.10.6',
