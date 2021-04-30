@@ -12,6 +12,7 @@ multi_py_args = {**single_py_args, **{'python': py_versions}}
 nox.options.error_on_external_run = True
 
 run_deps = [
+    'alembic=1.5.8',
     'dill=0.3.3',
     'gspread=3.7.0',
     'hdf5=1.10.6',
