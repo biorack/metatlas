@@ -17,8 +17,8 @@ jobs:
       - name: Cache conda environment for unit tests
         uses: actions/cache@v2
         with:
-          path: ~/.nox
-          key: ${{ runner.os }}-unit_tests-3.8
+          path: ~/work/metatlas/metatlas/.nox
+          key: ${{ runner.os }}-nox
       - name: Run unit tests
         run: nox -s unit_tests-3.8
       - name: Run system tests
