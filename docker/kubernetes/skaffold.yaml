@@ -1,0 +1,20 @@
+apiVersion: skaffold/v2beta13
+kind: Config
+metadata:
+  name: kubernetes
+build:
+  artifacts:
+  - image: metatlas
+    context: images/metatlas
+    docker:
+      dockerfile: Dockerfile
+  - image: atlasdb
+    context: images/atlasdb
+deploy:
+  helm:
+    releases:
+    - name: metatlas
+      chartPath: ./metatlas
+      artifactOverrides:
+        metatlasImage: metatlas
+        dbImage: atlasdb

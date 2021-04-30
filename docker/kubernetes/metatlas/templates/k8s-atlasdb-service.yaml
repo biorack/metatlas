@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: metatlas-atlasdb
+  labels:
+    app: metatlas
+spec:
+  ports:
+    - port: 3306
+  selector:
+    app: metatlas
+    tier: db
+  clusterIP: None

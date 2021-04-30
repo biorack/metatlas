@@ -121,7 +121,7 @@ def _get_subclasses(cls):
 class Workspace(object):
 
     def __init__(self):
-        # get metatlas directory since notebooks and scripts could be launched 
+        # get metatlas directory since notebooks and scripts could be launched
         # from other locations
         # this directory contains the config files
         metatlas_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
@@ -142,7 +142,14 @@ class Workspace(object):
             if os.path.isfile(local_config_file):
                 with open(local_config_file) as fid:
                     local_info = yaml.load(fid)
-                self.path = 'mysql+pymysql://localhost/%s' % (local_info['db_name'])
+                hostname = 'localhost' if 'db_hostname' not in local_info else local_info['db_hostname']
+                login = ''
+                if 'db_username' in local_info:
+                    if 'db_password' in local_info:
+                        login = f"{local_info['db_username']}:{local_info['db_password']}@"
+                    else:
+                        login = f"{local_info['db_username']}@"
+                self.path = f"mysql+pymysql://{login}{hostname}/{local_info['db_name']}"
             else:
                 self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
 
@@ -310,7 +317,7 @@ class Workspace(object):
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
         # with dataset.connect(self.path) as db:
-        # self.db = 
+        # self.db =
         self.get_connection()
         if object_type not in self.db:
             if not klass:
@@ -393,7 +400,7 @@ class Workspace(object):
                 i.prev_uid = 'origin'
             i._changed = False
         items.sort(key=lambda x: x.last_modified)
-        
+
         return items
 
     def remove(self, object_type, **kwargs):
