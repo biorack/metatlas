@@ -40,3 +40,35 @@ def test_within_tolerance_yes():
 
 def test_within_tolerance_no():
     assert not dill2plots.within_tolerance(99, 100, 0.002)
+
+
+def test_filter_metatlas_objects_by_list_remove_all():
+    i = type('', (), {})()
+    i.myattr = [1, 2]
+    j = type('', (), {})()
+    j.myattr = [2, 3]
+    assert [] == dill2plots.filter_metatlas_objects_by_list([i, j], 'myattr', [4, 5])
+
+
+def test_filter_metatlas_objects_by_list_remove_none():
+    i = type('', (), {})()
+    i.myattr = [1, 2]
+    j = type('', (), {})()
+    j.myattr = [2, 3]
+    assert [i, j] == dill2plots.filter_metatlas_objects_by_list([i, j], 'myattr', [2])
+
+
+def test_remove_metatlas_objects_by_list_remove_none():
+    i = type('', (), {})()
+    i.myattr = [1, 2]
+    j = type('', (), {})()
+    j.myattr = [2, 3]
+    assert [i, j] == dill2plots.remove_metatlas_objects_by_list([i, j], 'myattr', [4, 5])
+
+
+def test_remove_metatlas_objects_by_list_remove_all():
+    i = type('', (), {})()
+    i.myattr = [1, 2]
+    j = type('', (), {})()
+    j.myattr = [2, 3]
+    assert [] == dill2plots.remove_metatlas_objects_by_list([i, j], 'myattr', [0, 2, 5])
