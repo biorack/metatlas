@@ -1562,7 +1562,7 @@ def file_with_max_ms1_intensity(data,compound_idx):
     idx = None
     my_max = 0
     for i,d in enumerate(data):
-        if 'intensity' in list(d[compound_idx]['data']['eic'].keys()) and d[compound_idx]['data']['eic']['intensity'] != []:
+        if d[compound_idx]['data']['eic'] and 'intensity' in list(d[compound_idx]['data']['eic'].keys()) and d[compound_idx]['data']['eic']['intensity'] != []:
             temp = max(d[compound_idx]['data']['eic']['intensity'])
             if temp > my_max:
                 my_max = temp
