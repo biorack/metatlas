@@ -15,6 +15,6 @@ repos:
   hooks:
   - id: flake8_diff
     name: flake8 only on lines modified by the commit
-    entry: sh -c 'git diff -U0 --staged HEAD | flake8 --diff'
+    entry: sh -c 'git diff -U0 -w --staged HEAD | flake8 --diff'
     language: system
     types: [python]

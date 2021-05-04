@@ -68,7 +68,7 @@ def get_data_for_atlas_df_and_file(input_tuple):
         extra_mz = input_tuple[5]
     elif len(input_tuple) == 5:
         extra_time = input_tuple[4]
-    
+
     df_container = df_container_from_metatlas_file(my_file)
 
     df_container = remove_ms1_data_not_in_atlas(atlas_df,df_container)
@@ -109,10 +109,10 @@ def get_data_for_atlas_df_and_file(input_tuple):
 
 def get_bpc(filename,dataset='ms1_pos',integration='bpc'):
     """
-    Gets the basepeak chromatogram for a file. 
+    Gets the basepeak chromatogram for a file.
     filename: File can be either a metatlas lcmsrun object or a full path to an hdf5file
     dataset: ms1_pos, ms1_neg, ms2_pos, ms2_neg
-    
+
     Returns:
     A pandas dataframe with the value at the maximum intensity at each retention time
     """
@@ -126,7 +126,7 @@ def get_bpc(filename,dataset='ms1_pos',integration='bpc'):
 
 def df_container_from_metatlas_file(my_file):
     """
-    
+
     """
     data_df = pd.DataFrame()
 
@@ -136,7 +136,7 @@ def df_container_from_metatlas_file(my_file):
     else:
     # assume its a metatlas lcmsrun object
         filename = my_file.hdf5_file
-        
+
     pd_h5_file  = pd.HDFStore(filename)
     try:
         keys = list(pd_h5_file.keys(include='native'))
@@ -150,7 +150,7 @@ def df_container_from_metatlas_file(my_file):
             # print new_df.keys()
             # if 'rt' in new_df.keys():
                 # print 'rounding'
-            # new_df.rt = new_df.rt.round() 
+            # new_df.rt = new_df.rt.round()
             df_container[k[1:]] = new_df
     return df_container
 
@@ -181,44 +181,119 @@ def remove_ms1_data_not_in_atlas(atlas_df,data):
                 data[thing[1]] = data[thing[1]].query(query_str)
     return data
 
+
+def extract(data, ids, default=None):
+    """
+    inputs:
+        data: hierarchical data structure consisting of lists, dicts, and objects with attributes.
+        ids: a list of idices, key names, and attribute names
+        default: optional object
+    output:
+        the value stored at the location indicated by the ids list or default if the location
+        does not exist.
+
+    Strings in ids are first tried as key name and if no such key name exists, then they are
+    tried as attribute names. To designate that a member of ids should be used as an attribute
+    and not a key name, make it a tuple with the attribute name string as the first member, such
+    as: ('attribute_name',). If you want to make it more explict to the reader, you can add a
+    second member to the tuple, which will not be used, such as ('attribute_name', 'as attribute')
+    """
+    current = data
+    try:
+        for i in ids:
+            if isinstance(i, tuple):
+                current = getattr(current, i[0])
+            elif isinstance(current, list):
+                current = current[i]
+            elif isinstance(current, dict) and i in current.keys():
+                current = current[i]
+            else:
+                current = getattr(current, i)
+    except (AttributeError, IndexError, KeyError):
+        return default
+    return current
+
+
+def set_nested(data, ids, value):
+    """
+    inputs:
+        data: hierarchical data structure consisting of lists, dicts, and objects with attributes.
+        ids: a list of idices, key names, and attribute names
+        value: object
+    output:
+        modifies data in place so that the value is stored at the location indicated by the ids list
+
+    Strings in ids are first tried as key name and if no such key name exists, then they are
+    tried as attribute names. To designate that a member of ids should be used as an attribute
+    and not a key name, make it a tuple with the attribute name string as the first member, such
+    as: ('attribute_name',). If you want to make it more explict to the reader, you can add a
+    second member to the tuple, which will not be used, such as ('attribute_name', 'as attribute')
+    """
+    if len(ids) == 0:
+        raise ValueError('ids cannot be empty')
+    if len(ids) == 1:
+        if isinstance(ids[0], tuple):
+            setattr(data, ids[0][0], value)
+        elif isinstance(ids[0], str) and hasattr(data, ids[0]):
+            setattr(data, ids[0], value)
+        else:
+            data[ids[0]] = value  # works for list or dict
+    else:
+        if isinstance(ids[0], tuple):
+            set_nested(getattr(data, ids[0][0]), ids[1:], value)
+        elif isinstance(ids[0], str) and hasattr(data, ids[0]):
+            set_nested(getattr(data, ids[0]), ids[1:], value)
+        else:
+            set_nested(data[ids[0]], ids[1:], value)
+
+
 def make_atlas_df(atlas):
-    mz = []
-    rt = []
-    atlas_compound = []
-    label = []
-    for compound in atlas.compound_identifications:
-        label.append(compound.name)
-        if compound.mz_references:
-            mz.append(compound.mz_references[0])
-        else:
-            mz.append(metob.MzReference())
-        if compound.rt_references:
-            rt.append(compound.rt_references[0])
-        else:
-            rt.append(metob.RtReference())
-        if compound.compound:
-            atlas_compound.append(compound.compound[0])
-        else:
-            atlas_compound.append(metob.Compound())
+    """
+    inputs:
+        atlas: metatlas.datastructures.metatlas_objects.Atlas
+    output:
+        pandas DataFrame with one row per CompoundIdentification in atlas and each row also includes
+        the first RtReference, MzReference, and Compound from the CompoundIdentification
+    """
+    mzs = [extract(aci, ['mz_references', 0], metob.MzReference()) for aci in atlas.compound_identifications]
+    rts = [extract(aci, ['rt_references', 0], metob.RtReference()) for aci in atlas.compound_identifications]
+    compounds = [extract(aci, ['compound', 0], metob.Compound()) for aci in atlas.compound_identifications]
 
-    compound_df = metob.to_dataframe(atlas_compound)
-    compound_df.rename(columns = {'name':'compound_name','description':'compound_description'},inplace=True)
-    #.rename(columns = {'name':'compound_name'}, inplace = True)
-    atlas_df = pd.concat([metob.to_dataframe(rt),metob.to_dataframe(mz), compound_df],axis=1)
-    # atlas_df['label'] = label
+    ci_df = metob.to_dataframe(atlas.compound_identifications)
+    ci_df.rename(columns={'name': 'label'}, inplace=True)
+    compound_df = metob.to_dataframe(compounds)
+    compound_df.rename(columns={'name': 'compound_name', 'description': 'compound_description'}, inplace=True)
+    atlas_df = pd.concat([metob.to_dataframe(rts), metob.to_dataframe(mzs), compound_df, ci_df], axis=1)
 
-    atlas_keys = [u'inchi_key','compound_name',u'rt_max', u'rt_min', u'rt_peak',u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units','mono_isotopic_molecular_weight','pubchem_compound_id','synonyms','inchi','adduct']
+    atlas_keys = ['inchi_key', 'compound_name', 'rt_max', 'rt_min', 'rt_peak', 'rt_units',
+                  'detected_polarity', 'mz', 'mz_tolerance', 'mz_tolerance_units',
+                  'mono_isotopic_molecular_weight', 'pubchem_compound_id', 'synonyms', 'inchi', 'adduct',
+                  'label', 'ms1_notes', 'ms2_notes', 'identification_notes']
+    return atlas_df[atlas_keys]
 
-    # atlas_keys = [u'label','compound_name','compound_description',u'synonyms', u'num_free_radicals', u'number_components', u'permanent_charge', u'rt_max', u'rt_min', u'rt_peak',
-    #        u'rt_units', u'detected_polarity', u'mz', u'mz_tolerance',u'mz_tolerance_units',
-    #         u'inchi', u'inchi_key', u'neutralized_2d_inchi', u'neutralized_2d_inchi_key', u'neutralized_inchi',
-    #        u'neutralized_inchi_key',u'chebi_id', u'hmdb_id', u'img_abc_id', u'kegg_id',u'lipidmaps_id', u'metacyc_id',
-    #        u'mono_isotopic_molecular_weight', u'pubchem_compound_id', u'kegg_url', u'chebi_url', u'hmdb_url', u'lipidmaps_url', u'pubchem_url',u'wikipedia_url',  u'source']
 
-    atlas_df = atlas_df[atlas_keys]
-    print((atlas_df.shape,len(label)))
-    atlas_df['label'] = label
-    return atlas_df
+def transfer_indentification_data_to_atlas(data, atlas, ids_list=None):
+    """
+    inputs:
+        data: metatlas_dataset object containing compound identification attribute data to transfer
+        atlas: metatlas.datastructures.metatlas_objects.Atlas
+    outputs:
+        returns atlas with attribute data from data[0] added in
+        overwrites if attribute exists in both atlas and data[0] but does not delete attribute value
+        in atlas if they do not exist in data[0]
+    """
+    if ids_list is None:
+        ids_list = [['ms1_notes'], ['ms2_notes'], ['identification_notes'], ['rt_reference', 0, 'rt_min'],
+                    ['rt_reference', 0, 'rt_max'], ['rt_reference', 0, 'rt_peak']]
+
+    out = atlas.clone(recursive=True)
+    for aci, mdci in zip(out.compound_identifications, [x['identification'] for x in data[0]]):
+        for ids in ids_list:
+            from_data = extract(mdci, ids)
+            if from_data is None:
+                continue
+            set_nested(aci, ids, from_data)
+    return out
 
 def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz',extra_mz = 0.0):
     min_mz = '(%s >= %5.4f & '%(use_mz,row.mz - row.mz*row.mz_tolerance / 1e6 - extra_mz)
@@ -242,7 +317,7 @@ def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz'
 def get_ms1_summary(row):
     #A DataFrame of all points typically padded by "extra time"
     all_df = row.padded_feature_data
-    
+
     #slice out ms1 data that is NOT padded by extra_time
     ms1_df = all_df[(row.in_feature == True)]#[['i','mz','polarity','rt']]
 
@@ -263,7 +338,7 @@ def get_ms1_summary(row):
         rt_centroid = np.nan
         peak_height = np.nan
         peak_area = np.nan
-        
+
     return_df = pd.Series({ 'num_ms1_datapoints':num_ms1_datapoints,
                             'mz_peak':mz_peak,
                             'rt_peak':rt_peak,
@@ -271,13 +346,13 @@ def get_ms1_summary(row):
                             'rt_centroid':rt_centroid,
                             'peak_height':peak_height,
                             'peak_area':peak_area})
-    
+
     return return_df
 
 def get_ms2_data(row):
     #A DataFrame of all points typically padded by "extra time"
     all_df = row.padded_feature_data
-    
+
     #slice out ms2 data that is NOT padded by extra_time
     #ms2_df = all_df[(row.in_feature == True)]#[['collision_energy','i','mz','polarity','precursor_MZ','precursor_intensity','rt']]
 
@@ -285,7 +360,7 @@ def get_ms2_data(row):
     ms2_df = all_df
 
     num_ms2_datapoints = ms2_df.shape[0]
-        
+
     return_df = pd.Series({'ms2_datapoints':ms2_df.T,
                             'num_ms2_datapoints':num_ms2_datapoints})
     return return_df
@@ -330,13 +405,13 @@ def retrieve_most_intense_msms_scan(data):
 
 def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz):
     '''
-    Accepts 
+    Accepts
     an atlas dataframe made by make_atlas_df
     a metatlas lcms file dataframe made by df_container_from_metatlas_file
-    
+
     Returns python dictionaries of ms1, eic, and ms2 results for each compound in the atlas dataframe.
     '''
-    
+
     #filtered the ms2 and ms1 pos and neg frames in the container by rt and mz extreme points.
     filtered_ms1_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_pos'],
                                                                atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
@@ -362,7 +437,7 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
                                                            atlas_df[atlas_df.detected_polarity == 'positive'].mz.max()+1,
                                                            extra_time = extra_time,
                                                            extra_mz = extra_mz)
-    
+
     filtered_ms2_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_neg'],
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
@@ -371,7 +446,7 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
                                                            atlas_df[atlas_df.detected_polarity == 'negative'].mz.max()+1,
                                                            extra_time = extra_time,
                                                            extra_mz = extra_mz)
-    
+
 
     ms1_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms1_pos,filtered_ms1_neg, extra_time=extra_time, extra_mz = extra_mz),axis=1)
     ms1_summary = ms1_feature_data.apply(get_ms1_summary,axis=1)
@@ -385,22 +460,22 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
         ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ', extra_mz = extra_mz, extra_time=extra_time),axis=1)
         ms2_data = ms2_feature_data.apply(get_ms2_data,axis=1)
         dict_ms1_summary = [dict(row) for i,row in ms1_summary.iterrows()]
-    
+
     dict_eic = []
     for i,row in ms1_eic.iterrows():
         dict_eic.append(row.eic.T.to_dict(orient='list'))
-            
+
     #rename the "i" to "intensity".
     for i,d in enumerate(dict_eic):
         dict_eic[i]['intensity'] = dict_eic[i].pop('i')
-    
+
     dict_ms2 = []
     for i,row in ms2_data.iterrows():
         if 'ms2_datapoints' in list(row.keys()):
             dict_ms2.append(row.ms2_datapoints.T.to_dict(orient='list'))
         else:
             dict_ms2.append([])
-    
+
     return dict_ms1_summary,dict_eic,dict_ms2
 
 
@@ -410,12 +485,12 @@ def get_unique_scan_data(data):
     """
     Input:
     data - numpy nd array containing MSMS data
-    
+
     Output:
     rt - retention time of scan
     pmz - precursor m/z of scan
     Both are sorted by descending precursor ion intensity
-    
+
     for data returned from h5query.get_data(),
     return the retention time and precursor m/z
     sorted by descending precursor ion intensity
@@ -434,17 +509,17 @@ def get_non_redundant_precursor_list(prt,pmz,rt_cutoff,mz_cutoff):
     rt - retention time of scan
     pmz - precursor m/z of scan
     Both are sorted by descending precursor ion intensity
-    rt_cutoff - 
-    mz_cutoff - 
-    
+    rt_cutoff -
+    mz_cutoff -
+
     Output:
-    list_of_prt - list of 
-    list_of_pmz - list of 
+    list_of_prt - list of
+    list_of_pmz - list of
     """
-    
+
     list_of_pmz = [] #contains list of precursor m/z [pmz1,pmz2,...,pmz_n]
     list_of_prt = [] #contains list of precursor rt [prt1,prt2,...,prt_n]
-    
+
     for i in range(len(prt)):
         if len(list_of_pmz) == 0:
             # none are in the list yet; so there is nothing to check
@@ -496,7 +571,7 @@ def retrieve_most_intense_msms_scan(data):
 
 def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     """
-    A helper function to query the various metatlas data selection 
+    A helper function to query the various metatlas data selection
     commands for a compound defined in an experimental atlas.
 
     Parameters
@@ -511,7 +586,7 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
         Path to input_file
     polarity : int
         [0 or 1] for negative or positive ionzation
-    
+
     Returns
     -------
     """
@@ -519,7 +594,7 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     import numpy as np
     from metatlas.io import h5_query as h5q
     import tables
-    
+
     #get a pointer to the hdf5 file
     fid = tables.open_file(h5file) #TODO: should be a "with open:"
 
@@ -527,34 +602,34 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
         polarity = 1
     else:
         polarity = 0
-        
-    
+
+
     mz_theor = mz_ref.mz
     if mz_ref.mz_tolerance_units  == 'ppm': #convert to ppm
         ppm_uncertainty = mz_ref.mz_tolerance
     else:
         ppm_uncertainty = mz_ref.mz_tolerance / mz_ref.mz * 1e6
-        
+
 #     if 'min' in rt_ref.rt_units: #convert to seconds
 #     rt_min = rt_ref.rt_min / 60
 #     rt_max = rt_ref.rt_max / 60
 #     else:
     rt_min = rt_ref.rt_min
     rt_max = rt_ref.rt_max
-        
+
     mz_min = mz_theor - mz_theor * ppm_uncertainty / 1e6
     mz_max = mz_theor + mz_theor * ppm_uncertainty / 1e6
-    
+
     return_data = {}
-    
+
     if 'ms1_summary' in what_to_get:
         #Get Summary Data
-        
+
         #First get MS1 Raw Data
         ms_level=1
         return_data['ms1_summary'] = {}
         try:
-            ms1_data = h5q.get_data(fid, 
+            ms1_data = h5q.get_data(fid,
                                      ms_level=1,
                                      polarity=polarity,
                                      min_mz=mz_min,
@@ -567,7 +642,7 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
             return_data['ms1_summary']['rt_centroid'] = np.sum(np.multiply(ms1_data['i'],ms1_data['rt'])) / np.sum(ms1_data['i'])
             idx = np.argmax(ms1_data['i'])
             return_data['ms1_summary']['mz_peak'] = ms1_data['mz'][idx]
-            return_data['ms1_summary']['rt_peak'] = ms1_data['rt'][idx]        
+            return_data['ms1_summary']['rt_peak'] = ms1_data['rt'][idx]
             return_data['ms1_summary']['peak_height'] = ms1_data['i'][idx]
             return_data['ms1_summary']['peak_area'] = np.sum(ms1_data['i'])
 
@@ -580,7 +655,7 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
             return_data['ms1_summary']['peak_height'] = []
             return_data['ms1_summary']['peak_area'] = []
 
-    
+
     if 'eic' in what_to_get:
         #Get Extracted Ion Chromatogram
         # TODO : If a person calls for summary, then they will already have the MS1 raw data
@@ -591,11 +666,11 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
             return_data['eic']['intensity'] = intensity
             return_data['eic']['polarity'] = polarity
 
-        except:    
+        except:
             return_data['eic']['rt'] = []
             return_data['eic']['intensity'] = []
             return_data['eic']['polarity'] = []
-    
+
     if '2dhist' in what_to_get:
         #Get 2D histogram of intensity values in m/z and retention time
         mzEdges = np.logspace(np.log10(100),np.log10(1000),10000)
@@ -605,13 +680,13 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
         return_data['2dhist'] = {}
         return_data['2dhist'] = h5q.get_heatmap(fid,mzEdges,rtEdges,ms_level,polarity)
         return_data['2dhist']['polarity'] = polarity
-    
+
     if 'msms' in what_to_get:
         #Get Fragmentation Data
         ms_level=2
         return_data['msms'] = {}
         try:
-            fragmentation_data = h5q.get_data(fid, 
+            fragmentation_data = h5q.get_data(fid,
                                      ms_level=ms_level,
                                      polarity=polarity,
                                      min_mz=0,
@@ -636,7 +711,7 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
             return_data['msms']['most_intense_precursor'] = []
             return_data['msms']['data'] = []
             return_data['msms']['polarity'] = []
-            
+
     fid.close() #close the file
     return return_data
 
@@ -654,7 +729,7 @@ def get_dill_data(fname):
     import dill
 
     data = list()
-    
+
     if os.path.exists(fname):
         with open(fname,'r') as f:
             try:
@@ -804,10 +879,10 @@ def make_data_sources_tables(groups, myatlas, output_loc, polarity=None):
     output_dir = os.path.join(output_loc,'data_sources')
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
-    
+
     metob.to_dataframe([myatlas]).to_csv(os.path.join(output_dir, prefix+'atlas_metadata.tab'), sep='\t')
     metob.to_dataframe(groups).to_csv(os.path.join(output_dir, prefix+'groups_metadata.tab'), sep='\t')
-    
+
     atlas_df = make_atlas_df(myatlas)
     atlas_df['label'] = [cid.name for cid in myatlas.compound_identifications]
     atlas_df.to_csv(os.path.join(output_dir,prefix+myatlas.name+'_originalatlas.tab'), sep='\t')

@@ -74,7 +74,7 @@ def unit_tests(session):
     test_deps = ['pytest=6.2.3', 'pytest-cov=2.11.1']
     session.conda_install(*(channels+run_deps+test_deps))
     session.install('--no-deps', 'dataset==1.5.0')
-    session.run('pytest', '--cov', 'metatlas', 'tests/unit/', env={'METATLAS_LOCAL': 'TRUE'})
+    session.run('pytest', '-vv', '--cov', 'metatlas', 'tests/unit/', env={'METATLAS_LOCAL': 'TRUE'})
 
 
 @nox.session(python=py_versions[0])

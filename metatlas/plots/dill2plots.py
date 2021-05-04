@@ -12,6 +12,7 @@ from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.tools import spectralprocessing as sp
 from metatlas.plots import chromplotplus as cpp
+from metatlas.io.metatlas_get_data_helper_fun import extract
 # from metatlas import gui
 
 from textwrap import fill, TextWrapper
@@ -465,13 +466,9 @@ class adjust_rt_for_selected_compound(object):
 
     def filter_hits(self):
         ident = self.data[0][self.compound_idx]['identification']
-        if len(ident.compound) > 0 and hasattr(ident.compound[-1], "inchi_key"):
-            inchi_key = ident.compound[-1].inchi_key
-        else:
-            inchi_key = ""
+        inchi_key = extract(ident, ['compound', -1, 'inchi_key'])
         hits_mz_tolerance = ident.mz_references[-1].mz_tolerance*1e-6
         mz_theoretical = ident.mz_references[0].mz
-
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
         self.hits = self.msms_hits[(my_scan_rt >= float(self.rts[self.compound_idx].rt_min)) &
                                    (my_scan_rt <= float(self.rts[self.compound_idx].rt_max)) &
@@ -2693,55 +2690,34 @@ def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', 
         plt.savefig(os.path.join(output_loc, all_compound_names[compound_idx] + '.pdf'))
 
 
-def export_atlas_to_spreadsheet(myAtlas, output_filename='', input_type = 'atlas'):
+def export_atlas_to_spreadsheet(atlas, output_filename=None):
     """
-    Return a pandas dataframe containing Atlas info.  Optionally save it.
-    This function can also work on a MetAtlas dataset (list of lists returned by get_data_for_atlas_and_groups).
+    inputs:
+        atlas: metatlas.datastructures.metatlas_objects.Atlas or metatlas_dataset
+        output_filename: location to save csv
+    output:
+        returns a pandas DataFrame containing atlas
+        Saves output DataFrame to output_filename in csv format.
     """
-    cols = [c for c in metob.Compound.class_trait_names() if not c.startswith('_')]
-    cols = sorted(cols)
-    atlas_export = pd.DataFrame( )
+    # cols is a list of tuples, with column name as first value, and extract() ids list as second value
+    cols = [(c, ['compound', 0, c]) for c in metob.Compound.class_trait_names() if not c.startswith('_')]
+    cols = sorted(cols, key=lambda x: x[0])
+    cols.extend([('label', ['name']), ('id_notes', ['description'])])
+    cols.extend([(c, [c]) for c in ['ms1_notes', 'ms2_notes', 'identification_notes']])
+    cols.extend([(c, ['rt_references', 0, c]) for c in ['rt_min', 'rt_max', 'rt_peak']])
+    cols.extend([(c, ['mz_references', 0, c]) for c in ['mz', 'mz_tolerance', 'adduct']])
+    cols.append(('polarity', ['mz_references', 0, 'detected_polarity']))
 
-    if input_type != 'atlas':
-        num_compounds = len(myAtlas[0])
-    else:
-        num_compounds = len(myAtlas.compound_identifications)
-
-    for i in range(num_compounds):
-        if input_type != 'atlas':
-            my_id = myAtlas[0][i]['identification']
-            n = my_id.name
-        else:
-            my_id = myAtlas.compound_identifications[i]
-
-        if my_id.compound:
-            for c in cols:
-                g = getattr(my_id.compound[0],c)
-                if g:
-                    atlas_export.loc[i,c] = g
-                else:
-                    atlas_export.loc[i,c] = ''
-        atlas_export.loc[i, 'label'] = my_id.name
-        atlas_export.loc[i, 'id_notes'] = my_id.description
-        atlas_export.loc[i,'rt_min'] = my_id.rt_references[0].rt_min
-        atlas_export.loc[i,'rt_max'] = my_id.rt_references[0].rt_max
-        atlas_export.loc[i,'rt_peak'] = my_id.rt_references[0].rt_peak
-        atlas_export.loc[i,'mz'] = my_id.mz_references[0].mz
-        atlas_export.loc[i,'mz_tolerance'] = my_id.mz_references[0].mz_tolerance
-        atlas_export.loc[i,'adduct'] = my_id.mz_references[0].adduct
-        atlas_export.loc[i,'polarity'] = my_id.mz_references[0].detected_polarity
-        # if my_id.frag_references:
-        #     atlas_export.loc[i,'has_fragmentation_reference'] = True
-        #     # TODO: Gather the frag reference information and export it
-        # else:
-        #     atlas_export.loc[i,'has_fragmentation_reference'] = False
-
+    out = pd.DataFrame()
+    is_atlas = isinstance(atlas, metob.Atlas)
+    compound_ids = atlas.compound_identifications if is_atlas else [i['identification'] for i in atlas[0]]
+    for i, my_id in enumerate(compound_ids):
+        for column_name, ids in cols:
+            out.loc[i, column_name] = extract(my_id, ids)
     if output_filename:
-        if not os.path.exists(os.path.dirname(output_filename)):
-            os.makedirs(os.path.dirname(output_filename))
-        atlas_export.to_csv(output_filename)
-
-    return atlas_export
+        os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+        out.to_csv(output_filename)
+    return out
 
 def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False):
     """
@@ -2782,28 +2758,42 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
         with open(output_filename,'w') as f:
             dill.dump(data,f)
 
-def filter_by_remove(atlas_df = '', input_dataset=[]):
-    metatlas_dataset = input_dataset
-    notes = []
-    for i,each in enumerate(metatlas_dataset[0]):
-        ls=[]
-        if metatlas_dataset[0][i]['identification'].ms1_notes != None:
-            ls.append(metatlas_dataset[0][i]['identification'].ms1_notes)
-        else:
-            ls.append('')
-        if metatlas_dataset[0][i]['identification'].ms2_notes != None:
-            ls.append(metatlas_dataset[0][i]['identification'].ms2_notes)
-        else:
-            ls.append('')
-        ls.append(metatlas_dataset[0][i]['identification'].name)
-        notes.append(ls)
-    df_info = pd.DataFrame(notes, columns = ['ms1_notes', 'ms2_notes', 'name2'])  #    for item in sublist:
-    atlas_df_all = pd.concat([atlas_df, df_info], axis=1)
-    #atlas_df_all=atlas_df_all.sort_values('ms1_notes')
-    atlas_df_all['ms1_notes'] = atlas_df_all['ms1_notes'].apply(lambda x: x.lower())
-    atlas_df_kept=atlas_df_all[~atlas_df_all.ms1_notes.str.startswith('remove')].copy()
-    atlas_df_removed=atlas_df_all[atlas_df_all.ms1_notes.str.startswith('remove')].copy()
-    return(atlas_df_all, atlas_df_kept, atlas_df_removed)
+
+def compound_indices_marked_remove(data):
+    """
+    inputs:
+        data: metatlas_dataset
+    outputs:
+        list of compound_idx of the compound identifications with ms1_notes to remove
+    """
+    return [i for i, j in enumerate(data[0]) if is_remove(extract(j, ['identification', 'ms1_notes']))]
+
+
+def is_remove(obj):
+    """ is obj a string that starts with 'remove' (case insensitive)? """
+    return isinstance(obj, str) and obj.lower().startswith('remove')
+
+
+def first_not_none(obj, default):
+    """ returns obj if it is not None, otherwise returns default """
+    return default if obj is None else obj
+
+
+def filter_by_remove(atlas_df, data):
+    """
+    inputs:
+        atlas_df: pandas DataFrame containing an atlas
+        data: metatlas_dataset
+    outputs:
+        a tuple containing 2 pandas DataFrames:
+            atlas_df where ms1_notes begins with 'remove'
+            atlas_df where ms1_notes does not begin with 'remove'
+
+    ms1_notes comparison with 'remove' is case insensitive.
+    """
+    rm_idxs = compound_indices_marked_remove(data)
+    keep_idxs = atlas_df.index.difference(rm_idxs)
+    return(atlas_df.iloc[keep_idxs].copy(), atlas_df.iloc[rm_idxs].copy())
 
 
 def filter_atlas(atlas_df = '', input_dataset = [], num_data_points_passing = 5, peak_height_passing = 1e6):
