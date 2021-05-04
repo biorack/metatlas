@@ -8,27 +8,6 @@ ENV METATLAS_LOCAL=True
 
 EXPOSE 8888
 
-#RUN micromamba install -y -n base -c conda-forge \
-#	dill=0.3.3 \
-#        gspread=3.7.0 \
-#	hdf5=1.10.6 \
-#	ipywidgets=7.6.3 \
-#	jupyterlab=3.0.14 \
-#	matplotlib=3.4.1 \
-#	oauth2client=4.1.3 \
-#	pandas=1.2.4 \
-#	papermill=2.3.3 \
-#	pip=21.1 \
-#	pymysql=1.0.2 \
-#	pytables=3.6.1 \
-#	pyyaml=5.4.1 \
-#	rdkit=2021.03.1 \
-#	scikit-learn=0.24.1 \
-#	sqlalchemy=1.4.11 \
-#	tabulate=0.8.9 \
-#	xlsxwriter=1.4.0 && \
-#	rm /opt/conda/pkgs/cache/*
-
 COPY metatlas_env.yaml /metatlas_env.yaml
 
 RUN micromamba install -y -n base -f /metatlas_env.yaml && \
