@@ -4,7 +4,7 @@ import nox
 
 py_versions = ['3.8', '3.9']
 
-nox.options.sessions = ["flake8_diff", "unit_tests-3.8", "update_git_hooks"]
+nox.options.sessions = ["flake8_diff", "unit_tests-3.8", "system_tests-3.8", "update_git_hooks"]
 
 single_py_args = {'venv_backend': 'conda', 'reuse_venv': False}
 multi_py_args = {**single_py_args, **{'python': py_versions}}
@@ -45,7 +45,7 @@ def flake8_diff(session):
                     'flake8-bugbear',
                     'flake8-builtins',
                     'flake8-comprehensions')
-    session.run('sh', '-c', 'git diff -U0 --staged HEAD | flake8 --diff', external=True)
+    session.run('sh', '-c', 'git diff -U0 -w --staged HEAD | flake8 --diff', external=True)
 
 
 @nox.session(python=py_versions[0])
