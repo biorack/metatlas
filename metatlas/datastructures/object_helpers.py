@@ -106,7 +106,7 @@ def set_docstring(cls):
         help_text = help_text.strip()
         if help_text.endswith('.'):
             help_text = help_text[:-1]
-        if trait.get_metadata('readonly'):
+        if trait.metadata.get('readonly', False):
             help_text += ' (read only)'
         help_text += '.'
         doc += '    %s\n' % help_text

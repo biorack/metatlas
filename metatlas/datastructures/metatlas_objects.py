@@ -110,20 +110,15 @@ def store(objects, **kwargs):
 class MetatlasObject(HasTraits):
 
     name = MetUnicode('Untitled', help='Name of the object')
-    description = MetUnicode('No description',
-                             help='Description of the object')
-    unique_id = MetUnicode(help='Unique identifier for the object',
-                           readonly=True)
-    creation_time = MetInt(help='Unix timestamp at object creation',
-                           readonly=True)
-    username = MetUnicode(help='Username who created the object',
-                          readonly=True)
-    last_modified = MetInt(help='Unix timestamp at last object update',
-                           readonly=True)
-    prev_uid = MetUnicode(help='Unique id of previous version', readonly=True)
-    head_id = MetUnicode(help='Unique id of most recent version of this object', readonly=True)
-    _loopback_guard = MetBool(False, readonly=True)
-    _changed = MetBool(False, readonly=True)
+    description = MetUnicode('No description', help='Description of the object')
+    unique_id = MetUnicode(help='Unique identifier for the object').tag(readonly=True)
+    creation_time = MetInt(help='Unix timestamp at object creation').tag(readonly=True)
+    username = MetUnicode(help='Username who created the object').tag(readonly=True)
+    last_modified = MetInt(help='Unix timestamp at last object update').tag(readonly=True)
+    prev_uid = MetUnicode(help='Unique id of previous version').tag(readonly=True)
+    head_id = MetUnicode(help='Unique id of most recent version of this object').tag(readonly=True)
+    _loopback_guard = MetBool(False).tag(readonly=True)
+    _changed = MetBool(False).tag(readonly=True)
 
     def __init__(self, **kwargs):
         """Set the default attributes."""
@@ -134,7 +129,7 @@ class MetatlasObject(HasTraits):
         kwargs.setdefault('last_modified', int(time.time()))
         super(MetatlasObject, self).__init__(**kwargs)
         self._changed = True
-        self.on_trait_change(self._on_update)
+        self.observe(self._on_update, type='change')
 
     def _update(self, override_user=False):
         """Store the object in the workspace, including child objects.
@@ -176,7 +171,7 @@ class MetatlasObject(HasTraits):
         """
         obj = self.__class__()
         for (tname, trait) in self.traits().items():
-            if tname.startswith('_') or trait.get_metadata('readonly'):
+            if tname.startswith('_') or trait.metadata.get('readonly', False):
                 continue
             val = getattr(self, tname)
             if recursive and isinstance(trait, MetList):
@@ -206,7 +201,7 @@ class MetatlasObject(HasTraits):
         obj = obj[0]
         msg = []
         for (tname, trait) in self.traits().items():
-            if tname.startswith('_') or trait.get_metadata('readonly'):
+            if tname.startswith('_') or trait.metadata['readonly']:
                 continue
             val = getattr(self, tname)
             other = getattr(obj, tname)
@@ -226,10 +221,10 @@ class MetatlasObject(HasTraits):
                 msg.append((tname, str(other), str(val)))
         print((tabulate(msg)))
 
-    def _on_update(self, name):
+    def _on_update(self, change):
         """When the model changes, set the update fields.
         """
-        if self._loopback_guard or name.startswith('_'):
+        if self._loopback_guard or change['name'].startswith('_'):
             return
         self._changed = True
 
@@ -695,7 +690,7 @@ def to_dataframe(objects):
             for obj_id,o in enumerate(objs):
                 if tname not in o:
                     o[tname] = 'None'
-                
+
     dataframe = pd.DataFrame(objs)[sorted(cols)]
 #     for col in enums:
 #         dataframe[col] = dataframe[col].astype('category')
