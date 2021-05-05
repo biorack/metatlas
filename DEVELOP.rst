@@ -39,7 +39,7 @@ committed passes `flake8  <https://flake8.pycqa.org/>`_ along with a few other m
 
 The current tests are in ./tests and are fairly minimal. The "system_tests" uses
 `Papermill <https://papermill.readthedocs.io/>`_ to run
-The workflow in `./notebooks/reference/Targeted.ipynb <blob/main/notebooks/reference/Targeted.ipynb>`_ in a
+The workflow in `./notebooks/reference/Targeted.ipynb </notebooks/reference/Targeted.ipynb>`_ in a
 "headless", non-interactive mode.
 More high-quality unit tests are needed and the system_tests need to be expanded to cover more functionaltiy.
 
