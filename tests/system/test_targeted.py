@@ -22,6 +22,7 @@ def test_targeted_by_line(tmp_path):
         ''
     ]
     subprocess.run(["docker", "run",
+                    "--rm",
                     "-v", f"{os.getcwd()}:/src",
                     "-v", f"{tmp_path}:/out",
                     image,

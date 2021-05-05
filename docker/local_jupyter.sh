@@ -24,6 +24,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 docker run \
+   --rm \
    -p "${PORT}:${PORT}" \
    -v "${REPO_DIR}:/src" \
    -v "${OUT_DIR}:/out" \
