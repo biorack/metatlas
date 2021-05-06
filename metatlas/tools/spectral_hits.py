@@ -65,7 +65,7 @@ def find_spectral_hits(mzml_loc, tab_loc=None, force=False, nistify=False, **kwa
                           local_dict=dict(locals(), **kwargs))
 
     if ref_df['spectrum'].apply(type).eq(str).all():
-        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s))
+        ref_df.loc[:, 'spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s))
 
     mzml_dfs = ml.mzml_to_df(mzml_loc)
     try:
@@ -83,12 +83,12 @@ def find_spectral_hits(mzml_loc, tab_loc=None, force=False, nistify=False, **kwa
 
     data_df = mzml_df[['rt', 'polarity', 'precursor_mz', 'precursor_intensity', 'collision_energy']].drop_duplicates()
 
-    data_df['spectrum'] = [np.array(list(s)) for s in zip(mzml_rt_group['mz'].apply(list),
+    data_df.loc[:, 'spectrum'] = [np.array(list(s)) for s in zip(mzml_rt_group['mz'].apply(list),
                                                                mzml_rt_group['i'].apply(list))]
 
 
     data_df.set_index(['rt'], inplace=True)
-    
+
 
     spectral_hits_dfs = []
 
