@@ -272,7 +272,7 @@ def make_atlas_df(atlas):
     return atlas_df[atlas_keys]
 
 
-def transfer_indentification_data_to_atlas(data, atlas, ids_list=None):
+def transfer_identification_data_to_atlas(data, atlas, ids_list=None):
     """
     inputs:
         data: metatlas_dataset object containing compound identification attribute data to transfer
