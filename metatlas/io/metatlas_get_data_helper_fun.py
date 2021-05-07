@@ -27,8 +27,8 @@ def create_msms_dataframe(df):
     grouped.mz = grouped.mz.apply(list)
     grouped.i = grouped.i.apply(list)
     grouped = grouped.reset_index()
-    grouped['spectrum'] = list(map(lambda x,y:(x,y),grouped['mz'],grouped['i']))
-    grouped['spectrum'] = grouped['spectrum'].apply(lambda x: list(zip(x[0],x[1])))
+    grouped.loc[:, 'spectrum'] = list(map(lambda x, y: (x, y), grouped['mz'], grouped['i']))
+    grouped.loc[:, 'spectrum'] = grouped['spectrum'].apply(lambda x: list(zip(x[0], x[1])))
     grouped.drop(['mz','i'], axis=1, inplace=True)
     return grouped
 

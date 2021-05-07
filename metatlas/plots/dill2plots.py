@@ -2129,10 +2129,10 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
                              dtype=ref_dtypes
                             ).set_index(ref_index)
 
-    ref_df = ref_df.query(pre_query, local_dict=dict(locals(), **kwargs))
+    ref_df = ref_df.query(pre_query, local_dict=dict(locals(), **kwargs)).copy()
 
     if ref_df['spectrum'].apply(type).eq(str).all():
-        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s)).apply(np.array)
+        ref_df.loc[:, 'spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s)).apply(np.array)
 
     file_names = ma_data.get_file_names(metatlas_dataset)
     compound_names = ma_data.get_compound_names(metatlas_dataset)[0]
