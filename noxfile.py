@@ -76,7 +76,7 @@ def blacken(session):
 def pylint(session):
     session.run('conda', 'env', 'update', '--prefix', session.virtualenv.location,
                 '--file', 'docker/metatlas_env.yaml', silent=True)
-    session.install('--no-deps', 'pylint==2.7.2', 'pytest==6.2.3')
+    session.install('--no-deps', 'pylint==2.7.2', 'pytest==6.2.3', 'py==1.10.0')
     session.run('pylint', *more_checks)
 
 
@@ -84,14 +84,14 @@ def pylint(session):
 def unit_tests(session):
     session.run('conda', 'env', 'update', '--prefix', session.virtualenv.location,
                 '--file', 'docker/metatlas_env.yaml', silent=True)
-    session.install('--no-deps', 'pytest==6.2.3', 'pytest-cov==2.11.1')
+    session.install('--no-deps', 'pytest==6.2.3', 'pytest-cov==2.11.1', 'py==1.10.0')
     session.run('pytest', '-vv', *session.posargs, '--cov', 'metatlas', 'tests/unit/',
                 env={'METATLAS_LOCAL': 'TRUE'})
 
 
 @nox.session(python=py_versions[0])
 def system_tests(session):
-    session.install('pytest==6.2.3')
+    session.install('pytest==6.2.3', 'py==1.10.0')
     session.run('pytest', '-vv', *session.posargs, 'tests/system/')
 
 
