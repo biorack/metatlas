@@ -128,7 +128,6 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         compound_ref_rt_max = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_max
         cid = metatlas_dataset[0][compound_idx]['identification']
         mz_theoretical = cid.mz_references[0].mz
-        mz_measured = metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid']
 
         comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) \
                                     & (msms_hits_df['msms_scan'] >= compound_ref_rt_min) \
