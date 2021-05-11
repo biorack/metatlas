@@ -1,4 +1,4 @@
-FROM mambaorg/micromamba:0.12.0
+FROM mambaorg/micromamba:0.12.2
 
 ARG BASE_DATA_URL=https://portal.nersc.gov/cfs/m2650/metatlas/test_data/ci01
 ARG REFS_DIR=/global/project/projectdirs/metatlas/projects/spectral_libraries
