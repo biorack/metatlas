@@ -25,12 +25,14 @@ more_checks = [
 
 pytest_deps = [
         'attrs==21.2.0',
+        'coverage==5.5',
         'iniconfig==1.1.1',
         'packaging==20.9',
         'pluggy==0.13.1',
         'py==1.10.0',
         'pyparsing==2.4.7',
         'pytest==6.2.4',
+        'pytest-cov-2.11.1',
         'toml==0.10.2',
         ]
 
