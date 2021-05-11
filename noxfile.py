@@ -32,7 +32,7 @@ pytest_deps = [
         'py==1.10.0',
         'pyparsing==2.4.7',
         'pytest==6.2.4',
-        'pytest-cov-2.11.1',
+        'pytest-cov==2.11.1',
         'toml==0.10.2',
         ]
 
