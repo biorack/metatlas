@@ -4,39 +4,40 @@ import nox
 
 py_versions = ['3.8', '3.9']
 
-nox.options.sessions = ["flake8_diff", "unit_tests-3.8", "system_tests-3.8", "update_git_hooks"]
+nox.options.sessions = [
+        "flake8_diff",
+        "flake8",
+        "black",
+        "pylint-3.8",
+        "unit_tests-3.8",
+        "system_tests-3.8",
+        "update_git_hooks",
+        ]
 
-single_py_args = {'venv_backend': 'conda', 'reuse_venv': False}
-multi_py_args = {**single_py_args, **{'python': py_versions}}
+
+# files we can run all the checks on, as they don't contain legacy code that
+# has not yet been updated to pass all checks.
+more_checks = [
+    'metatlas/datastructures/metatlas_dataset.py',
+    'tests'
+    ]
+
+
+pytest_deps = [
+        'attrs==21.2.0',
+        'coverage==5.5',
+        'iniconfig==1.1.1',
+        'packaging==20.9',
+        'pluggy==0.13.1',
+        'py==1.10.0',
+        'pyparsing==2.4.7',
+        'pytest==6.2.4',
+        'pytest-cov==2.11.1',
+        'toml==0.10.2',
+        ]
+
 
 nox.options.error_on_external_run = True
-
-run_deps = [
-    'alembic=1.5.8',
-    'banal=1.0.6',
-    'dill=0.3.3',
-    'gspread=3.7.0',
-    'hdf5=1.10.6',
-    'ipywidgets=7.6.3',
-    'jupyterlab=3.0.14',
-    'matplotlib=3.4.1',
-    'oauth2client=4.1.3',
-    'pandas=1.2.4',
-    'pip=21.1',
-    'pymysql=1.0.2',
-    'pymzml=2.4.7',
-    'pytables=3.6.1',
-    'pyyaml=5.4.1',
-    'rdkit=2021.03.1',
-    'simplejson=3.17.2',
-    'scipy=1.6.3',
-    'sqlalchemy=1.4.11',
-    'tabulate=0.8.9',
-    'xlsxwriter=1.4.0'
-]
-
-channel_names = ['conda-forge', 'bioconda']
-channels = [f"--channel={name}" for name in channel_names]
 
 
 @nox.session(python=py_versions[0])
@@ -49,7 +50,7 @@ def flake8_diff(session):
 
 
 @nox.session(python=py_versions[0])
-def flake8(session):
+def flake8_all(session):
     session.install('flake8',
                     'flake8-bugbear',
                     'flake8-builtins',
@@ -58,30 +59,54 @@ def flake8(session):
 
 
 @nox.session(python=py_versions[0])
-def black(session):
+def flake8(session):
+    session.install('flake8',
+                    'flake8-bugbear',
+                    'flake8-builtins',
+                    'flake8-comprehensions')
+    session.run('flake8', *more_checks)
+
+
+@nox.session(python=py_versions[0])
+def black_all(session):
     session.install('black')
     session.run('black', '--check', '--diff', '--color', 'metatlas', 'tests')
 
 
 @nox.session(python=py_versions[0])
+def black(session):
+    session.install('black')
+    session.run('black', '--check', '--diff', '--color', *more_checks)
+
+
+@nox.session(python=py_versions[0])
+def blacken(session):
+    """this modifies the files to meet black's requirements"""
+    session.install('black')
+    session.run('black', *more_checks)
+
+
+@nox.session(venv_backend='conda', python=py_versions, reuse_venv=True)
 def pylint(session):
-    session.install('pylint')
-    session.run('pylint', 'metatlas', 'tests')
+    session.run('conda', 'env', 'update', '--prefix', session.virtualenv.location,
+                '--file', 'docker/metatlas_env.yaml', silent=True)
+    session.install('--no-deps', *pytest_deps)
+    session.run('pylint', *more_checks)
 
 
 @nox.session(venv_backend='conda', python=py_versions, reuse_venv=True)
 def unit_tests(session):
-    test_deps = ['pytest=6.2.3', 'pytest-cov=2.11.1']
-    session.conda_install(*(channels+run_deps+test_deps))
-    session.install('--no-deps', 'dataset==1.5.0')
-    session.run('pytest', '-vv', '--cov', 'metatlas', 'tests/unit/', env={'METATLAS_LOCAL': 'TRUE'})
+    session.run('conda', 'env', 'update', '--prefix', session.virtualenv.location,
+                '--file', 'docker/metatlas_env.yaml', silent=True)
+    session.install('--no-deps', *pytest_deps)
+    session.run('pytest', '-vv', *session.posargs, '--cov', 'metatlas', 'tests/unit/',
+                env={'METATLAS_LOCAL': 'TRUE'})
 
 
 @nox.session(python=py_versions[0])
 def system_tests(session):
-    test_deps = ['pytest==6.2.3']
-    session.install(*test_deps)
-    session.run('pytest', 'tests/system/')
+    session.install('--no-deps', *pytest_deps)
+    session.run('pytest', '-vv', *session.posargs, 'tests/system/')
 
 
 @nox.session(python=py_versions[0])

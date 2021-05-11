@@ -5,41 +5,43 @@ import pytest
 @pytest.fixture
 def compound():
     compound = metob.Compound()
-    compound.unique_id = '60cd6743e56545c6a6cb066ec3553450'
+    compound.unique_id = "60cd6743e56545c6a6cb066ec3553450"
     compound.mono_isotopic_molecular_weight = 251.101839276
     compound.creation_time = 1466212395
     compound.synonyms = "2'-deoxyadenosine"  # value was pruned down
-    compound.inchi_key = 'OLXZPDWKRNYJJZ-RRKCRQDMSA-N'
-    compound.chebi_url = 'http://www.ebi.ac.uk/chebi/searchId.do?chebiId=CHEBI:17256'
+    compound.inchi_key = "OLXZPDWKRNYJJZ-RRKCRQDMSA-N"
+    compound.chebi_url = "http://www.ebi.ac.uk/chebi/searchId.do?chebiId=CHEBI:17256"
     compound.permanent_charge = 0
-    compound.img_abc_id = ''
-    compound.neutralized_2d_inchi = 'InChI=1S/C10H13N5O3/c11-9-8-10(13-3-12-9)15(4-14-8)7-1-5(17)6(2-16)18-7/h3-7,16-17H,1-2H2,(H2,11,12,13)'  # noqa: E501
-    compound.lipidmaps_url = ''
-    compound.source = 'gnps///chebi///metacyc///hmdb'
-    compound.kegg_url = 'http://www.genome.jp/dbget-bin/www_bget?C00559'
-    compound.hmdb_url = 'http://www.hmdb.ca/metabolites/HMDB00101'
-    compound.wikipedia_url = ''
-    compound.head_id = '60cd6743e56545c6a6cb066ec3553450'
-    compound.formula = 'C10H13N5O3'
+    compound.img_abc_id = ""
+    compound.neutralized_2d_inchi = "InChI=1S/C10H13N5O3/c11-9-8-10(13-3-12-9)15(4-14-8)7-1-5(17)6(2-16)18-7/h3-7,16-17H,1-2H2,(H2,11,12,13)"  # noqa: E501
+    compound.lipidmaps_url = ""
+    compound.source = "gnps///chebi///metacyc///hmdb"
+    compound.kegg_url = "http://www.genome.jp/dbget-bin/www_bget?C00559"
+    compound.hmdb_url = "http://www.hmdb.ca/metabolites/HMDB00101"
+    compound.wikipedia_url = ""
+    compound.head_id = "60cd6743e56545c6a6cb066ec3553450"
+    compound.formula = "C10H13N5O3"
     compound.number_components = 1
-    compound.iupac_name = ''
-    compound.username = 'wjholtz'
-    compound.pubchem_compound_id = '13730'
-    compound.description = "A purine 2'-deoxyribonucleoside having adenine as the nucleobase."
-    compound.metacyc_id = 'DEOXYADENOSINE'
-    compound.kegg_id = 'C00559'
-    compound.hmdb_id = 'HMDB00101'
-    compound.chebi_id = 'CHEBI:17256'
-    compound.inchi = 'InChI=1S/C10H13N5O3/c11-9-8-10(13-3-12-9)15(4-14-8)7-1-5(17)6(2-16)18-7/h3-7,16-17H,1-2H2,(H2,11,12,13)/t5-,6+,7+/m0/s1'  # noqa: E501
-    compound.neutralized_inchi_key = 'OLXZPDWKRNYJJZ-RRKCRQDMSA-N'
-    compound.prev_uid = 'origin'
-    compound.neutralized_inchi = 'InChI=1S/C10H13N5O3/c11-9-8-10(13-3-12-9)15(4-14-8)7-1-5(17)6(2-16)18-7/h3-7,16-17H,1-2H2,(H2,11,12,13)/t5-,6+,7+/m0/s1'  # noqa: E501
+    compound.iupac_name = ""
+    compound.username = "wjholtz"
+    compound.pubchem_compound_id = "13730"
+    compound.description = (
+        "A purine 2'-deoxyribonucleoside having adenine as the nucleobase."
+    )
+    compound.metacyc_id = "DEOXYADENOSINE"
+    compound.kegg_id = "C00559"
+    compound.hmdb_id = "HMDB00101"
+    compound.chebi_id = "CHEBI:17256"
+    compound.inchi = "InChI=1S/C10H13N5O3/c11-9-8-10(13-3-12-9)15(4-14-8)7-1-5(17)6(2-16)18-7/h3-7,16-17H,1-2H2,(H2,11,12,13)/t5-,6+,7+/m0/s1"  # noqa: E501
+    compound.neutralized_inchi_key = "OLXZPDWKRNYJJZ-RRKCRQDMSA-N"
+    compound.prev_uid = "origin"
+    compound.neutralized_inchi = "InChI=1S/C10H13N5O3/c11-9-8-10(13-3-12-9)15(4-14-8)7-1-5(17)6(2-16)18-7/h3-7,16-17H,1-2H2,(H2,11,12,13)/t5-,6+,7+/m0/s1"  # noqa: E501
     compound.name = "2'-deoxyadenosine"
-    compound.neutralized_2d_inchi_key = 'OLXZPDWKRNYJJZ-UHFFFAOYSA-N'
+    compound.neutralized_2d_inchi_key = "OLXZPDWKRNYJJZ-UHFFFAOYSA-N"
     compound.num_free_radicals = 0
-    compound.lipidmaps_id = ''
+    compound.lipidmaps_id = ""
     compound.last_modified = 1612996604
-    compound.pubchem_url = 'http://pubchem.ncbi.nlm.nih.gov/compound/13730'
+    compound.pubchem_url = "http://pubchem.ncbi.nlm.nih.gov/compound/13730"
     return compound
 
 
@@ -124,7 +126,10 @@ def atlas(compound_identification):
 @pytest.fixture
 def atlas_two_compounds(compound_identification):
     small_atlas = metob.Atlas()
-    small_atlas.compound_identifications = [compound_identification, compound_identification]
+    small_atlas.compound_identifications = [
+        compound_identification,
+        compound_identification,
+    ]
     return small_atlas
 
 
@@ -143,7 +148,9 @@ def lcmsrun():
     run.method = None
     run.name = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.mzML"  # noqa: E501
     run.head_id = "7ce51039cfca4426b4e51999ac45d018"
-    run.experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
+    run.experiment = (
+        "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
+    )
     run.injection_volume = 0.0
     run.injection_volume_units = "uL"
     run.acquisition_time = 1604770080
