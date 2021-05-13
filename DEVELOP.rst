@@ -29,6 +29,7 @@ copy of the metatlas git repo will be mounted at /src and $(pwd)/out on the host
 The workflow in `./notebooks/reference/Targeted.ipynb </notebooks/reference/Targeted.ipynb>`_ can
 easily be run locally through your web brower. In the second code block, which should be empty,
 you'll want to put the following:
+
 .. code-block:: python
 
   metatlas_repo_path = '/src'
