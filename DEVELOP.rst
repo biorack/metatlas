@@ -21,9 +21,9 @@ This pulls in the same image used in the systems_tests that contains a small sql
 /work/root_workspace.db. This database contains references to 4 LCMS run h5 files from experiment
 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 along with a 6-compound atlas.
 The working directory of the Jupyter notebook needs to be /work so that the database can be found.
-You can either copy your notebook into /work or within your notebook do :code:`%cd /work`. Your local
-copy of the metatlas git repo will be mounted at /src and $(pwd)/out on the host will be mounted at
-/out in the container.
+You can either copy your notebook into :code:`/work` or within your notebook do :code:`%cd /work`. Your local
+copy of the metatlas git repo will be mounted at :code:`/src` and :code:`$(pwd)/out` on the host will be mounted at
+:code:`/out` in the container.
 
 
 The workflow in `./notebooks/reference/Targeted.ipynb </notebooks/reference/Targeted.ipynb>`_ can
