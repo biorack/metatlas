@@ -155,9 +155,10 @@ def df_container_from_metatlas_file(my_file):
     return df_container
 
 
-
 def fast_nearest_interp(xi, x, y):
     """Assumes that x is monotonically increasing!!."""
+    if len(y) == 1:
+        return y*len(xi)
     # Shift x points to centers
     spacing = np.diff(x) / 2
     x = x + np.hstack([spacing, spacing[-1]])
@@ -165,20 +166,19 @@ def fast_nearest_interp(xi, x, y):
     y = np.hstack([y, y[-1]])
     return y[np.searchsorted(x, xi)]
 
-def remove_ms1_data_not_in_atlas(atlas_df,data):
-    things_to_do = [('positive','ms1_pos'),('negative','ms1_neg')]
-    for thing in things_to_do:
-        if sum(atlas_df.detected_polarity == thing[0])>0:
-            atlas_mz = atlas_df[atlas_df.detected_polarity == thing[0]].mz.copy()
-            atlas_mz = atlas_mz.sort_values()
-            atlas_mz = atlas_mz.values
-            max_mz_tolerance = atlas_df[atlas_df.detected_polarity == thing[0]].mz_tolerance.max()
-            if data[thing[1]].shape[0]>1:
-                original_mz = data[thing[1]].mz.values
-                nearest_mz = fast_nearest_interp(original_mz,atlas_mz,atlas_mz)
-                data[thing[1]]['ppm_difference'] = abs(original_mz - nearest_mz) / original_mz * 1e6
-                query_str = 'ppm_difference < %f'%(max_mz_tolerance)
-                data[thing[1]] = data[thing[1]].query(query_str)
+
+def remove_ms1_data_not_in_atlas(atlas_df, data):
+    for polarity, name in [('positive', 'ms1_pos'), ('negative', 'ms1_neg')]:
+        has_current_polarity = atlas_df.detected_polarity == polarity
+        if any(has_current_polarity):
+            atlas_mz = atlas_df[has_current_polarity].mz.copy().sort_values().values
+            max_mz_tolerance = atlas_df[has_current_polarity].mz_tolerance.max()
+            if data[name].shape[0] > 1:
+                original_mz = data[name].mz.values
+                nearest_mz = fast_nearest_interp(original_mz, atlas_mz, atlas_mz)
+                data[name]['ppm_difference'] = abs(original_mz - nearest_mz) / original_mz * 1e6
+                query_str = 'ppm_difference < %f' % max_mz_tolerance
+                data[name] = data[name].query(query_str)
     return data
 
 
