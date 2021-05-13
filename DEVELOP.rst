@@ -30,6 +30,7 @@ The workflow in `./notebooks/reference/Targeted.ipynb </notebooks/reference/Targ
 easily be run locally through your web brower. In the second code block, which should be empty,
 you'll want to put the following:
 .. code-block:: python
+
   metatlas_repo_path = '/src'
   project_directory = '/out'
   experiment = '20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583'
