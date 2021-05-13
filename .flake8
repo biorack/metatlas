@@ -3,4 +3,5 @@ max-line-length = 110
 max-complexity = 9
 exclude = .nox
 # for compatibility with black
-extend-ignore = E203
+select = C,E,F,W,B,B950
+extend-ignore = E203, E501
