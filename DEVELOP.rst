@@ -4,8 +4,8 @@ Developing For Metatlas
 Setup
 #####
 
-1. Install Python 3.8+
-2. Install Pip
+1. Install Python 3.8+ (`pyenv <https://github.com/pyenv/pyenv>_` and `pyenv intstaller <https://github.com/pyenv/pyenv-installer>_` can help here)
+2. Install `Pip <https://pip.pypa.io/en/stable/installing/>_`
 3. Install a conda environment manager. You can get miniconda `here <https://docs.conda.io/en/latest/miniconda.html>`_.
 4. Install `Docker <https://docs.docker.com/get-docker/>`_.
 5. Install Nox with :code:`pip install --user --upgrade nox`
@@ -24,6 +24,18 @@ The working directory of the Jupyter notebook needs to be /work so that the data
 You can either copy your notebook into /work or within your notebook do :code:`%cd /work`. Your local
 copy of the metatlas git repo will be mounted at /src and $(pwd)/out on the host will be mounted at
 /out in the container.
+
+
+The workflow in `./notebooks/reference/Targeted.ipynb </notebooks/reference/Targeted.ipynb>`_ can
+easily be run locally through your web brower. In the second code block, which should be empty,
+you'll want to put the following:
+:code:`
+metatlas_repo_path = '/src'
+project_directory = '/out'
+experiment = '20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583'`
+
+You may also want to include a line for :code:`max_cpus` if your local docker configuration
+makes fewer than 4 cores available.
 
 Testing
 #######
