@@ -1,10 +1,20 @@
 import pytest
 import numpy as np
 
+from metatlas.datastructures import metatlas_dataset as mads
+
 
 @pytest.fixture
 def ms1_summary():
-    return "{'num_ms1_datapoints': 85.0, 'mz_peak': 252.1092987060547, 'rt_peak': 2.2775044441223145, 'mz_centroid': 252.10915042669814, 'rt_centroid': 2.218492414487913, 'peak_height': 304761.90625, 'peak_area': 7696977.46875}"  # noqa: E501
+    return {
+        "num_ms1_datapoints": 85.0,
+        "mz_peak": 252.1092987060547,
+        "rt_peak": 2.2775044441223145,
+        "mz_centroid": 252.10915042669814,
+        "rt_centroid": 2.218492414487913,
+        "peak_height": 304761.90625,
+        "peak_area": 7696977.46875,
+    }
 
 
 @pytest.fixture
@@ -23,7 +33,7 @@ def msms():
 
 
 @pytest.fixture
-def metatlas_dataset(lcmsrun, group, compound_identification):
+def metatlas_dataset(lcmsrun, group, compound_identification, eic, ms1_summary, msms):
     return [
         [
             {
@@ -305,4 +315,9 @@ def eic():
             21777.99609375,
             59454.40234375,
         ],
-    }  # noqa: E501
+    }
+
+
+@pytest.fixture
+def atlas_df(atlas, group):
+    return mads.MetatlasDataset(atlas, [group]).atlas_df

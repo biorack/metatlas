@@ -53,9 +53,9 @@ class ChromPlotPlus:
         self.compound_eics = [CompoundFileEIC(compound_file_data,
                                               self.rt_bounds,
                                               self.rt_min,
-                                              self.rt_max, 
+                                              self.rt_max,
                                               shortname) for compound_file_data in data]
-        
+
         self.compound_eics = sorted(self.compound_eics,
                                     key = lambda c: (c.group_name,
                                                      c.file_name))
@@ -142,7 +142,7 @@ class ChromPlotPlus:
         #EICs
         eic_lines = [np.matmul(tso_transform[i], e)[0:2].T
                      for i,e in enumerate(self.__make_eics())]
-        self.ax.add_collection(mc.LineCollection(eic_lines, 2.0/(num_cols*num_rows)**.5))
+        self.ax.add_collection(mc.LineCollection(eic_lines, linewidths=2.0/(num_cols*num_rows)**.5))
 
         #RT bounds
         rt_bound_lines = np.matmul(tso_transform,

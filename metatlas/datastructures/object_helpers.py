@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 from __future__ import print_function
+
+import logging
 import sys
 import os
 import getpass
@@ -26,9 +28,11 @@ except ImportError:
         CFloat, CBool)
 
 
+logger = logging.getLogger(__name__)
+
 # Whether we are running from NERSC
 ON_NERSC = 'METATLAS_LOCAL' not in os.environ
-print(('NERSC=',ON_NERSC))
+logger.info('NERSC=%s', ON_NERSC)
 
 # Observable List from
 # http://stackoverflow.com/a/13259435

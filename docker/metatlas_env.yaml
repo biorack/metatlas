@@ -5,6 +5,7 @@ channels:
 dependencies:
   - alembic=1.5.8
   - banal=1.0.6
+  - colorama=0.4.4
   - dill=0.3.3
   - gspread=3.7.0
   - hdf5=1.10.6

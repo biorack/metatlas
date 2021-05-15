@@ -25,9 +25,7 @@ def compound():
     compound.iupac_name = ""
     compound.username = "wjholtz"
     compound.pubchem_compound_id = "13730"
-    compound.description = (
-        "A purine 2'-deoxyribonucleoside having adenine as the nucleobase."
-    )
+    compound.description = "A purine 2'-deoxyribonucleoside having adenine as the nucleobase."
     compound.metacyc_id = "DEOXYADENOSINE"
     compound.kegg_id = "C00559"
     compound.hmdb_id = "HMDB00101"
@@ -148,9 +146,7 @@ def lcmsrun():
     run.method = None
     run.name = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.mzML"  # noqa: E501
     run.head_id = "7ce51039cfca4426b4e51999ac45d018"
-    run.experiment = (
-        "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
-    )
+    run.experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     run.injection_volume = 0.0
     run.injection_volume_units = "uL"
     run.acquisition_time = 1604770080

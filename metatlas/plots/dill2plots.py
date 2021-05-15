@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from __future__ import print_function
+import logging
 import sys
 import os
 import os.path
@@ -53,6 +54,8 @@ from six.moves import range
 from six.moves import zip
 from functools import reduce
 from io import StringIO
+
+logger = logging.getLogger(__name__)
 
 ADDUCT_INFO = {'[2M+H]': {'charge': '1',
               'color': '#fabebe',
@@ -254,6 +257,7 @@ class adjust_rt_for_selected_compound(object):
            Flag for removal: 'x'
            Toggle highlighting of overlapping RT ranges for similar compounds: 's'
         """
+        logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
         self.msms_hits = msms_hits.sort_values('score', ascending=False)
         self.color_me = color_me if color_me != '' else [['black', '']]
@@ -271,19 +275,13 @@ class adjust_rt_for_selected_compound(object):
         self.msms_flags = msms_flags
         self.adjustable_rt_peak = adjustable_rt_peak
 
-        self.compounds = self.retrieve_compounds()
-        self.rts = self.retrieve_rts()
         self.file_names = ma_data.get_file_names(self.data)
         self.configure_flags()
         self.filter_runs(include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
 
-        self.atlas = metob.retrieve('Atlas', unique_id=self.data[0][0]['atlas_unique_id'],
-                                    username='*')[-1]
-
         self.similar_rects = []
-        print(("loaded file for username = ", self.atlas.username))
         # only the atlas owner can change RT limits or flags
-        self.enable_edit = getpass.getuser() == self.atlas.username
+        self.enable_edit = getpass.getuser() == self.data.atlas.username
         self.hit_ctr = 0
         self.msms_zoom_factor = 1
         # native matplotlib key bindings that we want to override
@@ -301,14 +299,17 @@ class adjust_rt_for_selected_compound(object):
         self.set_plot_data()
 
     def set_plot_data(self):
+        logger.debug('Starting replot')
         self.similar_compounds = self.get_similar_compounds()
         self.eic_plot()
         self.filter_hits()
         self.msms_plot()
         self.flag_radio_buttons()
         plt.show()
+        logger.debug('Finished replot')
 
     def eic_plot(self):
+        logger.debug('Starting eic_plot')
         self.ax.set_title('')
         self.ax.set_xlabel('Retention Time')
         # set y-scale and bounds if provided
@@ -325,13 +326,15 @@ class adjust_rt_for_selected_compound(object):
                                                        self.set_lin_log, active_idx=idx)
         self.rt_bounds()
         self.highlight_similar_compounds()
+        logger.debug('Finished eic_plot')
 
     def flag_radio_buttons(self):
-        my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
+        my_id = self.data[0][self.compound_idx]['identification']
         if my_id.ms1_notes in self.peak_flags:
             peak_flag_index = self.peak_flags.index(my_id.ms1_notes)
         else:
             peak_flag_index = 0
+        logger.debug('Setting peak flag radio button with index %d', peak_flag_index)
         self.peak_flag_radio = self.create_radio_buttons(self.peak_flag_ax, self.peak_flags,
                                                          self.set_peak_flag,
                                                          active_idx=peak_flag_index)
@@ -340,6 +343,7 @@ class adjust_rt_for_selected_compound(object):
             msms_flag_index = self.msms_flags.index(my_id.ms2_notes)
         else:
             msms_flag_index = 0
+        logger.debug('Setting msms flag radio button with index %d', msms_flag_index)
         self.msms_flag_radio = self.create_radio_buttons(self.msms_flag_ax, self.msms_flags,
                                                          self.set_msms_flag,
                                                          active_idx=msms_flag_index)
@@ -356,7 +360,7 @@ class adjust_rt_for_selected_compound(object):
     def rt_bounds(self):
         # put vlines on plot before creating sliders, as adding the vlines may increase plot
         # width, as the vline could occur outside of the data points
-        rt = self.rts[self.compound_idx]
+        rt = self.data.rts[self.compound_idx]
         self.min_line = self.ax.axvline(rt.rt_min, color=self.min_max_color, linewidth=4.0)
         self.max_line = self.ax.axvline(rt.rt_max, color=self.min_max_color, linewidth=4.0)
         self.peak_line = self.ax.axvline(rt.rt_peak, color=self.peak_color, linewidth=4.0)
@@ -417,7 +421,7 @@ class adjust_rt_for_selected_compound(object):
                     else:
                         zorder = 1
                         color = 'black'
-                    self.ax.plot(x, y, 'k-', zorder=zorder, linewidth=2, alpha=self.alpha,
+                    self.ax.plot(x, y, '-', zorder=zorder, linewidth=2, alpha=self.alpha,
                                  picker=True, pickradius=5, color=color, label=label)
 
     def filter_runs(self, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups):
@@ -470,13 +474,14 @@ class adjust_rt_for_selected_compound(object):
         hits_mz_tolerance = ident.mz_references[-1].mz_tolerance*1e-6
         mz_theoretical = ident.mz_references[0].mz
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
-        self.hits = self.msms_hits[(my_scan_rt >= float(self.rts[self.compound_idx].rt_min)) &
-                                   (my_scan_rt <= float(self.rts[self.compound_idx].rt_max)) &
+        self.hits = self.msms_hits[(my_scan_rt >= float(self.data.rts[self.compound_idx].rt_min)) &
+                                   (my_scan_rt <= float(self.data.rts[self.compound_idx].rt_max)) &
                                    (self.msms_hits['inchi_key'] == inchi_key) &
                                    within_tolerance(self.msms_hits['measured_precursor_mz'],
                                                     mz_theoretical, hits_mz_tolerance)]
 
     def msms_plot(self, font_scale=10.0):
+        logger.debug('Starting msms_plot')
         compound = None
         hit_file_name = None
         if not self.hits.empty:
@@ -495,6 +500,7 @@ class adjust_rt_for_selected_compound(object):
                                               hit_ref, self.msms_zoom_factor)
         min_x = self.ax2.get_xlim()[0]  # fails if original location is not within plot
         self.mz_annot = self.ax2.annotate('', xy=(min_x, 0), visible=False)
+        logger.debug('Finished msms_plot')
 
     def layout_figure(self):
         self.gui_scale_factor = self.height/3.25 if self.height < 3.25 else 1
@@ -573,25 +579,29 @@ class adjust_rt_for_selected_compound(object):
         return buttons
 
     def set_lin_log(self, label):
+        logger.debug('Y-scale of EIC plot set to %s scale.', label)
         self.ax.set_yscale(label)
         if label == 'linear':
             self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
         self.fig.canvas.draw_idle()
 
+    def set_flag(self, name, value):
+        logger.debug('Setting flag "%s" to "%s".', name, value)
+        self.data.set_note(self.compound_idx, name, value)
+        metob.store(self.data[0][self.compound_idx]['identification'])
+
     def set_peak_flag(self, label):
-        my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
-        my_id.ms1_notes = label
-        metob.store(my_id)
+        self.set_flag('ms1_notes', label)
 
     def set_msms_flag(self, label):
-        my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
-        my_id.ms2_notes = label
-        metob.store(my_id)
+        self.set_flag('ms2_notes', label)
 
     def on_pick(self, event):
         thisline = event.artist
         thisline.set_color('cyan')
-        self.ax.set_title(thisline.get_label(), fontsize=7)
+        label = thisline.get_label()
+        self.ax.set_title(label, fontsize=7)
+        logger.debug("Sample %s selected on EIC plot via mouse click event.", label)
 
     def on_motion(self, event):
         if event.inaxes == self.ax2:  # in msms mirror plot
@@ -624,38 +634,50 @@ class adjust_rt_for_selected_compound(object):
         if event.key in ['right', 'l']:
             if self.compound_idx + 1 < len(self.data[0]):
                 self.compound_idx += 1
+                logger.debug("Increasing compound_idx to %d (inchi_key:%s adduct:%s).",
+                             self.compound_idx,
+                             self.data[0][self.compound_idx]['identification'].compound[0].inchi_key,
+                             self.data[0][self.compound_idx]['identification'].mz_references[0].adduct
+                             )
                 self.hit_ctr = 0
                 self.update_plots()
         elif event.key in ['left', 'h']:
             if self.compound_idx > 0:
                 self.compound_idx -= 1
+                logger.debug("Decreasing compound_idx to %d (inchi_key:%s adduct:%s).",
+                             self.compound_idx,
+                             self.data[0][self.compound_idx]['identification'].compound[0].inchi_key,
+                             self.data[0][self.compound_idx]['identification'].mz_references[0].adduct
+                             )
                 self.hit_ctr = 0
                 self.update_plots()
         elif event.key in ['up', 'k']:
             if self.hit_ctr > 0:
                 self.hit_ctr -= 1
+                logger.debug("Decreasing hit_ctr to %d.", self.hit_ctr)
                 self.update_plots()
         elif event.key in ['down', 'j']:
             if self.hit_ctr < len(self.hits) - 1:
+                logger.debug("Increasing hit_ctr to %d.", self.hit_ctr)
                 self.hit_ctr += 1
                 self.update_plots()
         elif event.key == 'x':
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
                 return
+            logger.debug("Removing compound %d via 'x' key event.", self.compound_idx)
             self.peak_flag_radio.set_active(1)
-            # This is really hacky, but using set_peak_flag function above didn't work.
-            my_id = self.compounds[self.data[0][self.compound_idx]['identification'].unique_id]
-            my_id.ms1_notes = 'remove'
-            metob.store(my_id)
         elif event.key == 'z':
             self.msms_zoom_factor = 1 if self.msms_zoom_factor == 25 else self.msms_zoom_factor * 5
+            logger.debug("Setting msms zoom factor to %d.", self.msms_zoom_factor)
             self.msms_plot()
         elif event.key == 's':
             if self.similar_rects:
+                logger.debug("Removing highlight of similar compounds on EIC plot.")
                 self.unhighlight_similar_compounds()
             else:
                 self.similar_compounds = self.get_similar_compounds()
+                logger.debug("Enabling highlight of similar compounds on EIC plot.")
                 self.highlight_similar_compounds()
 
     def update_y_scale(self, val):
@@ -668,10 +690,11 @@ class adjust_rt_for_selected_compound(object):
 
     def warn_if_not_atlas_owner(self):
         user = getpass.getuser()
-        if user != self.atlas.username:
+        if user != self.data.atlas.username:
             text = ("YOU ARE %s. YOU ARE NOT THE ATLAS OWNER."
                     "YOU ARE NOT ALLOWED TO EDIT VALUES WITH THE RT CORRECTOR.")
             self.ax.set_title(text % user)
+            logger.warning(text, user)
 
     def update_rt(self, which, val):
         """
@@ -679,13 +702,13 @@ class adjust_rt_for_selected_compound(object):
             which: 'rt_min', 'rt_max', or 'rt_peak'
             val: new RT value
         """
+        logger.debug("Updating %s to %0.4f", which, val)
         slider = {'rt_min': self.rt_min_slider, 'rt_peak': self.rt_peak_slider,
                   'rt_max': self.rt_max_slider}
         line = {'rt_min': self.min_line, 'rt_peak': self.peak_line, 'rt_max': self.max_line}
-        setattr(self.data[0][self.compound_idx]['identification'].rt_references[-1], which, val)
-        setattr(self.rts[self.compound_idx], which, val)
+        self.data.set_rt(self.compound_idx, which, val)
         slider[which].valinit = val
-        metob.store(self.rts[self.compound_idx])
+        metob.store(self.data.rts[self.compound_idx])
         line[which].set_xdata((val, val))
         if which != 'rt_peak':
             self.msms_zoom_factor = 1
@@ -708,12 +731,6 @@ class adjust_rt_for_selected_compound(object):
         uids = [x['identification'].unique_id for x in self.data[0]]
         compounds_list = metob.retrieve('CompoundIdentification', unique_id=uids, username='*')
         return {c.unique_id: c for c in compounds_list}
-
-    def retrieve_rts(self):
-        uids = {i: x['identification'].rt_references[-1].unique_id for i, x in enumerate(self.data[0])}
-        rt_list = metob.retrieve('RTReference', unique_id=list(uids.values()), username='*')
-        rt_dict = {rt.unique_id: rt for rt in rt_list}
-        return {i: rt_dict[uids[i]] for i in uids.keys()}
 
     def get_similar_compounds(self, use_labels=True):
         """
@@ -743,8 +760,9 @@ class adjust_rt_for_selected_compound(object):
             if (mz_ref-0.005 <= cid_mz_ref <= mz_ref+0.005) or (mass-0.005 <= cid_mass <= mass+0.005):
                 out.append({'index': compound_iter_idx,
                             'label': cpd_iter_id.name if use_labels else cpd_iter_id.compound[0].name,
-                            'rt': self.rts[compound_iter_idx],
-                            'overlaps': rt_range_overlaps(self.rts[self.compound_idx], self.rts[compound_iter_idx])})
+                            'rt': self.data.rts[compound_iter_idx],
+                            'overlaps': rt_range_overlaps(self.data.rts[self.compound_idx],
+                                                          self.data.rts[compound_iter_idx])})
         return out
 
 class adjust_mz_for_selected_compound(object):
@@ -810,7 +828,7 @@ class adjust_mz_for_selected_compound(object):
         # warn the user if they do not own the atlas; and can not edit its values
         self.enable_edit = True
         self.atlas = metob.retrieve('Atlas',unique_id = self.data[0][0]['atlas_unique_id'],username='*')[-1]
-        print(("loaded file for username = ", self.atlas.username))
+        logging.info("loaded file for username = %s", self.atlas.username)
         if getpass.getuser() != self.atlas.username:
             self.ax.set_title("YOUR ARE %s YOU ARE NOT ALLOWED TO EDIT VALUES THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"%getpass.getuser())
             self.enable_edit = False
@@ -2255,7 +2273,7 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
 
                     msms_hits.append(scan_df)
 
-    sys.stdout.write('\n'+'Done!!!')
+    sys.stdout.write('\n'+'Done!!!\n')
     if len(msms_hits)>0:
         hits = pd.concat(msms_hits)
         return hits
@@ -2796,21 +2814,50 @@ def filter_by_remove(atlas_df, data):
     return(atlas_df.iloc[keep_idxs].copy(), atlas_df.iloc[rm_idxs].copy())
 
 
-def filter_atlas(atlas_df = '', input_dataset = [], num_data_points_passing = 5, peak_height_passing = 1e6):
-    metatlas_dataset = input_dataset
-    num_data_points_passing = np.array([[(metatlas_dataset[i][j]['data']['eic'] is not None) and
-        (metatlas_dataset[i][j]['data']['eic']['intensity'] is not None) and
-        (len(metatlas_dataset[i][j]['data']['eic']['intensity']) > num_data_points_passing)
-                                     for i in range(len(metatlas_dataset))]
-                                     for j in range(len(metatlas_dataset[0]))]).any(axis=1)
+def get_intensity(compound):
+    """
+    inputs:
+        compound: a CompoundIdentification object
+    returns a list of intensity values or an empty list if the intensity attribute does not exist
+    """
+    return ma_data.extract(compound, ['data', 'eic', 'intensity'], [])
 
-    peak_height_passing = np.array([[(metatlas_dataset[i][j]['data']['eic'] is not None) and
-        (metatlas_dataset[i][j]['data']['eic']['intensity'] is not None) and
-        (np.array(metatlas_dataset[i][j]['data']['eic']['intensity']+[0]).max()>peak_height_passing)
-                                 for i in range(len(metatlas_dataset))]
-                                 for j in range(len(metatlas_dataset[0]))]).any(axis=1)
-    compound_passing = num_data_points_passing & peak_height_passing
-    return atlas_df[compound_passing].reset_index(drop=True)
+
+def filter_atlas(atlas_df, data, num_data_points_passing=5, peak_height_passing=1e6):
+    """
+    inputs:
+        atlas_df: panda DataFrame containing an atlas
+        data: metatlas_dataset
+        num_data_points_passing: number of points in EIC that must be exceeded in one or more samples
+                                 in order for the compound to remain in the atlas
+        peak_height_passing: max intensity in EIC that must be exceeded in one or more samples
+                             in order for the compound to remain in the atlas
+    returns a pandas DataFrame containing the updated atlas
+    """
+    keep_idxs = strong_signal_compound_idxs(data, num_data_points_passing, peak_height_passing)
+    return atlas_df.iloc[keep_idxs].reset_index(drop=True)
+
+
+def strong_signal_compound_idxs(data, num_points_passing, peak_height_passing):
+    """
+    inputs:
+        data: metatlas_dataset
+        num_data_points_passing: number of points in EIC that must be exceeded in one or more samples
+                                 in order for the compound to remain in the atlas
+        peak_height_passing: max intensity in EIC that must be exceeded in one or more samples
+                             in order for the compound to remain in the atlas
+    returns list of indices that are above the thresholds
+    """
+    num_passing = np.array([
+        [len(get_intensity(compound)) > num_points_passing for compound in sample]
+        for sample in data]
+    ).any(axis=0)
+    peak_passing = np.array([
+        [np.array(get_intensity(compound)+[0]).max() > peak_height_passing for compound in sample]
+        for sample in data]
+    ).any(axis=0)
+    return np.flatnonzero(num_passing & peak_passing).tolist()
+
 
 def filter_metatlas_objects_to_most_recent(object_list,field):
     #from datetime import datetime, date
@@ -2916,28 +2963,37 @@ def make_groups_from_fileinfo_sheet(filename,filetype='tab',store=False):
             metob.store(myGroup)
     return return_groups
 
-def check_compound_names(df):
-    # compounds that have the wrong compound name will be listed
-    # Keep running this until no more compounds are listed
+
+def check_compound_names(atlas_df):
+    """
+    inputs:
+        atlas_df: pandas dataframe representation of an atlas
+    throws ValueError if some compounds are not found in the database
+    """
     bad_names = []
-    for i,row in df.iterrows():
-        #if type(df.name[x]) != float or type(df.label[x]) != float:
-            #if type(df.name[x]) != float:
-        if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key)>0):# or type(df.inchi_key[x]) != float:
-            if not metob.retrieve('Compounds',inchi_key=row.inchi_key, username = '*'):
-                print((row.inchi_key, "compound is not in database. Exiting Without Completing Task!"))
+    for _, row in atlas_df.iterrows():
+        if pd.notna(row.inchi_key):
+            if not metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*'):
                 bad_names.append(row.inchi_key)
-    return bad_names
+    if bad_names:
+        raise ValueError(f"Compound not found in database: {', '.join(bad_names)}.")
 
 
-def check_file_names(df,field):
+def check_filenames(atlas_df, field):
+    """
+    inputs:
+        atlas_df: pandas dataframe representation of an atlas
+        field: column name in atlas_df to test for valid lcmsruns
+    throws ValueError if values in atlas_df[field] are not in database as lcmsruns
+    """
     bad_files = []
-    for i,row in df.iterrows():
-        if row[field] != '':
-            if not metob.retrieve('Lcmsruns',name = '%%%s%%'%row[field],username = '*'):
-                print((row[field], "file is not in the database. Exiting Without Completing Task!"))
+    for _, row in atlas_df.iterrows():
+        if field in row:
+            name = row[field].replace('.mzmL', '')
+            if not metob.retrieve('Lcmsruns', name=f"%{name}%", username='*'):
                 bad_files.append(row[field])
-    return bad_files
+    if bad_files:
+        raise ValueError(f"LCMS runs not found in database: {', '.join(bad_files)}.")
 
 
 # def get_formatted_atlas_from_google_sheet(polarity='POS',
@@ -2981,181 +3037,226 @@ def check_file_names(df,field):
 #     return df3
 
 
-def make_atlas_from_spreadsheet(filename='valid atlas file.csv',
-                                atlas_name='20161007_MP3umZHILIC_BPB_NEG_ExampleAtlasName',
-                                filetype=('excel','csv','tab','dataframe'),
-                                sheetname='only for excel type input',
-                                polarity = ('positive','negative'),
-                                store=False,
-                                mz_tolerance=None):
+def _clean_dataframe(dataframe, required_columns=None, lower_case_col_names=True):
+    """
+    inputs:
+        dataframe: pandas dataframe
+        required_columns: list of column names that must have a non-NA values
+        lower_case_col_names: should column names be modified to lower case
+    Modifies dataframe in place. The following rows removed:
+        fully empty (all fields have NA values)
+        containing required_columns with 1 or more NA values
+    """
+    dataframe.dropna(how="all", inplace=True)
+    if required_columns is not None and len(required_columns) > 0:
+        dataframe.dropna(how="any", subset=required_columns, inplace=True)
+    if lower_case_col_names:
+        dataframe.columns = [x.lower() for x in dataframe.columns]
+
+
+def _add_columns(dataframe, column_names, default_values=None):
+    """
+    inputs:
+        dataframe: pandas dataframe
+        column_names: list of column names to add to dataframe if they do not already exist
+        default_values: a single default value for all columns or a list of default values
+                        the same length as column_names
+    Modifies the dataframe in place
+    """
+    assert isinstance(column_names, list)
+    num_col = len(column_names)
+    if isinstance(default_values, str):
+        default_values = [default_values]
+    num_default = 1 if default_values is None else len(default_values)
+    assert num_default in [1, num_col]
+    default_values = [default_values]*num_col if num_default == 1 else default_values
+    for name, default in zip(column_names, default_values):
+        if name not in dataframe.columns:
+            dataframe[name] = default
+
+
+def _get_dataframe(filename_or_df=None, filetype=None, sheetname=None):
+    """
+    inputs:
+        filename_or_df: a filename to an excel, tsv or csv file, or a pandas DataFrame
+        filetype: a string in dataframe, excel, tab, csv
+        sheetname: name of a sheet in an excel file, or get first sheet if None
+    returns a pandas Dataframe
+    """
+    assert filetype in ['dataframe', 'excel', 'tab', 'csv']
+    if filetype == 'dataframe':
+        return filename_or_df.copy()
+    if filetype == 'excel':
+        return pd.read_excel(filename_or_df, sheetname=0 if sheetname is None else sheetname)
+    return pd.read_csv(filename_or_df, sep='\t' if filetype == 'tab' else ',')
+
+
+def get_compound_identification(row, polarity, mz_tolerance):
+    my_id = metob.CompoundIdentification()
+    # currently, all copies of the molecule are returned.  The 0 is the most recent one.
+    compound_list = metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*')
+    if compound_list is None:
+        return None
+    my_id.compound = compound_list[-1:]
+    my_id.name = row.label if isinstance(row.label, str) else 'no label'
+    _copy_attributes(row, my_id, ['do_normalization', 'internal_standard_id', 'internal_standard_to_use',
+                                  'identification_notes', 'ms1_notes', 'ms2_notes'])
+    my_id.mz_references = get_mz_references(row, polarity, mz_tolerance)
+    my_id.rt_references = get_rt_references(row)
+    my_id.frag_references = get_frag_references(row, my_id.name, polarity,
+                                                my_id.mz_references[0], my_id.rt_references[0])
+    my_id.intensity_references = []
+    return my_id
+
+
+def get_mz_references(row, polarity, mz_tolerance=None):
+    assert polarity in ['positive', 'negative']
+    mzr = metob.MzReference()
+    mzr.mz = row.mz
+    # TODO: calculate the mz from theoretical adduct and modification if provided.
+    #     my_id.mz_references[0].mz = c.MonoIso topic_molecular_weight + 1.007276
+    if mz_tolerance is not None:
+        mzr.mz_tolerance = mz_tolerance
+    else:
+        try:
+            mzr.mz_tolerance = row.mz_tolerance
+        except AttributeError:
+            mzr.mz_tolerance = row.mz_threshold
+    mzr.mz_tolerance_units = 'ppm'
+    mzr.detected_polarity = polarity
+    # if 'file_mz' in atlas_df.keys():
+    #     f = metob.retrieve('Lcmsruns',name = '%%%s%%'%atlas_df.file_mz[x],username = '*')[0]
+    #     mzRef.lcms_run = f
+    if pd.notna(row.adduct):
+        mzr.adduct = row.adduct
+    return [mzr]
+
+
+def get_rt_references(row):
+    rtr = metob.RtReference()
+    rtr.rt_units = 'min'
+    _copy_attributes(row, rtr, ['rt_min', 'rt_max', 'rt_peak'], error_on_missing=True)
+    # if 'file_rt' in atlas_df.keys():
+    #     f = metob.retrieve('Lcmsruns',name = '%%%s%%'%atlas_df.file_rt[x],username = '*')[0]
+    #     rtr.lcms_run = f
+    return [rtr]
+
+
+def get_frag_references(row, name, polarity, mz_ref, rt_ref):
+    """
+    inputs:
+        row: atlas_df row for the compound identification of interest
+        name: compound name
+        polarity: positive or negative
+        mz_ref: MzReference object
+        rt_ref: RtReference object
+    returns an array of FragmentationReferences or empty array if no msms data is found
+    """
+    assert polarity in ['positive', 'negative']
+    try:
+        run_name = row.file_msms.replace('.mzmL', '')
+        run = metob.retrieve('Lcmsruns', name=f"%{run_name}%", username='*')[0]
+    except (AttributeError, IndexError):
+        return []
+    data = ma_data.get_data_for_a_compound(mz_ref, rt_ref, ['msms'], run.hdf5_file, extra_time=0.3)
+    if not isinstance(data['msms']['data'], np.ndarray):
+        return []
+    frag_ref = metob.FragmentationReference()
+    frag_ref.lcms_run = run
+    frag_ref.polarity = polarity
+    frag_ref.precursor_mz = row.mz
+    precursor_intensity = data['msms']['data']['precursor_intensity']
+    idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
+    mz_list = data['msms']['data']['mz'][idx_max]
+    intensity_list = data['msms']['data']['i'][idx_max]
+    frag_ref.mz_intensities = get_spectrum(mz_list, intensity_list)
+    logger.info('Found reference msms spectrum for %s in file %s.', name, row.file_msms)
+    return [frag_ref]
+
+
+def get_spectrum(mz_list, intensity_list):
+    """
+    inputs:
+        mz_list: list of mz values
+        intensity_list: list of intensities values
+    returns a list of MzIntensityPairs()
+    """
+    assert len(mz_list) == len(intensity_list)
+    spectrum = []
+    for msms_mz, intensity in zip(mz_list, intensity_list):
+        spectrum.append(metob.MzIntensityPair())
+        spectrum[-1].mz = msms_mz
+        spectrum[-1].intensity = intensity
+    return spectrum
+
+
+def get_atlas(name, atlas_df, polarity, mz_tolerance):
+    """
+    inputs:
+        name: string with name of atlas
+        atlas_df: pandas DataFrame with atlas definition
+        polarity: positive or negative
+        mz_tolerance: float to set for all mz_tolerance values
+    returns an Atlas object
+
+    atlas_df should not contain empty strings, use np.NaN instead
+    """
+    atlas = metob.Atlas()
+    atlas.name = name
+    atlas.compound_identifications = []
+    for _, row in atlas_df.iterrows():
+        my_id = get_compound_identification(row, polarity, mz_tolerance)
+        if my_id is None:
+            logger.warning(('get_atlas() dropping compound %s '
+                            '(inchi_key %s) because it is not in the database.'), row.label, row.inchi_key)
+        else:
+            atlas.compound_identifications.append(my_id)
+    return atlas
+
+
+def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
+                                polarity=None, store=False, mz_tolerance=None):
     '''
     specify polarity as 'positive' or 'negative'
 
     '''
-    if isinstance(filename,pd.DataFrame):
-        df = filename
-    else:
-        if ( filetype=='excel' ) and sheetname:
-            df = pd.read_excel(filename,sheetname=sheetname)
-        elif ( filetype=='excel' ):
-            df = pd.read_excel(filename)
-        elif filetype == 'tab':
-            df = pd.read_csv(filename,sep='\t')
-        else:
-            df = pd.read_csv(filename,sep=',')
-    df.dropna(how="all", inplace=True)
-    df.columns = [x.lower() for x in df.columns]
-
-    if 'inchi_key' not in df.columns:
-        df['inchi_key'] = ""
-    if 'adduct' not in df.columns:
-        df['adduct'] = ""
-
-    bad_names = check_compound_names(df)
-    if bad_names:
-        return bad_names
-    #Make sure all the files specified for references are actually there
-    #if 'file_rt' in df.keys():
-        #strip '.mzmL' from cells
-        #df.file_rt = df.file_rt.str.replace('\..+', '')
-        #bad_files = check_file_names(df,'file_rt')
-        #if bad_files:
-        #     return bad_files
-    #if 'file_mz' in df.keys():
-    #    #strip '.mzmL' from cells
-    #    df.file_mz = df.file_mz.str.replace('\..+', '')
-    #    bad_files = check_file_names(df,'file_mz')
-    #    if bad_files:
-    #         return bad_files
-    if 'file_msms' in list(df.keys()):
-        #strip '.mzmL' from cells
-        df.file_msms = df.file_msms.str.replace('\..+', '')
-        bad_files = check_file_names(df,'file_msms')
-        if bad_files:
-             return bad_files
-
-
-
-    all_identifications = []
-
-#     for i,row in df.iterrows():
-    for i,row in df.iterrows():
-        if type(row.inchi_key) != float or type(row.label) != float: #this logic is to skip empty rows
-
-            myID = metob.CompoundIdentification()
-
-            if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key)>0): # this logic is where an identified metabolite has been specified
-                c = metob.retrieve('Compounds',inchi_key=row.inchi_key,username = '*') #currently, all copies of the molecule are returned.  The 0 is the most recent one.
-                if c:
-                    c = c[-1]
-            else:
-                c = 'use_label'
-            if type(row.label) != float:
-                compound_label = row.label #if no name, then use label as descriptor
-            else:
-                compound_label = 'no label'
-
-            if c:
-                if c != 'use_label':
-                    myID.compound = [c]
-                myID.name = compound_label
-
-                try:
-                    myID.do_normalization = row.do_normalization
-                    myID.internal_standard_id = row.internal_standard_id
-                    myID.internal_standard_to_use = row.internal_standard_to_use
-                except:
-                    # no internal standard information was provided
-                    pass
-
-                try:
-                    myID.identification_notes = row.identification_notes
-                except:
-                    # no identification_notes were provided
-                    pass
-
-                try:
-                    myID.ms1_notes = row.ms1_notes
-                except:
-                    # no ms1_notes were provided
-                    pass
-
-                try:
-                    myID.ms2_notes = row.ms2_notes
-                except:
-                    # no ms2_notes were provided
-                    pass
-
-                mzRef = metob.MzReference()
-                # take the mz value from the spreadsheet
-                mzRef.mz = row.mz
-                #TODO: calculate the mz from theoretical adduct and modification if provided.
-                #     mzRef.mz = c.MonoIso topic_molecular_weight + 1.007276
-                if mz_tolerance:
-                    mzRef.mz_tolerance = mz_tolerance
-                else:
-                    try:
-                        mzRef.mz_tolerance = row.mz_tolerance
-                    except:
-                        if 'mz_threshold' in df.columns:
-                            mzRef.mz_tolerance = row.mz_threshold
-                        else:
-                            sys.exit("mz_tolerance or mz_threshold not provided. Can't make atlas.")
-
-                mzRef.mz_tolerance_units = 'ppm'
-                mzRef.detected_polarity = polarity
-                #if 'file_mz' in df.keys():
-                #    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_mz[x],username = '*')[0]
-                #    mzRef.lcms_run = f
-                if 'adduct' in row:
-                    if ~pd.isnull(row.adduct):
-                        mzRef.adduct = row.adduct
-
-                myID.mz_references = [mzRef]
-
-                rtRef = metob.RtReference()
-                rtRef.rt_units = 'min'
-                rtRef.rt_min = row.rt_min
-                rtRef.rt_max = row.rt_max
-                rtRef.rt_peak = row.rt_peak
-                #if 'file_rt' in df.keys():
-                #    f = metob.retrieve('Lcmsruns',name = '%%%s%%'%df.file_rt[x],username = '*')[0]
-                #    rtRef.lcms_run = f
-                myID.rt_references = [rtRef]
-
-                if ('file_msms' in list(df.keys())) and (c != 'use_label'):
-                    if (type(row.file_msms) != float) and (row.file_msms != ''):
-                        frag_ref = metob.FragmentationReference()
-                        f = metob.retrieve('Lcmsruns',name = '%%%s%%'%row.file_msms,username = '*')[0]
-                        frag_ref.lcms_run = f
-                        frag_ref.polarity = polarity
-                        frag_ref.precursor_mz = row.mz
-
-                        data = ma_data.get_data_for_a_compound(mzRef, rtRef, [ 'msms' ],f.hdf5_file,0.3)
-                        if isinstance(data['msms']['data'], np.ndarray):
-                            precursor_intensity = data['msms']['data']['precursor_intensity']
-                            idx_max = np.argwhere(precursor_intensity == np.max(precursor_intensity)).flatten()
-                            mz = data['msms']['data']['mz'][idx_max]
-                            intensity = data['msms']['data']['i'][idx_max]
-                            spectrum = []
-                            for i in range(len(mz)):
-                                mzp = metob.MzIntensityPair()
-                                mzp.mz = mz[i]
-                                mzp.intensity = intensity[i]
-                                spectrum.append(mzp)
-                            frag_ref.mz_intensities = spectrum
-                            myID.frag_references = [frag_ref]
-                            print('')
-                            print(('found reference msms spectrum for ',myID.compound[0].name, 'in file',row.file_msms))
-
-                all_identifications.append(myID)
-
-    myAtlas = metob.Atlas()
-    myAtlas.name = atlas_name
-    myAtlas.compound_identifications = all_identifications
+    logging.debug('Generating atlas named %s from %s source.', atlas_name, filetype)
+    atlas_df = _get_dataframe(filename, filetype, sheetname)
+    _clean_dataframe(atlas_df, required_columns=['inchi_key', 'label'])
+    _add_columns(atlas_df, column_names=['adduct'], default_values=[np.NaN])
+    check_compound_names(atlas_df)
+    check_filenames(atlas_df, 'file_msms')
+    atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
     if store:
-        metob.store(myAtlas)
-    return myAtlas
+        logging.debug('Saving atlas named %s to DB.', atlas_name)
+        metob.store(atlas)
+    return atlas
+
+
+def _copy_attributes(source, dest, attribute_list, default_list=None, error_on_missing=False):
+    """
+    inputs:
+        source: object to copy attributes from
+        dest: object to copy attributes to
+        attribute_list: list of string containing attribute names
+        default_list: list of default values corresponding to same positions in attribute_list
+    Modifies dest in place to have all attributes from attribute_list with values coming from
+    source or default_list. If source does not contain the attribute and default_list is None,
+    then do not add the attribute to dest if it does not already exist.
+    """
+    if default_list is None:
+        for attribute in attribute_list:
+            if error_on_missing:
+                setattr(dest, attribute, getattr(source, attribute))
+            else:
+                try:
+                    setattr(dest, attribute, getattr(source, attribute))
+                except AttributeError:
+                    pass
+    else:
+        for attribute, default in zip(attribute_list, default_list):
+            setattr(dest, attribute, getattr(source, attribute, default))
+
 
 def filter_empty_metatlas_objects(object_list,field):
     filtered_list = []

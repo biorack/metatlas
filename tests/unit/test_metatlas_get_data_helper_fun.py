@@ -15,17 +15,12 @@ def test_transfer_identification_data_to_atlas(metatlas_dataset, atlas):
     mod_atlas = atlas.clone(recursive=True)
     mod_atlas.compound_identifications[0].ms1_notes = "ms1_note to overwrite"
     mod_atlas.compound_identifications[0].ms2_notes = "ms2_note to overwrite"
-    mod_atlas.compound_identifications[
-        0
-    ].identification_notes = "identification_note to overwrite"
+    mod_atlas.compound_identifications[0].identification_notes = "identification_note to overwrite"
     out = gdhf.transfer_identification_data_to_atlas(metatlas_dataset, atlas)
     updated = atlas.compound_identifications[0]
     assert updated.ms1_notes == out.compound_identifications[0].ms1_notes
     assert updated.ms2_notes == out.compound_identifications[0].ms2_notes
-    assert (
-        updated.identification_notes
-        == out.compound_identifications[0].identification_notes
-    )
+    assert updated.identification_notes == out.compound_identifications[0].identification_notes
 
 
 def test_set_nested_term_attr(metatlas_dataset):
@@ -34,9 +29,7 @@ def test_set_nested_term_attr(metatlas_dataset):
         [0, 0, "identification", "mz_references", 0, "adduct"],
         "[M+NH4]+",
     )
-    assert (
-        metatlas_dataset[0][0]["identification"].mz_references[0].adduct == "[M+NH4]+"
-    )
+    assert metatlas_dataset[0][0]["identification"].mz_references[0].adduct == "[M+NH4]+"
 
 
 def test_set_nested_term_attr_tuple(metatlas_dataset):
@@ -45,9 +38,7 @@ def test_set_nested_term_attr_tuple(metatlas_dataset):
         [0, 0, "identification", "mz_references", 0, ("adduct",)],
         "[M+NH4]+",
     )
-    assert (
-        metatlas_dataset[0][0]["identification"].mz_references[0].adduct == "[M+NH4]+"
-    )
+    assert metatlas_dataset[0][0]["identification"].mz_references[0].adduct == "[M+NH4]+"
 
 
 def test_set_nested_term_list(metatlas_dataset):

@@ -19,6 +19,7 @@ nox.options.sessions = [
 # has not yet been updated to pass all checks.
 more_checks = [
     'metatlas/datastructures/metatlas_dataset.py',
+    'metatlas/tools/logging.py',
     'tests'
     ]
 
