@@ -158,7 +158,7 @@ def df_container_from_metatlas_file(my_file):
 def fast_nearest_interp(xi, x, y):
     """Assumes that x is monotonically increasing!!."""
     if len(y) == 1:
-        return y*len(xi)
+        return y.tolist()*len(xi)
     # Shift x points to centers
     spacing = np.diff(x) / 2
     x = x + np.hstack([spacing, spacing[-1]])
