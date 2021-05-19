@@ -14,7 +14,6 @@ nox.options.sessions = [
         "update_git_hooks",
         ]
 
-
 # files we can run all the checks on, as they don't contain legacy code that
 # has not yet been updated to pass all checks.
 more_checks = [
@@ -23,6 +22,9 @@ more_checks = [
     'tests'
     ]
 
+notebooks = [
+    'notebooks/reference/Targeted.ipynb',
+    ]
 
 pytest_deps = [
         'attrs==21.2.0',
@@ -34,37 +36,45 @@ pytest_deps = [
         'pyparsing==2.4.7',
         'pytest==6.2.4',
         'pytest-cov==2.11.1',
+        'pytest-mock==3.6.1',
         'toml==0.10.2',
         ]
 
+nbqa_deps = [
+        'nbqa==0.8.1',
+        'tokenize-rt==4.1.0',
+        'importlib-metadata==4.0.1',
+        'astroid==2.5.6',
+        'wrapt==1.12.1',
+        'lazy_object_proxy==1.6.0',
+        'isort==5.8.0',
+        ]
+
+flake8_deps = [
+    'flake8',
+    'flake8-bugbear',
+    'flake8-builtins',
+    'flake8-comprehensions',
+    ]
 
 nox.options.error_on_external_run = True
 
 
 @nox.session(python=py_versions[0])
 def flake8_diff(session):
-    session.install('flake8',
-                    'flake8-bugbear',
-                    'flake8-builtins',
-                    'flake8-comprehensions')
+    session.install(*flake8_deps)
     session.run('sh', '-c', 'git diff -U0 -w --staged HEAD | flake8 --diff', external=True)
 
 
 @nox.session(python=py_versions[0])
 def flake8_all(session):
-    session.install('flake8',
-                    'flake8-bugbear',
-                    'flake8-builtins',
-                    'flake8-comprehensions')
+    session.install(*flake8_deps)
     session.run('flake8', 'metatlas', 'tests')
 
 
 @nox.session(python=py_versions[0])
 def flake8(session):
-    session.install('flake8',
-                    'flake8-bugbear',
-                    'flake8-builtins',
-                    'flake8-comprehensions')
+    session.install(*flake8_deps)
     session.run('flake8', *more_checks)
 
 
@@ -93,6 +103,33 @@ def pylint(session):
                 '--file', 'docker/metatlas_env.yaml', silent=True)
     session.install('--no-deps', *pytest_deps)
     session.run('pylint', *more_checks)
+
+
+@nox.session(venv_backend='conda', python=py_versions, reuse_venv=True)
+def pylint_nb(session):
+    session.run('conda', 'env', 'update', '--prefix', session.virtualenv.location,
+                '--file', 'docker/metatlas_env.yaml', silent=True)
+    session.install('--no-deps', *nbqa_deps, 'pylint')
+    session.run('nbqa', 'pylint', *notebooks)
+
+
+@nox.session(python=py_versions[0])
+def flake8_nb(session):
+    session.install(*nbqa_deps, *flake8_deps)
+    session.run('nbqa', 'flake8', *notebooks)
+
+
+@nox.session(python=py_versions[0])
+def black_nb(session):
+    session.install('black', *nbqa_deps)
+    session.run('nbqa', 'black', '--check', *notebooks)
+
+
+@nox.session(python=py_versions[0])
+def blacken_nb(session):
+    """this modifies notebook files to meet black's requirements"""
+    session.install('black', *nbqa_deps)
+    session.run('nbqa', 'black', '--nbqa-mutate', *notebooks)
 
 
 @nox.session(venv_backend='conda', python=py_versions, reuse_venv=True)

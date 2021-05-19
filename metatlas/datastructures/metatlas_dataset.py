@@ -75,7 +75,7 @@ class MetatlasDataset:
                         self.extra_mz,
                     )
                 )
-        if self.max_cpus > 1:
+        if self.max_cpus > 1 and len(files) > 1:
             with multiprocessing.Pool(processes=min(self.max_cpus, len(files))) as pool:
                 samples = pool.map(ma_data.get_data_for_atlas_df_and_file, files)
         else:  # skip multiprocessing as this makes for easier debugging
@@ -107,7 +107,9 @@ class MetatlasDataset:
         if (keep_idxs is None) == (remove_idxs is None):
             raise ValueError("Exactly one of keep_idxs and remove_idxs should be None")
         start_len = len(self.atlas_df)
-        keep_idxs = keep_idxs if remove_idxs is None else self.atlas_df.index.difference(remove_idxs)
+        if remove_idxs is not None:
+            _error_if_bad_idxs(self.atlas_df, remove_idxs)
+            keep_idxs = self.atlas_df.index.difference(remove_idxs)
         self._atlas_df = self.atlas_df.iloc[keep_idxs].copy().reset_index(drop=True)
         self._atlas_df_valid = True
         name = f"{self.atlas.name}_compound_filtered" if name is None else name
@@ -210,7 +212,7 @@ class MetatlasDataset:
 
     def __setitem__(self, idx, value):
         """assign value for sample at idx"""
-        self._data[idx] = value
+        self.data[idx] = value
 
     def _set_and_invalidate_properties(self, attribute_name, new_value, property_names):
         """
@@ -261,6 +263,8 @@ class MetatlasDataset:
     @atlas.setter
     def atlas(self, atlas):
         """atlas setter, invalidate atlas_df and data"""
+        if not isinstance(atlas, metob.Atlas):
+            raise TypeError("Cannot set atlas to container a non-Atlas object")
         self._set_and_invalidate_properties("atlas", atlas, ["atlas_df", "data"])
 
     @property
@@ -275,8 +279,15 @@ class MetatlasDataset:
 
     @property
     def polarity(self):
-        """polarity getter assumes all polarities within class are the same"""
-        return self.data[0][0]["identification"].mz_references[0].detected_polarity
+        """
+        polarity getter assumes all polarities within class are the same
+        returns 'positive' if there are no samples or no compound identifications
+        """
+        try:
+            cid = self.data[0][0]["identification"]
+        except IndexError:
+            return "positive"
+        return cid.mz_references[0].detected_polarity
 
     @property
     def extra_time(self):
@@ -356,8 +367,10 @@ class MetatlasDataset:
 
     def set_data(self, ids, value):
         """update a value within self._data"""
+        if not self._data_valid:
+            self._build()
+            self._data_valid = True
         self._atlas_df_valid = False
-        self._data_valid = False
         _set_nested(self._data, ids, value)
 
     @property
@@ -381,9 +394,9 @@ class MetatlasDataset:
         assert which in ["rt_min", "rt_peak", "rt_max"]
         atlas_rt_ref = self.atlas.compound_identifications[compound_idx].rt_references[0]
         setattr(atlas_rt_ref, which, time)
-        data_rt_ref = self._data[0][compound_idx]["identification"].rt_references[0]
+        data_rt_ref = self.data[0][compound_idx]["identification"].rt_references[0]
         setattr(data_rt_ref, which, time)
-        self._atlas_df.loc[compound_idx, which] = time
+        self.atlas_df.loc[compound_idx, which] = time
 
     def set_note(self, compound_idx, which, value):
         """
@@ -396,9 +409,9 @@ class MetatlasDataset:
         assert which in ["ms1_notes", "ms2_notes", "identification_notes"]
         atlas_cid = self.atlas.compound_identifications[compound_idx]
         setattr(atlas_cid, which, value)
-        data_cid = self._data[0][compound_idx]["identification"]
+        data_cid = self.data[0][compound_idx]["identification"]
         setattr(data_cid, which, value)
-        self._atlas_df.loc[compound_idx, which] = value
+        self.atlas_df.loc[compound_idx, which] = value
 
     def compound_indices_marked_remove(self):
         """
@@ -476,3 +489,9 @@ def _set_nested(data, ids, value):
             _set_nested(getattr(data, ids[0]), ids[1:], value)
         else:
             _set_nested(data[ids[0]], ids[1:], value)
+
+
+def _error_if_bad_idxs(dataframe, test_idx_list):
+    bad = set(test_idx_list) - set(dataframe.index)
+    if len(bad) > 0:
+        raise IndexError(f"Invalid index values: {bad}.")

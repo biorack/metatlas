@@ -1,11 +1,13 @@
+# pylint: disable=line-too-long, missing-function-docstring, missing-module-docstring, too-many-arguments
+
 import pytest
 import numpy as np
 
 from metatlas.datastructures import metatlas_dataset as mads
 
 
-@pytest.fixture
-def ms1_summary():
+@pytest.fixture(name="ms1_summary")
+def fixture_ms1_summary():
     return {
         "num_ms1_datapoints": 85.0,
         "mz_peak": 252.1092987060547,
@@ -17,8 +19,8 @@ def ms1_summary():
     }
 
 
-@pytest.fixture
-def msms():
+@pytest.fixture(name="msms")
+def fixture_msms():
     return {
         "data": {
             "mz": np.array([], dtype=np.float64),
@@ -32,24 +34,24 @@ def msms():
     }
 
 
-@pytest.fixture
-def metatlas_dataset(lcmsrun, group, compound_identification, eic, ms1_summary, msms):
-    return [
-        [
-            {
-                "atlas_name": "my_atlas",
-                "atlas_unique_id": "c3de0a6f-a49d-47ea-9c39-edd29c1cf9bb",
-                "lcmsrun": lcmsrun,
-                "group": group,
-                "identification": compound_identification,
-                "data": {"eic": eic, "ms1_summary": ms1_summary, "msms": msms},
-            }
-        ]
-    ]
+@pytest.fixture(name="metatlas_dataset")
+def fixture_metatlas_dataset(mocker, df_container, atlas, group):
+    mocker.patch(
+        "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
+    )
+    return mads.MetatlasDataset(atlas, [group])
 
 
-@pytest.fixture
-def eic():
+@pytest.fixture(name="metatlas_dataset_with_2_cids")
+def fixture_metatlas_dataset_with_2_cids(mocker, df_container, atlas_with_2_cids, group):
+    mocker.patch(
+        "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
+    )
+    return mads.MetatlasDataset(atlas_with_2_cids, [group])
+
+
+@pytest.fixture(name="eic")
+def fixture_eic():
     return {
         "mz": [
             252.1089324951172,
@@ -318,6 +320,6 @@ def eic():
     }
 
 
-@pytest.fixture
-def atlas_df(atlas, group):
+@pytest.fixture(name="atlas_df")
+def fixture_atlas_df(atlas, group):
     return mads.MetatlasDataset(atlas, [group]).atlas_df

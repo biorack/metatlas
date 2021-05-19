@@ -1,5 +1,5 @@
-""" dill2plot tests """
-# pylint: disable=missing-function-docstring
+# pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long
+
 from metatlas.plots import dill2plots
 
 
@@ -82,15 +82,15 @@ def test_export_atlas_to_spreadsheet(atlas):
     assert expected == dill2plots.export_atlas_to_spreadsheet(atlas).to_json().replace(r"\/", "/")
 
 
-def test_filter_atlas01(atlas_df, metatlas_dataset):
-    assert len(dill2plots.filter_atlas(atlas_df, metatlas_dataset, 1, 3e5)) == 1
-    assert len(dill2plots.filter_atlas(atlas_df, metatlas_dataset, 1, 4e5)) == 0
-    assert len(dill2plots.filter_atlas(atlas_df, metatlas_dataset, 80, 1e4)) == 1
-    assert len(dill2plots.filter_atlas(atlas_df, metatlas_dataset, 90, 1e4)) == 0
+def test_filter_atlas01(metatlas_dataset):
+    assert len(dill2plots.filter_atlas(metatlas_dataset.atlas_df, metatlas_dataset, 1, 2.30e6)) == 1
+    assert len(dill2plots.filter_atlas(metatlas_dataset.atlas_df, metatlas_dataset, 1, 2.36e6)) == 0
+    assert len(dill2plots.filter_atlas(metatlas_dataset.atlas_df, metatlas_dataset, 73, 1e4)) == 1
+    assert len(dill2plots.filter_atlas(metatlas_dataset.atlas_df, metatlas_dataset, 74, 1e4)) == 0
 
 
 def test_strong_signal_compound_idxs(metatlas_dataset):
-    assert dill2plots.strong_signal_compound_idxs(metatlas_dataset, 1, 3e5) == [0]
-    assert dill2plots.strong_signal_compound_idxs(metatlas_dataset, 1, 4e5) == []
-    assert dill2plots.strong_signal_compound_idxs(metatlas_dataset, 80, 1e4) == [0]
-    assert dill2plots.strong_signal_compound_idxs(metatlas_dataset, 90, 1e4) == []
+    assert dill2plots.strong_signal_compound_idxs(metatlas_dataset, 1, 2.30e6) == [0]
+    assert dill2plots.strong_signal_compound_idxs(metatlas_dataset, 1, 2.36e6) == []
+    assert dill2plots.strong_signal_compound_idxs(metatlas_dataset, 73, 1e4) == [0]
+    assert dill2plots.strong_signal_compound_idxs(metatlas_dataset, 74, 1e4) == []
