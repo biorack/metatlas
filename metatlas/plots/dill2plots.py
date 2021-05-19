@@ -727,11 +727,6 @@ class adjust_rt_for_selected_compound(object):
     def update_rt_peak(self, val):
         self.update_rt('rt_peak', val)
 
-    def retrieve_compounds(self):
-        uids = [x['identification'].unique_id for x in self.data[0]]
-        compounds_list = metob.retrieve('CompoundIdentification', unique_id=uids, username='*')
-        return {c.unique_id: c for c in compounds_list}
-
     def get_similar_compounds(self, use_labels=True):
         """
         inputs:
@@ -3386,8 +3381,6 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
         tuple of strings
             (mz_header, rt_header, cpd_header)
     """
-    avg_mz_measured = []
-    avg_rt_measured = []
     if not hits.empty:
         rt_ms2 = hits.index.get_level_values('msms_scan')[hit_ctr]
         mz_precursor = hits['measured_precursor_mz'].iloc[hit_ctr]
