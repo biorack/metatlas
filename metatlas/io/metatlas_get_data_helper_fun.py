@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from __future__ import print_function
+import logging
 import numpy as np
 import os.path
 import sys
@@ -13,6 +14,8 @@ import six
 from six.moves import map
 from six.moves import range
 from six.moves import zip
+
+logger = logging.getLogger(__name__)
 
 
 def create_msms_dataframe(df):
@@ -172,11 +175,15 @@ def remove_ms1_data_not_in_atlas(atlas_df, data):
         has_current_polarity = atlas_df.detected_polarity == polarity
         if any(has_current_polarity):
             atlas_mz = atlas_df[has_current_polarity].mz.copy().sort_values().values
+            logger.debug("atlas_mz=%s", atlas_mz)
             max_mz_tolerance = atlas_df[has_current_polarity].mz_tolerance.max()
+            logger.debug("atlas_mz=%s, max_mz_tolerance=%.6f", atlas_mz, max_mz_tolerance)
             if data[name].shape[0] > 1:
                 original_mz = data[name].mz.values
                 nearest_mz = fast_nearest_interp(original_mz, atlas_mz, atlas_mz)
+                logger.debug("nearest_mz=%s", nearest_mz)
                 data[name]['ppm_difference'] = abs(original_mz - nearest_mz) / original_mz * 1e6
+                logger.debug("ppm_difference=%s", data[name]['ppm_difference'])
                 query_str = 'ppm_difference < %f' % max_mz_tolerance
                 data[name] = data[name].query(query_str)
     return data
@@ -305,7 +312,7 @@ def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz'
         if len(data_df_pos)>0:
             all_df = data_df_pos.query(ms1_query_str)
         else:
-            return pd.Series()
+            return pd.Series(dtype=np.float64)
     else:
         if len(data_df_neg)>0:
             all_df = data_df_neg.query(ms1_query_str)
@@ -841,9 +848,9 @@ def get_compound_names(data,use_labels=False):
         newstr = '%s_%s_%s_%s_%.4f_%.2f'%(str(i).zfill(4),_str,d['identification'].mz_references[0].detected_polarity,
                 d['identification'].mz_references[0].adduct,d['identification'].mz_references[0].mz,
                 d['identification'].rt_references[0].rt_peak)
-        newstr = re.sub('\.', 'p', newstr) #2 or more in regexp
+        newstr = re.sub(r'\.', 'p', newstr)  # 2 or more in regexp
 
-        newstr = re.sub('[\[\]]','',newstr)
+        newstr = re.sub(r'[\[\]]', '', newstr)
         newstr = re.sub('[^A-Za-z0-9+-]+', '_', newstr)
         newstr = re.sub('i_[A-Za-z]+_i_', '', newstr)
         if newstr[0] == '_':
