@@ -41,8 +41,8 @@ def test_set_nested_term_attr_tuple(metatlas_dataset):
 
 
 def test_set_nested_term_list(metatlas_dataset):
-    gdhf.set_nested(metatlas_dataset, [0, 0], "foobar")
-    assert metatlas_dataset[0][0] == "foobar"
+    gdhf.set_nested(metatlas_dataset, [0, 0, "identification", "mz_references"], None)
+    assert metatlas_dataset[0][0]["identification"].mz_references is None
 
 
 def test_set_nested_term_dict(metatlas_dataset):

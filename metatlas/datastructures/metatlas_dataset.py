@@ -80,7 +80,7 @@ class MetatlasDataset:
                 samples = pool.map(ma_data.get_data_for_atlas_df_and_file, files)
         else:  # skip multiprocessing as this makes for easier debugging
             samples = [ma_data.get_data_for_atlas_df_and_file(i) for i in files]
-        self._data = [MetatlasSample(x) for x in samples]
+        self._data = tuple(MetatlasSample(x) for x in samples)
         logger.info(
             "MetatlasDataset with %d files built in %s.",
             len(files),
@@ -209,10 +209,6 @@ class MetatlasDataset:
     def __getitem__(self, idx):
         """get sample at idx"""
         return self.data[idx]
-
-    def __setitem__(self, idx, value):
-        """assign value for sample at idx"""
-        self.data[idx] = value
 
     def _set_and_invalidate_properties(self, attribute_name, new_value, property_names):
         """
@@ -433,10 +429,6 @@ class MetatlasSample:
     def __getitem__(self, idx):
         """get sample at idx"""
         return self._data[idx]
-
-    def __setitem__(self, idx, value):
-        """assign value for sample at idx"""
-        self._data[idx] = value
 
     def __len__(self):
         """len is from data"""

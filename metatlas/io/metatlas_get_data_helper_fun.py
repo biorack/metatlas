@@ -108,7 +108,7 @@ def get_data_for_atlas_df_and_file(input_tuple):
         else:
             result['data']['msms']['data'] = []
         row.append(result)
-    return row
+    return tuple(row)
 
 def get_bpc(filename,dataset='ms1_pos',integration='bpc'):
     """

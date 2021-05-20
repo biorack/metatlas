@@ -2,8 +2,8 @@
 
 import getpass
 import os
-import pytest
 import sqlite3
+import pytest
 from metatlas.datastructures import metatlas_objects as metob
 
 

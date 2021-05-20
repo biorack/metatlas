@@ -8,7 +8,7 @@ from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 
 
-def test_metatlas_dataset_build01(mocker, metatlas_dataset):
+def test_metatlas_dataset_build01(metatlas_dataset):
     assert len(metatlas_dataset) == 1
     assert len(metatlas_dataset[0]) == 1
     assert metatlas_dataset[0][0]["identification"].compound[0].inchi_key == "OLXZPDWKRNYJJZ-RRKCRQDMSA-N"
@@ -92,11 +92,11 @@ def test_polarity(metatlas_dataset):
 
 def test_extra_time_setter(metatlas_dataset, hits, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    metatlas_dataset.hits
+    metatlas_dataset.hits  # pylint: disable=pointless-statement
     assert metatlas_dataset._hits_valid
     metatlas_dataset.extra_time = 0.3
     assert not metatlas_dataset._hits_valid
-    metatlas_dataset.hits
+    metatlas_dataset.hits  # pylint: disable=pointless-statement
     assert metatlas_dataset._hits_valid
 
 
@@ -253,13 +253,8 @@ def test_export_atlas_to_csv01(metatlas_dataset, tmp_path):
     assert in_df.loc[0, "inchi_key"] == "OLXZPDWKRNYJJZ-RRKCRQDMSA-N"
 
 
-def test_setitem01(metatlas_dataset):
-    metatlas_dataset[0] = None
-    assert metatlas_dataset[0] is None
-
-
 def test_atlas_setter01(metatlas_dataset, atlas_with_2_cids):
-    metatlas_dataset.data
+    metatlas_dataset.data  # pylint: disable=pointless-statement
     metatlas_dataset.atlas = atlas_with_2_cids
     assert not metatlas_dataset._data_valid
     assert len(metatlas_dataset[0]) == 2
@@ -275,7 +270,7 @@ def test_groups01(metatlas_dataset):
 
 
 def test_set_groups01(metatlas_dataset):
-    metatlas_dataset.data
+    metatlas_dataset.data  # pylint: disable=pointless-statement
     metatlas_dataset.groups = None
     assert not metatlas_dataset._data_valid
     assert metatlas_dataset.groups is None
@@ -283,8 +278,8 @@ def test_set_groups01(metatlas_dataset):
 
 def test_set_extra_mz_setter(metatlas_dataset, mocker, hits):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    metatlas_dataset.data
-    metatlas_dataset.hits
+    metatlas_dataset.data  # pylint: disable=pointless-statement
+    metatlas_dataset.hits  # pylint: disable=pointless-statement
     metatlas_dataset.extra_mz = 0.43
     assert not metatlas_dataset._data_valid
     assert not metatlas_dataset._hits_valid
@@ -293,7 +288,7 @@ def test_set_extra_mz_setter(metatlas_dataset, mocker, hits):
 
 def test_set_keep_nonmatches_setter(metatlas_dataset, mocker, hits):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    metatlas_dataset.hits
+    metatlas_dataset.hits  # pylint: disable=pointless-statement
     metatlas_dataset.keep_nonmatches = False
     assert not metatlas_dataset._hits_valid
     assert not metatlas_dataset.keep_nonmatches
@@ -301,7 +296,7 @@ def test_set_keep_nonmatches_setter(metatlas_dataset, mocker, hits):
 
 def test_set_frag_mz_tolerance_setter(metatlas_dataset, mocker, hits):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    metatlas_dataset.hits
+    metatlas_dataset.hits  # pylint: disable=pointless-statement
     metatlas_dataset.frag_mz_tolerance = 1e-4
     assert not metatlas_dataset._hits_valid
     assert metatlas_dataset.frag_mz_tolerance == 1e-4
@@ -309,7 +304,7 @@ def test_set_frag_mz_tolerance_setter(metatlas_dataset, mocker, hits):
 
 def test_set_msms_refs_loc_setter(metatlas_dataset, mocker, hits):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    metatlas_dataset.hits
+    metatlas_dataset.hits  # pylint: disable=pointless-statement
     metatlas_dataset.msms_refs_loc = "/tmp/some_file.tab"
     assert not metatlas_dataset._hits_valid
     assert metatlas_dataset.msms_refs_loc == "/tmp/some_file.tab"
@@ -320,7 +315,7 @@ def test_set_data01(metatlas_dataset):
     assert metatlas_dataset[0][0]["identification"].ms2_notes == "extact match"
 
 
-def test_store_atlas01(metatlas_dataset, sqlite):
+def test_store_atlas01(metatlas_dataset, sqlite):  # pylint: disable=unused-argument
     metatlas_dataset.atlas.name = "test_store_atlas01"
     metatlas_dataset.store_atlas()
     atlas_list = metob.retrieve("atlases", name=metatlas_dataset.atlas.name, username="*")
