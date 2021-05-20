@@ -1,4 +1,4 @@
-FROM mambaorg/micromamba:0.13.0
+FROM python:3.8-slim-buster
 
 ARG BASE_DATA_URL=https://portal.nersc.gov/cfs/m2650/metatlas/test_data/ci01
 ARG REFS_DIR=/global/project/projectdirs/metatlas/projects/spectral_libraries
@@ -8,10 +8,12 @@ ENV METATLAS_LOCAL=True
 
 EXPOSE 8888
 
-COPY metatlas_env.yaml /metatlas_env.yaml
+RUN apt-get update && apt-get install -y jq && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN micromamba install -y -n base -f /metatlas_env.yaml && \
-    micromamba clean --all --yes
+COPY requirements.txt /requirements.txt
+
+RUN pip install --quiet -r requirements.txt
 
 RUN mkdir -p /io /src /work $REFS_DIR $H5_DIR
 
@@ -26,4 +28,7 @@ ADD $BASE_DATA_URL/meta_atlas.sqlite3 /work/root_workspace.db
 
 WORKDIR /work
 
-CMD ["/opt/conda/bin/jupyter", "nbclassic", "--ip=0.0.0.0", "--allow-root", "--ServerApp.token=''", "--ServerApp.root_dir=/"]
+RUN apt-get update && apt-get install -y libxrender1 && \
+    rm -rf /var/lib/apt/lists/*
+
+CMD ["/usr/local/bin/jupyter", "nbclassic", "--ip=0.0.0.0", "--allow-root", "--ServerApp.token=''", "--ServerApp.root_dir=/"]

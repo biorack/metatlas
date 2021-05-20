@@ -40,6 +40,10 @@ pytest_deps = [
         'toml==0.10.2',
         ]
 
+pylint_deps = [
+        'pylint==2.8.2',
+        ]
+
 nbqa_deps = [
         'nbqa==0.8.1',
         'tokenize-rt==4.1.0',
@@ -51,11 +55,11 @@ nbqa_deps = [
         ]
 
 flake8_deps = [
-    'flake8',
-    'flake8-bugbear',
-    'flake8-builtins',
-    'flake8-comprehensions',
-    ]
+        'flake8==3.9.2',
+        'flake8-bugbear==21.4.3',
+        'flake8-builtins==1.5.3',
+        'flake8-comprehensions==3.5.0',
+        ]
 
 nox.options.error_on_external_run = True
 
@@ -97,19 +101,15 @@ def blacken(session):
     session.run('black', *more_checks)
 
 
-@nox.session(venv_backend='conda', python=py_versions, reuse_venv=True)
+@nox.session(python=py_versions, reuse_venv=True)
 def pylint(session):
-    session.run('conda', 'env', 'update', '--prefix', session.virtualenv.location,
-                '--file', 'docker/metatlas_env.yaml', silent=True)
-    session.install('--no-deps', *pytest_deps)
+    session.install('-r', 'docker/requirements.txt', *pylint_deps)
     session.run('pylint', *more_checks)
 
 
-@nox.session(venv_backend='conda', python=py_versions, reuse_venv=True)
+@nox.session(python=py_versions, reuse_venv=True)
 def pylint_nb(session):
-    session.run('conda', 'env', 'update', '--prefix', session.virtualenv.location,
-                '--file', 'docker/metatlas_env.yaml', silent=True)
-    session.install('--no-deps', *nbqa_deps, 'pylint')
+    session.install('-r', 'docker/requirements.txt', *nbqa_deps, *pylint_deps)
     session.run('nbqa', 'pylint', *notebooks)
 
 
@@ -132,18 +132,16 @@ def blacken_nb(session):
     session.run('nbqa', 'black', '--nbqa-mutate', *notebooks)
 
 
-@nox.session(venv_backend='conda', python=py_versions, reuse_venv=True)
+@nox.session(python=py_versions, reuse_venv=True)
 def unit_tests(session):
-    session.run('conda', 'env', 'update', '--prefix', session.virtualenv.location,
-                '--file', 'docker/metatlas_env.yaml', silent=True)
-    session.install('--no-deps', *pytest_deps)
+    session.install('-r', 'docker/requirements.txt', *pytest_deps)
     session.run('pytest', '-vv', *session.posargs, '--cov', 'metatlas', 'tests/unit/',
                 env={'METATLAS_LOCAL': 'TRUE'})
 
 
 @nox.session(python=py_versions[0])
 def system_tests(session):
-    session.install('--no-deps', *pytest_deps)
+    session.install(*pytest_deps)
     session.run('pytest', '-vv', *session.posargs, 'tests/system/')
 
 
