@@ -1,19 +1,21 @@
 from __future__ import absolute_import
 from __future__ import print_function
-import sys
+import logging
 import os
 import multiprocessing as mp
 import pprint
+from six.moves import range
+
+import numpy as np
+import pandas as pd
 
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
-from metatlas.datastructures import metatlas_objects as metob
+from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 from metatlas.plots import chromplotplus as cpp
 from metatlas.tools import spectralprocessing as sp
 
-import numpy as np
-import pandas as pd
-from six.moves import range
+logger = logging.getLogger(__name__)
 
 loose_param = {'min_intensity': 1e3,
                'rt_tolerance': .25,
@@ -47,7 +49,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                                      'mz_centroid': ['peak_height', 'mz_ppm'],
                                      'mz_ppm': ['peak_height'],
                                      'msms_score': ['peak_height', 'num_frag_matches'],
-                                     'num_frag_matches': ['peak_height', 'msms_score']}):
+                                     'num_frag_matches': ['peak_height', 'msms_score']},
+                     overwrite=False):
 
     assert output_loc is not None or return_all
 
@@ -56,43 +59,21 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     else:
         metatlas_dataset = input_dataset
 
-    if output_loc is not None and not os.path.exists(output_loc):
-        os.mkdir(output_loc)
-    if output_loc is not None and not os.path.exists(os.path.join(output_loc,'data_sheets')):
-        os.mkdir(os.path.join(output_loc,'data_sheets'))
-    if output_loc is not None and not os.path.exists(os.path.join(output_loc,'stats_tables')):
-        os.mkdir(os.path.join(output_loc,'stats_tables'))
-
-    if polarity != '':
-        output_sheetname = polarity+'_'+output_sheetname
-
-    # filter runs from the metatlas dataset
-    if include_lcmsruns:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,'lcmsrun',include_lcmsruns)
-    if include_groups:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,'group',include_groups)
-
-    if exclude_lcmsruns:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset,'lcmsrun',exclude_lcmsruns)
-    if exclude_groups:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset,'group',exclude_groups)
-
+    metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta',
+               'peak_height', 'peak_area', 'num_data_points']
+    dfs = {m: None for m in metrics}
+    for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
+        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels, output_loc=os.path.join(output_loc, 'data_sheets'), polarity=polarity)
+    metatlas_dataset = dp.filter_runs(metatlas_dataset, include_lcmsruns, include_groups,
+                                      exclude_lcmsruns, exclude_groups)
     final_df = pd.DataFrame(columns=['index'])
     file_names = ma_data.get_file_names(metatlas_dataset)
-    compound_names = ma_data.get_compound_names(metatlas_dataset,use_labels=use_labels)[0]
-
-    metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta', 'peak_height', 'peak_area', 'num_data_points']
-
-    dfs = {m:None for m in metrics}
-    passing = {m:np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
-
-    for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
-        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels,output_loc=os.path.join(output_loc,'data_sheets'), polarity=polarity)
+    compound_names = ma_data.get_compound_names(metatlas_dataset, use_labels=use_labels)[0]
+    passing = {m: np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
 
     dfs['mz_ppm'] = dfs['peak_height'].copy()
     dfs['mz_ppm'] *= np.nan
-
-    dfs['num_data_points'] = pd.DataFrame([[len(metatlas_dataset[i][j]['data']['eic']['intensity']) if metatlas_dataset[i][j]['data']['eic'] != None else 0
+    dfs['num_data_points'] = pd.DataFrame([[len(ma_data.extract(metatlas_dataset, [i, j, 'data', 'eic', 'intensity'], default=[]))
                                            for i in range(len(metatlas_dataset))]
                                           for j in range(len(metatlas_dataset[0]))])
     dfs['num_data_points'].index = dfs['mz_ppm'].index
@@ -160,7 +141,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
 
         avg_mz_measured = np.mean(avg_mz_measured)
         avg_rt_measured = np.mean(avg_rt_measured)
-        
+
         delta_mz = abs(mz_theoretical - avg_mz_measured)
         delta_ppm = delta_mz / mz_theoretical * 1e6
 
@@ -172,7 +153,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         else:
             cid_label = cid.compound[0].name
             final_df.loc[compound_idx, 'label'] = cid_label
-        
+
         overlapping_compounds = []
         cpd_labels = []
         inchi_key_map = {}
@@ -181,7 +162,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                 cpd_labels.append(metatlas_dataset[0][compound_iterator]['identification'].name)
             else:
                 cpd_labels.append(metatlas_dataset[0][compound_iterator]['identification'].compound[0].name)
-        
+
         if(len(cid.compound) != 0):
             #Loop through compounds to identify overlapping compounds
             for compound_iterator in range(len(compound_names)):
@@ -237,7 +218,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'polarity'] = cid.mz_references[0].detected_polarity
             final_df.loc[compound_idx, 'exact_mass'] = cid.compound[0].mono_isotopic_molecular_weight
             final_df.loc[compound_idx, 'inchi_key'] = cid.compound[0].inchi_key
-        
+
         if file_idxs != []:
             if len(mz_sample_matches) == 1:
                 final_df.loc[compound_idx, 'msms_quality'] = 0
@@ -247,7 +228,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                 final_df.loc[compound_idx, 'msms_quality'] = ""
         else:
             final_df.loc[compound_idx, 'msms_quality'] = 0
-        
+
         if delta_ppm <= 5 or delta_mz <= 0.001:
             final_df.loc[compound_idx, 'mz_quality'] = 1
         elif delta_ppm >= 5 and delta_ppm <= 10 and delta_mz > 0.001:
@@ -256,7 +237,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'mz_quality'] = 0
         else:
             final_df.loc[compound_idx, 'mz_quality'] = ""
-        
+
         rt_error = abs(cid.rt_references[0].rt_peak - avg_rt_measured)
         if rt_error <= 0.5:
             final_df.loc[compound_idx, 'rt_quality'] = 1
@@ -266,7 +247,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'rt_quality'] = 0
         else:
             final_df.loc[compound_idx, 'rt_quality'] = ""
-        
+
         final_df.loc[compound_idx, 'total_score'] = ""
         final_df.loc[compound_idx, 'msi_level'] = ""
         final_df.loc[compound_idx, 'isomer_details'] = ""
@@ -331,11 +312,15 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
+    prefix = f"{polarity}_" if polarity != '' else ''
+    output_sheetname = f"{prefix}{output_sheetname}"
     if not output_sheetname.endswith('.xlsx'):
         output_sheetname = output_sheetname + '.xlsx'
-    writer = pd.ExcelWriter(os.path.join(output_loc,output_sheetname), engine='xlsxwriter')
+    excel_path = os.path.join(output_loc, output_sheetname)
+    write_utils.check_existing_file(excel_path, overwrite)
+    writer = pd.ExcelWriter(excel_path, engine='xlsxwriter')
     final_df.to_excel(writer, sheet_name='Final_Identifications', index=False, startrow=3)
-    
+
     #set format
     workbook = writer.book
     f_blue = workbook.add_format({'bg_color': '#DCFFFF'})
@@ -365,7 +350,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         worksheet.write(1,i, header, cell_format)
 
     HEADER3 = ['Unique for study','Some isomers are not chromatographically or spectrally resolvable.','Name of standard reference compound in library match.','compound with similar mz (abs difference <= 0.005) or monoisotopic molecular weight (abs difference <= 0.005) and RT (min or max within the RT-min-max-range of similar compound)','List of inchi keys that correspond to the compounds listed in the previous column','','','monoisotopic mass (neutral except for permanently charged molecules)','neutralized version','1 (MSMS matches ref. std.), 0.5 (possible match), 0 (no MSMS collected or no appropriate ref available), -1 (bad match)','1 (delta ppm </= 5 or delta Da </= 0.001), 0.5 (delta ppm 5-10 and delta Da > 0.001), 0 (delta ppm > 10) mz_quality','1 (delta RT </= 0.5), 0.5 (delta RT > 0.5 & </= 2), 0 (delta RT > 2 min)','sum of m/z, RT and MSMS score','Level 1 = Two independent and orthogonal properties match authentic standard; else = putative [Metabolomics. 2007 Sep; 3(3): 211-221. doi: 10.1007/s11306-007-0082-2]','Isomers have same formula (and m/z) and similar RT - MSMS spectra may be used to differentiate (exceptions) or RT elution order','','','','','','','','','mean # of fragment ions matching between compound in sample and reference compound / standard; may include parent and isotope ions and very low intensity background ions (these do not contribute to score)','','MSMS score (highest across all samples), scale of 0 to 1 based on an algorithm. 0 = no match, 1 = perfect match. If no score, then no MSMS was acquired for that compound (@ m/z & RT window).','More than one may be detectable; the one evaluated is listed','theoretical m/z for a given compound / adduct pair','average m/z within 20ppm of theoretical detected across all samples @ RT peak','absolute difference between theoretical and detected m/z','ppm difference between theoretical and detected m/z','','','theoretical retention time for a compound based upon reference standard at highest intensity point of peak','average retention time for a detected compound at highest intensity point of peak across all samples','absolute difference between theoretical and detected RT peak']
-    
+
     for i, header in enumerate(HEADER3):
         worksheet.write(2,i, header, cell_format)
 
@@ -378,7 +363,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     worksheet.conditional_format('AF1:AI'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_yellow})
     worksheet.conditional_format('AJ1:AJ'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_rose})
     writer.save()
-    
+    logger.info('Exported Draft Identifications spreadsheet to %s.', excel_path)
+
 
     #final_df.to_csv(os.path.join(output_loc, 'Draft_Final_Idenfications.tab'), sep='\t')
     for metric in metrics:
@@ -408,14 +394,12 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     stats_table = pd.concat(stats_table, axis=1)
 
     if output_loc is not None:
-        if polarity == '':
-            readme_file = 'stats_table.readme'
-            stats_table.to_csv(os.path.join(output_loc, 'stats_tables', 'stats_table.tab'), sep='\t')
-        else:
-            readme_file = polarity+'_stats_table.readme'
-            stats_table.to_csv(os.path.join(output_loc, 'stats_tables', polarity+'_stats_table.tab'), sep='\t')
-
-        with open(os.path.join(output_loc, 'stats_tables/', readme_file), 'w') as readme:
+        stats_tables_dir = os.path.join(output_loc, f"{prefix}stats_tables")
+        stats_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.tab")
+        write_utils.export_dataframe(stats_table, stats_path, 'stats table', overwrite, sep='\t')
+        readme_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.readme")
+        write_utils.check_existing_file(readme_path, overwrite)
+        with open(readme_path, 'w') as readme:
             for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'ppm_tolerance', 'min_msms_score', 'min_num_frag_matches']:
                 readme.write('%s\n'%var)
                 try:
@@ -426,7 +410,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                 except TypeError:
                     pprint.pprint(eval(var), readme)
                 readme.write('\n')
-
+        logger.info('Exported stats table readme to %s.', readme_path)
     if return_all:
         return stats_table, dfs, passing
 

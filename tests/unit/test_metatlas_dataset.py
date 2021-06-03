@@ -2,10 +2,13 @@
 # pylint: disable=missing-function-docstring, protected-access
 
 import datetime
+import glob
+import logging
 import pandas as pd
 import pytest
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.io import metatlas_get_data_helper_fun as ma_data
 
 
 def test_metatlas_dataset_build01(metatlas_dataset):
@@ -269,13 +272,6 @@ def test_groups01(metatlas_dataset):
     assert metatlas_dataset.groups[0].short_name == "POS_Cone-S1"
 
 
-def test_set_groups01(metatlas_dataset):
-    metatlas_dataset.data  # pylint: disable=pointless-statement
-    metatlas_dataset.groups = None
-    assert not metatlas_dataset._data_valid
-    assert metatlas_dataset.groups is None
-
-
 def test_set_extra_mz_setter(metatlas_dataset, mocker, hits):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     metatlas_dataset.data  # pylint: disable=pointless-statement
@@ -323,3 +319,195 @@ def test_store_atlas01(metatlas_dataset, sqlite):  # pylint: disable=unused-argu
     metatlas_dataset.store_atlas(even_if_exists=True)
     with pytest.raises(ValueError):
         metatlas_dataset.store_atlas()
+
+
+def test_analysis_identifiers01():
+    with pytest.raises(ValueError):
+        mads.AnalysisIdentifiers(
+            "experiment_not_valid",
+            "output_type_not_valid",
+            "polarity_not_valid",
+            "analysis_number_not_valid",
+            "/foo/bar",
+        )
+
+
+def test_analysis_identifiers02():
+    with pytest.raises(ValueError):
+        mads.AnalysisIdentifiers(
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "output_type_not_valid",
+            "polarity_not_valid",
+            "analysis_number_not_valid",
+            "/foo/bar",
+        )
+
+
+def test_analysis_identifiers03():
+    with pytest.raises(ValueError):
+        mads.AnalysisIdentifiers(
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "FinalEMA-HILIC",
+            "polarity_not_valid",
+            "analysis_number_not_valid",
+            "/foo/bar",
+        )
+
+
+def test_analysis_identifiers04():
+    with pytest.raises(TypeError):
+        mads.AnalysisIdentifiers(
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "FinalEMA-HILIC",
+            "positive",
+            "analysis_number_not_valid",
+            "/foo/bar",
+        )
+
+
+def test_analysis_identifiers05():
+    with pytest.raises(TypeError):
+        mads.AnalysisIdentifiers(
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "FinalEMA-HILIC",
+            "positive",
+            "1",
+            "/foo/bar",
+        )
+
+
+def test_analysis_identifiers06():
+    with pytest.raises(ValueError):
+        mads.AnalysisIdentifiers(
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "FinalEMA-HILIC",
+            "positive",
+            -9,
+            "/foo/bar",
+        )
+
+
+def test_analysis_identifiers_atlas01(analysis_ids):
+    assert analysis_ids.atlas == "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0"
+
+
+def test_analysis_identifiers_atlas02(analysis_ids):
+    # call .atlas twice to get cached value
+    analysis_ids.atlas  # pylint: disable=pointless-statement
+    assert analysis_ids.atlas == "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0"
+
+
+def test_write_data_source_files01(metatlas_dataset, mocker, caplog):
+    mocker.patch("glob.glob", return_value=range(10))
+    metatlas_dataset.write_data_source_files()
+    assert "Data sources directory already populated" in caplog.text
+
+
+def test_write_data_source_files02(metatlas_dataset, mocker, caplog):
+    mocker.patch("glob.glob", return_value=range(3))
+    mocker.patch("shutil.rmtree")
+    mocker.patch("metatlas.io.metatlas_get_data_helper_fun.make_data_sources_tables")
+    caplog.set_level(logging.INFO)
+    metatlas_dataset.write_data_source_files()
+    assert "Writing data source files to" in caplog.text
+    assert ma_data.make_data_sources_tables.called  # pylint: disable=no-member
+
+
+def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun):
+    mocker.patch(
+        "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
+    )
+    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[0])
+    mocker.patch("glob.glob", return_value=range(10))
+    metatlas_dataset = mads.MetatlasDataset(analysis_ids)
+    assert metatlas_dataset.atlas == 0
+
+
+def test_get_atlas02(mocker, analysis_ids, caplog):
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[])
+    caplog.set_level(logging.INFO)
+    with pytest.raises(ValueError):
+        mads.MetatlasDataset(analysis_ids)
+    assert "Database does not contain an atlas named" in caplog.text
+
+
+def test_get_atlas03(mocker, analysis_ids, caplog):
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[0, 0])
+    with pytest.raises(ValueError):
+        mads.MetatlasDataset(analysis_ids)
+    assert "Database contains more than one atlas named" in caplog.text
+
+
+def test_existing_groups(mocker, metatlas_dataset):
+    """This test has little value, but is needed for coverage"""
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[])
+    assert metatlas_dataset.existing_groups == []
+
+
+def test_lcmsruns_dataframe(metatlas_dataset):
+    assert metatlas_dataset.lcmsruns_dataframe.shape == (1, 15)
+
+
+def test_store_groups01(metatlas_dataset, mocker):
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[])
+    mocker.patch("metatlas.datastructures.metatlas_objects.store")
+    metatlas_dataset.store_groups()
+    assert metob.store.called  # pylint: disable=no-member
+
+
+def test_store_groups02(metatlas_dataset, mocker):
+    def group():
+        pass
+
+    group.name = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S1"
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[group])
+    with pytest.raises(ValueError):
+        metatlas_dataset.store_groups()
+
+
+def test_annotation_gui01(metatlas_dataset, mocker):
+    mocker.patch(
+        "metatlas.plots.dill2plots.get_msms_hits",
+        return_value=pd.DataFrame(
+            {"score": [], "inchi_key": [], "measured_precursor_mz": []},
+            index=pd.MultiIndex.from_tuples([], names=["msms_scan"]),
+        ),
+    )
+    agui = metatlas_dataset.annotation_gui()
+    agui.compound_idx = 0
+    agui.set_msms_flag("1, co-isolated precursor but all reference ions are in sample spectrum")
+    agui.set_peak_flag("remove")
+    agui.data.set_rt(0, "rt_min", 2.1245)
+    agui.data.set_rt(0, "rt_max", 2.4439)
+    assert metatlas_dataset.rts[0].rt_min == 2.1245
+    assert metatlas_dataset.rts[0].rt_max == 2.4439
+    assert metatlas_dataset.data[0][0]["identification"].ms1_notes == "remove"
+    assert (
+        metatlas_dataset.data[0][0]["identification"].ms2_notes
+        == "1, co-isolated precursor but all reference ions are in sample spectrum"
+    )
+
+
+def test_generate_all_outputs01(metatlas_dataset, mocker):
+    mocker.patch(
+        "metatlas.plots.dill2plots.get_msms_hits",
+        return_value=pd.DataFrame(
+            {
+                "score": [],
+                "inchi_key": [],
+                "measured_precursor_mz": [],
+                "precursor_mz": [],
+                "file_name": [],
+                "msv_query_aligned": [],
+                "msv_ref_aligned": [],
+            },
+            index=pd.MultiIndex.from_tuples([], names=["msms_scan"]),
+        ),
+    )
+    metatlas_dataset.generate_all_outputs()
+    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 12
+    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 23
+
+
+# 49, 51, 53, 55, 57, 79-80, 174, 198-214, 233-234, 576, 581, 672-682, 686-688, 691, 702-708

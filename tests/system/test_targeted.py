@@ -35,20 +35,20 @@ def test_targeted_by_line01_with_remove(tmp_path):
             """\
                     jq -M '(.cells[] | select(.source[] | contains("compound_idx=0")).source) \
                                += ["\\n", \
-                                   "a.compound_idx = 0\\n", \
-                                   "a.set_msms_flag(\\"1, co-isolated precursor but all reference ions are in sample spectrum\\")\\n", \
-                                   "a.data.set_rt(0, \\"rt_min\\", 2.1245)\\n", \
-                                   "a.data.set_rt(0, \\"rt_max\\", 2.4439)\\n", \
-                                   "a.compound_idx = 1\\n", \
-                                   "a.set_peak_flag(\\"remove\\")\\n", \
-                                   "a.compound_idx = 2\\n", \
-                                   "a.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
-                                   "a.data.set_rt(2, \\"rt_min\\", 2.4361)\\n", \
-                                   "a.data.set_rt(2, \\"rt_max\\", 2.8608)\\n", \
-                                   "a.compound_idx = 3\\n", \
-                                   "a.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
-                                   "a.data.set_rt(3, \\"rt_min\\", 2.8428)\\n", \
-                                   "a.data.set_rt(3, \\"rt_max\\", 3.3081)\\n" \
+                                   "agui.compound_idx = 0\\n", \
+                                   "agui.set_msms_flag(\\"1, co-isolated precursor but all reference ions are in sample spectrum\\")\\n", \
+                                   "agui.data.set_rt(0, \\"rt_min\\", 2.1245)\\n", \
+                                   "agui.data.set_rt(0, \\"rt_max\\", 2.4439)\\n", \
+                                   "agui.compound_idx = 1\\n", \
+                                   "agui.set_peak_flag(\\"remove\\")\\n", \
+                                   "agui.compound_idx = 2\\n", \
+                                   "agui.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
+                                   "agui.data.set_rt(2, \\"rt_min\\", 2.4361)\\n", \
+                                   "agui.data.set_rt(2, \\"rt_max\\", 2.8608)\\n", \
+                                   "agui.compound_idx = 3\\n", \
+                                   "agui.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
+                                   "agui.data.set_rt(3, \\"rt_min\\", 2.8428)\\n", \
+                                   "agui.data.set_rt(3, \\"rt_max\\", 3.3081)\\n" \
                                   ]' /src/notebooks/reference/Targeted.ipynb > /out/Remove.ipynb &&  \
                     papermill \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
@@ -61,6 +61,10 @@ def test_targeted_by_line01_with_remove(tmp_path):
         ],
         check=True,
     )
+    num_files_created = int(
+        subprocess.check_output(f"find {str(tmp_path)} -type f | wc -l", shell=True, text=True).strip()
+    )
+    assert num_files_created == 38
     with open(out_file, "r") as handle:
         for num, line in enumerate(handle.readlines()):
             clean_line = line.rstrip("\n")

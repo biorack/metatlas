@@ -1,18 +1,116 @@
 """ object oriented interface to metatlas_dataset """
 import datetime
 import getpass
+import glob
 import logging
 import multiprocessing
+import numbers
+import os
+import shutil
 
 import humanize
 import pandas as pd
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
+from metatlas.io import targeted_output
+from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 
 MSMS_REFS_PATH = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
 logger = logging.getLogger(__name__)
+
+
+class AnalysisIdentifiers:
+    """Names used in generating an analysis"""
+
+    # pylint: disable=too-many-arguments
+    def __init__(
+        self, experiment, output_type, polarity, analysis_number, project_directory, atlas=None, username=None
+    ):
+        self._experiment = experiment
+        self._output_type = output_type
+        self._polarity = polarity
+        self._analysis_number = analysis_number
+        self._atlas = atlas
+        self._username = getpass.getuser() if username is None else username
+        self.project_directory = project_directory
+        self.validate()
+        logger.info(
+            "IDs: atlas=%s, short_experiment_analysis=%s, output_dir=%s",
+            self.atlas,
+            self.short_experiment_analysis,
+            self.output_dir,
+        )
+
+    def validate(self):
+        """Valid class inputs"""
+        if len(self.experiment.split("_")) != 9:
+            raise ValueError('Parameter experiment does contain 9 fields when split on "_".')
+        if self.output_type not in ["ISTDsEtc", "FinalEMA-HILIC"]:
+            raise ValueError('Parameter output_type is not one of "ISTDsEtc" or "FinalEMA-HILIC".')
+        if self.polarity not in ["positive", "negative"]:
+            raise ValueError('Parameter polarity is not one of "positive" or "negative".')
+        if not isinstance(self.analysis_number, numbers.Integral):
+            raise TypeError("Parameter analysis_number is not an integer.")
+        if self.analysis_number < 0:
+            raise ValueError("Parameter analysis_number cannot be negative.")
+
+    @property
+    def experiment(self):
+        """Returns experiment identifier"""
+        return self._experiment
+
+    @property
+    def output_type(self):
+        """Returns output type identifier"""
+        return self._output_type
+
+    @property
+    def polarity(self):
+        """Returns polarity identifier"""
+        return self._polarity
+
+    @property
+    def analysis_number(self):
+        """Returns analysis number"""
+        return self._analysis_number
+
+    @property
+    def atlas(self):
+        """Atlas identifier (name)"""
+        if self._atlas is None:
+            exp_tokens = self.experiment.split("_")
+            return f"{'_'.join(exp_tokens[3:6])}_{self.short_polarity}_{self.analysis_number}"
+        return self._atlas
+
+    @property
+    def username(self):
+        """Returns username identifier"""
+        return self._username
+
+    @property
+    def analysis(self):
+        """Analysis identifier"""
+        return f"{self.username}{self.analysis_number}"
+
+    @property
+    def short_experiment_analysis(self):
+        """Short experiment analysis identifier"""
+        exp_tokens = self.experiment.split("_")
+        return f"{exp_tokens[0]}_{exp_tokens[3]}_{self.analysis}"
+
+    @property
+    def short_polarity(self):
+        """Short polarity identifier: first 3 letters, upper case"""
+        return self.polarity[:3].upper()
+
+    @property
+    def output_dir(self):
+        """Creates the output directory and returns the path as a string"""
+        out = os.path.join(self.project_directory, self.experiment, self.analysis, self.output_type)
+        os.makedirs(out, exist_ok=True)
+        return out
 
 
 class MetatlasDataset:
@@ -35,8 +133,10 @@ class MetatlasDataset:
     # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-public-methods
     def __init__(
         self,
-        atlas,
-        groups,
+        ids,
+        atlas=None,
+        groups_controlled_vocab=None,
+        exclude_files=None,
         extra_time=0.75,
         extra_mz=0,
         keep_nonmatches=True,
@@ -44,26 +144,85 @@ class MetatlasDataset:
         msms_refs_loc=MSMS_REFS_PATH,
         max_cpus=1,
     ):
-        self._atlas = atlas
+        """
+        inputs:
+            ids: AnalysisIdentifiers instance defining the analysis
+            groups_controlled_vocab: array of strings that will group together when creating groups
+                                     application of groups_controlled_vocab is case insensitive
+            exclude_files: array of strings that will exclude files if they are substrings of the filename
+        """
+        self.ids = ids
+        self._atlas = self._get_atlas() if atlas is None else atlas
         self._atlas_df = None
         self._atlas_df_valid = False
+        self._runs = None
+        self._runs_valid = False
         self._data = None
         self._data_valid = False
         self._hits = None
         self._hits_valid = False
-        self._groups = groups
+        self._groups_controlled_vocab = [] if groups_controlled_vocab is None else groups_controlled_vocab
+        self._exclude_files = [] if exclude_files is None else exclude_files
         self._extra_time = extra_time
         self._extra_mz = extra_mz
         self._keep_nonmatches = keep_nonmatches
         self._frag_mz_tolerance = frag_mz_tolerance
         self._msms_refs_loc = msms_refs_loc
         self.max_cpus = max_cpus
+        self.write_data_source_files()
+        self.write_lcmsruns_short_names()
+
+    def write_data_source_files(self):
+        """Write the data source files if they don't already exist"""
+        data_sources_dir = os.path.join(self.ids.output_dir, f"{self.ids.short_polarity}_data_sources")
+        if len(glob.glob(os.path.join(data_sources_dir, "*"))) >= 4:
+            logger.warning(
+                (
+                    "Data sources directory already populated from previous work on this analysis. "
+                    "Not overwritting."
+                )
+            )
+        else:
+            shutil.rmtree(data_sources_dir, ignore_errors=True)
+            logger.info("Writing data source files to %s.", data_sources_dir)
+            ma_data.make_data_sources_tables(
+                self.groups, self.atlas, self.ids.output_dir, self.ids.short_polarity
+            )
+
+    def write_lcmsruns_short_names(self):
+        """Write short names and raise error if exists and differs from current data"""
+        write_utils.export_dataframe_die_on_diff(
+            self.lcmsruns_short_names,
+            os.path.join(self.ids.output_dir, "short_names.csv"),
+            "LCMS runs short names",
+            # index=True,
+        )
+
+    def _get_atlas(self):
+        """Load atlas from database"""
+        name_query = f"%_{self.ids.short_polarity}_{self.ids.short_experiment_analysis}"
+        atlases = metob.retrieve("atlases", name=name_query, username=self.ids.username)
+        if len(atlases) == 0:
+            logger.error(
+                'Database does not contain an atlas named "%s" and owned by %s.',
+                name_query,
+                self.ids.username,
+            )
+            raise ValueError("Atlas not found in database")
+        if len(atlases) > 1:
+            logger.error(
+                'Database contains more than one atlas named "%s" and owned by %s.',
+                name_query,
+                self.ids.username,
+            )
+            raise ValueError("Too many matching atlases found in database")
+        return atlases[0]
 
     def _build(self):
         """Populate self._data from database and h5 files."""
         start_time = datetime.datetime.now()
         files = []
-        for group in self._groups:
+        for group in self.groups:
             for h5_file in group.items:
                 files.append(
                     (
@@ -215,7 +374,7 @@ class MetatlasDataset:
         inputs:
             attribute_name: name of the class attribute being modified
             new_value: value to assign to attribute
-            propert_names: list of names of the class propertys that are dependent on the attribute's value
+            property_names: list of names of the class properties that are dependent on the attribute's value
         side effects:
             If the property is valid and new_value is different from previous value, then invalidate.
             And set attribute to new_value
@@ -262,16 +421,6 @@ class MetatlasDataset:
         if not isinstance(atlas, metob.Atlas):
             raise TypeError("Cannot set atlas to container a non-Atlas object")
         self._set_and_invalidate_properties("atlas", atlas, ["atlas_df", "data"])
-
-    @property
-    def groups(self):
-        """groups getter"""
-        return self._groups
-
-    @groups.setter
-    def groups(self, groups):
-        """groups setter, invalidate data"""
-        self._set_and_invalidate_properties("groups", groups, ["data"])
 
     @property
     def polarity(self):
@@ -373,11 +522,10 @@ class MetatlasDataset:
     def rts(self):
         """
         Allow Rt_Reference objects to be accessed
-        Because this returns a list, the return value is mutable add will modify
-        data internal to this class, but atlas_df and data would get out of sync with atlas.
-        So don't modify the values returned by this property!
+        Returns cloned RtReference objects, so modifing them will not impact data in this class.
+        use set_rt() if you want to modify the RT values held by this class.
         """
-        return [cid.rt_references[0] for cid in self.atlas.compound_identifications]
+        return tuple(cid.rt_references[0].clone() for cid in self.atlas.compound_identifications)
 
     def set_rt(self, compound_idx, which, time):
         """
@@ -416,6 +564,169 @@ class MetatlasDataset:
         """
         ids = ["identification", "ms1_notes"]
         return [i for i, j in enumerate(self.data[0]) if _is_remove(ma_data.extract(j, ids))]
+
+    @property
+    def lcmsruns(self):
+        """Get LCMS runs from DB matching experiment"""
+        if self._runs_valid:
+            return self._runs
+        self._runs = dp.get_metatlas_files(experiment=self.ids.experiment, name="%")
+        self._runs_valid = True
+        logger.info("Number of LCMS output files matching '%s' is: %d.", self.ids.experiment, len(self._runs))
+        return self._runs
+
+    @property
+    def existing_groups(self):
+        """Get your own groups that are prefixed by self.experiment"""
+        return metob.retrieve("Groups", name=f"{self.ids.experiment}%", username=self.ids.username)
+
+    @property
+    def lcmsruns_dataframe(self):
+        """Returns a pandas DataFrame with lcmsrun matching self.experiment"""
+        return metob.to_dataframe(self.lcmsruns)
+
+    def get_lcmsruns_short_names(self, fields=None):
+        """
+        Querys DB for lcms filenames from self.experiment and returns
+        a pandas DataFrame containing identifiers for each file
+        inputs:
+            fields: optional dict with column names as key
+                    and list of lcms filename metadata fields positions as value
+        """
+        if fields is None:
+            fields = {
+                "full_filename": range(16),
+                "sample_treatment": [12],
+                "short_filename": [0, 2, 4, 5, 7, 9, 14],
+                "short_samplename": [9, 12, 13, 14],
+            }
+        out = pd.DataFrame(columns=fields.keys())
+        for i, lcms_file in enumerate(self.lcmsruns):
+            tokens = lcms_file.name.split(".")[0].split("_")
+            for name, idxs in fields.items():
+                out.loc[i, name] = "_".join([tokens[n] for n in idxs])
+            out.loc[i, "last_modified"] = pd.to_datetime(lcms_file.last_modified, unit="s")
+        out.sort_values(by="last_modified", inplace=True)
+        out.drop(columns=["last_modified"], inplace=True)
+        out.drop_duplicates(subset=["full_filename"], keep="last", inplace=True)
+        out.set_index("full_filename", inplace=True)
+        return out
+
+    lcmsruns_short_names = property(get_lcmsruns_short_names)
+
+    def group_name(self, base_filename):
+        """Returns dict with keys group and short_name corresponding to base_filename"""
+        indices = [
+            i for i, s in enumerate(self._groups_controlled_vocab) if s.lower() in base_filename.lower()
+        ]
+        tokens = base_filename.split("_")
+        prefix = "_".join(tokens[:11])
+        suffix = self._groups_controlled_vocab[indices[0]].lstrip("_") if indices else tokens[12]
+        group_name = f"{prefix}_{self.ids.analysis}_{suffix}"
+        short_name = f"{tokens[9]}_{suffix}"  # Prepending POL to short_name
+        return {"group": group_name, "short_name": short_name}
+
+    @property
+    def _files_dict(self):
+        """
+        Queries DB for all lcmsruns matching the class properties.
+        Returns a dict of dicts where keys are filenames minus extensions and values are
+        dicts with keys: object, group, and short_name
+        """
+        file_dict = {}
+        for lcms_file in self.lcmsruns:
+            if not any(map(lcms_file.name.__contains__, self._exclude_files)):
+                base_name = lcms_file.name.split(".")[0]
+                file_dict[base_name] = {"object": lcms_file, **self.group_name(base_name)}
+        return file_dict
+
+    @property
+    def groups_dataframe(self):
+        """Returns pandas Dataframe with one group per row"""
+        out = pd.DataFrame(self._files_dict).T
+        out.drop(columns=["object"], inplace=True)
+        out.index.name = "filename"
+        return out.reset_index()
+
+    @property
+    def groups(self):
+        """Returns a list of Group objects"""
+        file_dict = self._files_dict
+        out = []
+        for values in self.groups_dataframe.to_dict("index").values():
+            out.append(
+                metob.Group(
+                    name=values["group"],
+                    short_name=values["short_name"],
+                    items=[
+                        file_value["object"]
+                        for file_value in file_dict.values()
+                        if file_value["group"] == values["group"]
+                    ],
+                )
+            )
+        return out
+
+    def store_groups(self, exist_ok=False):
+        """
+        Save self.object_list to DB
+        inputs:
+            exist_ok: if False, store nothing and raise ValueError if any of the group names
+                      have already been saved to the DB by you.
+        """
+        if not exist_ok:
+            db_names = {group.name for group in self.existing_groups}
+            new_names = set(self.groups_dataframe["group"].to_list())
+            overlap = db_names.intersection(new_names)
+            if overlap:
+                logging.error(
+                    "Not saving groups as you have already saved groups with these names: %s.",
+                    ", ".join(overlap),
+                )
+                raise ValueError("Existing group has same name.")
+        metob.store(self.groups)
+
+    def compound_idxs_not_evaluated(self):
+        """NOT YET IMPLEMENTED"""
+        for compound_idx, _ in enumerate(self.data[0]):
+            print(compound_idx)
+        return []
+
+    def annotation_gui(self, compound_idx=0, width=15, height=3, alpha=0.5, colors=""):
+        """
+        Opens the interactive GUI for setting RT bounds and annotating peaks
+        inputs:
+            compound_idx: number of compound-adduct pair to start at
+            width: width of interface in inches
+            height: height of each plot in inches
+            alpha: (0-1] controls transparency of lines on EIC plot
+            colors: list (color_id, search_string) for coloring lines on EIC plot
+                    based on search_string occuring in LCMS run filename
+        """
+        return dp.adjust_rt_for_selected_compound(
+            self,
+            msms_hits=self.hits,
+            color_me=colors,
+            compound_idx=compound_idx,
+            alpha=alpha,
+            width=width,
+            height=height,
+        )
+
+    def generate_all_outputs(self, msms_fragment_ions=False, overwrite=False):
+        """
+        Generates the default set of outputs for a targeted experiment
+        inputs:
+            msms_fragment_ions: if True, generate msms fragment ions report
+            overwrite: if False, throw error if any output files already exist
+        """
+        targeted_output.write_atlas_to_spreadsheet(self, overwrite)
+        targeted_output.write_stats_table(self, overwrite)
+        targeted_output.write_chromatograms(self, overwrite)
+        targeted_output.write_identification_figure(self, overwrite)
+        targeted_output.write_metrics_and_boxplots(self, overwrite)
+        if msms_fragment_ions:
+            targeted_output.write_msms_fragment_ions(self, overwrite)
 
 
 class MetatlasSample:

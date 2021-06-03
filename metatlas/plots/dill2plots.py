@@ -5,12 +5,14 @@ import sys
 import os
 import os.path
 import multiprocessing as mp
+import warnings
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
 
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
+from metatlas.io import write_utils
 from metatlas.tools import spectralprocessing as sp
 from metatlas.plots import chromplotplus as cpp
 from metatlas.io.metatlas_get_data_helper_fun import extract
@@ -277,7 +279,7 @@ class adjust_rt_for_selected_compound(object):
 
         self.file_names = ma_data.get_file_names(self.data)
         self.configure_flags()
-        self.filter_runs(include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
+        self.data = filter_runs(self.data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
 
         self.similar_rects = []
         # only the atlas owner can change RT limits or flags
@@ -423,21 +425,6 @@ class adjust_rt_for_selected_compound(object):
                         color = 'black'
                     self.ax.plot(x, y, '-', zorder=zorder, linewidth=2, alpha=self.alpha,
                                  picker=True, pickradius=5, color=color, label=label)
-
-    def filter_runs(self, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups):
-        # filter runs from the metatlas dataset
-        if include_lcmsruns:
-            self.data = filter_lcmsruns_in_dataset_by_include_list(self.data, 'lcmsrun',
-                                                                   include_lcmsruns)
-        if include_groups:
-            self.data = filter_lcmsruns_in_dataset_by_include_list(self.data, 'group',
-                                                                   include_groups)
-        if exclude_lcmsruns:
-            self.data = filter_lcmsruns_in_dataset_by_exclude_list(self.data, 'lcmsrun',
-                                                                   exclude_lcmsruns)
-        if exclude_groups:
-            self.data = filter_lcmsruns_in_dataset_by_exclude_list(self.data, 'group',
-                                                                   exclude_groups)
 
     def configure_flags(self):
         default_peak = ('keep', 'remove', 'unresolvable isomers', 'poor peak shape')
@@ -801,18 +788,7 @@ class adjust_mz_for_selected_compound(object):
         self.slider_color = slider_color
         self.y_max = y_max
         self.y_min = y_min
-
-        # filter runs from the metatlas dataset
-        if include_lcmsruns:
-            data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
-
-        if include_groups:
-            data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
-        if exclude_lcmsruns:
-            data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
-        if exclude_groups:
-            data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
-        self.data = data
+        self.data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
 
         # create figure and first axes
         self.fig,self.ax = plt.subplots(figsize=(width, height))
@@ -1042,24 +1018,13 @@ def plot_all_compounds_for_each_file(input_dataset = [], input_fname = '', inclu
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
-
-    # filter runs from the metatlas dataset
-    if include_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
-
-    if exclude_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
-
+    data = filter_runs(data, include_lcmsruns, include_lcmsruns, exclude_lcmsruns, exclude_lcmsruns)
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
-
 
     output_loc = os.path.expandvars('output_loc')
 
     nRows = int(np.ceil(len(compound_names)/float(nCols)))
-
 
     xmin = 0
     xmax = 210
@@ -1158,15 +1123,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
-
-    # filter runs from the metatlas dataset
-    if include_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_lcmsruns)
-
-    if exclude_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
+    data = filter_runs(data, include_lcmsruns, include_lcmsruns, exclude_lcmsruns, exclude_lcmsruns)
 
     compound_names = ma_data.get_compound_names(data)[0]
     file_names = ma_data.get_file_names(data)
@@ -1393,21 +1350,8 @@ def get_ion_from_fragment(frag_info,spectrum):
 
 
 def calculate_median_of_internal_standards(dataset_for_median,atlas,include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = []):
-    """
-
-    """
-
-    # filter runs from the metatlas dataset
-
-    # dataset_for_median = copy.deepcopy(dataset_for_median)
-    if include_lcmsruns:
-        dataset_for_median = filter_lcmsruns_in_dataset_by_include_list(dataset_for_median,'lcmsrun',include_lcmsruns)
-    if include_groups:
-        dataset_for_median = filter_lcmsruns_in_dataset_by_include_list(dataset_for_median,'group',include_groups)
-    if exclude_lcmsruns:
-        dataset_for_median = filter_lcmsruns_in_dataset_by_exclude_list(dataset_for_median,'lcmsrun',exclude_lcmsruns)
-    if exclude_groups:
-        dataset_for_median = filter_lcmsruns_in_dataset_by_exclude_list(dataset_for_median,'group',exclude_groups)
+    dataset_for_median = filter_runs(dataset_for_median, include_lcmsruns, include_groups,
+                                     exclude_lcmsruns, exclude_groups)
     internal_standard_vals = []
     for i,dd in enumerate(dataset_for_median): #loop through files
         for j,d in enumerate(dd): #loop through compounds
@@ -1478,7 +1422,21 @@ def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns
 #print all chromatograms
 #structure
 
-def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns = [],exclude_lcmsruns = [], include_groups = [],exclude_groups = [], output_loc = [], fieldname = 'peak_height', use_labels=False, short_names_df=pd.DataFrame(), summarize=False, polarity=''):
+
+def filter_runs(data, include_lcmsruns=None, include_groups=None, exclude_lcmsruns=None, exclude_groups=None):
+    """filter runs from the metatlas dataset"""
+    if include_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_include_list(data, 'lcmsrun', include_lcmsruns)
+    if include_groups:
+        data = filter_lcmsruns_in_dataset_by_include_list(data, 'group', include_groups)
+    if exclude_lcmsruns:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_lcmsruns)
+    if exclude_groups:
+        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
+    return data
+
+
+def make_output_dataframe(input_fname='', input_dataset=None, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, output_loc="", fieldname='peak_height', use_labels=False, short_names_df=None, summarize=False, polarity='', overwrite=True):
     """
     fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
     """
@@ -1486,73 +1444,55 @@ def make_output_dataframe(input_fname = '',input_dataset = [],include_lcmsruns =
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
+    data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
 
-    # filter runs from the metatlas dataset
-    if include_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
-    if include_groups:
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
-
-    if exclude_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
-    if exclude_groups:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_groups)
-
-    compound_names = ma_data.get_compound_names(data,use_labels=use_labels)[0]
+    compound_names = ma_data.get_compound_names(data, use_labels=use_labels)[0]
     file_names = ma_data.get_file_names(data)
     group_names = ma_data.get_group_names(data)
     group_shortnames = ma_data.get_group_shortnames(data)
     output_loc = os.path.expandvars(output_loc)
-    fieldname = fieldname
+    out = pd.DataFrame(index=compound_names, columns=file_names, dtype=float)
 
-    df = pd.DataFrame( index=compound_names, columns=file_names, dtype=float)
-
-    # peak_height['compound'] = compound_list
-    # peak_height.set_index('compound',drop=True)
-    for i,dd in enumerate(data):
-        for j,d in enumerate(dd):
-            if (not d['data']['ms1_summary']) or (not d['data']['ms1_summary'][fieldname]):
-                df.loc[compound_names[j],file_names[i]] = 0
-            else:
-                df.loc[compound_names[j],file_names[i]] = d['data']['ms1_summary'][fieldname]
+    for i, sample in enumerate(data):
+        for j, compound in enumerate(sample):
+            ids = ['data', 'ms1_summary', fieldname]
+            out.loc[compound_names[j], file_names[i]] = ma_data.extract(compound, ids, 0)
     columns = []
-    if short_names_df.empty:
-        for i,f in enumerate(file_names):
-            columns.append((group_names[i],f))
-        df.columns = pd.MultiIndex.from_tuples(columns,names=['group', 'file'])
+    if short_names_df is None:
+        short_names_df = pd.DataFrame()
+        for i, name in enumerate(file_names):
+            columns.append((group_names[i], name))
+        out.columns = pd.MultiIndex.from_tuples(columns, names=['group', 'file'])
     else:
-        for i,f in enumerate(file_names):
-            temp = [group_names[i],f, group_shortnames[i]]
-            temp.extend(short_names_df.loc[f.split('.')[0]].values.tolist())
+        for i, name in enumerate(file_names):
+            temp = [group_names[i], name, group_shortnames[i]]
+            temp.extend(short_names_df.loc[name.split('.')[0]].values.tolist())
             columns.append(tuple(temp))
-        df.columns = pd.MultiIndex.from_tuples(columns,names=['group', 'file', 'short groupname', 'sample treatment', 'short filename','short samplename'])
-
-    if output_loc:
-        if not os.path.exists(output_loc):
-            os.makedirs(output_loc)
-        if polarity == '':
-            df.to_csv(os.path.join(output_loc, fieldname + '.tab'),sep='\t')
-        else:
-            df.to_csv(os.path.join(output_loc, polarity+'_'+fieldname + '.tab'),sep='\t')
-
+        out.columns = pd.MultiIndex.from_tuples(columns, names=['group', 'file', 'short groupname', 'sample treatment', 'short filename', 'short samplename'])
+    out = out.reindex(sorted(out.columns), axis=1)
     if summarize:
-        df.columns = df.columns.droplevel()
-        df_mean = df.mean(numeric_only=True, axis=1)
-        df_median = df.median(numeric_only=True, axis=1)
-        df_min = df.min(numeric_only=True, axis=1)
-        df_max = df.max(numeric_only=True, axis=1)
-        df_std = df.std(numeric_only=True, axis=1)
-        df_sem = df.sem(numeric_only=True, axis=1)
-        df_nan = df.isin(['NaN']).sum(axis=1)
-        df['mean'] = df_mean
-        df['median'] = df_median
-        df['max'] = df_max
-        df['min'] = df_min
-        df['standard deviation'] = df_std
-        df['standard error'] = df_sem
-        df['#NaNs'] = df_nan
+        out.columns = out.columns.droplevel()
+        out = append_stats_columns(out)
+    if output_loc:
+        prefix = f"{polarity}_" if polarity != '' else ''
+        df_path = os.path.join(output_loc, f"{prefix}{fieldname}.tab")
+        write_utils.check_existing_file(df_path, overwrite)
+        out.to_csv(df_path, sep="\t")
+        logger.info('Exported %s to %s.', fieldname, df_path)
+    return out
 
-    return df
+
+def append_stats_columns(in_df):
+    stats = pd.DataFrame(dtype=float)
+    stats['mean'] = in_df.mean(numeric_only=True, axis=1)
+    stats['median'] = in_df.median(numeric_only=True, axis=1)
+    stats['min'] = in_df.min(numeric_only=True, axis=1)
+    stats['max'] = in_df.max(numeric_only=True, axis=1)
+    stats['standard deviation'] = in_df.std(numeric_only=True, axis=1)
+    stats['standard error'] = in_df.sem(numeric_only=True, axis=1)
+    stats['#NaNs'] = in_df.isin(['NaN']).sum(axis=1)
+    return pd.concat([in_df, stats], axis=1)
+
 
 def file_with_max_precursor_intensity(data,compound_idx):
     idx = None
@@ -1648,12 +1588,9 @@ def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
         #f.clear()
         plt.close(f)#f.clear()
 
-def make_boxplot_plots(df,output_loc='', use_shortnames=True, ylabel=""):
 
+def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="", overwrite=True):
     output_loc = os.path.expandvars(output_loc)
-    if not os.path.exists(output_loc):
-        os.makedirs(output_loc)
-
     plt.ioff()
     for compound in df.index:
         f, ax = plt.subplots(1, 1,figsize=(12,12))
@@ -1673,9 +1610,13 @@ def make_boxplot_plots(df,output_loc='', use_shortnames=True, ylabel=""):
         if ylabel != "":
             plt.ylabel(ylabel)
         plt.tight_layout()
-        f.savefig(os.path.join(output_loc, compound + '_boxplot.pdf'))
+        fig_path = os.path.join(output_loc, compound + '_boxplot.pdf')
+        write_utils.check_existing_file(fig_path, overwrite)
+        f.savefig(fig_path)
         #f.clear()
         plt.close(f)#f.clear()
+        logger.info('Exported box plot of %s for %s at %s.', ylabel, compound, fig_path)
+
 
 def frag_refs_to_json(json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', name = 'frag_refs', save = True):
     ids = metob.retrieve('CompoundIdentification',username='*')
@@ -1725,20 +1666,7 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
-
-    # filter runs from the metatlas dataset
-    if include_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'lcmsrun',include_lcmsruns)
-    if include_groups:
-        data = filter_lcmsruns_in_dataset_by_include_list(data,'group',include_groups)
-
-    if exclude_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_lcmsruns)
-    if exclude_groups:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data,'lcmsrun',exclude_groups)
-        #data = filter_lcmsruns_in_dataset_by_exclude_list(data,'group',exclude_lcmsruns)
-
-
+    data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
     compound_names = ma_data.get_compound_names(data,use_labels=use_labels)[0]
     file_names = ma_data.get_file_names(data)
     # print(len(data),len(data[0]),len(compound_names))
@@ -2288,19 +2216,10 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
         return pd.DataFrame(columns=ref_df.index.names+['file_name', 'msms_scan', 'score', 'num_matches','inchi_key','precursor_mz','adduct','score']
                            ).set_index(ref_df.index.names+['file_name', 'msms_scan'])
 
-def make_chromatograms(input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], group='index', share_y = True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity=''):
 
-    #Filter runs from the metatlas dataset
-    if include_lcmsruns:
-        input_dataset = filter_lcmsruns_in_dataset_by_include_list(input_dataset, 'lcmsrun', include_lcmsruns)
-    if exclude_lcmsruns:
-        input_dataset = filter_lcmsruns_in_dataset_by_exclude_list(input_dataset, 'lcmsrun', exclude_lcmsruns)
-
-    if include_groups:
-        input_dataset = filter_lcmsruns_in_dataset_by_include_list(input_dataset, 'group', include_groups)
-    if exclude_groups:
-        input_dataset = filter_lcmsruns_in_dataset_by_exclude_list(input_dataset, 'group', exclude_groups)
-
+def make_chromatograms(input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[], include_groups=[], exclude_groups=[], group='index', share_y=True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity='', overwrite=False):
+    input_dataset = filter_runs(input_dataset, include_lcmsruns, include_groups,
+                                exclude_lcmsruns, exclude_groups)
     file_names = ma_data.get_file_names(input_dataset)
 
     if short_names_df.empty:
@@ -2317,196 +2236,123 @@ def make_chromatograms(input_dataset = [], include_lcmsruns = [], exclude_lcmsru
         short_names_df = short_names_df[[short_names_header]]
         short_names_df.columns=['shortname']
 
-
-
-    if not os.path.exists(output_loc):
-        os.makedirs(output_loc)
+    os.makedirs(output_loc, exist_ok=True)
     compound_names = ma_data.get_compound_names(input_dataset,use_labels=True)[0]
     args_list = []
 
-    chromatogram_str = 'compound_EIC_chromatograms'
-    if polarity != '':
-        chromatogram_str = polarity+'_'+chromatogram_str
-
-    if not os.path.exists(os.path.join(output_loc,chromatogram_str)):
-        os.makedirs(os.path.join(output_loc,chromatogram_str))
-
+    prefix = f"{polarity}_" if polarity != '' else ''
+    chromatogram_dir = os.path.join(output_loc, f"{prefix}compound_EIC_chromatograms")
     for compound_idx, my_compound in enumerate(compound_names):
-        my_data = list()
-        for file_idx, my_file in enumerate(file_names):
-            my_data.append(input_dataset[file_idx][compound_idx])
+        my_data = [input_dataset[file_idx][compound_idx] for file_idx, _ in enumerate(file_names)]
         kwargs = {'data': my_data,
-                 'file_name': os.path.join(output_loc, chromatogram_str, my_compound+'.pdf'),
-                 'group': group,
-                 'save': save,
-                 'share_y': share_y,
-                 'names': file_names,
-                 #'shortname':findcommonstart(file_names)}
-                 'shortname':short_names_df}
+                  'file_name': os.path.join(chromatogram_dir, my_compound+'.pdf'),
+                  'group': group,
+                  'save': save,
+                  'share_y': share_y,
+                  'names': file_names,
+                  'shortname': short_names_df,
+                  'overwrite': overwrite}
         args_list.append(kwargs)
     max_processes = 4
-    pool = mp.Pool(processes=min(max_processes, len(input_dataset[0])))
-    pool.map(cpp.chromplotplus, args_list)
-    pool.close()
-    pool.terminate()
+    with mp.Pool(processes=min(max_processes, len(input_dataset[0]))) as pool:
+        pool.map(cpp.chromplotplus, args_list)
 
-def make_identification_figure_v2(
-    input_fname = '', input_dataset = [], include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [],
-    exclude_groups = [], output_loc = [], msms_hits = None, use_labels=False,intensity_sorted_matches=False, short_names_df=pd.DataFrame(), polarity=''):
-    #empty can look like this:
-    # {'eic': {'rt': [], 'intensity': [], 'mz': []}, 'ms1_summary': {'num_ms1_datapoints': 0.0, 'rt_centroid': nan, 'mz_peak': nan, 'peak_height': nan, 'rt_peak': nan, 'peak_area': nan, 'mz_centroid': nan},
-    #'msms': {'data': {'rt': array([], dtype=float64), 'collision_energy': array([], dtype=float64), 'i': array([], dtype=float64), 'precursor_intensity': array([], dtype=float64), 'precursor_MZ': array([], dtype=float64), 'mz': array([], dtype=float64)}}}
-    #or empty can look like this:
-    # {'eic': None, 'ms1_summary': None, 'msms': {'data': []}}
-    if not os.path.exists(output_loc):
-        os.makedirs(output_loc)
-    if polarity == '':
-        output_loc = os.path.join(output_loc,'msms_mirror_plots')
-    else:
-        output_loc = os.path.join(output_loc, polarity+'_msms_mirror_plots')
-    if not os.path.exists(output_loc):
-        os.makedirs(output_loc)
+
+def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
+                                  include_groups=[], exclude_groups=[], output_loc=[], msms_hits=None,
+                                  use_labels=False, intensity_sorted_matches=False,
+                                  short_names_df=pd.DataFrame(), polarity='', overwrite=True):
+    prefix = '' if polarity == '' else f"{polarity}_"
+    output_loc = os.path.join(output_loc, f"{prefix}msms_mirror_plots")
     if not input_dataset:
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
+    data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
 
-    #Filter runs from the metatlas dataset
-    if include_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_include_list(data, 'lcmsrun', include_lcmsruns)
-    if include_groups:
-        data = filter_lcmsruns_in_dataset_by_include_list(data, 'group', include_groups)
-
-    if exclude_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_lcmsruns)
-    if exclude_groups:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
-
-    #msms_hits_df = get_msms_hits(data, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
-    msms_hits_df = msms_hits.copy()
-
-    if msms_hits_df is not None:
-        #if 'inchi_key' in msms_hits_df.columns:
-        #    msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)
-        #msms_hits_df.reset_index(['inchi_key', 'precursor_mz'], inplace=True)
-        msms_hits_df.reset_index(inplace = True)
-        msms_hits_df.sort_values('score', ascending=False, inplace=True)
-        # msms_hits_df.drop_duplicates(['inchi_key', 'file_name'], keep='first', inplace=True)
-        # msms_hits_df = msms_hits_df.groupby(['inchi_key']).head(5).sort_values(['inchi_key'], kind='mergesort')
-
-    #Obtain compound and file names
-    compound_names = ma_data.get_compound_names(data,use_labels)[0]
+    if msms_hits is not None:
+        msms_hits_df = msms_hits.reset_index().sort_values('score', ascending=False)
+    compound_names = ma_data.get_compound_names(data, use_labels)[0]
     file_names = ma_data.get_file_names(data)
-
-    df = pd.DataFrame()
-    #Turn off interactive plotting
+    match = pd.DataFrame()
     plt.ioff()
     plt.clf()
-    #Iterate over compounds
-    for compound_idx in range(len(compound_names)):
-        sys.stdout.write('\r'+'Making Identification Figure for: {} / {} compounds.'.format(compound_idx+1,len(compound_names)))
-        sys.stdout.flush()
+    for compound_idx, _ in enumerate(compound_names):
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
-
-        if len(data[0][compound_idx]['identification'].compound) > 0 and hasattr(data[0][compound_idx]['identification'].compound[0],"inchi_key"):
-            inchi_key = data[0][compound_idx]['identification'].compound[0].inchi_key
-        else:
-            inchi_key = ""
-
-        #Find 5 best file and reference pairs by score
+        inchi_key = extract(data, [0, compound_idx, "identification", "compound", 0, "inchi_key"], "")
+        #  Find 5 best file and reference pairs by score
         try:
-            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) \
-                                          & (msms_hits_df['msms_scan'] >= data[0][compound_idx]['identification'].rt_references[0].rt_min) \
-                                          & (msms_hits_df['msms_scan'] <= data[0][compound_idx]['identification'].rt_references[0].rt_max) \
-                                          & ((abs(msms_hits_df['precursor_mz'].values.astype(float) - data[0][compound_idx]['identification'].mz_references[0].mz)/data[0][compound_idx]['identification'].mz_references[0].mz) \
-                                             <= data[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)].drop_duplicates('file_name').head(5)
-            # Dont need assert anymore, keep_nonmatch in get_msms_hits should replace the assert
-            #assert len(comp_msms_hits) > 0
+            rt_ref = data[0][compound_idx]['identification'].rt_references[0]
+            mz_ref = data[0][compound_idx]['identification'].mz_references[0]
+            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key)
+                                          & (msms_hits_df['msms_scan'] >= rt_ref.rt_min)
+                                          & (msms_hits_df['msms_scan'] <= rt_ref.rt_max)
+                                          & within_tolerance(
+                                                msms_hits_df['precursor_mz'].values.astype(float),
+                                                mz_ref.mz,
+                                                mz_ref.mz_tolerance*1e-6
+                                            )
+                                          ].drop_duplicates('file_name').head(5)
             comp_msms_hits = comp_msms_hits[comp_msms_hits['file_name'].isin(file_names)]
             file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
             scores = comp_msms_hits['score'].values.tolist()
             msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
             msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
             rt_list = comp_msms_hits['msms_scan'].values.tolist()
-
-        #except (IndexError, AssertionError, TypeError) as e:
-        except (IndexError, TypeError) as e:
+        except (IndexError, TypeError):
             file_idx = None
             max_intensity = 0
-
-            for fi in range(len(data)):
+            for file_idx, _ in enumerate(data):
                 try:
-                    temp = max(data[fi][compound_idx]['data']['eic']['intensity'])
+                    temp = max(data[file_idx][compound_idx]['data']['eic']['intensity'])
                     if temp > max_intensity:
-                        file_idx = fi
+                        max_file_idx = file_idx
                         max_intensity = temp
-                except (ValueError,TypeError):
+                except (ValueError, TypeError):
                     continue
 
-            file_idxs = [file_idx]
+            file_idxs = [max_file_idx]
             msv_sample_list = [np.array([0, np.nan]).T]
             msv_ref_list = [np.array([0, np.nan]).T]
             scores = [np.nan]
 
-
-        #Plot if compound yields any scores
+        #  Plot if compound yields any scores
         if file_idxs and file_idxs[0] is not None:
-            #Top 5 MSMS Spectra
-            ax1 = plt.subplot2grid((24, 24), (0, 0), rowspan=12, colspan=12)
-            ax2a = plt.subplot2grid((24, 24), (0, 12), rowspan=3, colspan=3)
-            ax2a.tick_params(axis='both', length=2)
-            ax2a.set_xticklabels([])
-            ax2a.set_yticklabels([])
-            ax2b = plt.subplot2grid((24, 24), (3, 12), rowspan=3, colspan=3)
-            ax2b.tick_params(axis='both', length=2)
-            ax2b.set_xticklabels([])
-            ax2b.set_yticklabels([])
-            ax2c = plt.subplot2grid((24, 24), (6, 12), rowspan=3, colspan=3)
-            ax2c.tick_params(axis='both', length=2)
-            ax2c.set_xticklabels([])
-            ax2c.set_yticklabels([])
-            ax2d = plt.subplot2grid((24, 24), (9, 12), rowspan=3, colspan=3)
-            ax2d.tick_params(axis='both', length=2)
-            ax2d.set_xticklabels([])
-            ax2d.set_yticklabels([])
+            #  Top 5 MSMS Spectra
+            top_5_axis = [plt.subplot2grid((24, 24), (0, 0), rowspan=12, colspan=12)]
+            for i in [0, 3, 6, 9]:
+                top_5_axis.append(plt.subplot2grid((24, 24), (i, 12), rowspan=3, colspan=3))
+                top_5_axis[-1].tick_params(axis='both', length=2)
+                top_5_axis[-1].set_xticklabels([])
+                top_5_axis[-1].set_yticklabels([])
+            for i, (score, axis) in enumerate(zip(scores, top_5_axis)):
+                plot_msms_comparison(i, score, axis, msv_sample_list[i], msv_ref_list[i])
 
+            def no_axis_plot(i):
+                axis = plt.subplot2grid((24, 24), (i, 15), rowspan=3, colspan=1)
+                axis.axis('off')
+                return axis
 
-            for i,(score,ax) in enumerate(zip(scores,[ax1, ax2a, ax2b, ax2c, ax2d])):
-                plot_msms_comparison(i, score, ax, msv_sample_list[i], msv_ref_list[i])
-
-
-
-            #Next Best Scores and Filenames
-            ax4a = plt.subplot2grid((24, 24), (0, 15), rowspan=3, colspan=1)
-            ax4a.axis('off')
-            ax4b = plt.subplot2grid((24, 24), (3, 15), rowspan=3, colspan=1)
-            ax4b.axis('off')
-            ax4c = plt.subplot2grid((24, 24), (6, 15), rowspan=3, colspan=1)
-            ax4c.axis('off')
-            ax4d = plt.subplot2grid((24, 24), (9, 15), rowspan=3, colspan=1)
-            ax4d.axis('off')
-
+            # Next Best Scores and Filenames
+            next_best = [no_axis_plot(i) for i in [0, 3, 6, 9]]
 
             if short_names_df.empty:
-                for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
-                    plot_score_and_ref_file(ax, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
+                for i, (score, axis) in enumerate(zip(scores[1:], next_best)):
+                    plot_score_and_ref_file(axis, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
             else:
-                for i,(score,ax) in enumerate(zip(scores[1:],[ax4a, ax4b, ax4c, ax4d])):
-                    short_samplename  = short_names_df.loc[os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 'short_samplename'][0]
+                for i, (score, ax) in enumerate(zip(scores[1:], next_best)):
+                    short_samplename = short_names_df.loc[os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 'short_samplename'][0]
                     plot_score_and_ref_file(ax, score, rt_list[i+1], short_samplename)
 
-
-        #EMA Compound Info
+        # EMA Compound Info
         if file_idxs and file_idxs[0] is not None:
             ax3 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
-            plot_ema_compound_info(ax3, data[file_idxs[0]][compound_idx]['identification'])#,
-                               # ma_data.get_compound_names(data,use_labels=True)[0][compound_idx])
+            plot_ema_compound_info(ax3, data[file_idxs[0]][compound_idx]['identification'])
         else:
             ax3 = plt.subplot2grid((24, 24), (0, 0), rowspan=6, colspan=8)
-            plot_ema_compound_info(ax3, data[0][compound_idx]['identification'])#,
+            plot_ema_compound_info(ax3, data[0][compound_idx]['identification'])
 
-
-        #Structure
+        # Structure
         if file_idxs and file_idxs[0] is not None:
             ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
             plot_structure(ax5, data[file_idxs[0]][compound_idx]['identification'].compound, 100)
@@ -2514,7 +2360,7 @@ def make_identification_figure_v2(
             ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
             plot_structure(ax5, data[0][compound_idx]['identification'].compound, 100)
 
-        #EIC
+        # EIC
         if file_idxs and file_idxs[0] is not None:
             ax6 = plt.subplot2grid((21, 21), (6, 15), rowspan=5, colspan=6)
             plot_eic(ax6, data, compound_idx)
@@ -2522,11 +2368,7 @@ def make_identification_figure_v2(
             ax6 = plt.subplot2grid((21, 21), (6, 0), rowspan=5, colspan=6)
             plot_eic(ax6, data, compound_idx)
 
-#             #Reference and Sample Info
-#             ax10 = plt.subplot2grid((24, 24), (14, 6), rowspan=10, colspan=20)
-#             plot_ref_sample_info(ax10, 1, 1)
-
-        #Old code
+        # Old code
         if file_idxs and file_idxs[0] is not None:
             ax7 = plt.subplot2grid((24, 24), (15, 6), rowspan=9, colspan=20)
             mz_theoretical = data[file_idxs[0]][compound_idx]['identification'].mz_references[0].mz
@@ -2560,20 +2402,26 @@ def make_identification_figure_v2(
                          fill('Matching M/Zs above 1E-3*max: ' + ', '.join(['%5.3f'%m for m in threshold_mz_sample_matches]), width=90) + '\n\n' +
                          fill('All Matching M/Zs: ' + ', '.join(['%5.3f'%m for m in mz_sample_matches]), width=90),
                          fontsize=6, verticalalignment='top')
-                df.loc[compound_idx, 'label'] = compound_names[compound_idx]
-                df.loc[compound_idx, 'file name'] = file_names[file_idxs[0]]
-                df.loc[compound_idx, 'RT'] = rt_list[0]
-                df.loc[compound_idx, 'score'] = scores[0]
-                df.loc[compound_idx, 'Matching M/Zs above 1E-3*max'] =', '.join(['%5.3f'%m for m in threshold_mz_sample_matches])
-                df.loc[compound_idx, 'All matching M/Zs'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
+                match.loc[compound_idx, 'label'] = compound_names[compound_idx]
+                match.loc[compound_idx, 'file name'] = file_names[file_idxs[0]]
+                match.loc[compound_idx, 'RT'] = rt_list[0]
+                match.loc[compound_idx, 'score'] = scores[0]
+                match.loc[compound_idx, 'Matching M/Zs above 1E-3*max'] = ', '.join(['%5.3f' % m for m in threshold_mz_sample_matches])
+                match.loc[compound_idx, 'All matching M/Zs'] = ','.join(['%5.3f' % m for m in mz_sample_matches])
 
             ax7.set_ylim(.5,1.1)
             ax7.axis('off')
 
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_loc, compound_names[compound_idx] + '.pdf'))
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="tight_layout not applied: number of rows in subplot specifications must be multiples of one another.")
+            plt.tight_layout()
+        fig_path = os.path.join(output_loc, compound_names[compound_idx] + '.pdf')
+        write_utils.check_existing_file(fig_path, overwrite)
+        plt.savefig(fig_path)
         plt.close()
-    df.to_csv(os.path.join(output_loc, 'MatchingMZs.tab'),sep='\t')
+        logger.info('Exported identification figures for %s to %s.', compound_names[compound_idx], fig_path)
+    match_path = os.path.join(output_loc, 'MatchingMZs.tab')
+    write_utils.export_dataframe(match, match_path, 'matching MZs', overwrite, sep='\t')
 
 
 def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', input_dataset = [], compound_names = [],  include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
@@ -2588,16 +2436,7 @@ def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', 
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         data = input_dataset
-
-    if include_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_include_list(data, 'lcmsrun', include_lcmsruns)
-    if include_groups:
-        data = filter_lcmsruns_in_dataset_by_include_list(data, 'group', include_groups)
-
-    if exclude_lcmsruns:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'lcmsrun', exclude_lcmsruns)
-    if exclude_groups:
-        data = filter_lcmsruns_in_dataset_by_exclude_list(data, 'group', exclude_groups)
+    data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
 
     #Make sure there is data
     assert(len(data) != 0)
@@ -3265,43 +3104,59 @@ def filter_empty_metatlas_objects(object_list,field):
             pass
     return filtered_list
 
-def filter_metatlas_objects_by_list(object_list,field,filter_list):
-    filtered_list = []
-    for i,g in enumerate(object_list):
-        if any(ext in getattr(g,field) for ext in filter_list):
-            filtered_list.append(g)
-    return filtered_list
 
-def remove_metatlas_objects_by_list(object_list,field,filter_list):
-    filtered_list = []
-    for i,g in enumerate(object_list):
-        if not any(ext in getattr(g,field) for ext in filter_list):
-            filtered_list.append(g)
-    return filtered_list
-
-def filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,selector,include_list):
+def filter_metatlas_objects_by_list(object_list, field, filter_list):
     """
-    Returns a metatlas dataset containing LCMS runs or groups (denoted by selector) that have substrings listed in the include list
+    inputs:
+        object_list: iterable to be filtered by its attribute values
+        field: name of attribute to filter on
+        filter_list: strings that are tested to see if they are substrings of the attribute value
+    returns filtered list of objects that have a match in filter_list
+    """
+    return filter_by_list(object_list, lambda x: getattr(x, field), filter_list)
+
+
+def remove_metatlas_objects_by_list(object_list, field, filter_list):
+    """
+    inputs:
+        object_list: iterable to be filtered by its attribute values
+        field: name of attribute to filter on
+        filter_list: strings that are tested to see if they are substrings of the attribute value
+    returns filtered list of objects that do not have matches to filter_list
+    """
+    return filter_by_list(object_list, lambda x: getattr(x, field), filter_list, include=False)
+
+
+def filter_by_list(data, key_func, term_list, include=True):
+    """
+    inputs:
+        data: iterable to be filtered
+        key_func: function that takes a member of d and returns string to compare with term_list
+        term_list: strings that are tested to see if they are substrings of key_func return value
+        include: if True, then matches are included in output, else matches are excluded
+    """
+    allow = any if include else lambda x: not any(x)
+    return [d for d in data if allow(ext in key_func(d) for ext in term_list)]
+
+
+def filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset, selector, include_list):
+    """
+    Returns a metatlas dataset containing LCMS runs or groups (denoted by selector) that have substrings
+    listed in the include list.
     selector can be 'lcmsrun' or 'group'
     include_list will look something like this: ['QC','Blank']
     """
-    filtered_dataset = []
-    for d in metatlas_dataset:
-        if any(ext in d[0][selector].name for ext in include_list):
-            filtered_dataset.append(d)
-    return filtered_dataset
+    return filter_by_list(metatlas_dataset, lambda x: x[0][selector].name, include_list)
 
-def filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset,selector,exclude_list):
+
+def filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset, selector, exclude_list):
     """
-    Returns a metatlas dataset containing LCMS runs or groups (denoted by selector) that have substrings not listed in the include list
+    Returns a metatlas dataset containing LCMS runs or groups (denoted by selector) that have substrings
+    not listed in the include list.
     selector can be 'lcmsrun' or 'group'
     exclude_list will look something like this: ['QC','Blank']
     """
-    filtered_dataset = []
-    for d in metatlas_dataset:
-        if not any(ext in d[0][selector].name for ext in exclude_list):
-            filtered_dataset.append(d)
-    return filtered_dataset
+    return filter_by_list(metatlas_dataset, lambda x: x[0][selector].name, exclude_list, include=False)
 
 
 def filter_compounds_in_dataset_by_exclude_list(metatlas_dataset,exclude_list):

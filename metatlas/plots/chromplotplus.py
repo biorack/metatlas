@@ -1,13 +1,19 @@
-from __future__ import absolute_import
+import logging
+from textwrap import wrap
+
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from matplotlib import collections as mc
 import numpy as np
 from scipy.interpolate import interp1d
-from textwrap import wrap
 from six.moves import range
 from six.moves import zip
+
+from metatlas.io import write_utils
+
+logger = logging.getLogger(__name__)
+
 
 def chromplotplus(kwargs):
     ChromPlotPlus(**kwargs)
@@ -39,6 +45,7 @@ class ChromPlotPlus:
                  x_scale = .8, y_scale = .75,
                  x_ratio = 13.0, y_ratio=11.0,
                  num_x_hashes=4, num_y_hashes=4,
+                 overwrite=False,
                  **kwargs):
 
         assert len(data) > 0
@@ -78,6 +85,7 @@ class ChromPlotPlus:
         self.y_ratio = y_ratio
         self.num_x_hashes = num_x_hashes
         self.num_y_hashes = num_y_hashes
+        self.overwrite = overwrite
 
         plt.ioff()
 
@@ -218,13 +226,14 @@ class ChromPlotPlus:
                     self.ax.annotate(self.compound_eics[i],
                                      subplot_xy[0], ha='center', va='center', size = 100./(num_cols+.25), weight='bold')
 
+        write_utils.check_existing_file(self.file_name, self.overwrite)
         with PdfPages(self.file_name) as pdf:
             plt.rcParams['pdf.fonttype'] = 42
             plt.rcParams['pdf.use14corefonts'] = True
             plt.rcParams['text.usetex'] = False
             pdf.savefig(self.fig)
             plt.close()
-
+            logger.info("Exported chromatogram to %s.", self.file_name)
 
     @staticmethod
     def __yield_label():

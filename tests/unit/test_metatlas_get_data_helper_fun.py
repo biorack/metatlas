@@ -53,3 +53,61 @@ def test_set_nested_term_dict(metatlas_dataset):
 def test_set_nested_term_no_ids(metatlas_dataset):
     with pytest.raises(ValueError):
         gdhf.set_nested(metatlas_dataset, [], "foobar")
+
+
+def test_extract_list01():
+    assert gdhf.extract([1, 2], [0]) == 1
+
+
+def test_extract_list02():
+    assert gdhf.extract([1, 2], [5]) is None
+
+
+def test_extract_list03():
+    assert gdhf.extract([1, 2], [5], 99) == 99
+
+
+def test_extract_list04():
+    assert gdhf.extract([], [0], 99) == 99
+
+
+def test_extract_list05():
+    assert gdhf.extract("okay", [], 99) == "okay"
+
+
+def test_extract_tuple01():
+    assert gdhf.extract(("foo", "bar"), [1]) == "bar"
+
+
+def test_extract_tuple02():
+    assert gdhf.extract(("foo", "bar"), [-1]) == "bar"
+
+
+def test_extract_tuple03():
+    assert gdhf.extract(("foo", "bar"), [9], "zoop") == "zoop"
+
+
+def test_extract_dict01():
+    assert gdhf.extract({"foo": 1, "bar": 2}, ["bar"]) == 2
+
+
+def test_extract_dict02():
+    assert gdhf.extract({"foo": 1, "bar": 2}, ["blah"], "zoop") == "zoop"
+
+
+def test_extract_default01():
+    assert gdhf.extract({"foo": 1, "bar": 2}, ["foo", "bar"], "zoop") == "zoop"
+
+
+def test_extract_metatlas_dataset01(metatlas_dataset):
+    ids = [0, 0, "identification", ("compound",), 0, ("inchi_key",)]
+    assert gdhf.extract(metatlas_dataset, ids, "zoop") == "OLXZPDWKRNYJJZ-RRKCRQDMSA-N"
+
+
+def test_extract_metatlas_dataset02(metatlas_dataset):
+    ids = [0, 0, "identification", "compound", 0, "inchi_key"]
+    assert gdhf.extract(metatlas_dataset, ids, "zoop") == "OLXZPDWKRNYJJZ-RRKCRQDMSA-N"
+
+
+def test_extract_metatlas_dataset03(metatlas_dataset):
+    assert gdhf.extract(metatlas_dataset, ["foo"], "zoop") == "zoop"

@@ -7,6 +7,7 @@ import sys
 import copy
 import tables
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.io import write_utils
 import pandas as pd
 from textwrap import wrap
 import matplotlib.pyplot as plt
@@ -205,20 +206,20 @@ def extract(data, ids, default=None):
     as: ('attribute_name',). If you want to make it more explict to the reader, you can add a
     second member to the tuple, which will not be used, such as ('attribute_name', 'as attribute')
     """
-    current = data
+    if len(ids) == 0:
+        return data
     try:
-        for i in ids:
-            if isinstance(i, tuple):
-                current = getattr(current, i[0])
-            elif isinstance(current, list):
-                current = current[i]
-            elif isinstance(current, dict) and i in current.keys():
-                current = current[i]
-            else:
-                current = getattr(current, i)
+        if isinstance(ids[0], tuple):
+            sub_data = getattr(data, ids[0][0])
+        else:
+            try:
+                sub_data = data[ids[0]]
+            except TypeError:
+                sub_data = getattr(data, ids[0])
     except (AttributeError, IndexError, KeyError):
         return default
-    return current
+    else:
+        return extract(sub_data, ids[1:], default)
 
 
 def set_nested(data, ids, value):
@@ -874,33 +875,36 @@ def get_compound_names(data,use_labels=False):
 
     return (compound_names, compound_objects)
 
-def make_data_sources_tables(groups, myatlas, output_loc, polarity=None):
+
+def make_data_sources_tables(groups, myatlas, output_loc, polarity=None, overwrite=True):
     """
     polarity must be one of None, 'POS', 'NEG' or will throw ValueError
     """
-    if polarity and not polarity in ['POS', 'NEG']:
-        raise ValueError
-    prefix = polarity + '_' if polarity else ''
-    if not os.path.exists(output_loc):
-        os.mkdir(output_loc)
-    output_dir = os.path.join(output_loc,'data_sources')
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-
-    metob.to_dataframe([myatlas]).to_csv(os.path.join(output_dir, prefix+'atlas_metadata.tab'), sep='\t')
-    metob.to_dataframe(groups).to_csv(os.path.join(output_dir, prefix+'groups_metadata.tab'), sep='\t')
+    if polarity not in [None, 'POS', 'NEG']:
+        raise ValueError("Polarity parameter must be one of None, 'POS', or 'NEG'.")
+    prefix = f"{polarity}_" if polarity else ""
+    output_dir = os.path.join(output_loc, f"{prefix}data_sources")
+    atlas_path = os.path.join(output_dir, f"{prefix}atlas_metadata.tab")
+    write_utils.export_dataframe(metob.to_dataframe([myatlas]), atlas_path, "atlas metadata",
+                                 overwrite, sep='\t')
+    groups_path = os.path.join(output_dir, f"{prefix}groups_metadata.tab")
+    write_utils.export_dataframe(metob.to_dataframe(groups), groups_path, "groups metadata",
+                                 overwrite, sep='\t')
 
     atlas_df = make_atlas_df(myatlas)
     atlas_df['label'] = [cid.name for cid in myatlas.compound_identifications]
-    atlas_df.to_csv(os.path.join(output_dir,prefix+myatlas.name+'_originalatlas.tab'), sep='\t')
+    atlas_df_path = os.path.join(output_dir, myatlas.name+'_originalatlas.tab')
+    write_utils.export_dataframe(atlas_df, atlas_df_path, "atlas dataframe", overwrite, sep='\t')
 
-    group_path_df = pd.DataFrame(columns=['group_name','group_path','file_name'])
+    group_path_df = pd.DataFrame(columns=['group_name', 'group_path', 'file_name'])
     loc_counter = 0
-    for g in groups:
-        for f in g.items:
-            group_path_df.loc[loc_counter, 'group_name'] = g.name
-            group_path_df.loc[loc_counter, 'group_path'] = os.path.dirname(f.mzml_file)
-            group_path_df.loc[loc_counter, 'file_name'] = f.mzml_file
+    for group in groups:
+        for run in group.items:
+            group_path_df.loc[loc_counter, 'group_name'] = group.name
+            group_path_df.loc[loc_counter, 'group_path'] = os.path.dirname(run.mzml_file)
+            group_path_df.loc[loc_counter, 'file_name'] = run.mzml_file
             loc_counter += 1
 
-    group_path_df.to_csv(os.path.join(output_dir,prefix+'groups.tab'), sep='\t', index=False)
+    group_path_path = os.path.join(output_dir, f"{prefix}groups.tab")
+    write_utils.export_dataframe(group_path_df, group_path_path, "group-file mapping",
+                                 overwrite, sep='\t', index=False)
