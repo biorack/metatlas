@@ -76,7 +76,7 @@ def configure_notebook_display():
 
 def setup(log_level):
     """High level function to prepare the metatlas notebook"""
-    validate_kernel()
     configure_environment(log_level)
+    validate_kernel()
     configure_notebook_display()
     configure_pandas_display()
