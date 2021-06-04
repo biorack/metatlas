@@ -254,7 +254,7 @@ class MetatlasDataset:
             keep_idxs: the indexes of compounds to keep
             remove_idxs: the indexes of compounds to remove
                 Exactly one of keep_idxs or remove_idxs must be None
-            name: the name for the new atlas, defaults to current name + '_compound_filtered'
+            name: the name for the new atlas, defaults to current name
         output:
             If keep_idxs is not None then update self.atlas to contain only the compound_identifications at
             keep_idxs. If remove_idxs is not None then update self.atlas to contain only the compound
@@ -273,7 +273,7 @@ class MetatlasDataset:
             keep_idxs = self.atlas_df.index.difference(remove_idxs)
         self._atlas_df = self.atlas_df.iloc[keep_idxs].copy().reset_index(drop=True)
         self._atlas_df_valid = True
-        name = f"{self.atlas.name}_compound_filtered" if name is None else name
+        name = self.atlas.name if name is None else name
         mz_tolerance = self.atlas.compound_identifications[0].mz_references[0].mz_tolerance
         if self._data_valid:
             self._data = [
@@ -318,7 +318,7 @@ class MetatlasDataset:
     def filter_compounds_ms1_notes_remove(self, name=None):
         """
         inputs:
-            name: the name for the new atlas, defaults to current name + '_kept'
+            name: the name for the new atlas, defaults to current name
         output:
             updates self.atlas to contain only the compound_identifications that do not have ms1_notes
             starting with 'remove' (case insensitive)
@@ -326,7 +326,7 @@ class MetatlasDataset:
             get their value from self.atlas.compound_identifications[0].mz_references[0].mz_tolerance
         """
         logger.debug("Filtering atlas to exclude ms1_notes=='remove'.")
-        name = f"{self.atlas.name}_kept" if name is None else name
+        name = self.atlas.name if name is None else name
         self.filter_compounds(remove_idxs=self.compound_indices_marked_remove(), name=name)
 
     def filter_compounds_by_signal(self, num_points, peak_height, name=None):
@@ -336,9 +336,10 @@ class MetatlasDataset:
                         in order for the compound to remain in the atlas
             peak_height: max intensity in the EIC that must be exceeded in one or more samples
                          in order for the compound to remain in the atlas
+            name: the name for the new atlas, defaults to current name
         """
         logger.debug("Filtering atlas on num_points=%d, peak_height=%d.")
-        name = f"{self.atlas.name}_strong" if name is None else name
+        name = self.atlas.name if name is None else name
         keep_idxs = dp.strong_signal_compound_idxs(self, num_points, peak_height)
         self.filter_compounds(keep_idxs=keep_idxs, name=name)
 

@@ -116,6 +116,15 @@ def test_rts02(metatlas_dataset):
     assert len(metatlas_dataset.rts) == 1
 
 
+def test_rts03(metatlas_dataset, analysis_ids):
+    metatlas_dataset.set_rt(0, "rt_max", 9.99)
+    metob.store(metatlas_dataset.atlas)
+    atlas_from_db = metob.retrieve('Atlas', unique_id=metatlas_dataset.atlas.unique_id)[0]
+    second_metatlas_dataset = mads.MetatlasDataset(analysis_ids, atlas_from_db)
+    assert second_metatlas_dataset.rts[0].rt_max == 9.99
+    assert len(second_metatlas_dataset.rts) == 1
+
+
 def test_set_note01(metatlas_dataset):
     metatlas_dataset.set_note(0, "ms2_notes", "Foobar")
     assert metatlas_dataset[0][0]["identification"].ms2_notes == "Foobar"
