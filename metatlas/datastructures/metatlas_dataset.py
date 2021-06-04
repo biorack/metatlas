@@ -179,7 +179,7 @@ class MetatlasDataset:
             logger.warning(
                 (
                     "Data sources directory already populated from previous work on this analysis. "
-                    "Not overwritting."
+                    "Not overwriting."
                 )
             )
         else:
@@ -191,11 +191,13 @@ class MetatlasDataset:
 
     def write_lcmsruns_short_names(self):
         """Write short names and raise error if exists and differs from current data"""
+        short_names = self.lcmsruns_short_names
+        short_names['full_filename'] = short_names.index
         write_utils.export_dataframe_die_on_diff(
-            self.lcmsruns_short_names,
+            short_names,
             os.path.join(self.ids.output_dir, "short_names.csv"),
             "LCMS runs short names",
-            # index=True,
+            index=False,
         )
 
     def _get_atlas(self):
@@ -522,10 +524,9 @@ class MetatlasDataset:
     def rts(self):
         """
         Allow Rt_Reference objects to be accessed
-        Returns cloned RtReference objects, so modifing them will not impact data in this class.
         use set_rt() if you want to modify the RT values held by this class.
         """
-        return tuple(cid.rt_references[0].clone() for cid in self.atlas.compound_identifications)
+        return tuple(cid.rt_references[0] for cid in self.atlas.compound_identifications)
 
     def set_rt(self, compound_idx, which, time):
         """
@@ -600,7 +601,7 @@ class MetatlasDataset:
                 "short_filename": [0, 2, 4, 5, 7, 9, 14],
                 "short_samplename": [9, 12, 13, 14],
             }
-        out = pd.DataFrame(columns=fields.keys())
+        out = pd.DataFrame(columns=fields.keys(), dtype="string")
         for i, lcms_file in enumerate(self.lcmsruns):
             tokens = lcms_file.name.split(".")[0].split("_")
             for name, idxs in fields.items():
@@ -610,7 +611,7 @@ class MetatlasDataset:
         out.drop(columns=["last_modified"], inplace=True)
         out.drop_duplicates(subset=["full_filename"], keep="last", inplace=True)
         out.set_index("full_filename", inplace=True)
-        return out
+        return out.sort_values(by="full_filename")
 
     lcmsruns_short_names = property(get_lcmsruns_short_names)
 
@@ -679,7 +680,7 @@ class MetatlasDataset:
             new_names = set(self.groups_dataframe["group"].to_list())
             overlap = db_names.intersection(new_names)
             if overlap:
-                logging.error(
+                logger.error(
                     "Not saving groups as you have already saved groups with these names: %s.",
                     ", ".join(overlap),
                 )
@@ -795,6 +796,7 @@ def _set_nested(data, ids, value):
 
 
 def _error_if_bad_idxs(dataframe, test_idx_list):
+    """Raise IndexError if any members of of test_idx_list are not in dataframe's index"""
     bad = set(test_idx_list) - set(dataframe.index)
     if len(bad) > 0:
         raise IndexError(f"Invalid index values: {bad}.")
