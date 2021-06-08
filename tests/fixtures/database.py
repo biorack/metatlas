@@ -8,13 +8,12 @@ from metatlas.datastructures import metatlas_objects as metob
 
 
 @pytest.fixture(name="sqlite")
-def fixture_sqlite(tmp_path):
+def fixture_sqlite(tmp_path, monkeypatch):
     # make sure we don't accidently pollute the production MySQL DB
-    assert os.environ.get("METATLAS_LOCAL") == "TRUE"
-    os.chdir(tmp_path)  # don't reuse the sqlite DB
-    username = getpass.getuser()
-    sqlite3.connect(f"{username}_workspace.db").close()
+    monkeypatch.setenv("METATLAS_LOCAL", "TRUE")
+    db_path = tmp_path / "workspace.db"
+    monkeypatch.setenv("METATLAS_SQLITE", str(db_path))
+    sqlite3.connect(db_path).close()
     dummy = metob.Atlas()
     dummy.name = "this is a dummy atlas to initialize sqlite db"
     metob.store(dummy)
-    # do I need to store each type of object?

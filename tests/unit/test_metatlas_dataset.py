@@ -1,14 +1,29 @@
 """ tests for MetatasDataset """
-# pylint: disable=missing-function-docstring, protected-access
+# pylint: disable=missing-function-docstring,protected-access,unused-argument
 
 import datetime
 import glob
 import logging
+import os
 import pandas as pd
 import pytest
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
+
+
+@pytest.fixture(scope="function", autouse=True)
+def change_test_dir(request):
+    os.chdir(request.fspath.dirname)
+    yield
+    os.chdir(request.config.invocation_dir)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def set_env_vars(tmp_path, monkeypatch):
+    monkeypatch.setenv("METATLAS_LOCAL", "TRUE")
+    db_path = tmp_path / "workspace.db"
+    monkeypatch.setenv("METATLAS_SQLITE", str(db_path))
 
 
 def test_metatlas_dataset_build01(metatlas_dataset):
@@ -116,16 +131,16 @@ def test_rts02(metatlas_dataset):
     assert len(metatlas_dataset.rts) == 1
 
 
-def test_rts03(metatlas_dataset, analysis_ids):
+def test_rts03(metatlas_dataset, analysis_ids, sqlite):
     metatlas_dataset.set_rt(0, "rt_max", 9.99)
     metob.store(metatlas_dataset.atlas)
-    atlas_from_db = metob.retrieve('Atlas', unique_id=metatlas_dataset.atlas.unique_id)[0]
+    atlas_from_db = metob.retrieve("Atlas", unique_id=metatlas_dataset.atlas.unique_id)[0]
     second_metatlas_dataset = mads.MetatlasDataset(analysis_ids, atlas_from_db)
     assert second_metatlas_dataset.rts[0].rt_max == 9.99
     assert len(second_metatlas_dataset.rts) == 1
 
 
-def test_set_note01(metatlas_dataset):
+def test_set_note01(metatlas_dataset, sqlite):
     metatlas_dataset.set_note(0, "ms2_notes", "Foobar")
     assert metatlas_dataset[0][0]["identification"].ms2_notes == "Foobar"
 
@@ -136,7 +151,7 @@ def test_set_note02(metatlas_dataset):
     assert metatlas_dataset[0][0]["identification"].ms1_notes == "keeper"
 
 
-def test_compound_indices_marked_remove01(metatlas_dataset):
+def test_compound_indices_marked_remove01(sqlite, metatlas_dataset):
     assert len(metatlas_dataset.compound_indices_marked_remove()) == 0
     metatlas_dataset.set_note(0, "ms1_notes", "REMOVE")
     assert len(metatlas_dataset.compound_indices_marked_remove()) == 1
@@ -320,10 +335,10 @@ def test_set_data01(metatlas_dataset):
     assert metatlas_dataset[0][0]["identification"].ms2_notes == "extact match"
 
 
-def test_store_atlas01(metatlas_dataset, sqlite):  # pylint: disable=unused-argument
+def test_store_atlas01(metatlas_dataset, sqlite):
     metatlas_dataset.atlas.name = "test_store_atlas01"
     metatlas_dataset.store_atlas()
-    atlas_list = metob.retrieve("atlases", name=metatlas_dataset.atlas.name, username="*")
+    atlas_list = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username="*")
     assert len(atlas_list) == 1
     metatlas_dataset.store_atlas(even_if_exists=True)
     with pytest.raises(ValueError):
@@ -333,6 +348,7 @@ def test_store_atlas01(metatlas_dataset, sqlite):  # pylint: disable=unused-argu
 def test_analysis_identifiers01():
     with pytest.raises(ValueError):
         mads.AnalysisIdentifiers(
+            "source_atlas_name_not_valid",
             "experiment_not_valid",
             "output_type_not_valid",
             "polarity_not_valid",
@@ -344,6 +360,7 @@ def test_analysis_identifiers01():
 def test_analysis_identifiers02():
     with pytest.raises(ValueError):
         mads.AnalysisIdentifiers(
+            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "output_type_not_valid",
             "polarity_not_valid",
@@ -355,6 +372,7 @@ def test_analysis_identifiers02():
 def test_analysis_identifiers03():
     with pytest.raises(ValueError):
         mads.AnalysisIdentifiers(
+            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "FinalEMA-HILIC",
             "polarity_not_valid",
@@ -363,9 +381,11 @@ def test_analysis_identifiers03():
         )
 
 
-def test_analysis_identifiers04():
+def test_analysis_identifiers04(mocker):
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[True])
     with pytest.raises(TypeError):
         mads.AnalysisIdentifiers(
+            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "FinalEMA-HILIC",
             "positive",
@@ -374,9 +394,11 @@ def test_analysis_identifiers04():
         )
 
 
-def test_analysis_identifiers05():
+def test_analysis_identifiers05(mocker):
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[True])
     with pytest.raises(TypeError):
         mads.AnalysisIdentifiers(
+            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "FinalEMA-HILIC",
             "positive",
@@ -385,9 +407,11 @@ def test_analysis_identifiers05():
         )
 
 
-def test_analysis_identifiers06():
+def test_analysis_identifiers06(mocker):
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[True])
     with pytest.raises(ValueError):
         mads.AnalysisIdentifiers(
+            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "FinalEMA-HILIC",
             "positive",
@@ -396,14 +420,26 @@ def test_analysis_identifiers06():
         )
 
 
+def test_analysis_identifiers07():
+    with pytest.raises(ValueError):
+        mads.AnalysisIdentifiers(
+            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
+            "experiemnt_name_not_valid",
+            "output_type_not_valid",
+            "polarity_not_valid",
+            "analysis_number_not_valid",
+            "/foo/bar",
+        )
+
+
 def test_analysis_identifiers_atlas01(analysis_ids):
-    assert analysis_ids.atlas == "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0"
+    assert analysis_ids.atlas == "505892_OakGall_final_POS_root0"
 
 
 def test_analysis_identifiers_atlas02(analysis_ids):
     # call .atlas twice to get cached value
     analysis_ids.atlas  # pylint: disable=pointless-statement
-    assert analysis_ids.atlas == "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0"
+    assert analysis_ids.atlas == "505892_OakGall_final_POS_root0"
 
 
 def test_write_data_source_files01(metatlas_dataset, mocker, caplog):
@@ -422,15 +458,15 @@ def test_write_data_source_files02(metatlas_dataset, mocker, caplog):
     assert ma_data.make_data_sources_tables.called  # pylint: disable=no-member
 
 
-def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun):
+def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, atlas):
     mocker.patch(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[0])
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[atlas])
     mocker.patch("glob.glob", return_value=range(10))
     metatlas_dataset = mads.MetatlasDataset(analysis_ids)
-    assert metatlas_dataset.atlas == 0
+    assert metatlas_dataset.atlas.name == "505892_OakGall_final_POS_root0"
 
 
 def test_get_atlas02(mocker, analysis_ids, caplog):

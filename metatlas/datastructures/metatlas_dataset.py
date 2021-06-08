@@ -26,18 +26,26 @@ class AnalysisIdentifiers:
 
     # pylint: disable=too-many-arguments
     def __init__(
-        self, experiment, output_type, polarity, analysis_number, project_directory, atlas=None, username=None
+        self,
+        source_atlas,
+        experiment,
+        output_type,
+        polarity,
+        analysis_number,
+        project_directory,
+        username=None,
     ):
+        self._source_atlas = source_atlas
         self._experiment = experiment
         self._output_type = output_type
         self._polarity = polarity
         self._analysis_number = analysis_number
-        self._atlas = atlas
         self._username = getpass.getuser() if username is None else username
         self.project_directory = project_directory
         self.validate()
         logger.info(
-            "IDs: atlas=%s, short_experiment_analysis=%s, output_dir=%s",
+            "IDs: source_atlas=%s, atlas=%s, short_experiment_analysis=%s, output_dir=%s",
+            self.source_atlas,
             self.atlas,
             self.short_experiment_analysis,
             self.output_dir,
@@ -45,6 +53,7 @@ class AnalysisIdentifiers:
 
     def validate(self):
         """Valid class inputs"""
+        get_atlas(self.source_atlas, self.username)  # will raise error if not found or matches multiple
         if len(self.experiment.split("_")) != 9:
             raise ValueError('Parameter experiment does contain 9 fields when split on "_".')
         if self.output_type not in ["ISTDsEtc", "FinalEMA-HILIC"]:
@@ -55,6 +64,11 @@ class AnalysisIdentifiers:
             raise TypeError("Parameter analysis_number is not an integer.")
         if self.analysis_number < 0:
             raise ValueError("Parameter analysis_number cannot be negative.")
+
+    @property
+    def source_atlas(self):
+        """Returns source atlas identifier"""
+        return self._source_atlas
 
     @property
     def experiment(self):
@@ -79,10 +93,8 @@ class AnalysisIdentifiers:
     @property
     def atlas(self):
         """Atlas identifier (name)"""
-        if self._atlas is None:
-            exp_tokens = self.experiment.split("_")
-            return f"{'_'.join(exp_tokens[3:6])}_{self.short_polarity}_{self.analysis_number}"
-        return self._atlas
+        exp_tokens = self.experiment.split("_")
+        return f"{'_'.join(exp_tokens[3:6])}_{self.short_polarity}_{self.analysis}"
 
     @property
     def username(self):
@@ -134,7 +146,6 @@ class MetatlasDataset:
     def __init__(
         self,
         ids,
-        atlas=None,
         groups_controlled_vocab=None,
         exclude_files=None,
         extra_time=0.75,
@@ -152,7 +163,6 @@ class MetatlasDataset:
             exclude_files: array of strings that will exclude files if they are substrings of the filename
         """
         self.ids = ids
-        self._atlas = self._get_atlas() if atlas is None else atlas
         self._atlas_df = None
         self._atlas_df_valid = False
         self._runs = None
@@ -169,6 +179,7 @@ class MetatlasDataset:
         self._frag_mz_tolerance = frag_mz_tolerance
         self._msms_refs_loc = msms_refs_loc
         self.max_cpus = max_cpus
+        self._get_atlas()
         self.write_data_source_files()
         self.write_lcmsruns_short_names()
 
@@ -192,7 +203,7 @@ class MetatlasDataset:
     def write_lcmsruns_short_names(self):
         """Write short names and raise error if exists and differs from current data"""
         short_names = self.lcmsruns_short_names
-        short_names['full_filename'] = short_names.index
+        short_names["full_filename"] = short_names.index
         write_utils.export_dataframe_die_on_diff(
             short_names,
             os.path.join(self.ids.output_dir, "short_names.csv"),
@@ -201,24 +212,11 @@ class MetatlasDataset:
         )
 
     def _get_atlas(self):
-        """Load atlas from database"""
-        name_query = f"%_{self.ids.short_polarity}_{self.ids.short_experiment_analysis}"
-        atlases = metob.retrieve("atlases", name=name_query, username=self.ids.username)
-        if len(atlases) == 0:
-            logger.error(
-                'Database does not contain an atlas named "%s" and owned by %s.',
-                name_query,
-                self.ids.username,
-            )
-            raise ValueError("Atlas not found in database")
-        if len(atlases) > 1:
-            logger.error(
-                'Database contains more than one atlas named "%s" and owned by %s.',
-                name_query,
-                self.ids.username,
-            )
-            raise ValueError("Too many matching atlases found in database")
-        return atlases[0]
+        """Copy source atlas from database into current analysis atlas"""
+        source = get_atlas(self.ids.source_atlas, self.ids.username)
+        self._atlas = source.clone()
+        self._atlas.name = self.ids.atlas
+        self._atlas_valid = True
 
     def _build(self):
         """Populate self._data from database and h5 files."""
@@ -355,8 +353,12 @@ class MetatlasDataset:
         """
         name = self.atlas.name if name is None else name
         username = getpass.getuser()
-        if not even_if_exists and len(metob.retrieve("atlases", name=name, username=username)) > 0:
-            raise ValueError(f"An atlas with name {name} and owned by {username} already exists.")
+        try:
+            if not even_if_exists and len(metob.retrieve("Atlas", name=name, username=username)) > 0:
+                raise ValueError(f"An atlas with name {name} and owned by {username} already exists.")
+        except ValueError as err:
+            logger.exception(err)
+            raise err
         metob.store(self.atlas)
 
     def export_atlas_to_csv(self, filename=None):
@@ -602,7 +604,7 @@ class MetatlasDataset:
                 "short_filename": [0, 2, 4, 5, 7, 9, 14],
                 "short_samplename": [9, 12, 13, 14],
             }
-        out = pd.DataFrame(columns=fields.keys(), dtype="string")
+        out = pd.DataFrame(columns=fields.keys())
         for i, lcms_file in enumerate(self.lcmsruns):
             tokens = lcms_file.name.split(".")[0].split("_")
             for name, idxs in fields.items():
@@ -680,12 +682,15 @@ class MetatlasDataset:
             db_names = {group.name for group in self.existing_groups}
             new_names = set(self.groups_dataframe["group"].to_list())
             overlap = db_names.intersection(new_names)
-            if overlap:
-                logger.error(
-                    "Not saving groups as you have already saved groups with these names: %s.",
-                    ", ".join(overlap),
-                )
-                raise ValueError("Existing group has same name.")
+            try:
+                if overlap:
+                    raise ValueError(
+                        "Not saving groups as you have already saved groups with these names: %s.",
+                        ", ".join(overlap),
+                    )
+            except ValueError as err:
+                logger.exception(err)
+                raise err
         metob.store(self.groups)
 
     def compound_idxs_not_evaluated(self):
@@ -778,8 +783,12 @@ def _set_nested(data, ids, value):
     as: ('attribute_name',). If you want to make it more explict to the reader, you can add a
     second member to the tuple, which will not be used, such as ('attribute_name', 'as attribute')
     """
-    if len(ids) == 0:
-        raise ValueError("ids cannot be empty")
+    try:
+        if len(ids) == 0:
+            raise ValueError("ids cannot be empty")
+    except ValueError as err:
+        logger.exception(err)
+        raise err
     if len(ids) == 1:
         if isinstance(ids[0], tuple):
             setattr(data, ids[0][0], value)
@@ -799,5 +808,27 @@ def _set_nested(data, ids, value):
 def _error_if_bad_idxs(dataframe, test_idx_list):
     """Raise IndexError if any members of of test_idx_list are not in dataframe's index"""
     bad = set(test_idx_list) - set(dataframe.index)
-    if len(bad) > 0:
-        raise IndexError(f"Invalid index values: {bad}.")
+    try:
+        if len(bad) > 0:
+            raise IndexError(f"Invalid index values: {bad}.")
+    except IndexError as err:
+        logger.exception(err)
+        raise err
+
+
+def get_atlas(name, username):
+    """Load atlas from database"""
+    atlases = metob.retrieve("Atlas", name=name, username=username)
+    try:
+        if len(atlases) == 0:
+            raise ValueError(f'Database does not contain an atlas named "{name}" and owned by {username}.')
+    except ValueError as err:
+        logger.exception(err)
+        raise err
+    try:
+        if len(atlases) > 1:
+            raise ValueError(f'Database contains more than one atlas named "{name}" and owned by {username}.')
+    except ValueError as err:
+        logger.exception(err)
+        raise err
+    return atlases[0]

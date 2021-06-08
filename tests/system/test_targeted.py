@@ -51,6 +51,7 @@ def test_targeted_by_line01_with_remove(tmp_path):
                                    "agui.data.set_rt(3, \\"rt_max\\", 3.3081)\\n" \
                                   ]' /src/notebooks/reference/Targeted.ipynb > /out/Remove.ipynb &&  \
                     papermill \
+                        -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
                         -p metatlas_repo_path /src \
                         -p project_directory /out \

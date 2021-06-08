@@ -40,12 +40,13 @@ def fixture_groups_controlled_vocab():
 
 
 @pytest.fixture(name="metatlas_dataset")
-def fixture_metatlas_dataset(mocker, df_container, analysis_ids, groups_controlled_vocab, atlas, lcmsrun):
+def fixture_metatlas_dataset(mocker, df_container, analysis_ids, groups_controlled_vocab, lcmsrun, atlas):
     mocker.patch(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    return mads.MetatlasDataset(analysis_ids, atlas, groups_controlled_vocab)
+    mocker.patch("metatlas.datastructures.metatlas_dataset.get_atlas", return_value=atlas)
+    return mads.MetatlasDataset(analysis_ids, groups_controlled_vocab)
 
 
 @pytest.fixture(name="metatlas_dataset_with_2_cids")
@@ -56,7 +57,8 @@ def fixture_metatlas_dataset_with_2_cids(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    return mads.MetatlasDataset(analysis_ids, atlas_with_2_cids, groups_controlled_vocab)
+    mocker.patch("metatlas.datastructures.metatlas_dataset.get_atlas", return_value=atlas_with_2_cids)
+    return mads.MetatlasDataset(analysis_ids, groups_controlled_vocab)
 
 
 @pytest.fixture(name="eic")

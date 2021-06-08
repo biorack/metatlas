@@ -58,9 +58,13 @@ def install_kernel():
     dest_dir = Path.home() / ".local" / "share" / "jupyter" / "kernels" / "metatlas-targeted"
     os.makedirs(dest_dir, exist_ok=True)
     shutil.copyfile(source, dest_dir / "kernel.json")
-    logger.info(('Reload the page and then change kernel to "Metatlas Targeted". '
-                 "On the menu bar at the top of this page select 'Kernel'>'Change Kernel..' "
-                 "then find 'Metatlas Targeted' in the drop down list."))
+    logger.info(
+        (
+            'Reload the page and then change kernel to "Metatlas Targeted". '
+            "On the menu bar at the top of this page select 'Kernel'>'Change Kernel..' "
+            "then find 'Metatlas Targeted' in the drop down list."
+        )
+    )
 
 
 def configure_pandas_display(max_rows=5000, max_columns=500, max_colwidth=100):

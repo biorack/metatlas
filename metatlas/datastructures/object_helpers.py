@@ -154,6 +154,8 @@ class Workspace(object):
                     else:
                         login = f"{local_info['db_username']}@"
                 self.path = f"mysql+pymysql://{login}{hostname}/{local_info['db_name']}"
+            elif 'METATLAS_SQLITE' in os.environ:
+                self.path = 'sqlite:///' + os.environ['METATLAS_SQLITE']
             else:
                 self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
 
