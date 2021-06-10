@@ -145,9 +145,7 @@ def blacken_nb(session):
 @nox.session(python=py_versions, reuse_venv=REUSE_LARGE_VENV)
 def unit_tests(session):
     session.install("-r", "docker/requirements.txt", *pytest_deps)
-    session.run(
-        "pytest", "-vv", *session.posargs, "--cov", "metatlas", "tests/unit/", env={"METATLAS_LOCAL": "TRUE"}
-    )
+    session.run("pytest", "-vv", *session.posargs, "--cov", "metatlas", "tests/unit/")
 
 
 @nox.session(python=py_versions[0], reuse_venv=REUSE_LARGE_VENV)
@@ -161,7 +159,6 @@ def cov_report(session):
         "--cov-report",
         "term-missing",
         "tests/unit/",
-        env={"METATLAS_LOCAL": "TRUE"}
     )
 
 
