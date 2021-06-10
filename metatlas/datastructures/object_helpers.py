@@ -133,7 +133,6 @@ class Workspace(object):
 
         host_name = socket.gethostname()
         #print("asdf you're running on %s at %s " % (host_name, socket.gethostbyname(socket.gethostname())))
-
         if ON_NERSC:
             with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
                 nersc_info = yaml.safe_load(fid)
@@ -154,10 +153,11 @@ class Workspace(object):
                     else:
                         login = f"{local_info['db_username']}@"
                 self.path = f"mysql+pymysql://{login}{hostname}/{local_info['db_name']}"
-            elif 'METATLAS_SQLITE' in os.environ:
-                self.path = 'sqlite:///' + os.environ['METATLAS_SQLITE']
             else:
-                self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
+                filename = f"{getpass.getuser()}_workspace.db"
+                self.path = f"sqlite:///{filename}"
+                if os.path.exists(filename):
+                    os.chmod(filename, 0o775)
 
         self.tablename_lut = dict()
         self.subclass_lut = dict()
@@ -189,16 +189,14 @@ class Workspace(object):
                 self.db.query('SELECT name FROM sqlite_master WHERE type = "table"')
         except Exception:
             self.db = dataset.connect(self.path)
-            if 'sqlite' in self.path:
-                os.chmod(self.path[10:], 0o775)
 
     def convert_to_double(self, table, entry):
         """Convert a table column to double type."""
-        self.get_connection()
-        try:
-            self.db.query('alter table `%s` modify `%s` double' % (table, entry))
-        except Exception as e:
-            print(e)
+        with dataset.connect(self.path) as trans:
+            try:
+                trans.query('alter table `%s` modify `%s` double' % (table, entry))
+            except Exception as e:
+                print(e)
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
@@ -210,28 +208,30 @@ class Workspace(object):
         self._inserts = defaultdict(list)
         for obj in objects:
             self._get_save_data(obj, _override)
-        self.get_connection()
-        for (table_name, updates) in self._link_updates.items():
-            if table_name not in self.db:
-                continue
-            with self.db:
+        with dataset.connect(self.path) as trans:
+            for (table_name, updates) in self._link_updates.items():
+                if table_name not in trans:
+                    continue
                 for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
-        for (table_name, updates) in self._updates.items():
-            if '_' not in table_name and table_name not in self.db:
-                self.db.create_table(table_name, primary_id='unique_id',
-                                     primary_type=self.db.types.string(32))
-                self.fix_table(table_name)
-            with self.db:
+                    trans.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
+            for (table_name, updates) in self._updates.items():
+                if '_' not in table_name and table_name not in trans:
+                    trans.create_table(table_name, primary_id='unique_id',
+                                       primary_type=trans.types.string(32))
+                    if 'sqlite' not in self.path:
+                        self.fix_table(table_name)
                 for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
-        for (table_name, inserts) in self._inserts.items():
-            if '_' not in table_name and table_name not in self.db:
-                self.db.create_table(table_name, primary_id='unique_id',
-                                     primary_type=self.db.types.string(32))
-                self.fix_table(table_name)
-            self.db[table_name].insert_many(inserts)
-            # print(table_name,inserts)
+                    trans.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
+            for (table_name, inserts) in self._inserts.items():
+                if '_' not in table_name and table_name not in trans:
+                    trans.create_table(table_name, primary_id='unique_id',
+                                       primary_type=trans.types.string(32))
+                    if 'sqlite' not in self.path:
+                        self.fix_table(table_name)
+                trans[table_name].insert_many(inserts)
+                # print(table_name,inserts)
+        with dataset.connect(self.path) as trans:
+            pass
         self.db = None
 
     def create_link_tables(self, klass):
@@ -239,17 +239,17 @@ class Workspace(object):
         Create a link table in the database of the given trait klass
         """
         name = self.table_name[klass]
-        self.get_connection()
-        for (tname, trait) in klass.class_traits().items():
-            if isinstance(trait, MetList):
-                table_name = '_'.join([name, tname])
-                if table_name not in self.db:
-                    self.db.create_table(table_name)
-                    link = dict(source_id=uuid.uuid4().hex,
-                                head_id=uuid.uuid4().hex,
-                                target_id=uuid.uuid4().hex,
-                                target_table=uuid.uuid4().hex)
-                    self.db[table_name].insert(link)
+        with dataset.connect(self.path) as trans:
+            for (tname, trait) in klass.class_traits().items():
+                if isinstance(trait, MetList):
+                    table_name = '_'.join([name, tname])
+                    if table_name not in trans:
+                        trans.create_table(table_name)
+                        link = dict(source_id=uuid.uuid4().hex,
+                                    head_id=uuid.uuid4().hex,
+                                    target_id=uuid.uuid4().hex,
+                                    target_table=uuid.uuid4().hex)
+                        trans[table_name].insert(link)
         self.db = None
 
     def _get_save_data(self, obj, override=False):
@@ -322,90 +322,88 @@ class Workspace(object):
         """Retrieve an object from the database."""
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
-        # with dataset.connect(self.path) as db:
-        # self.db =
-        self.get_connection()
-        if object_type not in self.db:
-            if not klass:
-                raise ValueError('Unknown object type: %s' % object_type)
-            object_type = self.tablename_lut[klass]
-        if '_' not in object_type:
-            if kwargs.get('username', '') in ['*', 'all']:
-                kwargs.pop('username')
-            else:
-                kwargs.setdefault('username', getpass.getuser())
-        # Example query if group id is given
-        # SELECT *
-        # FROM tablename
-        # WHERE (city = 'New York' AND name like 'IBM%')
+        with dataset.connect(self.path) as trans:
+            if object_type not in trans:
+                if not klass:
+                    raise ValueError('Unknown object type: %s' % object_type)
+                object_type = self.tablename_lut[klass]
+            if '_' not in object_type:
+                if kwargs.get('username', '') in ['*', 'all']:
+                    kwargs.pop('username')
+                else:
+                    kwargs.setdefault('username', getpass.getuser())
+            # Example query if group id is given
+            # SELECT *
+            # FROM tablename
+            # WHERE (city = 'New York' AND name like 'IBM%')
 
-        # Example query where unique id and group id are not given
-        # (to avoid getting all versions of the same object)
-        # http://stackoverflow.com/a/12102288
-        # SELECT *
-        # from (SELECT * from `groups`
-        #       WHERE (name='spam') ORDER BY last_modified)
-        # x GROUP BY head_id
-        query = 'select * from `%s` where (' % object_type
-        clauses = []
-        for (key, value) in kwargs.items():
-            if type(value) is list and len(value)>0:
-                clauses.append('%s in ("%s")' % (key, '", "'.join(value)))
-            elif not isinstance(value, six.string_types):
-                clauses.append("%s = %s" % (key, value))
-            elif '%%' in value:
-                clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
-            elif '%' in value:
-                clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
-            else:
-                clauses.append('%s = "%s"' % (key, value))
-        if 'unique_id' not in kwargs and klass:
-            clauses.append('unique_id = head_id')
-        query += ' and '.join(clauses) + ')'
-        if not clauses:
-            query = query.replace(' where ()', '')
-        try:
-            items = [i for i in self.db.query(query)]
-        except Exception as e:
-            if 'Unknown column' in str(e):
-                keys = [k for k in klass.class_traits().keys()
-                        if not k.startswith('_')]
-                raise ValueError('Invalid column name, valid columns: %s' % keys)
-            else:
-                raise(e)
-        #print(query+'\n')
-        # print('tables:')
-        # print([t for t in self.db.query('show tables')])
-        items = [klass(**i) for i in items]
-        uids = [i.unique_id for i in items]
-        if not items:
-            return []
-        # get stubs for each of the list items
-        for (tname, trait) in items[0].traits().items():
-            if isinstance(trait, List):
-                table_name = '_'.join([object_type, tname])
-                if table_name not in self.db:
+            # Example query where unique id and group id are not given
+            # (to avoid getting all versions of the same object)
+            # http://stackoverflow.com/a/12102288
+            # SELECT *
+            # from (SELECT * from `groups`
+            #       WHERE (name='spam') ORDER BY last_modified)
+            # x GROUP BY head_id
+            query = 'select * from `%s` where (' % object_type
+            clauses = []
+            for (key, value) in kwargs.items():
+                if type(value) is list and len(value)>0:
+                    clauses.append('%s in ("%s")' % (key, '", "'.join(value)))
+                elif not isinstance(value, six.string_types):
+                    clauses.append("%s = %s" % (key, value))
+                elif '%%' in value:
+                    clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
+                elif '%' in value:
+                    clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
+                else:
+                    clauses.append('%s = "%s"' % (key, value))
+            if 'unique_id' not in kwargs and klass:
+                clauses.append('unique_id = head_id')
+            query += ' and '.join(clauses) + ')'
+            if not clauses:
+                query = query.replace(' where ()', '')
+            try:
+                items = [i for i in trans.query(query)]
+            except Exception as e:
+                if 'Unknown column' in str(e):
+                    keys = [k for k in klass.class_traits().keys()
+                            if not k.startswith('_')]
+                    raise ValueError('Invalid column name, valid columns: %s' % keys)
+                else:
+                    raise(e)
+            #print(query+'\n')
+            # print('tables:')
+            # print([t for t in self.db.query('show tables')])
+            items = [klass(**i) for i in items]
+            uids = [i.unique_id for i in items]
+            if not items:
+                return []
+            # get stubs for each of the list items
+            for (tname, trait) in items[0].traits().items():
+                if isinstance(trait, List):
+                    table_name = '_'.join([object_type, tname])
+                    if table_name not in trans:
+                        for i in items:
+                            setattr(i, tname, [])
+                        continue
+                    querystr = 'select * from `%s` where source_id in ("' % table_name
+                    querystr += '" , "'.join(uids)
+                    #print(querystr+'\n')
+                    result = trans.query(querystr + '")')
+                    sublist = defaultdict(list)
+                    for r in result:
+                        stub = Stub(unique_id=r['target_id'],
+                                    object_type=r['target_table'])
+                        sublist[r['source_id']].append(stub)
                     for i in items:
-                        setattr(i, tname, [])
-                    continue
-                querystr = 'select * from `%s` where source_id in ("' % table_name
-                querystr += '" , "'.join(uids)
-                #print(querystr+'\n')
-                result = self.db.query(querystr + '")')
-                sublist = defaultdict(list)
-                for r in result:
-                    stub = Stub(unique_id=r['target_id'],
-                                object_type=r['target_table'])
-                    sublist[r['source_id']].append(stub)
-                for i in items:
-                    setattr(i, tname, sublist[i.unique_id])
-            elif isinstance(trait, MetInstance):
-                pass
-        for i in items:
-            if not i.prev_uid:
-                i.prev_uid = 'origin'
-            i._changed = False
-        items.sort(key=lambda x: x.last_modified)
+                        setattr(i, tname, sublist[i.unique_id])
+                elif isinstance(trait, MetInstance):
+                    pass
+            for i in items:
+                if not i.prev_uid:
+                    i.prev_uid = 'origin'
+                i._changed = False
+            items.sort(key=lambda x: x.last_modified)
 
         return items
 
@@ -445,34 +443,34 @@ class Workspace(object):
                 clauses.append('%s = "%s"' % (key, value))
         query += ' and '.join(clauses)
         query += ')'
-        self.get_connection()
         if not clauses:
             query = query.replace(' where ()', '')
-        # check for lists items that need removal
-        if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
-            uid_query = query.replace('delete ', 'select unique_id ')
-            uids = [i['unique_id'] for i in self.db.query(uid_query)]
-            sub_query = 'delete from `%s` where source_id in ("%s")'
-            for (tname, trait) in klass.class_traits().items():
-                table_name = '%s_%s' % (object_type, tname)
-                if not uids or table_name not in self.db:
-                    continue
-                if isinstance(trait, MetList):
-                    table_query = sub_query % (table_name, '", "'.join(uids))
-                    try:
-                        self.db.query(table_query)
-                    except Exception as e:
-                        print(e)
-        try:
-            self.db.query(query)
-        except Exception as e:
-            if 'Unknown column' in str(e):
-                keys = [k for k in klass.class_traits().keys()
-                        if not k.startswith('_')]
-                raise ValueError('Invalid column name, valid columns: %s' % keys)
-            else:
-                raise(e)
-        print('Removed')
+        with dataset.connect(self.path) as trans:
+            # check for lists items that need removal
+            if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
+                uid_query = query.replace('delete ', 'select unique_id ')
+                uids = [i['unique_id'] for i in trans.query(uid_query)]
+                sub_query = 'delete from `%s` where source_id in ("%s")'
+                for (tname, trait) in klass.class_traits().items():
+                    table_name = '%s_%s' % (object_type, tname)
+                    if not uids or table_name not in trans:
+                        continue
+                    if isinstance(trait, MetList):
+                        table_query = sub_query % (table_name, '", "'.join(uids))
+                        try:
+                            trans.query(table_query)
+                        except Exception as e:
+                            print(e)
+            try:
+                trans.query(query)
+            except Exception as e:
+                if 'Unknown column' in str(e):
+                    keys = [k for k in klass.class_traits().keys()
+                            if not k.startswith('_')]
+                    raise ValueError('Invalid column name, valid columns: %s' % keys)
+                else:
+                    raise(e)
+            print('Removed')
         self.db = None
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
@@ -496,26 +494,26 @@ class Workspace(object):
         ids = defaultdict(list)
         username = getpass.getuser()
         attr = 'head_id' if all_versions else 'unique_id'
-        self.get_connection()
-        for obj in objects:
-            if not override and obj.username != username:
-                continue
-            name = self.tablename_lut[obj.__class__]
-            ids[name].append(getattr(obj, attr))
-            # remove list items as well
-            for (tname, trait) in obj.traits().items():
-                if isinstance(trait, MetList):
-                    subname = '%s_%s' % (name, tname)
-                    ids[subname].append(getattr(obj, attr))
-        for (table_name, uids) in ids.items():
-            if table_name not in self.db:
-                continue
-            query = 'delete from `%s` where %s in ("'
-            query = query % (table_name, attr)
-            query += '" , "'.join(uids)
-            query += '")'
-            self.db.query(query)
-        print(('Removed %s object(s)' % len(objects)))
+        with dataset.connect(self.path) as trans:
+            for obj in objects:
+                if not override and obj.username != username:
+                    continue
+                name = self.tablename_lut[obj.__class__]
+                ids[name].append(getattr(obj, attr))
+                # remove list items as well
+                for (tname, trait) in obj.traits().items():
+                    if isinstance(trait, MetList):
+                        subname = '%s_%s' % (name, tname)
+                        ids[subname].append(getattr(obj, attr))
+            for (table_name, uids) in ids.items():
+                if table_name not in trans:
+                    continue
+                query = 'delete from `%s` where %s in ("'
+                query = query % (table_name, attr)
+                query += '" , "'.join(uids)
+                query += '")'
+                trans.query(query)
+            print(('Removed %s object(s)' % len(objects)))
         self.db = None
 
 

@@ -163,6 +163,8 @@ class MetatlasDataset:
             exclude_files: array of strings that will exclude files if they are substrings of the filename
         """
         self.ids = ids
+        self._atlas = None
+        self._atlas_valid = False
         self._atlas_df = None
         self._atlas_df_valid = False
         self._runs = None
@@ -424,7 +426,7 @@ class MetatlasDataset:
     def atlas(self, atlas):
         """atlas setter, invalidate atlas_df and data"""
         if not isinstance(atlas, metob.Atlas):
-            raise TypeError("Cannot set atlas to container a non-Atlas object")
+            raise TypeError("Cannot set atlas to contain a non-Atlas object")
         self._set_and_invalidate_properties("atlas", atlas, ["atlas_df", "data"])
 
     @property
@@ -685,8 +687,8 @@ class MetatlasDataset:
             try:
                 if overlap:
                     raise ValueError(
-                        "Not saving groups as you have already saved groups with these names: %s.",
-                        ", ".join(overlap),
+                        "Not saving groups as you have already saved groups with these names: %s."
+                        % ", ".join(overlap),
                     )
             except ValueError as err:
                 logger.exception(err)
@@ -821,13 +823,13 @@ def get_atlas(name, username):
     atlases = metob.retrieve("Atlas", name=name, username=username)
     try:
         if len(atlases) == 0:
-            raise ValueError(f'Database does not contain an atlas named "{name}" and owned by {username}.')
+            raise ValueError(f'Database does not contain an atlas {name} owned by {username}.')
     except ValueError as err:
         logger.exception(err)
         raise err
     try:
         if len(atlases) > 1:
-            raise ValueError(f'Database contains more than one atlas named "{name}" and owned by {username}.')
+            raise ValueError(f'Database contains more than one atlas {name} owned by {username}.')
     except ValueError as err:
         logger.exception(err)
         raise err

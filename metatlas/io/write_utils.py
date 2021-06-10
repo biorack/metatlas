@@ -5,8 +5,6 @@ import logging
 import os
 import tempfile
 
-import pandas as pd
-
 logger = logging.getLogger(__name__)
 
 

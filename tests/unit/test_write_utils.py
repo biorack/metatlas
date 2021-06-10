@@ -7,13 +7,6 @@ import pandas
 from metatlas.io import write_utils
 
 
-@pytest.fixture(scope="function", autouse=True)
-def change_test_dir(request):
-    os.chdir(request.fspath.dirname)
-    yield
-    os.chdir(request.config.invocation_dir)
-
-
 def test_make_dir_for01(mocker):
     mocker.patch("os.makedirs")
     write_utils.make_dir_for("foo/bar")
@@ -69,25 +62,22 @@ def test_raise_on_diff03(mocker):
         write_utils.raise_on_diff(to_write, "foo/bar", "test")
 
 
-def test_export_dataframe_die_on_diff01(mocker):
-    mocker.patch("os.path.exists", return_value=False)
+def test_export_dataframe_die_on_diff01():
     dataframe = pandas.DataFrame({1: [10], 2: [20]})
     write_utils.export_dataframe_die_on_diff(dataframe, "foo/bar", "test")
     # Should not raise an error. No assert needed.
 
 
-def test_export_dataframe_die_on_diff02(mocker):
-    mocker.patch("os.path.exists", return_value=True)
+def test_export_dataframe_die_on_diff02():
     dataframe = pandas.DataFrame({1: [10], 2: [20]})
-    mocker.patch("pandas.read_csv", return_value=dataframe)
+    write_utils.export_dataframe(dataframe, "foo/bar", "test")
     write_utils.export_dataframe_die_on_diff(dataframe, "foo/bar", "test")
     # Should not raise an error. No assert needed.
 
 
-def test_export_dataframe_die_on_diff03(mocker):
-    mocker.patch("os.path.exists", return_value=True)
+def test_export_dataframe_die_on_diff03():
     existing = pandas.DataFrame({1: [10], 2: [20]})
-    mocker.patch("pandas.read_csv", return_value=existing)
+    write_utils.export_dataframe(existing, "foo/bar", "test")
     to_write = pandas.DataFrame({1: [10], 2: [99]})
     with pytest.raises(ValueError):
         write_utils.export_dataframe_die_on_diff(to_write, "foo/bar", "test")

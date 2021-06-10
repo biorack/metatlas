@@ -5,25 +5,13 @@ import datetime
 import glob
 import logging
 import os
+
 import pandas as pd
 import pytest
+
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
-
-
-@pytest.fixture(scope="function", autouse=True)
-def change_test_dir(request):
-    os.chdir(request.fspath.dirname)
-    yield
-    os.chdir(request.config.invocation_dir)
-
-
-@pytest.fixture(scope="function", autouse=True)
-def set_env_vars(tmp_path, monkeypatch):
-    monkeypatch.setenv("METATLAS_LOCAL", "TRUE")
-    db_path = tmp_path / "workspace.db"
-    monkeypatch.setenv("METATLAS_SQLITE", str(db_path))
 
 
 def test_metatlas_dataset_build01(metatlas_dataset):
@@ -58,8 +46,8 @@ def test_filter_compounds_ms1_notes_remove01(mocker, metatlas_dataset_with_2_cid
     assert len(metatlas_dataset[0]) == 1
 
 
-def test_filter_compounds01(mocker, metatlas_dataset_with_2_cids, compound):
-    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[compound])
+def test_filter_compounds01(metatlas_dataset_with_2_cids):
+    # mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[compound])
     metatlas_dataset = metatlas_dataset_with_2_cids
     metatlas_dataset.filter_compounds(remove_idxs=[])
     assert len(metatlas_dataset[0]) == 2
@@ -335,17 +323,55 @@ def test_set_data01(metatlas_dataset):
     assert metatlas_dataset[0][0]["identification"].ms2_notes == "extact match"
 
 
-def test_store_atlas01(metatlas_dataset, sqlite):
-    metatlas_dataset.atlas.name = "test_store_atlas01"
+def test_store_atlas99(atlas, sqlite, username):
+    atlas.name = "test_store_atlas01"
+    atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(atlas_list) == 0
+    metob.store(atlas)
+    second = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(second) == 1
+
+
+def test_store_atlas98(metatlas_dataset, atlas, sqlite, username):
+    atlas.name = "test_store_atlas01"
+    atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(atlas_list) == 0
     metatlas_dataset.store_atlas()
-    atlas_list = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username="*")
-    assert len(atlas_list) == 1
+    second = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(second) == 1
+
+
+def test_store_atlas97(metatlas_dataset, atlas, sqlite, username):
+    atlas.name = "test_store_atlas01"
+    atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(atlas_list) == 0
+    metatlas_dataset.store_atlas(name='foobar', even_if_exists=True)
+    second = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(second) == 1
+
+
+def test_store_atlas96(metatlas_dataset, atlas, sqlite, username):
+    atlas.name = "test_store_atlas01"
+    atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(atlas_list) == 0
+    metatlas_dataset.store_atlas(name='foobar', even_if_exists=True)
+    second = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(second) == 1
+
+
+def test_store_atlas01(metatlas_dataset, sqlite, username):
+    metatlas_dataset.atlas.name = "test_store_atlas01"
+    atlas_list = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
+    assert len(atlas_list) == 0
+    metatlas_dataset.store_atlas()
+    second = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
+    assert len(second) == 1
     metatlas_dataset.store_atlas(even_if_exists=True)
     with pytest.raises(ValueError):
         metatlas_dataset.store_atlas()
 
 
-def test_analysis_identifiers01():
+def test_analysis_identifiers01(sqlite):
     with pytest.raises(ValueError):
         mads.AnalysisIdentifiers(
             "source_atlas_name_not_valid",
@@ -357,10 +383,10 @@ def test_analysis_identifiers01():
         )
 
 
-def test_analysis_identifiers02():
+def test_analysis_identifiers02(mocker, sqlite_with_atlas, username):
     with pytest.raises(ValueError):
         mads.AnalysisIdentifiers(
-            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
+            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "output_type_not_valid",
             "polarity_not_valid",
@@ -369,10 +395,10 @@ def test_analysis_identifiers02():
         )
 
 
-def test_analysis_identifiers03():
+def test_analysis_identifiers03(mocker, username):
     with pytest.raises(ValueError):
         mads.AnalysisIdentifiers(
-            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
+            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "FinalEMA-HILIC",
             "polarity_not_valid",
@@ -381,11 +407,10 @@ def test_analysis_identifiers03():
         )
 
 
-def test_analysis_identifiers04(mocker):
-    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[True])
+def test_analysis_identifiers04(mocker, username):
     with pytest.raises(TypeError):
         mads.AnalysisIdentifiers(
-            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
+            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "FinalEMA-HILIC",
             "positive",
@@ -394,11 +419,10 @@ def test_analysis_identifiers04(mocker):
         )
 
 
-def test_analysis_identifiers05(mocker):
-    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[True])
+def test_analysis_identifiers05(mocker, username):
     with pytest.raises(TypeError):
         mads.AnalysisIdentifiers(
-            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
+            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "FinalEMA-HILIC",
             "positive",
@@ -407,11 +431,10 @@ def test_analysis_identifiers05(mocker):
         )
 
 
-def test_analysis_identifiers06(mocker):
-    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[True])
+def test_analysis_identifiers06(mocker, username):
     with pytest.raises(ValueError):
         mads.AnalysisIdentifiers(
-            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
+            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
             "FinalEMA-HILIC",
             "positive",
@@ -420,10 +443,10 @@ def test_analysis_identifiers06(mocker):
         )
 
 
-def test_analysis_identifiers07():
+def test_analysis_identifiers07(mocker, username):
     with pytest.raises(ValueError):
         mads.AnalysisIdentifiers(
-            "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0",
+            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "experiemnt_name_not_valid",
             "output_type_not_valid",
             "polarity_not_valid",
@@ -432,14 +455,14 @@ def test_analysis_identifiers07():
         )
 
 
-def test_analysis_identifiers_atlas01(analysis_ids):
-    assert analysis_ids.atlas == "505892_OakGall_final_POS_root0"
+def test_analysis_identifiers_atlas01(analysis_ids, username):
+    assert analysis_ids.atlas == f"505892_OakGall_final_POS_{username}0"
 
 
-def test_analysis_identifiers_atlas02(analysis_ids):
+def test_analysis_identifiers_atlas02(analysis_ids, username):
     # call .atlas twice to get cached value
     analysis_ids.atlas  # pylint: disable=pointless-statement
-    assert analysis_ids.atlas == "505892_OakGall_final_POS_root0"
+    assert analysis_ids.atlas == f"505892_OakGall_final_POS_{username}0"
 
 
 def test_write_data_source_files01(metatlas_dataset, mocker, caplog):
@@ -458,7 +481,7 @@ def test_write_data_source_files02(metatlas_dataset, mocker, caplog):
     assert ma_data.make_data_sources_tables.called  # pylint: disable=no-member
 
 
-def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, atlas):
+def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, atlas, username):
     mocker.patch(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
@@ -466,7 +489,7 @@ def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, atlas):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[atlas])
     mocker.patch("glob.glob", return_value=range(10))
     metatlas_dataset = mads.MetatlasDataset(analysis_ids)
-    assert metatlas_dataset.atlas.name == "505892_OakGall_final_POS_root0"
+    assert metatlas_dataset.atlas.name == f"505892_OakGall_final_POS_{username}0"
 
 
 def test_get_atlas02(mocker, analysis_ids, caplog):
@@ -501,24 +524,18 @@ def test_store_groups01(metatlas_dataset, mocker):
     assert metob.store.called  # pylint: disable=no-member
 
 
-def test_store_groups02(metatlas_dataset, mocker):
+def test_store_groups02(metatlas_dataset, mocker, username):
     def group():
         pass
 
-    group.name = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S1"
+    group.name = f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}0_Cone-S1"
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[group])
     with pytest.raises(ValueError):
         metatlas_dataset.store_groups()
 
 
-def test_annotation_gui01(metatlas_dataset, mocker):
-    mocker.patch(
-        "metatlas.plots.dill2plots.get_msms_hits",
-        return_value=pd.DataFrame(
-            {"score": [], "inchi_key": [], "measured_precursor_mz": []},
-            index=pd.MultiIndex.from_tuples([], names=["msms_scan"]),
-        ),
-    )
+def test_annotation_gui01(metatlas_dataset, hits, mocker):
+    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     agui = metatlas_dataset.annotation_gui()
     agui.compound_idx = 0
     agui.set_msms_flag("1, co-isolated precursor but all reference ions are in sample spectrum")
@@ -534,25 +551,8 @@ def test_annotation_gui01(metatlas_dataset, mocker):
     )
 
 
-def test_generate_all_outputs01(metatlas_dataset, mocker):
-    mocker.patch(
-        "metatlas.plots.dill2plots.get_msms_hits",
-        return_value=pd.DataFrame(
-            {
-                "score": [],
-                "inchi_key": [],
-                "measured_precursor_mz": [],
-                "precursor_mz": [],
-                "file_name": [],
-                "msv_query_aligned": [],
-                "msv_ref_aligned": [],
-            },
-            index=pd.MultiIndex.from_tuples([], names=["msms_scan"]),
-        ),
-    )
+def test_generate_all_outputs01(metatlas_dataset, hits, mocker):
+    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", hits)
     metatlas_dataset.generate_all_outputs()
     assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 12
     assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 23
-
-
-# 49, 51, 53, 55, 57, 79-80, 174, 198-214, 233-234, 576, 581, 672-682, 686-688, 691, 702-708

@@ -90,3 +90,4 @@ scratch/
 
 # editor swap files
 .*.swp
+.vscode/
