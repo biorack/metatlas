@@ -343,18 +343,17 @@ class MetatlasDataset:
         keep_idxs = dp.strong_signal_compound_idxs(self, num_points, peak_height)
         self.filter_compounds(keep_idxs=keep_idxs, name=name)
 
-    def store_atlas(self, name=None, even_if_exists=False):
+    def store_atlas(self, even_if_exists=False):
         """
         inputs:
-            name: name to save to database, if None then use self.atlas.name
             even_if_exists: if True, will save the atlas even if the atlas name already is in the database
                             with your username
         side effects:
             Saves the altas to the database.
             Raises ValueError if even_if_exists==False and name is already in the database with your username
         """
-        name = self.atlas.name if name is None else name
-        username = getpass.getuser()
+        name = self.atlas.name
+        username = self.ids.username
         try:
             if not even_if_exists and len(metob.retrieve("Atlas", name=name, username=username)) > 0:
                 raise ValueError(f"An atlas with name {name} and owned by {username} already exists.")
@@ -539,14 +538,18 @@ class MetatlasDataset:
             compound_idx: index of of compound to update
             which: 'rt_min', 'rt_max', or 'rt_peak'
             time: a floating point value for the number of minutes
-        updates the RT value in 3 places so that no datastructures need to be invalidated
+        updates the RT value in database, self.atlas, self.atlas_df, self.data
+        so that no datastructures need to be invalidated
         """
         assert which in ["rt_min", "rt_peak", "rt_max"]
         atlas_rt_ref = self.atlas.compound_identifications[compound_idx].rt_references[0]
         setattr(atlas_rt_ref, which, time)
-        data_rt_ref = self.data[0][compound_idx]["identification"].rt_references[0]
-        setattr(data_rt_ref, which, time)
         self.atlas_df.loc[compound_idx, which] = time
+        _ = [
+            setattr(sample[compound_idx]["identification"].rt_references[0], which, time)
+            for sample in self.data
+        ]
+        metob.store(atlas_rt_ref)
 
     def set_note(self, compound_idx, which, value):
         """
@@ -554,7 +557,8 @@ class MetatlasDataset:
             compound_idx: index of of compound to update
             which: 'ms1_notes', 'ms2_notes' or 'identification_notes'
             value: a string with the note content
-        updates the RT value in 3 places so that no datastructures need to be invalidated
+        updates the notes value in database, self.atlas, self.atlas_df, self.data
+        so that no datastructures need to be invalidated
         """
         assert which in ["ms1_notes", "ms2_notes", "identification_notes"]
         atlas_cid = self.atlas.compound_identifications[compound_idx]
@@ -562,6 +566,7 @@ class MetatlasDataset:
         data_cid = self.data[0][compound_idx]["identification"]
         setattr(data_cid, which, value)
         self.atlas_df.loc[compound_idx, which] = value
+        metob.store(atlas_cid)
 
     def compound_indices_marked_remove(self):
         """
@@ -823,13 +828,13 @@ def get_atlas(name, username):
     atlases = metob.retrieve("Atlas", name=name, username=username)
     try:
         if len(atlases) == 0:
-            raise ValueError(f'Database does not contain an atlas {name} owned by {username}.')
+            raise ValueError(f"Database does not contain an atlas {name} owned by {username}.")
     except ValueError as err:
         logger.exception(err)
         raise err
     try:
         if len(atlases) > 1:
-            raise ValueError(f'Database contains more than one atlas {name} owned by {username}.')
+            raise ValueError(f"Database contains more than one atlas {name} owned by {username}.")
     except ValueError as err:
         logger.exception(err)
         raise err

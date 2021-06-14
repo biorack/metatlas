@@ -575,7 +575,6 @@ class adjust_rt_for_selected_compound(object):
     def set_flag(self, name, value):
         logger.debug('Setting flag "%s" to "%s".', name, value)
         self.data.set_note(self.compound_idx, name, value)
-        metob.store(self.data[0][self.compound_idx]['identification'])
 
     def set_peak_flag(self, label):
         self.set_flag('ms1_notes', label)
@@ -695,7 +694,6 @@ class adjust_rt_for_selected_compound(object):
         line = {'rt_min': self.min_line, 'rt_peak': self.peak_line, 'rt_max': self.max_line}
         self.data.set_rt(self.compound_idx, which, val)
         slider[which].valinit = val
-        metob.store(self.data.rts[self.compound_idx])
         line[which].set_xdata((val, val))
         if which != 'rt_peak':
             self.msms_zoom_factor = 1

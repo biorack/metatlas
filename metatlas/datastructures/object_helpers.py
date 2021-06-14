@@ -175,21 +175,6 @@ class Workspace(object):
         self.seen = dict()
         Workspace.instance = self
 
-    def get_connection(self):
-        """
-        Get a re-useable connection to the database.
-
-        Each activity that queries the database needs to have this function preceeding it.
-
-        """
-        try:
-            if self.db.engine.name == 'mysql':
-                r = self.db.query('show tables')
-            else:
-                self.db.query('SELECT name FROM sqlite_master WHERE type = "table"')
-        except Exception:
-            self.db = dataset.connect(self.path)
-
     def convert_to_double(self, table, entry):
         """Convert a table column to double type."""
         with dataset.connect(self.path) as trans:
@@ -230,9 +215,6 @@ class Workspace(object):
                         self.fix_table(table_name)
                 trans[table_name].insert_many(inserts)
                 # print(table_name,inserts)
-        with dataset.connect(self.path) as trans:
-            pass
-        self.db = None
 
     def create_link_tables(self, klass):
         """
@@ -250,7 +232,6 @@ class Workspace(object):
                                     target_id=uuid.uuid4().hex,
                                     target_table=uuid.uuid4().hex)
                         trans[table_name].insert(link)
-        self.db = None
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
@@ -357,8 +338,6 @@ class Workspace(object):
                     clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
                 else:
                     clauses.append('%s = "%s"' % (key, value))
-            if 'unique_id' not in kwargs and klass:
-                clauses.append('unique_id = head_id')
             query += ' and '.join(clauses) + ')'
             if not clauses:
                 query = query.replace(' where ()', '')
@@ -373,7 +352,7 @@ class Workspace(object):
                     raise(e)
             #print(query+'\n')
             # print('tables:')
-            # print([t for t in self.db.query('show tables')])
+            # print([t for t in trans.query('show tables')])
             items = [klass(**i) for i in items]
             uids = [i.unique_id for i in items]
             if not items:
@@ -471,7 +450,6 @@ class Workspace(object):
                 else:
                     raise(e)
             print('Removed')
-        self.db = None
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
         """Remove a list of objects from the database."""
@@ -514,7 +492,6 @@ class Workspace(object):
                 query += '")'
                 trans.query(query)
             print(('Removed %s object(s)' % len(objects)))
-        self.db = None
 
 
 def format_timestamp(tstamp):

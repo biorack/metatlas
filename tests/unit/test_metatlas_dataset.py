@@ -1,10 +1,9 @@
 """ tests for MetatasDataset """
-# pylint: disable=missing-function-docstring,protected-access,unused-argument
+# pylint: disable=missing-function-docstring,protected-access,unused-argument,too-many-arguments
 
 import datetime
 import glob
 import logging
-import os
 
 import pandas as pd
 import pytest
@@ -119,11 +118,10 @@ def test_rts02(metatlas_dataset):
     assert len(metatlas_dataset.rts) == 1
 
 
-def test_rts03(metatlas_dataset, analysis_ids, sqlite):
+def test_rts03(metatlas_dataset, analysis_ids):
+    assert metatlas_dataset.rts[0].rt_max != 9.99
     metatlas_dataset.set_rt(0, "rt_max", 9.99)
-    metob.store(metatlas_dataset.atlas)
-    atlas_from_db = metob.retrieve("Atlas", unique_id=metatlas_dataset.atlas.unique_id)[0]
-    second_metatlas_dataset = mads.MetatlasDataset(analysis_ids, atlas_from_db)
+    second_metatlas_dataset = mads.MetatlasDataset(analysis_ids)
     assert second_metatlas_dataset.rts[0].rt_max == 9.99
     assert len(second_metatlas_dataset.rts) == 1
 
@@ -323,7 +321,7 @@ def test_set_data01(metatlas_dataset):
     assert metatlas_dataset[0][0]["identification"].ms2_notes == "extact match"
 
 
-def test_store_atlas99(atlas, sqlite, username):
+def test_store_atlas01(atlas, sqlite, username):
     atlas.name = "test_store_atlas01"
     atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)
     assert len(atlas_list) == 0
@@ -332,34 +330,24 @@ def test_store_atlas99(atlas, sqlite, username):
     assert len(second) == 1
 
 
-def test_store_atlas98(metatlas_dataset, atlas, sqlite, username):
-    atlas.name = "test_store_atlas01"
-    atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)
+def test_store_atlas02(metatlas_dataset, username):
+    atlas_list = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
     assert len(atlas_list) == 0
     metatlas_dataset.store_atlas()
-    second = metob.retrieve("Atlas", name=atlas.name, username=username)
+    second = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
     assert len(second) == 1
 
 
-def test_store_atlas97(metatlas_dataset, atlas, sqlite, username):
-    atlas.name = "test_store_atlas01"
-    atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)
+def test_store_atlas03(metatlas_dataset, atlas, sqlite, username):
+    metatlas_dataset.atlas.name = "test_store_atlas01"
+    atlas_list = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
     assert len(atlas_list) == 0
-    metatlas_dataset.store_atlas(name='foobar', even_if_exists=True)
-    second = metob.retrieve("Atlas", name=atlas.name, username=username)
+    metatlas_dataset.store_atlas()
+    second = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
     assert len(second) == 1
 
 
-def test_store_atlas96(metatlas_dataset, atlas, sqlite, username):
-    atlas.name = "test_store_atlas01"
-    atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)
-    assert len(atlas_list) == 0
-    metatlas_dataset.store_atlas(name='foobar', even_if_exists=True)
-    second = metob.retrieve("Atlas", name=atlas.name, username=username)
-    assert len(second) == 1
-
-
-def test_store_atlas01(metatlas_dataset, sqlite, username):
+def test_store_atlas04(metatlas_dataset, sqlite, username):
     metatlas_dataset.atlas.name = "test_store_atlas01"
     atlas_list = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
     assert len(atlas_list) == 0
@@ -372,7 +360,7 @@ def test_store_atlas01(metatlas_dataset, sqlite, username):
 
 
 def test_analysis_identifiers01(sqlite):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Database does not contain an atlas.*"):
         mads.AnalysisIdentifiers(
             "source_atlas_name_not_valid",
             "experiment_not_valid",
@@ -383,8 +371,10 @@ def test_analysis_identifiers01(sqlite):
         )
 
 
-def test_analysis_identifiers02(mocker, sqlite_with_atlas, username):
-    with pytest.raises(ValueError):
+def test_analysis_identifiers02(sqlite_with_atlas, username):
+    with pytest.raises(
+        ValueError, match='Parameter output_type is not one of "ISTDsEtc" or "FinalEMA-HILIC".'
+    ):
         mads.AnalysisIdentifiers(
             f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
@@ -395,8 +385,8 @@ def test_analysis_identifiers02(mocker, sqlite_with_atlas, username):
         )
 
 
-def test_analysis_identifiers03(mocker, username):
-    with pytest.raises(ValueError):
+def test_analysis_identifiers03(username, sqlite_with_atlas):
+    with pytest.raises(ValueError, match='Parameter polarity is not one of "positive" or "negative".'):
         mads.AnalysisIdentifiers(
             f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
@@ -407,8 +397,8 @@ def test_analysis_identifiers03(mocker, username):
         )
 
 
-def test_analysis_identifiers04(mocker, username):
-    with pytest.raises(TypeError):
+def test_analysis_identifiers04(username, sqlite_with_atlas):
+    with pytest.raises(TypeError, match="Parameter analysis_number is not an integer."):
         mads.AnalysisIdentifiers(
             f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
@@ -419,8 +409,8 @@ def test_analysis_identifiers04(mocker, username):
         )
 
 
-def test_analysis_identifiers05(mocker, username):
-    with pytest.raises(TypeError):
+def test_analysis_identifiers05(username, sqlite_with_atlas):
+    with pytest.raises(TypeError, match="Parameter analysis_number is not an integer."):
         mads.AnalysisIdentifiers(
             f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
@@ -431,8 +421,8 @@ def test_analysis_identifiers05(mocker, username):
         )
 
 
-def test_analysis_identifiers06(mocker, username):
-    with pytest.raises(ValueError):
+def test_analysis_identifiers06(username, sqlite_with_atlas):
+    with pytest.raises(ValueError, match="Parameter analysis_number cannot be negative."):
         mads.AnalysisIdentifiers(
             f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
@@ -443,11 +433,11 @@ def test_analysis_identifiers06(mocker, username):
         )
 
 
-def test_analysis_identifiers07(mocker, username):
-    with pytest.raises(ValueError):
+def test_analysis_identifiers07(username, sqlite_with_atlas):
+    with pytest.raises(ValueError, match='Parameter experiment does contain 9 fields when split on "_".'):
         mads.AnalysisIdentifiers(
             f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
-            "experiemnt_name_not_valid",
+            "experiment_name_not_valid",
             "output_type_not_valid",
             "polarity_not_valid",
             "analysis_number_not_valid",
@@ -497,14 +487,14 @@ def test_get_atlas02(mocker, analysis_ids, caplog):
     caplog.set_level(logging.INFO)
     with pytest.raises(ValueError):
         mads.MetatlasDataset(analysis_ids)
-    assert "Database does not contain an atlas named" in caplog.text
+    assert "Database does not contain an atlas" in caplog.text
 
 
 def test_get_atlas03(mocker, analysis_ids, caplog):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[0, 0])
     with pytest.raises(ValueError):
         mads.MetatlasDataset(analysis_ids)
-    assert "Database contains more than one atlas named" in caplog.text
+    assert "Database contains more than one atlas" in caplog.text
 
 
 def test_existing_groups(mocker, metatlas_dataset):
@@ -528,7 +518,9 @@ def test_store_groups02(metatlas_dataset, mocker, username):
     def group():
         pass
 
-    group.name = f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}0_Cone-S1"
+    group.name = (
+        f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}0_Cone-S1"
+    )
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[group])
     with pytest.raises(ValueError):
         metatlas_dataset.store_groups()
@@ -552,7 +544,7 @@ def test_annotation_gui01(metatlas_dataset, hits, mocker):
 
 
 def test_generate_all_outputs01(metatlas_dataset, hits, mocker):
-    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", hits)
+    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     metatlas_dataset.generate_all_outputs()
     assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 12
     assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 23
