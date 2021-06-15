@@ -126,6 +126,20 @@ def test_rts03(metatlas_dataset, analysis_ids):
     assert len(second_metatlas_dataset.rts) == 1
 
 
+def test_rts04(analysis_ids, sqlite_with_atlas, mocker, lcmsrun, df_container):
+    mocker.patch(
+        "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
+    )
+    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
+    first = mads.MetatlasDataset(analysis_ids)
+    first.set_rt(0, "rt_max", 1.11)
+    second = mads.MetatlasDataset(analysis_ids)
+    assert second.rts[0].rt_max == 1.11
+    second.set_rt(0, "rt_max", 2.22)
+    third = mads.MetatlasDataset(analysis_ids)
+    assert third.rts[0].rt_max == 2.22
+
+
 def test_set_note01(metatlas_dataset, sqlite):
     metatlas_dataset.set_note(0, "ms2_notes", "Foobar")
     assert metatlas_dataset[0][0]["identification"].ms2_notes == "Foobar"
@@ -332,8 +346,8 @@ def test_store_atlas01(atlas, sqlite, username):
 
 def test_store_atlas02(metatlas_dataset, username):
     atlas_list = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
-    assert len(atlas_list) == 0
-    metatlas_dataset.store_atlas()
+    assert len(atlas_list) == 1
+    metatlas_dataset.store_atlas(even_if_exists=True)
     second = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
     assert len(second) == 1
 
@@ -476,7 +490,6 @@ def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, atlas, usernam
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[atlas])
     mocker.patch("glob.glob", return_value=range(10))
     metatlas_dataset = mads.MetatlasDataset(analysis_ids)
     assert metatlas_dataset.atlas.name == f"505892_OakGall_final_POS_{username}0"
@@ -490,11 +503,19 @@ def test_get_atlas02(mocker, analysis_ids, caplog):
     assert "Database does not contain an atlas" in caplog.text
 
 
-def test_get_atlas03(mocker, analysis_ids, caplog):
+def test_get_atlas03(mocker, analysis_ids, caplog, username):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[0, 0])
     with pytest.raises(ValueError):
         mads.MetatlasDataset(analysis_ids)
-    assert "Database contains more than one atlas" in caplog.text
+    assert (
+        f"2 atlases with name 505892_OakGall_final_POS_{username}0 and owned by {username} already exist."
+        in caplog.text
+    )
+
+
+def test_get_atlas04(metatlas_dataset, username):
+    atlases = metob.retrieve("Atlas", name="This_atlas_does_not_exists", username=username)
+    assert len(atlases) == 0
 
 
 def test_existing_groups(mocker, metatlas_dataset):

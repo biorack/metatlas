@@ -57,14 +57,6 @@ class NotifyList(list):
     __iadd__ = callback_method(list.__iadd__)
     __imul__ = callback_method(list.__imul__)
 
-    # Take care to return a new NotifyList if we slice it.
-    if sys.version_info[0] < 3:
-        __setslice__ = callback_method(list.__setslice__)
-        __delslice__ = callback_method(list.__delslice__)
-
-        def __getslice__(self, *args):
-            return self.__class__(list.__getslice__(self, *args))
-
     def __getitem__(self, item):
         if isinstance(item, slice):
             return self.__class__(list.__getitem__(self, item))
@@ -129,10 +121,6 @@ class Workspace(object):
         # from other locations
         # this directory contains the config files
         metatlas_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
-        #print("Metatlas live in ", metatlas_dir)
-
-        host_name = socket.gethostname()
-        #print("asdf you're running on %s at %s " % (host_name, socket.gethostbyname(socket.gethostname())))
         if ON_NERSC:
             with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
                 nersc_info = yaml.safe_load(fid)
@@ -214,7 +202,6 @@ class Workspace(object):
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 trans[table_name].insert_many(inserts)
-                # print(table_name,inserts)
 
     def create_link_tables(self, klass):
         """
@@ -350,9 +337,6 @@ class Workspace(object):
                     raise ValueError('Invalid column name, valid columns: %s' % keys)
                 else:
                     raise(e)
-            #print(query+'\n')
-            # print('tables:')
-            # print([t for t in trans.query('show tables')])
             items = [klass(**i) for i in items]
             uids = [i.unique_id for i in items]
             if not items:
@@ -367,7 +351,6 @@ class Workspace(object):
                         continue
                     querystr = 'select * from `%s` where source_id in ("' % table_name
                     querystr += '" , "'.join(uids)
-                    #print(querystr+'\n')
                     result = trans.query(querystr + '")')
                     sublist = defaultdict(list)
                     for r in result:
@@ -391,10 +374,7 @@ class Workspace(object):
         override = kwargs.pop('_override', False)
         if not override:
             msg = 'Are you sure you want to delete the entries? (Y/N)'
-            if sys.version.startswith('2'):
-                ans = input(msg)
-            else:
-                ans = eval(input(msg))
+            ans = eval(input(msg))
             if not ans[0].lower().startswith('y'):
                 print('Aborting')
                 return
@@ -462,10 +442,7 @@ class Workspace(object):
         if not override:
             msg = ('Are you sure you want to delete the %s object(s)? (Y/N)'
                    % len(objects))
-            if sys.version.startswith('2'):
-                ans = input(msg)
-            else:
-                ans = eval(input(msg))
+            ans = eval(input(msg))
             if not ans[0].lower().startswith('y'):
                 print('Aborting')
                 return
@@ -590,10 +567,7 @@ def get_from_nersc(user, relative_path):
     print(cmd)
     proc = pexpect.spawn(cmd)
     proc.expect("assword:*")
-    if sys.version.startswith('3'):
-        passwd = eval(input())
-    else:
-        passwd = input()
+    passwd = eval(input())
     clear_output()
     proc.send(passwd)
     proc.send('\r')

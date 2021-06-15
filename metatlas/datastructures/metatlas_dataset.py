@@ -215,10 +215,35 @@ class MetatlasDataset:
 
     def _get_atlas(self):
         """Copy source atlas from database into current analysis atlas"""
-        source = get_atlas(self.ids.source_atlas, self.ids.username)
-        self._atlas = source.clone()
-        self._atlas.name = self.ids.atlas
-        self._atlas_valid = True
+        atlases = metob.retrieve("Atlas", name=self.ids.atlas, username=self.ids.username)
+        if len(atlases) == 1:
+            logger.warning(
+                (
+                    "Destination atlas, %s, already exists, so not copying source atlas, "
+                    "%s, to destination. Not overwriting."
+                ),
+                self.ids.atlas,
+                self.ids.source_atlas,
+            )
+            self._atlas = atlases[0]
+            self._atlas_valid = True
+        elif len(atlases) > 1:
+            try:
+                raise ValueError(
+                    (
+                        f"{len(atlases)} atlases with name {self.ids.atlas} "
+                        f"and owned by {self.ids.username} already exist."
+                    )
+                )
+            except ValueError as err:
+                logger.exception(err)
+                raise err
+        else:
+            source = get_atlas(self.ids.source_atlas, self.ids.username)
+            self._atlas = source.clone()
+            self._atlas.name = self.ids.atlas
+            self._atlas_valid = True
+            self.store_atlas()
 
     def _build(self):
         """Populate self._data from database and h5 files."""
@@ -361,6 +386,7 @@ class MetatlasDataset:
             logger.exception(err)
             raise err
         metob.store(self.atlas)
+        logger.info("Atlas %s stored in database with owner %s.", self.ids.atlas, self.ids.username)
 
     def export_atlas_to_csv(self, filename=None):
         """
@@ -544,11 +570,9 @@ class MetatlasDataset:
         assert which in ["rt_min", "rt_peak", "rt_max"]
         atlas_rt_ref = self.atlas.compound_identifications[compound_idx].rt_references[0]
         setattr(atlas_rt_ref, which, time)
-        self.atlas_df.loc[compound_idx, which] = time
-        _ = [
+        for sample in self.data:
             setattr(sample[compound_idx]["identification"].rt_references[0], which, time)
-            for sample in self.data
-        ]
+        self.atlas_df.loc[compound_idx, which] = time
         metob.store(atlas_rt_ref)
 
     def set_note(self, compound_idx, which, value):
@@ -617,6 +641,8 @@ class MetatlasDataset:
             for name, idxs in fields.items():
                 out.loc[i, name] = "_".join([tokens[n] for n in idxs])
             out.loc[i, "last_modified"] = pd.to_datetime(lcms_file.last_modified, unit="s")
+        if out.empty:
+            return out
         out.sort_values(by="last_modified", inplace=True)
         out.drop(columns=["last_modified"], inplace=True)
         out.drop_duplicates(subset=["full_filename"], keep="last", inplace=True)
@@ -655,6 +681,8 @@ class MetatlasDataset:
     def groups_dataframe(self):
         """Returns pandas Dataframe with one group per row"""
         out = pd.DataFrame(self._files_dict).T
+        if out.empty:
+            return out
         out.drop(columns=["object"], inplace=True)
         out.index.name = "filename"
         return out.reset_index()

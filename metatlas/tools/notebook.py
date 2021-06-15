@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 from IPython.core.display import display, HTML
 from metatlas.tools.logging import activate_logging
+from metatlas.tools.logging import activate_module_logging
 
 logger = logging.getLogger(__name__)
 
@@ -86,3 +87,17 @@ def setup(log_level):
     validate_kernel()
     configure_notebook_display()
     configure_pandas_display()
+
+
+def activate_sql_logging(console_level="INFO", console_format=None, file_level="DEBUG", filename=None):
+    """
+    Turns on logging from sqlalchemy.
+    Level 'INFO' gets SQL statements and 'DEBUG' gets SQL statements and results.
+    inputs:
+        console_level: one of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+        console_format: input to logging.setFormatter
+        file_level: one of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+        filename: logging destination
+
+    """
+    activate_module_logging("sqlalchemy.engine", console_level, console_format, file_level, filename)
