@@ -18,6 +18,9 @@ from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 
 MSMS_REFS_PATH = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
+POLARITIES = ['positive', 'negative', 'alternating']
+OUTPUT_TYPES = ["ISTDsEtc", "FinalEMA-HILIC"]
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,10 +59,10 @@ class AnalysisIdentifiers:
         get_atlas(self.source_atlas, self.username)  # will raise error if not found or matches multiple
         if len(self.experiment.split("_")) != 9:
             raise ValueError('Parameter experiment does contain 9 fields when split on "_".')
-        if self.output_type not in ["ISTDsEtc", "FinalEMA-HILIC"]:
-            raise ValueError('Parameter output_type is not one of "ISTDsEtc" or "FinalEMA-HILIC".')
-        if self.polarity not in ["positive", "negative"]:
-            raise ValueError('Parameter polarity is not one of "positive" or "negative".')
+        if self.output_type not in OUTPUT_TYPES:
+            raise ValueError(f"Parameter output_type is not one of: {quoted_string_list(OUTPUT_TYPES)}.")
+        if self.polarity not in POLARITIES:
+            raise ValueError(f"Parameter polarity is not one of: {quoted_string_list(POLARITIES)}.")
         if not isinstance(self.analysis_number, numbers.Integral):
             raise TypeError("Parameter analysis_number is not an integer.")
         if self.analysis_number < 0:
@@ -118,6 +121,11 @@ class AnalysisIdentifiers:
         return self.polarity[:3].upper()
 
     @property
+    def short_polarity_inverse(self):
+        """Returns the short_polarity values not used in this analysis"""
+        return list({[p[:3].upper() for p in POLARITIES]}-set([self.short_polarity]))
+
+    @property
     def output_dir(self):
         """Creates the output directory and returns the path as a string"""
         out = os.path.join(self.project_directory, self.experiment, self.analysis, self.output_type)
@@ -128,7 +136,7 @@ class AnalysisIdentifiers:
 class MetatlasDataset:
     """
     Like the non-object oriented metatlas_dataset, you can index into this class by file_idx and compound_idx:
-    metatlas_dataset = MetatlasDataset(atlas, groups)
+    metatlas_dataset = MetatlasDataset(analysis_ids)
     metatlas_dataset[0][0]['identification'].compound[0].inchi_key
 
     But MetatlasDataset adds additional functionality, such as:
@@ -154,6 +162,7 @@ class MetatlasDataset:
         frag_mz_tolerance=0.01,
         msms_refs_loc=MSMS_REFS_PATH,
         max_cpus=1,
+        save_metadata=True,
     ):
         """
         inputs:
@@ -161,6 +170,7 @@ class MetatlasDataset:
             groups_controlled_vocab: array of strings that will group together when creating groups
                                      application of groups_controlled_vocab is case insensitive
             exclude_files: array of strings that will exclude files if they are substrings of the filename
+            save_metadata: if True, write metadata files containing data sources and LCMS runs short name
         """
         self.ids = ids
         self._atlas = None
@@ -173,6 +183,8 @@ class MetatlasDataset:
         self._data_valid = False
         self._hits = None
         self._hits_valid = False
+        self._groups = None
+        self._groups_valid = False
         self._groups_controlled_vocab = [] if groups_controlled_vocab is None else groups_controlled_vocab
         self._exclude_files = [] if exclude_files is None else exclude_files
         self._extra_time = extra_time
@@ -182,8 +194,9 @@ class MetatlasDataset:
         self._msms_refs_loc = msms_refs_loc
         self.max_cpus = max_cpus
         self._get_atlas()
-        self.write_data_source_files()
-        self.write_lcmsruns_short_names()
+        if save_metadata:
+            self.write_data_source_files()
+            self.write_lcmsruns_short_names()
 
     def write_data_source_files(self):
         """Write the data source files if they don't already exist"""
@@ -690,10 +703,12 @@ class MetatlasDataset:
     @property
     def groups(self):
         """Returns a list of Group objects"""
+        if self._groups_valid:
+            return self._groups
         file_dict = self._files_dict
-        out = []
+        self._groups = []
         for values in self.groups_dataframe.to_dict("index").values():
-            out.append(
+            self._groups.append(
                 metob.Group(
                     name=values["group"],
                     short_name=values["short_name"],
@@ -704,7 +719,8 @@ class MetatlasDataset:
                     ],
                 )
             )
-        return out
+        self._groups_valid = True
+        return self._groups
 
     def store_groups(self, exist_ok=False):
         """
@@ -867,3 +883,8 @@ def get_atlas(name, username):
         logger.exception(err)
         raise err
     return atlases[0]
+
+
+def quoted_string_list(strings):
+    """Adds double quotes around each string and seperates with ', '."""
+    return ', '.join([f'"{x}"' for x in strings])

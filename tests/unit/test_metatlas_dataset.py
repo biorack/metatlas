@@ -569,3 +569,7 @@ def test_generate_all_outputs01(metatlas_dataset, hits, mocker):
     metatlas_dataset.generate_all_outputs()
     assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 12
     assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 23
+
+
+def test_short_polarity_inverse01(analysis_ids):
+    assert analysis_ids.short_polarity_inverse == ['NEG', 'ALT']
