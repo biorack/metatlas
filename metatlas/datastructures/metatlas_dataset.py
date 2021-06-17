@@ -102,7 +102,7 @@ class AnalysisIdentifiers:
     def atlas(self):
         """Atlas identifier (name)"""
         exp_tokens = self.experiment.split("_")
-        return f"{'_'.join(exp_tokens[3:6])}_{self.short_polarity}_{self.analysis}"
+        return f"{'_'.join(exp_tokens[3:6])}_{self.output_type}_{self.short_polarity}_{self.analysis}"
 
     @property
     def username(self):
