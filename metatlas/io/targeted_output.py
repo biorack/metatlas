@@ -20,7 +20,7 @@ def write_atlas_to_spreadsheet(metatlas_dataset, overwrite=False):
     """Save atlas as csv file. Will not overwrite existing file unless overwrite is True"""
     export_atlas_filename = os.path.join(
         metatlas_dataset.ids.output_dir,
-        f"{metatlas_dataset.ids.short_polarity}_{metatlas_dataset.atlas.name}_export",
+        f"{metatlas_dataset.ids.short_polarity}_{metatlas_dataset.atlas.name}_export.csv",
     )
     write_utils.check_existing_file(export_atlas_filename, overwrite)
     dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas, export_atlas_filename)

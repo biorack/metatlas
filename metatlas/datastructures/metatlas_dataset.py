@@ -7,9 +7,11 @@ import multiprocessing
 import numbers
 import os
 import shutil
+import sys
 
 import humanize
 import pandas as pd
+import tqdm
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
@@ -18,7 +20,9 @@ from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 
 MSMS_REFS_PATH = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
-POLARITIES = ['positive', 'negative', 'alternating']
+POLARITIES = ["positive", "negative", "fast-polarity-switching"]
+SHORT_POLARITIES = {"positive": "POS", "negative": "NEG", "fast-polarity-switching": "FPS"}
+
 OUTPUT_TYPES = ["ISTDsEtc", "FinalEMA-HILIC"]
 
 logger = logging.getLogger(__name__)
@@ -56,7 +60,8 @@ class AnalysisIdentifiers:
 
     def validate(self):
         """Valid class inputs"""
-        get_atlas(self.source_atlas, self.username)  # will raise error if not found or matches multiple
+        if self._source_atlas is not None:
+            get_atlas(self.source_atlas, self.username)  # will raise error if not found or matches multiple
         if len(self.experiment.split("_")) != 9:
             raise ValueError('Parameter experiment does contain 9 fields when split on "_".')
         if self.output_type not in OUTPUT_TYPES:
@@ -117,13 +122,13 @@ class AnalysisIdentifiers:
 
     @property
     def short_polarity(self):
-        """Short polarity identifier: first 3 letters, upper case"""
-        return self.polarity[:3].upper()
+        """Short polarity identifier: 3 letters, upper case"""
+        return SHORT_POLARITIES[self.polarity]
 
     @property
     def short_polarity_inverse(self):
         """Returns the short_polarity values not used in this analysis"""
-        return list({[p[:3].upper() for p in POLARITIES]}-set([self.short_polarity]))
+        return list(set(SHORT_POLARITIES.values()) - {self.short_polarity})
 
     @property
     def output_dir(self):
@@ -193,10 +198,12 @@ class MetatlasDataset:
         self._frag_mz_tolerance = frag_mz_tolerance
         self._msms_refs_loc = msms_refs_loc
         self.max_cpus = max_cpus
-        self._get_atlas()
+        if ids.source_atlas is not None:
+            self._get_atlas()
         if save_metadata:
             self.write_data_source_files()
             self.write_lcmsruns_short_names()
+        self.store_groups(exist_ok=True)
 
     def write_data_source_files(self):
         """Write the data source files if they don't already exist"""
@@ -260,6 +267,7 @@ class MetatlasDataset:
 
     def _build(self):
         """Populate self._data from database and h5 files."""
+        logger.info("Loading data into MetatlasDataset")
         start_time = datetime.datetime.now()
         files = []
         for group in self.groups:
@@ -274,11 +282,9 @@ class MetatlasDataset:
                         self.extra_mz,
                     )
                 )
-        if self.max_cpus > 1 and len(files) > 1:
-            with multiprocessing.Pool(processes=min(self.max_cpus, len(files))) as pool:
-                samples = pool.map(ma_data.get_data_for_atlas_df_and_file, files)
-        else:  # skip multiprocessing as this makes for easier debugging
-            samples = [ma_data.get_data_for_atlas_df_and_file(i) for i in files]
+        samples = parallel_process(
+            ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample"
+        )
         self._data = tuple(MetatlasSample(x) for x in samples)
         logger.info(
             "MetatlasDataset with %d files built in %s.",
@@ -620,6 +626,8 @@ class MetatlasDataset:
             return self._runs
         self._runs = dp.get_metatlas_files(experiment=self.ids.experiment, name="%")
         self._runs_valid = True
+        for run in self._runs:
+            logger.info("Run: %s", run.name)
         logger.info("Number of LCMS output files matching '%s' is: %d.", self.ids.experiment, len(self._runs))
         return self._runs
 
@@ -692,7 +700,7 @@ class MetatlasDataset:
 
     @property
     def groups_dataframe(self):
-        """Returns pandas Dataframe with one group per row"""
+        """Returns pandas Dataframe with one row per file"""
         out = pd.DataFrame(self._files_dict).T
         if out.empty:
             return out
@@ -707,7 +715,8 @@ class MetatlasDataset:
             return self._groups
         file_dict = self._files_dict
         self._groups = []
-        for values in self.groups_dataframe.to_dict("index").values():
+        unique_groups = self.groups_dataframe[["group", "short_name"]].drop_duplicates()
+        for values in unique_groups.to_dict("index").values():
             self._groups.append(
                 metob.Group(
                     name=values["group"],
@@ -778,6 +787,7 @@ class MetatlasDataset:
             msms_fragment_ions: if True, generate msms fragment ions report
             overwrite: if False, throw error if any output files already exist
         """
+        self.extra_time = 0.5
         targeted_output.write_atlas_to_spreadsheet(self, overwrite)
         targeted_output.write_stats_table(self, overwrite)
         targeted_output.write_chromatograms(self, overwrite)
@@ -887,4 +897,21 @@ def get_atlas(name, username):
 
 def quoted_string_list(strings):
     """Adds double quotes around each string and seperates with ', '."""
-    return ', '.join([f'"{x}"' for x in strings])
+    return ", ".join([f'"{x}"' for x in strings])
+
+
+def parallel_process(function, data, max_cpus, unit=None):
+    """
+    performs map(function, data) using multiprocessing module but
+    adds a progress bar and bypasses multiprocessing in the 1 cpu case as this makes debugging easier
+    inputs:
+        function: the function to apply
+        data: iterater containing the inputs to function
+        max_cpus: number of cpus to use
+        unit: string label for what is processed in one iteration, default 'it'
+    """
+    kwargs = {"file": sys.stdout, "unit": unit, "colour": "green"}
+    if max_cpus > 1 and len(data) > 1:
+        with multiprocessing.Pool(processes=min(max_cpus, len(data))) as pool:
+            return list(tqdm.tqdm(pool.imap(function, data), length=len(data), **kwargs))
+    return [function(i) for i in tqdm.tqdm(data, **kwargs)]

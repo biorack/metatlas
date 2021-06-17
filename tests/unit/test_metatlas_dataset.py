@@ -387,7 +387,7 @@ def test_analysis_identifiers01(sqlite):
 
 def test_analysis_identifiers02(sqlite_with_atlas, username):
     with pytest.raises(
-        ValueError, match='Parameter output_type is not one of "ISTDsEtc" or "FinalEMA-HILIC".'
+        ValueError, match='Parameter output_type is not one of: "ISTDsEtc", "FinalEMA-HILIC".'
     ):
         mads.AnalysisIdentifiers(
             f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
@@ -400,7 +400,10 @@ def test_analysis_identifiers02(sqlite_with_atlas, username):
 
 
 def test_analysis_identifiers03(username, sqlite_with_atlas):
-    with pytest.raises(ValueError, match='Parameter polarity is not one of "positive" or "negative".'):
+    with pytest.raises(
+        ValueError,
+        match='Parameter polarity is not one of: "positive", "negative", "fast-polarity-switching".',
+    ):
         mads.AnalysisIdentifiers(
             f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
@@ -572,4 +575,4 @@ def test_generate_all_outputs01(metatlas_dataset, hits, mocker):
 
 
 def test_short_polarity_inverse01(analysis_ids):
-    assert analysis_ids.short_polarity_inverse == ['NEG', 'ALT']
+    assert set(analysis_ids.short_polarity_inverse) == {"NEG", "FPS"}

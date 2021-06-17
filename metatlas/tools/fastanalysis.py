@@ -58,24 +58,27 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         metatlas_dataset = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         metatlas_dataset = input_dataset
-
+    dataset = dp.filter_runs(metatlas_dataset, include_lcmsruns, include_groups,
+                             exclude_lcmsruns, exclude_groups)
     metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta',
                'peak_height', 'peak_area', 'num_data_points']
     dfs = {m: None for m in metrics}
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
-        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels, output_loc=os.path.join(output_loc, 'data_sheets'), polarity=polarity)
-    metatlas_dataset = dp.filter_runs(metatlas_dataset, include_lcmsruns, include_groups,
-                                      exclude_lcmsruns, exclude_groups)
+        dfs[metric] = dp.make_output_dataframe(input_dataset=dataset,
+                                               fieldname=metric,
+                                               use_labels=use_labels,
+                                               output_loc=os.path.join(output_loc, 'data_sheets'),
+                                               polarity=polarity)
     final_df = pd.DataFrame(columns=['index'])
-    file_names = ma_data.get_file_names(metatlas_dataset)
-    compound_names = ma_data.get_compound_names(metatlas_dataset, use_labels=use_labels)[0]
+    file_names = ma_data.get_file_names(dataset)
+    compound_names = ma_data.get_compound_names(dataset, use_labels=use_labels)[0]
     passing = {m: np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
 
     dfs['mz_ppm'] = dfs['peak_height'].copy()
     dfs['mz_ppm'] *= np.nan
-    dfs['num_data_points'] = pd.DataFrame([[len(ma_data.extract(metatlas_dataset, [i, j, 'data', 'eic', 'intensity'], default=[]))
-                                           for i in range(len(metatlas_dataset))]
-                                          for j in range(len(metatlas_dataset[0]))])
+    dfs['num_data_points'] = pd.DataFrame([[len(ma_data.extract(dataset, [i, j, 'data', 'eic', 'intensity'], default=[]))
+                                           for i in range(len(dataset))]
+                                          for j in range(len(dataset[0]))])
     dfs['num_data_points'].index = dfs['mz_ppm'].index
     dfs['msms_score'] = dfs['mz_ppm'].copy()
     dfs['num_frag_matches'] = dfs['mz_ppm'].copy()
@@ -92,8 +95,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
 
     for compound_idx, compound_name in enumerate(compound_names):
 
-        ref_rt_peak = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
-        ref_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
+        ref_rt_peak = dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
+        ref_mz = dataset[0][compound_idx]['identification'].mz_references[0].mz
 
         dfs['rt_delta'].iloc[compound_idx] = abs(ref_rt_peak - dfs['rt_peak'].iloc[compound_idx])
         passing['rt_delta'][compound_idx] = (abs(ref_rt_peak - np.nan_to_num(dfs['rt_peak'].iloc[compound_idx].values)) <= rt_tolerance).astype(float)
@@ -102,12 +105,12 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         passing['mz_ppm'][compound_idx] = (dfs['mz_ppm'].iloc[compound_idx].values <= ppm_tolerance).astype(float)
 
         try:
-            inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+            inchi_key = dataset[0][compound_idx]['identification'].compound[0].inchi_key
         except:
             inchi_key = ''
-        compound_ref_rt_min = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_min
-        compound_ref_rt_max = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_max
-        cid = metatlas_dataset[0][compound_idx]['identification']
+        compound_ref_rt_min = dataset[0][compound_idx]['identification'].rt_references[0].rt_min
+        compound_ref_rt_max = dataset[0][compound_idx]['identification'].rt_references[0].rt_max
+        cid = dataset[0][compound_idx]['identification']
         mz_theoretical = cid.mz_references[0].mz
 
         comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) \
@@ -119,7 +122,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         comp_msms_hits = comp_msms_hits.sort_values('score', ascending=False)
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
         if len(comp_msms_hits) > 0 and not np.isnan(np.concatenate(comp_msms_hits['msv_ref_aligned'].values, axis=1)).all():
-            file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
+            file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name'] if f in file_names]
             scores = comp_msms_hits['score'].values.tolist()
             msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
             msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
@@ -130,14 +133,14 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         avg_rt_measured = []
         intensities = pd.DataFrame()
         for file_idx, file_name in enumerate(file_names):
-            if metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']:
-                if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']):
-                    avg_mz_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid'])
-                if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']):
-                    avg_rt_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak'])
-                if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']):
+            if dataset[file_idx][compound_idx]['data']['ms1_summary']:
+                if not np.isnan(dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']):
+                    avg_mz_measured.append(dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid'])
+                if not np.isnan(dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']):
+                    avg_rt_measured.append(dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak'])
+                if not np.isnan(dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']):
                     intensities.loc[file_idx, 'file_id'] = file_idx
-                    intensities.loc[file_idx, 'intensity'] = metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
+                    intensities.loc[file_idx, 'intensity'] = dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
 
         avg_mz_measured = np.mean(avg_mz_measured)
         avg_rt_measured = np.mean(avg_rt_measured)
@@ -159,20 +162,20 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         inchi_key_map = {}
         for compound_iterator in range(len(compound_names)):
             if use_labels:
-                cpd_labels.append(metatlas_dataset[0][compound_iterator]['identification'].name)
+                cpd_labels.append(dataset[0][compound_iterator]['identification'].name)
             else:
-                cpd_labels.append(metatlas_dataset[0][compound_iterator]['identification'].compound[0].name)
+                cpd_labels.append(dataset[0][compound_iterator]['identification'].compound[0].name)
 
         if(len(cid.compound) != 0):
             #Loop through compounds to identify overlapping compounds
             for compound_iterator in range(len(compound_names)):
-                if len(metatlas_dataset[0][compound_iterator]['identification'].compound) == 0:
+                if len(dataset[0][compound_iterator]['identification'].compound) == 0:
                     continue
                 if use_labels:
-                    cpd_iter_label = metatlas_dataset[0][compound_iterator]['identification'].name
+                    cpd_iter_label = dataset[0][compound_iterator]['identification'].name
                 else:
-                    cpd_iter_label = metatlas_dataset[0][compound_iterator]['identification'].compound[0].name
-                cpd_iter_id = metatlas_dataset[0][compound_iterator]['identification']
+                    cpd_iter_label = dataset[0][compound_iterator]['identification'].compound[0].name
+                cpd_iter_id = dataset[0][compound_iterator]['identification']
                 cpd_iter_mz = cpd_iter_id.mz_references[0].mz
                 cid_mass = cid.compound[0].mono_isotopic_molecular_weight
                 cpd_iter_mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
@@ -258,7 +261,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].idxmax()]['intensity']
             max_intensity_file_id = int(intensities.loc[intensities['intensity'].idxmax()]['file_id'])
             final_df.loc[compound_idx, 'max_intensity_file'] = file_names[max_intensity_file_id]
-            final_df.loc[compound_idx, 'ms1_rt_peak'] = metatlas_dataset[max_intensity_file_id][compound_idx]['identification'].rt_references[0].rt_peak
+            final_df.loc[compound_idx, 'ms1_rt_peak'] = dataset[max_intensity_file_id][compound_idx]['identification'].rt_references[0].rt_peak
         else:
             final_df.loc[compound_idx, 'max_intensity'] = ""
             final_df.loc[compound_idx, 'max_intensity_file'] = ""
@@ -290,16 +293,17 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         final_df.loc[compound_idx, 'rt_measured'] = float("%.2f" % avg_rt_measured)
         final_df.loc[compound_idx, 'rt_error'] = float("%.2f" % abs(cid.rt_references[0].rt_peak - avg_rt_measured))
 
-
         for file_idx, file_name in enumerate(file_names):
             if len(msms_hits_df) == 0:
                 rows = []
             else:
-                rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) & \
-                                (msms_hits_df['file_name'] == file_name) & \
-                                (msms_hits_df['msms_scan'] >= compound_ref_rt_min) & (msms_hits_df['msms_scan'] <= compound_ref_rt_max) & \
-                                ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float) - metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz)/metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz) \
-                                   <= metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
+                mz_ref = dataset[0][compound_idx]['identification'].mz_references[0]
+                rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) &
+                                    (msms_hits_df['file_name'] == file_name) &
+                                    (msms_hits_df['msms_scan'] >= compound_ref_rt_min) &
+                                    (msms_hits_df['msms_scan'] <= compound_ref_rt_max) &
+                                    ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float)
+                                      - mz_ref[0].mz)/mz_ref[0].mz) <= mz_ref[0].mz_tolerance*1e-6)]
 
             if len(rows) == 0:
                 dfs['msms_score'].iat[compound_idx, file_idx] = np.nan
