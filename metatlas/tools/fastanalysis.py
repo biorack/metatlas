@@ -303,7 +303,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                                     (msms_hits_df['msms_scan'] >= compound_ref_rt_min) &
                                     (msms_hits_df['msms_scan'] <= compound_ref_rt_max) &
                                     ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float)
-                                      - mz_ref[0].mz)/mz_ref[0].mz) <= mz_ref[0].mz_tolerance*1e-6)]
+                                      - mz_ref.mz)/mz_ref.mz) <= mz_ref.mz_tolerance*1e-6)]
 
             if len(rows) == 0:
                 dfs['msms_score'].iat[compound_idx, file_idx] = np.nan
