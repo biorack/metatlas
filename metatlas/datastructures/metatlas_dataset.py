@@ -8,6 +8,7 @@ import numbers
 import os
 import shutil
 import sys
+import tarfile
 
 import humanize
 import pandas as pd
@@ -118,7 +119,7 @@ class AnalysisIdentifiers:
     def short_experiment_analysis(self):
         """Short experiment analysis identifier"""
         exp_tokens = self.experiment.split("_")
-        return f"{exp_tokens[0]}_{exp_tokens[3]}_{self.analysis}"
+        return f"{exp_tokens[0]}_{exp_tokens[3]}_{self.output_type}_{self.analysis}"
 
     @property
     def short_polarity(self):
@@ -788,6 +789,7 @@ class MetatlasDataset:
             overwrite: if False, throw error if any output files already exist
         """
         self.extra_time = 0.5
+        logger.info("extra_time set to 0.5 minutes for output generation.")
         targeted_output.write_atlas_to_spreadsheet(self, overwrite)
         targeted_output.write_stats_table(self, overwrite)
         targeted_output.write_chromatograms(self, overwrite)
@@ -795,6 +797,13 @@ class MetatlasDataset:
         targeted_output.write_metrics_and_boxplots(self, overwrite)
         if msms_fragment_ions:
             targeted_output.write_msms_fragment_ions(self, overwrite)
+        logger.info("Generation of output files completed sucessfully.")
+        logger.info("Generating archive of output files.")
+        output_path = os.path.join(
+            self.ids.project_directory, self.experiment, f"{self.ids.short_experiment_analysis}.tar.gz"
+        )
+        with tarfile.open(output_path, "w:gz") as tar:
+            tar.add(self.ids.output_dir, arcname=os.path.basename(self.ids.output_dir))
 
 
 class MetatlasSample:
