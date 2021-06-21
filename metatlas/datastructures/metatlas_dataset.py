@@ -800,7 +800,7 @@ class MetatlasDataset:
         logger.info("Generation of output files completed sucessfully.")
         logger.info("Generating archive of output files.")
         output_path = os.path.join(
-            self.ids.project_directory, self.experiment, f"{self.ids.short_experiment_analysis}.tar.gz"
+            self.ids.project_directory, self.ids.experiment, f"{self.ids.short_experiment_analysis}.tar.gz"
         )
         with tarfile.open(output_path, "w:gz") as tar:
             tar.add(self.ids.output_dir, arcname=os.path.basename(self.ids.output_dir))

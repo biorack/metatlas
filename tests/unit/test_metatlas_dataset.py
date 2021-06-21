@@ -463,13 +463,13 @@ def test_analysis_identifiers07(username, sqlite_with_atlas):
 
 
 def test_analysis_identifiers_atlas01(analysis_ids, username):
-    assert analysis_ids.atlas == f"505892_OakGall_final_POS_{username}0"
+    assert analysis_ids.atlas == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
 
 
 def test_analysis_identifiers_atlas02(analysis_ids, username):
     # call .atlas twice to get cached value
     analysis_ids.atlas  # pylint: disable=pointless-statement
-    assert analysis_ids.atlas == f"505892_OakGall_final_POS_{username}0"
+    assert analysis_ids.atlas == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
 
 
 def test_write_data_source_files01(metatlas_dataset, mocker, caplog):
@@ -495,7 +495,7 @@ def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, atlas, usernam
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     mocker.patch("glob.glob", return_value=range(10))
     metatlas_dataset = mads.MetatlasDataset(analysis_ids)
-    assert metatlas_dataset.atlas.name == f"505892_OakGall_final_POS_{username}0"
+    assert metatlas_dataset.atlas.name == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
 
 
 def test_get_atlas02(mocker, analysis_ids, caplog):
@@ -511,7 +511,7 @@ def test_get_atlas03(mocker, analysis_ids, caplog, username):
     with pytest.raises(ValueError):
         mads.MetatlasDataset(analysis_ids)
     assert (
-        f"2 atlases with name 505892_OakGall_final_POS_{username}0 and owned by {username} already exist."
+        f"2 atlases with name 505892_OakGall_final_FinalEMA-HILIC_POS_{username}0 and owned by {username} already exist."
         in caplog.text
     )
 
