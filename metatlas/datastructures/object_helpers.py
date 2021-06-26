@@ -146,6 +146,7 @@ class Workspace(object):
                 self.path = f"sqlite:///{filename}"
                 if os.path.exists(filename):
                     os.chmod(filename, 0o775)
+        logging.warning('Using database at: %s', self.path)
 
         self.tablename_lut = dict()
         self.subclass_lut = dict()
@@ -163,16 +164,38 @@ class Workspace(object):
         self.seen = dict()
         Workspace.instance = self
 
+    def get_connection(self):
+        """
+        Get a re-useable connection to the database.
+        Each activity that queries the database needs to have this function preceeding it.
+        """
+        try:
+            if self.db.engine.name == 'mysql':
+                self.db.query('show tables')
+            else:
+                self.db.query('SELECT name FROM sqlite_master WHERE type = "table"')
+        except Exception:
+            self.db = dataset.connect(self.path)
+
+    def close_connection(self):
+        self.db.close()
+        self.db = None
+
     def convert_to_double(self, table, entry):
         """Convert a table column to double type."""
-        with dataset.connect(self.path) as trans:
-            try:
-                trans.query('alter table `%s` modify `%s` double' % (table, entry))
-            except Exception as e:
-                print(e)
+        self.get_connection()
+        self.db.begin()
+        try:
+            self.db.query('alter table `%s` modify `%s` double' % (table, entry))
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            print(e)
+            logging.error('Transaction rollback within convert_to_double()')
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
+        logging.warning('Entering Workspace.save_objects')
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
@@ -181,44 +204,60 @@ class Workspace(object):
         self._inserts = defaultdict(list)
         for obj in objects:
             self._get_save_data(obj, _override)
-        with dataset.connect(self.path) as trans:
+        logging.warning('Workspace._inserts=%s', self._inserts)
+        self.get_connection()
+        self.db.begin()
+        try:
             for (table_name, updates) in self._link_updates.items():
-                if table_name not in trans:
+                if table_name not in self.db:
                     continue
                 for (uid, prev_uid) in updates:
-                    trans.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
+                    self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' %
+                                  (table_name, prev_uid, uid))
             for (table_name, updates) in self._updates.items():
-                if '_' not in table_name and table_name not in trans:
-                    trans.create_table(table_name, primary_id='unique_id',
-                                       primary_type=trans.types.string(32))
+                if '_' not in table_name and table_name not in self.db:
+                    self.db.create_table(table_name, primary_id='unique_id',
+                                         primary_type=self.db.types.string(32))
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 for (uid, prev_uid) in updates:
-                    trans.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
+                    self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' %
+                                  (table_name, prev_uid, uid))
             for (table_name, inserts) in self._inserts.items():
-                if '_' not in table_name and table_name not in trans:
-                    trans.create_table(table_name, primary_id='unique_id',
-                                       primary_type=trans.types.string(32))
+                if '_' not in table_name and table_name not in self.db:
+                    self.db.create_table(table_name, primary_id='unique_id',
+                                         primary_type=self.db.types.string(32))
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
-                trans[table_name].insert_many(inserts)
+                self.db[table_name].insert_many(inserts)
+                logging.warning('inserting %s', inserts)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            logging.error('Transaction rollback within save_objects()')
 
     def create_link_tables(self, klass):
         """
         Create a link table in the database of the given trait klass
         """
         name = self.table_name[klass]
-        with dataset.connect(self.path) as trans:
+        self.get_connection()
+        self.db.begin()
+        try:
             for (tname, trait) in klass.class_traits().items():
                 if isinstance(trait, MetList):
                     table_name = '_'.join([name, tname])
-                    if table_name not in trans:
-                        trans.create_table(table_name)
+                    if table_name not in self.db:
+                        self.db.create_table(table_name)
                         link = dict(source_id=uuid.uuid4().hex,
                                     head_id=uuid.uuid4().hex,
                                     target_id=uuid.uuid4().hex,
                                     target_table=uuid.uuid4().hex)
-                        trans[table_name].insert(link)
+                        self.db[table_name].insert(link)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            logging.error('Transaction rollback within create_link_tables()')
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
@@ -290,8 +329,11 @@ class Workspace(object):
         """Retrieve an object from the database."""
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
-        with dataset.connect(self.path) as trans:
-            if object_type not in trans:
+        items = []
+        self.get_connection()
+        self.db.begin()
+        try:
+            if object_type not in self.db:
                 if not klass:
                     raise ValueError('Unknown object type: %s' % object_type)
                 object_type = self.tablename_lut[klass]
@@ -329,7 +371,7 @@ class Workspace(object):
             if not clauses:
                 query = query.replace(' where ()', '')
             try:
-                items = [i for i in trans.query(query)]
+                items = list(self.db.query(query))
             except Exception as e:
                 if 'Unknown column' in str(e):
                     keys = [k for k in klass.class_traits().keys()
@@ -345,13 +387,13 @@ class Workspace(object):
             for (tname, trait) in items[0].traits().items():
                 if isinstance(trait, List):
                     table_name = '_'.join([object_type, tname])
-                    if table_name not in trans:
+                    if table_name not in self.db:
                         for i in items:
                             setattr(i, tname, [])
                         continue
                     querystr = 'select * from `%s` where source_id in ("' % table_name
                     querystr += '" , "'.join(uids)
-                    result = trans.query(querystr + '")')
+                    result = self.db.query(querystr + '")')
                     sublist = defaultdict(list)
                     for r in result:
                         stub = Stub(unique_id=r['target_id'],
@@ -366,7 +408,10 @@ class Workspace(object):
                     i.prev_uid = 'origin'
                 i._changed = False
             items.sort(key=lambda x: x.last_modified)
-
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            logging.error('Transaction rollback within retrieve()')
         return items
 
     def remove(self, object_type, **kwargs):
@@ -404,32 +449,38 @@ class Workspace(object):
         query += ')'
         if not clauses:
             query = query.replace(' where ()', '')
-        with dataset.connect(self.path) as trans:
+        self.get_connection()
+        self.db.begin()
+        try:
             # check for lists items that need removal
             if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
                 uid_query = query.replace('delete ', 'select unique_id ')
-                uids = [i['unique_id'] for i in trans.query(uid_query)]
+                uids = [i['unique_id'] for i in self.db.query(uid_query)]
                 sub_query = 'delete from `%s` where source_id in ("%s")'
                 for (tname, trait) in klass.class_traits().items():
                     table_name = '%s_%s' % (object_type, tname)
-                    if not uids or table_name not in trans:
+                    if not uids or table_name not in self.db:
                         continue
                     if isinstance(trait, MetList):
                         table_query = sub_query % (table_name, '", "'.join(uids))
                         try:
-                            trans.query(table_query)
+                            self.db.query(table_query)
                         except Exception as e:
                             print(e)
             try:
-                trans.query(query)
+                self.db.query(query)
             except Exception as e:
                 if 'Unknown column' in str(e):
                     keys = [k for k in klass.class_traits().keys()
                             if not k.startswith('_')]
                     raise ValueError('Invalid column name, valid columns: %s' % keys)
                 else:
-                    raise(e)
+                    raise e
             print('Removed')
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            logging.error('Transaction rollback within retrieve()')
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
         """Remove a list of objects from the database."""
@@ -449,7 +500,9 @@ class Workspace(object):
         ids = defaultdict(list)
         username = getpass.getuser()
         attr = 'head_id' if all_versions else 'unique_id'
-        with dataset.connect(self.path) as trans:
+        self.get_connection()
+        self.db.begin()
+        try:
             for obj in objects:
                 if not override and obj.username != username:
                     continue
@@ -461,14 +514,18 @@ class Workspace(object):
                         subname = '%s_%s' % (name, tname)
                         ids[subname].append(getattr(obj, attr))
             for (table_name, uids) in ids.items():
-                if table_name not in trans:
+                if table_name not in self.db:
                     continue
                 query = 'delete from `%s` where %s in ("'
                 query = query % (table_name, attr)
                 query += '" , "'.join(uids)
                 query += '")'
-                trans.query(query)
+                self.db.query(query)
             print(('Removed %s object(s)' % len(objects)))
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            logging.error('Transaction rollback within remove_objects()')
 
 
 def format_timestamp(tstamp):

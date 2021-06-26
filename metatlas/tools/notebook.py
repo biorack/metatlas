@@ -2,14 +2,14 @@
 
 import logging
 import os
-import shutil
 import sys
 
-from pathlib import Path
 import pandas as pd
 from IPython.core.display import display, HTML
 from metatlas.tools.logging import activate_logging
 from metatlas.tools.logging import activate_module_logging
+from metatlas.tools.environment import install_kernel
+
 
 logger = logging.getLogger(__name__)
 
@@ -46,26 +46,6 @@ def validate_kernel():
             'Could not find dataset module. Please check that the kernel is set to "Metatlas Targeted".'
         )
         raise ModuleNotFoundError from module_error
-
-
-def install_kernel():
-    """
-    Copies kernel.json from repo to active location under home directory.
-    Only for use on NERC!
-    """
-    logger.info('Installing kernel.json for "Metatlas Targeted".')
-    repo_path = Path(__file__).resolve().parent.parent.parent
-    source = repo_path / "notebooks" / "kernels" / "metatlas-targeted.kernel.json"
-    dest_dir = Path.home() / ".local" / "share" / "jupyter" / "kernels" / "metatlas-targeted"
-    os.makedirs(dest_dir, exist_ok=True)
-    shutil.copyfile(source, dest_dir / "kernel.json")
-    logger.info(
-        (
-            'Reload the page and then change kernel to "Metatlas Targeted". '
-            "On the menu bar at the top of this page select 'Kernel'>'Change Kernel..' "
-            "then find 'Metatlas Targeted' in the drop down list."
-        )
-    )
 
 
 def configure_pandas_display(max_rows=5000, max_columns=500, max_colwidth=100):

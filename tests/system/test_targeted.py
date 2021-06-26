@@ -62,10 +62,12 @@ def test_targeted_by_line01_with_remove(tmp_path):
         ],
         check=True,
     )
+    files = subprocess.check_output(f"find {str(tmp_path)} -type f", shell=True, text=True).strip()
+    print(files)
     num_files_created = int(
         subprocess.check_output(f"find {str(tmp_path)} -type f | wc -l", shell=True, text=True).strip()
     )
-    assert num_files_created == 38
+    assert num_files_created == 39
     with open(out_file, "r") as handle:
         for num, line in enumerate(handle.readlines()):
             clean_line = line.rstrip("\n")

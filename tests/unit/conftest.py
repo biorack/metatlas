@@ -5,8 +5,11 @@ fixtures used across multiple files should go in here
 # pylint: disable=missing-function-docstring,unused-argument,line-too-long,too-many-lines,too-many-arguments
 
 import getpass
+import logging
 import os
 import sqlite3
+
+from importlib import reload
 
 import pytest
 import numpy as np
@@ -16,6 +19,10 @@ from sqlalchemy.orm import close_all_sessions
 
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures import object_helpers as metoh
+
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(name="username", scope="session")
@@ -24,57 +31,67 @@ def fixture_username():
 
 
 @pytest.fixture(name="analysis_ids")
-def fixture_analysis_ids(tmp_path, sqlite_with_atlas, username):
+def fixture_analysis_ids(sqlite_with_atlas, username):
     return mads.AnalysisIdentifiers(
         f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
         "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
         "FinalEMA-HILIC",
         "positive",
         0,
-        str(tmp_path),
+        str(os.getcwd()),
     )
 
 
 @pytest.fixture(name="analysis_ids_with_2_cids")
-def fixture_analysis_ids_with_2_cids(tmp_path, sqlite_with_atlas_with_2_cids, username):
+def fixture_analysis_ids_with_2_cids(sqlite_with_atlas_with_2_cids, username):
     return mads.AnalysisIdentifiers(
         f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}1",
         "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
         "FinalEMA-HILIC",
         "positive",
         0,
-        str(tmp_path),
+        str(os.getcwd()),
     )
 
 
 @pytest.fixture(name="sqlite")
-def fixture_sqlite(username):
+def fixture_sqlite(username, change_test_dir, atlas):
+    logging.debug("creating database file in %s", os.getcwd())
+    assert not os.path.exists(f"{username}_workspace.db")
     sqlite3.connect(f"{username}_workspace.db").close()
+    logger.debug("reloading metoh")
+    reload(metoh)
+    logger.debug("Storing empty objects to create tables")
     metob.store(metob.Atlas())
     metob.store(metob.CompoundIdentification())
     metob.store(metob.Compound())
     metob.store(metob.MzReference())
     metob.store(metob.RtReference())
     metob.store(metob.LcmsRun())
+    logger.debug("Done storing empty objects to create tables")
     yield
+    metob.workspace.close_connection()
     close_all_sessions()
 
 
 @pytest.fixture(name="sqlite_with_atlas")
 def fixture_sqlite_with_atlas(sqlite, atlas, username):
     atlas.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0"
+    logger.debug("Saving atlas %s", atlas.name)
     metob.store(atlas)
 
 
 @pytest.fixture(name="sqlite_with_atlas_with_2_cids")
 def fixture_sqlite_with_atlas_with_2_cids(sqlite, atlas_with_2_cids, username):
     atlas_with_2_cids.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}1"
+    logger.debug("Saving atlas %s", atlas_with_2_cids.name)
     metob.store(atlas_with_2_cids)
 
 
 @pytest.fixture(name="change_test_dir", scope="function", autouse=True)
 def fixture_change_test_dir(request, tmp_path):
     os.chdir(tmp_path)
+    logger.debug("changing dir to %s", tmp_path)
     yield
     os.chdir(request.config.invocation_dir)
 
@@ -526,7 +543,7 @@ def fixture_metatlas_dataset(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    return mads.MetatlasDataset(analysis_ids, groups_controlled_vocab)
+    return mads.MetatlasDataset(analysis_ids, groups_controlled_vocab, save_metadata=False)
 
 
 @pytest.fixture(name="metatlas_dataset_with_2_cids")
@@ -542,7 +559,7 @@ def fixture_metatlas_dataset_with_2_cids(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    return mads.MetatlasDataset(analysis_ids_with_2_cids, groups_controlled_vocab)
+    return mads.MetatlasDataset(analysis_ids_with_2_cids, groups_controlled_vocab, save_metadata=False)
 
 
 @pytest.fixture(name="eic")

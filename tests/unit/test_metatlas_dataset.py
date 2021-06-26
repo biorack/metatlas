@@ -373,6 +373,20 @@ def test_store_atlas04(metatlas_dataset, sqlite, username):
         metatlas_dataset.store_atlas()
 
 
+def test_store_atlas05(atlas, sqlite, username):
+    atlas.name = "test atlas"
+    metob.store(atlas)
+    second = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(second) == 1
+
+
+def test_store_atlas06(atlas, sqlite_with_atlas, username):
+    atlas.name = "test atlas 06"
+    metob.store(atlas)
+    second = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(second) == 1
+
+
 def test_analysis_identifiers01(sqlite):
     with pytest.raises(ValueError, match=r"Database does not contain an atlas.*"):
         mads.AnalysisIdentifiers(
@@ -510,10 +524,8 @@ def test_get_atlas03(mocker, analysis_ids, caplog, username):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[0, 0])
     with pytest.raises(ValueError):
         mads.MetatlasDataset(analysis_ids)
-    assert (
-        f"2 atlases with name 505892_OakGall_final_FinalEMA-HILIC_POS_{username}0 and owned by {username} already exist."
-        in caplog.text
-    )
+    atlas = f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
+    assert f"2 atlases with name {atlas} and owned by {username} already exist." in caplog.text
 
 
 def test_get_atlas04(metatlas_dataset, username):

@@ -23,8 +23,10 @@ more_checks = [
     "metatlas/io/targeted_output.py",
     "metatlas/io/write_utils.py",
     "metatlas/datastructures/metatlas_dataset.py",
+    "metatlas/tools/environment.py",
     "metatlas/tools/logging.py",
     "metatlas/tools/notebook.py",
+    "metatlas/tools/predict_rt.py",
     "tests",
 ]
 
