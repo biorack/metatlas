@@ -588,3 +588,21 @@ def test_generate_all_outputs01(metatlas_dataset, hits, mocker):
 
 def test_short_polarity_inverse01(analysis_ids):
     assert set(analysis_ids.short_polarity_inverse) == {"NEG", "FPS"}
+
+
+def test_access_data_compound_name(metatlas_dataset):
+    assert metatlas_dataset.data[0][0]["identification"].name == "2'-deoxyadenosine"
+
+
+def test_cid_type01(atlas):
+    assert isinstance(atlas.compound_identifications[0], metob.CompoundIdentification)
+
+
+def test_load_atlas01(atlas, sqlite_with_atlas, username):
+    atlases = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert isinstance(atlases[0].compound_identifications[0], metob.CompoundIdentification)
+
+
+def test_load_atlas02(atlas, sqlite_with_atlas, username):
+    results = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert isinstance(results[0].compound_identifications[0], metob.CompoundIdentification)
