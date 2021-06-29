@@ -1,10 +1,12 @@
 from __future__ import absolute_import
 from __future__ import print_function
 import getpass
-import uuid
-import time
+import logging
 import os
 import pprint
+import time
+import uuid
+
 from pwd import getpwuid
 from tabulate import tabulate
 import pandas as pd
@@ -15,6 +17,8 @@ from .object_helpers import (
     Stub
 )
 from six.moves import zip
+
+logger = logging.getLogger(__name__)
 
 #Making a new table means adding a new class to metatlas_objects.py.
 #Floats are set as single precision by default, unfortunately, so here is the best way to create a table containing floats:
@@ -122,6 +126,7 @@ class MetatlasObject(HasTraits):
 
     def __init__(self, **kwargs):
         """Set the default attributes."""
+        logger.debug('Creating new instance of %s with parameters %s', self.__class__.__name__, kwargs)
         kwargs.setdefault('unique_id', uuid.uuid4().hex)
         kwargs.setdefault('head_id', kwargs['unique_id'])
         kwargs.setdefault('username', getpass.getuser())
@@ -169,6 +174,7 @@ class MetatlasObject(HasTraits):
         obj: MetatlasObject
             Cloned object.
         """
+        logger.debug('Cloning instance of %s with recursive=', self.__class__.__name__, recursive)
         obj = self.__class__()
         for (tname, trait) in self.traits().items():
             if tname.startswith('_') or trait.metadata.get('readonly', False):
@@ -244,6 +250,7 @@ class MetatlasObject(HasTraits):
         """Automatically resolve stubs on demand.
         """
 #         value = super(MetatlasObject, self).__getattribute__(name)
+        logger.debug('Automatically resolving stub via %s.__getattribute__(%s)', self.__class__.__name__, name)
         value = super().__getattribute__(name)
 
         if isinstance(value, Stub) and FETCH_STUBS:
