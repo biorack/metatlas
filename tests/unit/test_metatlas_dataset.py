@@ -582,8 +582,8 @@ def test_annotation_gui01(metatlas_dataset, hits, mocker):
 def test_generate_all_outputs01(metatlas_dataset, hits, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     metatlas_dataset.generate_all_outputs()
-    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 12
-    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 23
+    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 10
+    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 19
 
 
 def test_short_polarity_inverse01(analysis_ids):
@@ -606,3 +606,8 @@ def test_load_atlas01(atlas, sqlite_with_atlas, username):
 def test_load_atlas02(atlas, sqlite_with_atlas, username):
     results = metob.retrieve("Atlas", name=atlas.name, username=username)
     assert isinstance(results[0].compound_identifications[0], metob.CompoundIdentification)
+
+
+def test_load_atlas03(sqlite_with_atlas, atlas, username):
+    results = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert results[0].compound_identifications[0].rt_references[0].rt_peak == 2.1964640053707174

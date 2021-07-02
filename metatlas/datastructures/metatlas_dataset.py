@@ -923,4 +923,4 @@ def parallel_process(function, data, max_cpus, unit=None):
     if max_cpus > 1 and len(data) > 1:
         with multiprocessing.Pool(processes=min(max_cpus, len(data))) as pool:
             return list(tqdm.tqdm(pool.imap(function, data), length=len(data), **kwargs))
-    return [function(i) for i in tqdm.tqdm(data, **kwargs)]
+    return [function(i) for i in data]

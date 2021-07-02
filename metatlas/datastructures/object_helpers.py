@@ -115,6 +115,7 @@ def _get_subclasses(cls):
                                    for g in _get_subclasses(s)]
 
 class Workspace(object):
+    instance = None
 
     def __init__(self):
         # get metatlas directory since notebooks and scripts could be launched
@@ -146,7 +147,7 @@ class Workspace(object):
                 self.path = f"sqlite:///{filename}"
                 if os.path.exists(filename):
                     os.chmod(filename, 0o775)
-        logging.warning('Using database at: %s', self.path)
+        logging.debug('Using database at: %s', self.path)
 
         self.tablename_lut = dict()
         self.subclass_lut = dict()
@@ -163,6 +164,12 @@ class Workspace(object):
         # handle circular references
         self.seen = dict()
         Workspace.instance = self
+
+    @classmethod
+    def get_instance(cls):
+        if Workspace.instance is None:
+            return Workspace()
+        return Workspace.instance
 
     def get_connection(self):
         """
@@ -195,7 +202,7 @@ class Workspace(object):
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
-        logging.warning('Entering Workspace.save_objects')
+        logging.debug('Entering Workspace.save_objects')
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
@@ -204,7 +211,7 @@ class Workspace(object):
         self._inserts = defaultdict(list)
         for obj in objects:
             self._get_save_data(obj, _override)
-        logging.warning('Workspace._inserts=%s', self._inserts)
+        logging.debug('Workspace._inserts=%s', self._inserts)
         self.get_connection()
         self.db.begin()
         try:
@@ -230,7 +237,7 @@ class Workspace(object):
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 self.db[table_name].insert_many(inserts)
-                logging.warning('inserting %s', inserts)
+                logging.debug('inserting %s', inserts)
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -580,7 +587,7 @@ class Stub(HasTraits):
                           self.unique_id)
 
     def __str__(self):
-        return self.unique_id
+        return str(self.unique_id)
 
 
 class MetInstance(Instance):

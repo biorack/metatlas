@@ -63,7 +63,7 @@ def retrieve(object_type, **kwargs):
       List of Metatlas Objects meeting the criteria.  Will return the
       latest version of each object.
     """
-    return workspace.retrieve(object_type, **kwargs)
+    return Workspace.get_instance().retrieve(object_type, **kwargs)
 
 
 def remove(object_type, **kwargs):
@@ -81,7 +81,7 @@ def remove(object_type, **kwargs):
     if not isinstance(object_type, str):
         print('remove() expects a string argument, use remove_objects() to'
               'delete actual objects.')
-    return workspace.remove(object_type, **kwargs)
+    return Workspace.get_instance().remove(object_type, **kwargs)
 
 
 def remove_objects(objects, all_versions=True, **kwargs):
@@ -96,7 +96,7 @@ def remove_objects(objects, all_versions=True, **kwargs):
     if isinstance(objects, str):
         print('remove_objects() expects actual objects, use remove() to'
               'remove objects by type.')
-    return workspace.remove_objects(objects, all_versions, **kwargs)
+    return Workspace.get_instance().remove_objects(objects, all_versions, **kwargs)
 
 
 def store(objects, **kwargs):
@@ -107,7 +107,7 @@ def store(objects, **kwargs):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
-    workspace.save_objects(objects, **kwargs)
+    Workspace.get_instance().save_objects(objects, **kwargs)
 
 
 @set_docstring
@@ -174,7 +174,7 @@ class MetatlasObject(HasTraits):
         obj: MetatlasObject
             Cloned object.
         """
-        logger.debug('Cloning instance of %s with recursive=', self.__class__.__name__, recursive)
+        logger.debug('Cloning instance of %s with recursive=%s', self.__class__.__name__, recursive)
         obj = self.__class__()
         for (tname, trait) in self.traits().items():
             if tname.startswith('_') or trait.metadata.get('readonly', False):
@@ -250,7 +250,6 @@ class MetatlasObject(HasTraits):
         """Automatically resolve stubs on demand.
         """
 #         value = super(MetatlasObject, self).__getattribute__(name)
-        logger.debug('Automatically resolving stub via %s.__getattribute__(%s)', self.__class__.__name__, name)
         value = super().__getattribute__(name)
 
         if isinstance(value, Stub) and FETCH_STUBS:
@@ -486,7 +485,7 @@ class _IdGradeTrait(MetInstance):
         elif isinstance(value, str):
             if value.upper() in ID_GRADES:
                 return ID_GRADES[value.upper()]
-            objects = workspace.retrieve('identificationgrade', name=value.upper())
+            objects = Workspace.get_instance().retrieve('identificationgrade', name=value.upper())
             if objects:
                 ID_GRADES[value.upper()] = objects[-1]
                 return objects[-1]
@@ -662,7 +661,7 @@ def find_invalid_runs(**kwargs):
 # Singleton Workspace object
 # Must be instantiated after all of the Metatlas Objects
 # are defined so we can get all of the subclasses.
-workspace = Workspace()
+# workspace = Workspace()
 
 
 def to_dataframe(objects):

@@ -176,15 +176,11 @@ def remove_ms1_data_not_in_atlas(atlas_df, data):
         has_current_polarity = atlas_df.detected_polarity == polarity
         if any(has_current_polarity):
             atlas_mz = atlas_df[has_current_polarity].mz.copy().sort_values().values
-            logger.debug("atlas_mz=%s", atlas_mz)
             max_mz_tolerance = atlas_df[has_current_polarity].mz_tolerance.max()
-            logger.debug("atlas_mz=%s, max_mz_tolerance=%.6f", atlas_mz, max_mz_tolerance)
             if data[name].shape[0] > 1:
                 original_mz = data[name].mz.values
                 nearest_mz = fast_nearest_interp(original_mz, atlas_mz, atlas_mz)
-                logger.debug("nearest_mz=%s", nearest_mz)
                 data[name]['ppm_difference'] = abs(original_mz - nearest_mz) / original_mz * 1e6
-                logger.debug("ppm_difference=%s", data[name]['ppm_difference'])
                 query_str = 'ppm_difference < %f' % max_mz_tolerance
                 data[name] = data[name].query(query_str)
     return data

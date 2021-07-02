@@ -8,8 +8,7 @@ import getpass
 import logging
 import os
 import sqlite3
-
-from importlib import reload
+import threading
 
 import pytest
 import numpy as np
@@ -59,8 +58,6 @@ def fixture_sqlite(username, change_test_dir, atlas):
     logging.debug("creating database file in %s", os.getcwd())
     assert not os.path.exists(f"{username}_workspace.db")
     sqlite3.connect(f"{username}_workspace.db").close()
-    logger.debug("reloading metoh")
-    reload(metoh)
     logger.debug("Storing empty objects to create tables")
     metob.store(metob.Atlas())
     metob.store(metob.CompoundIdentification())
@@ -70,8 +67,8 @@ def fixture_sqlite(username, change_test_dir, atlas):
     metob.store(metob.LcmsRun())
     logger.debug("Done storing empty objects to create tables")
     yield
-    metob.workspace.close_connection()
-    close_all_sessions()
+    metoh.Workspace.get_instance().close_connection()
+    metoh.Workspace.instance = None
 
 
 @pytest.fixture(name="sqlite_with_atlas")
@@ -90,10 +87,12 @@ def fixture_sqlite_with_atlas_with_2_cids(sqlite, atlas_with_2_cids, username):
 
 @pytest.fixture(name="change_test_dir", scope="function", autouse=True)
 def fixture_change_test_dir(request, tmp_path):
+    logger.info("Incoming thread count %d", threading.active_count())
     os.chdir(tmp_path)
     logger.debug("changing dir to %s", tmp_path)
     yield
     os.chdir(request.config.invocation_dir)
+    logger.info("Outgoing thread count %d", threading.active_count())
 
 
 @pytest.fixture(name="ms1_pos")

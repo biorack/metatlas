@@ -22,7 +22,7 @@ def test_transfer_identification_data_to_atlas(metatlas_dataset, atlas):
     assert updated.identification_notes == out.compound_identifications[0].identification_notes
 
 
-def test_set_nested_term_attr(metatlas_dataset):
+def test_set_nested_term_attr01(metatlas_dataset):
     gdhf.set_nested(
         metatlas_dataset,
         [0, 0, "identification", "mz_references", 0, "adduct"],
