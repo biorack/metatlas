@@ -14,8 +14,6 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from sqlalchemy.orm import close_all_sessions
-
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh

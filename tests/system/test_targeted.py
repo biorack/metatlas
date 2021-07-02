@@ -9,8 +9,10 @@ def test_targeted_by_line01_with_remove(tmp_path):
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     out_files = {}
     expected = {}
-    out_files['peak_height'] = tmp_path / experiment / "root0/FinalEMA-HILIC/POS_data_sheets/POS_peak_height.tab"
-    expected['peak_height'] = [
+    out_files["peak_height"] = (
+        tmp_path / experiment / "root0/FinalEMA-HILIC/POS_data_sheets/POS_peak_height.tab"
+    )
+    expected["peak_height"] = [
         f"group\t{experiment}_POS_MSMS_root0_Cone-S1\t{experiment}_POS_MSMS_root0_Cone-S2\t{experiment}_POS_MSMS_root0_Cone-S3\t{experiment}_POS_MSMS_root0_Cone-S4",  # noqa: E501
         f"file\t{experiment}_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5\t{experiment}_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5\t{experiment}_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5\t{experiment}_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5",  # noqa: E501
         "short groupname\tPOS_Cone-S1\tPOS_Cone-S2\tPOS_Cone-S3\tPOS_Cone-S4",
@@ -22,8 +24,8 @@ def test_targeted_by_line01_with_remove(tmp_path):
         "0002_adenosine_positive_M+H268p1041_3p02\t26611868.0\t119774184.0\t267718880.0\t473905024.0",
         "",
     ]
-    out_files['rt_peak'] = tmp_path / experiment / "root0/FinalEMA-HILIC/POS_data_sheets/POS_rt_peak.tab"
-    expected['rt_peak'] = [
+    out_files["rt_peak"] = tmp_path / experiment / "root0/FinalEMA-HILIC/POS_data_sheets/POS_rt_peak.tab"
+    expected["rt_peak"] = [
         f"group\t{experiment}_POS_MSMS_root0_Cone-S1\t{experiment}_POS_MSMS_root0_Cone-S2\t{experiment}_POS_MSMS_root0_Cone-S3\t{experiment}_POS_MSMS_root0_Cone-S4",
         f"file\t{experiment}_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5\t{experiment}_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5\t{experiment}_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5\t{experiment}_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5",
         "short groupname\tPOS_Cone-S1\tPOS_Cone-S2\tPOS_Cone-S3\tPOS_Cone-S4",
@@ -81,7 +83,7 @@ def test_targeted_by_line01_with_remove(tmp_path):
     num_files_created = int(
         subprocess.check_output(f"find {str(tmp_path)} -type f | wc -l", shell=True, text=True).strip()
     )
-    for metric_name, path in out_files.items():
+    for _, path in out_files.items():
         os.system(f"cat {path}")
     assert num_files_created == 39
     for metric_name, path in out_files.items():
