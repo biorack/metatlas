@@ -804,6 +804,7 @@ class MetatlasDataset:
         )
         with tarfile.open(output_path, "w:gz") as tar:
             tar.add(self.ids.output_dir, arcname=os.path.basename(self.ids.output_dir))
+        logger.info("Generation of archive completed succesfully: %s", output_path)
 
 
 class MetatlasSample:
