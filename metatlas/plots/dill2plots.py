@@ -2033,6 +2033,28 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         fontsize=2,
         transform=ax.transAxes)
 
+
+def get_refs(file_name, **kwargs):
+    """Load msms refs from file_name, returns pandas Dataframe"""
+    # Reference parameters
+    ref_dtypes = kwargs.pop('ref_dtypes', {'database': str, 'id': str, 'name': str,
+                                           'spectrum': object, 'decimal': int, 'precursor_mz': float,
+                                           'polarity': str, 'adduct': str, 'fragmentation_method': str,
+                                           'collision_energy': str, 'instrument': str, 'instrument_type': str,
+                                           'formula': str, 'exact_mass': float,
+                                           'inchi_key': str, 'inchi': str, 'smiles': str})
+
+    ref_index = kwargs.pop('ref_index', ['database', 'id'])
+    if 'ref_df' in kwargs:
+        ref_df = kwargs.pop('ref_df')
+    else:
+        ref_df = pd.read_csv(file_name,
+                             sep='\t',
+                             dtype=ref_dtypes
+                             ).set_index(ref_index)
+    return ref_df
+
+
 def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_nonmatches=False,
                   pre_query='database == "metatlas"',
                   # pre_query = 'index == index or index == @pd.NaT',
@@ -2047,27 +2069,11 @@ def get_msms_hits(metatlas_dataset, use_labels=False, extra_time=False, keep_non
 
     # Reference parameters
     ref_loc = kwargs.pop('ref_loc', '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab')
-    ref_dtypes = kwargs.pop('ref_dtypes', {'database':str, 'id':str, 'name':str,
-                                           'spectrum':object,'decimal':int, 'precursor_mz':float,
-                                           'polarity':str, 'adduct':str, 'fragmentation_method':str,
-                                           'collision_energy':str, 'instrument':str, 'instrument_type':str,
-                                           'formula':str, 'exact_mass':float,
-                                           'inchi_key':str, 'inchi':str, 'smiles':str})
-
-    ref_index = kwargs.pop('ref_index', ['database', 'id'])
+    ref_df = get_refs(ref_loc, **kwargs)
     if 'do_centroid' in kwargs:
         do_centroid = kwargs.pop('do_centroid')
     else:
         do_centroid = False
-
-    if 'ref_df' in kwargs:
-        ref_df = kwargs.pop('ref_df')
-    else:
-        ref_df = pd.read_csv(ref_loc,
-                             sep='\t',
-                             dtype=ref_dtypes
-                            ).set_index(ref_index)
-
     ref_df = ref_df.query(pre_query, local_dict=dict(locals(), **kwargs)).copy()
 
     if ref_df['spectrum'].apply(type).eq(str).all():

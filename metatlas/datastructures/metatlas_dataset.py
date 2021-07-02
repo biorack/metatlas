@@ -61,7 +61,7 @@ class AnalysisIdentifiers:
 
     def validate(self):
         """Valid class inputs"""
-        logging.debug('Validating inputs to AnalysisIdentifiers')
+        logging.debug("Validating inputs to AnalysisIdentifiers")
         if self._source_atlas is not None:
             get_atlas(self.source_atlas, self.username)  # will raise error if not found or matches multiple
         if len(self.experiment.split("_")) != 9:
@@ -74,7 +74,7 @@ class AnalysisIdentifiers:
             raise TypeError("Parameter analysis_number is not an integer.")
         if self.analysis_number < 0:
             raise ValueError("Parameter analysis_number cannot be negative.")
-        logging.debug('Inputs to AnalysisIdentifiers passed validation.')
+        logging.debug("Inputs to AnalysisIdentifiers passed validation.")
 
     @property
     def source_atlas(self):
@@ -180,7 +180,7 @@ class MetatlasDataset:
             exclude_files: array of strings that will exclude files if they are substrings of the filename
             save_metadata: if True, write metadata files containing data sources and LCMS runs short name
         """
-        logging.debug('Creating new MetatlasDataset instance...')
+        logging.debug("Creating new MetatlasDataset instance...")
         self.ids = ids
         self._atlas = None
         self._atlas_valid = False
@@ -205,7 +205,7 @@ class MetatlasDataset:
         if ids.source_atlas is not None:
             self._get_atlas()
         if save_metadata:
-            logging.debug('Writing MetatlasDataset metadata files')
+            logging.debug("Writing MetatlasDataset metadata files")
             self.write_data_source_files()
             self.write_lcmsruns_short_names()
         self.store_groups(exist_ok=True)
@@ -264,9 +264,9 @@ class MetatlasDataset:
                 logger.exception(err)
                 raise err
         else:
-            logging.info('Retriving source atlas: %s', self.ids.source_atlas)
+            logging.info("Retriving source atlas: %s", self.ids.source_atlas)
             source = get_atlas(self.ids.source_atlas, self.ids.username)
-            logging.info('Cloning source atlas')
+            logging.info("Cloning source atlas")
             self._atlas = source.clone()
             self._atlas.name = self.ids.atlas
             self._atlas_valid = True
@@ -413,7 +413,12 @@ class MetatlasDataset:
             logger.exception(err)
             raise err
         metob.store(self.atlas)
-        logger.info("Atlas %s stored in database with owner %s in %s.", self.ids.atlas, self.ids.username, _duration_since(start_time))
+        logger.info(
+            "Atlas %s stored in database with owner %s in %s.",
+            self.ids.atlas,
+            self.ids.username,
+            _duration_since(start_time),
+        )
 
     def export_atlas_to_csv(self, filename=None):
         """
@@ -759,7 +764,7 @@ class MetatlasDataset:
             except ValueError as err:
                 logger.exception(err)
                 raise err
-        logging.debug('Storing %d groups in the database', len(self.groups))
+        logging.debug("Storing %d groups in the database", len(self.groups))
         metob.store(self.groups)
 
     def compound_idxs_not_evaluated(self):
