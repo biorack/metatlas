@@ -191,7 +191,8 @@ class MetatlasDataset:
         self._data = None
         self._data_valid = False
         self._hits = None
-        self._hits_valid = False
+        self._hits_valid = False  # based on all hits dependencies except RT min/max values
+        self._hits_valid_for_rt_bounds = False  # based only on RT min/max changes
         self._groups = None
         self._groups_valid = False
         self._groups_controlled_vocab = [] if groups_controlled_vocab is None else groups_controlled_vocab
@@ -568,6 +569,7 @@ class MetatlasDataset:
             )
             logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
             self._hits_valid = True
+            self._hits_valid_for_rt_bounds = True
         return self._hits
 
     def __len__(self):
@@ -606,6 +608,8 @@ class MetatlasDataset:
             setattr(sample[compound_idx]["identification"].rt_references[0], which, time)
         self.atlas_df.loc[compound_idx, which] = time
         metob.store(atlas_rt_ref)
+        if which in ["rt_min", "rt_max"]:
+            self._hits_valid_for_rt_bounds = False
 
     def set_note(self, compound_idx, which, value):
         """
@@ -801,6 +805,8 @@ class MetatlasDataset:
             msms_fragment_ions: if True, generate msms fragment ions report
             overwrite: if False, throw error if any output files already exist
         """
+        if not self._hits_valid_for_rt_bounds:
+            self._hits_valid = False  # force hits to be regenerated
         self.extra_time = 0.5
         logger.info("extra_time set to 0.5 minutes for output generation.")
         targeted_output.write_atlas_to_spreadsheet(self, overwrite)
