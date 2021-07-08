@@ -403,3 +403,17 @@ def create_adjusted_atlases(linear, poly, qc_dir, atlas_indices=None, free_text=
                         mz_tolerance=12,
                     )
                 print(prd_atlas_name + " Created!")
+
+
+def get_analysis_ids_for_rt_prediction(experiment, project_directory, analysis_number=0, polarity="positive"):
+    """
+    Simplified interface for generating an AnalysisIds instance for use in rt prediction
+    inputs:
+        experiment: name of experiment as given in LCMS run names
+        project_directory: directory where per-experiment output directory will be created
+        analysis_number: integer, defaults to 0, increment if redoing analysis
+        polarity: defaults to 'positive', set to 'negative' if you only have neg mode data
+    Returns an AnalysisIds instance
+    """
+    ids = mads.AnalysisIdentifiers(None, experiment, "ISTDsEtc", polarity, analysis_number, project_directory)
+    return ids

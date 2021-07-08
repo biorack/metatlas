@@ -34,6 +34,7 @@ more_checks = [
 # has not yet been updated to pass all checks.
 notebooks = [
     "notebooks/reference/Targeted.ipynb",
+    "notebooks/reference/RT_Prediction.ipynb",
 ]
 
 pytest_deps = [
@@ -122,7 +123,10 @@ def pylint(session):
 @nox.session(python=py_versions, reuse_venv=REUSE_LARGE_VENV)
 def pylint_nb(session):
     session.install("-r", "docker/requirements.txt", *nbqa_deps, *pylint_deps)
-    session.run("nbqa", "pylint", *notebooks)
+    # dupliate code cannot be disabled on per-cell level https://github.com/PyCQA/pylint/issues/214
+    # Some duplicate code is required to setup the notebook and do error handling.
+    # So turn off duplicate code for whole session -- not ideal.
+    session.run("nbqa", "pylint", "--disable=duplicate-code", *notebooks)
 
 
 @nox.session(python=py_versions[0])
