@@ -797,7 +797,7 @@ class adjust_mz_for_selected_compound(object):
         # warn the user if they do not own the atlas; and can not edit its values
         self.enable_edit = True
         self.atlas = metob.retrieve('Atlas',unique_id = self.data[0][0]['atlas_unique_id'],username='*')[-1]
-        logging.info("loaded file for username = %s", self.atlas.username)
+        logger.info("loaded file for username = %s", self.atlas.username)
         if getpass.getuser() != self.atlas.username:
             self.ax.set_title("YOUR ARE %s YOU ARE NOT ALLOWED TO EDIT VALUES THE RT CORRECTOR. USERNAMES ARE NOT THE SAME"%getpass.getuser())
             self.enable_edit = False
@@ -3058,7 +3058,7 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     specify polarity as 'positive' or 'negative'
 
     '''
-    logging.debug('Generating atlas named %s from %s source.', atlas_name, filetype)
+    logger.debug('Generating atlas named %s from %s source.', atlas_name, filetype)
     atlas_df = _get_dataframe(filename, filetype, sheetname)
     _clean_dataframe(atlas_df, required_columns=['inchi_key', 'label'])
     _add_columns(atlas_df, column_names=['adduct'], default_values=[np.NaN])
@@ -3066,7 +3066,7 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     check_filenames(atlas_df, 'file_msms')
     atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
     if store:
-        logging.debug('Saving atlas named %s to DB.', atlas_name)
+        logger.debug('Saving atlas named %s to DB.', atlas_name)
         metob.store(atlas)
     return atlas
 

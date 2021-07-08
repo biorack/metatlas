@@ -147,7 +147,7 @@ class Workspace(object):
                 self.path = f"sqlite:///{filename}"
                 if os.path.exists(filename):
                     os.chmod(filename, 0o775)
-        logging.debug('Using database at: %s', self.path)
+        logger.debug('Using database at: %s', self.path)
 
         self.tablename_lut = dict()
         self.subclass_lut = dict()
@@ -198,11 +198,11 @@ class Workspace(object):
         except Exception as e:
             self.db.rollback()
             print(e)
-            logging.error('Transaction rollback within convert_to_double()')
+            logger.error('Transaction rollback within convert_to_double()')
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
-        logging.debug('Entering Workspace.save_objects')
+        logger.debug('Entering Workspace.save_objects')
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
@@ -211,7 +211,7 @@ class Workspace(object):
         self._inserts = defaultdict(list)
         for obj in objects:
             self._get_save_data(obj, _override)
-        logging.debug('Workspace._inserts=%s', self._inserts)
+        logger.debug('Workspace._inserts=%s', self._inserts)
         self.get_connection()
         self.db.begin()
         try:
@@ -237,11 +237,11 @@ class Workspace(object):
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 self.db[table_name].insert_many(inserts)
-                logging.debug('inserting %s', inserts)
+                logger.debug('inserting %s', inserts)
             self.db.commit()
         except Exception:
             self.db.rollback()
-            logging.error('Transaction rollback within save_objects()')
+            logger.error('Transaction rollback within save_objects()')
 
     def create_link_tables(self, klass):
         """
@@ -264,7 +264,7 @@ class Workspace(object):
             self.db.commit()
         except Exception:
             self.db.rollback()
-            logging.error('Transaction rollback within create_link_tables()')
+            logger.error('Transaction rollback within create_link_tables()')
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
@@ -418,7 +418,7 @@ class Workspace(object):
             self.db.commit()
         except Exception:
             self.db.rollback()
-            logging.error('Transaction rollback within retrieve()')
+            logger.error('Transaction rollback within retrieve()')
         return items
 
     def remove(self, object_type, **kwargs):
@@ -487,7 +487,7 @@ class Workspace(object):
             self.db.commit()
         except Exception:
             self.db.rollback()
-            logging.error('Transaction rollback within retrieve()')
+            logger.error('Transaction rollback within retrieve()')
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
         """Remove a list of objects from the database."""
@@ -532,7 +532,7 @@ class Workspace(object):
             self.db.commit()
         except Exception:
             self.db.rollback()
-            logging.error('Transaction rollback within remove_objects()')
+            logger.error('Transaction rollback within remove_objects()')
 
 
 def format_timestamp(tstamp):
