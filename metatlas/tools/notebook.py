@@ -21,8 +21,8 @@ def configure_environment(log_level):
         log_level: one of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
     """
     activate_logging(console_level=log_level)
-    logger.debug('Running import and environment setup block of notebook.')
-    logger.debug('Configuring notebook environment with console log level of %s.', log_level)
+    logger.debug("Running import and environment setup block of notebook.")
+    logger.debug("Configuring notebook environment with console log level of %s.", log_level)
     os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
 
@@ -48,12 +48,12 @@ def validate_kernel():
             'Could not find dataset module. Please check that the kernel is set to "Metatlas Targeted".'
         )
         raise ModuleNotFoundError from module_error
-    logger.debug('Kernel validation passed. Using python from %s.', sys.executable)
+    logger.debug("Kernel validation passed. Using python from %s.", sys.executable)
 
 
 def configure_pandas_display(max_rows=5000, max_columns=500, max_colwidth=100):
     """Set pandas display options"""
-    logger.debug('Settings pandas display options')
+    logger.debug("Settings pandas display options")
     pd.set_option("display.max_rows", max_rows)
     pd.set_option("display.max_columns", max_columns)
     pd.set_option("display.max_colwidth", max_colwidth)
@@ -84,5 +84,5 @@ def activate_sql_logging(console_level="INFO", console_format=None, file_level="
         filename: logging destination
 
     """
-    logger.debug('Activaing SQL logging with console_level=%s and file_level=%s.', console_level, file_level)
+    logger.debug("Activaing SQL logging with console_level=%s and file_level=%s.", console_level, file_level)
     activate_module_logging("sqlalchemy.engine", console_level, console_format, file_level, filename)

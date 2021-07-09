@@ -10,6 +10,7 @@ import pytest
 
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures import object_helpers as metoh
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 
 
@@ -345,8 +346,10 @@ def test_store_atlas01(atlas, sqlite, username):
 
 
 def test_store_atlas02(metatlas_dataset, username):
-    atlas_list = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
+    atlas_list = metob.retrieve("Atlas", name=metatlas_dataset.ids.source_atlas, username=username)
     assert len(atlas_list) == 1
+    second = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
+    assert len(second) == 1
     metatlas_dataset.store_atlas(even_if_exists=True)
     second = metob.retrieve("Atlas", name=metatlas_dataset.atlas.name, username=username)
     assert len(second) == 1
@@ -385,6 +388,15 @@ def test_store_atlas06(atlas, sqlite_with_atlas, username):
     metob.store(atlas)
     second = metob.retrieve("Atlas", name=atlas.name, username=username)
     assert len(second) == 1
+
+
+def test_store_atlas07(atlas, sqlite, username):
+    atlas.name = "test_store_atlas07"
+    metob.store(atlas)
+    metoh.Workspace.get_instance().close_connection()
+    metoh.Workspace.instance = None
+    atlases = metob.retrieve("Atlas", name=atlas.name, username=username)
+    assert len(atlases) == 1
 
 
 def test_analysis_identifiers01(sqlite):

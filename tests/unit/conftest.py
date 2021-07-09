@@ -62,6 +62,7 @@ def fixture_sqlite(username, change_test_dir, atlas):
     metob.store(metob.Compound())
     metob.store(metob.MzReference())
     metob.store(metob.RtReference())
+    metob.store(metob.Reference())
     metob.store(metob.LcmsRun())
     logger.debug("Done storing empty objects to create tables")
     yield

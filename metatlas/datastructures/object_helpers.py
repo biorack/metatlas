@@ -164,6 +164,7 @@ class Workspace(object):
         # handle circular references
         self.seen = dict()
         Workspace.instance = self
+        self.db = None
 
     @classmethod
     def get_instance(cls):
@@ -177,16 +178,17 @@ class Workspace(object):
         Each activity that queries the database needs to have this function preceeding it.
         """
         try:
-            if self.db.engine.name == 'mysql':
-                self.db.query('show tables')
-            else:
-                self.db.query('SELECT name FROM sqlite_master WHERE type = "table"')
+            self.db.begin()
+            self.db.query('SELECT 1')
+            self.db.commit()
         except Exception:
             self.db = dataset.connect(self.path)
+        assert self.db is not None
 
     def close_connection(self):
-        self.db.close()
-        self.db = None
+        if self.db is not None:
+            self.db.close()
+            self.db = None
 
     def convert_to_double(self, table, entry):
         """Convert a table column to double type."""
@@ -364,7 +366,7 @@ class Workspace(object):
             query = 'select * from `%s` where (' % object_type
             clauses = []
             for (key, value) in kwargs.items():
-                if type(value) is list and len(value)>0:
+                if isinstance(value, list) and len(value) > 0:
                     clauses.append('%s in ("%s")' % (key, '", "'.join(value)))
                 elif not isinstance(value, six.string_types):
                     clauses.append("%s = %s" % (key, value))
@@ -379,13 +381,12 @@ class Workspace(object):
                 query = query.replace(' where ()', '')
             try:
                 items = list(self.db.query(query))
-            except Exception as e:
-                if 'Unknown column' in str(e):
+            except Exception as err:
+                if 'Unknown column' in str(err):
                     keys = [k for k in klass.class_traits().keys()
                             if not k.startswith('_')]
-                    raise ValueError('Invalid column name, valid columns: %s' % keys)
-                else:
-                    raise(e)
+                    raise ValueError('Invalid column name, valid columns: %s' % keys) from err
+                raise err
             items = [klass(**i) for i in items]
             uids = [i.unique_id for i in items]
             if not items:
@@ -416,8 +417,10 @@ class Workspace(object):
                 i._changed = False
             items.sort(key=lambda x: x.last_modified)
             self.db.commit()
-        except Exception:
+        except Exception as err:
+            logger.exception(err)
             self.db.rollback()
+            raise err
             logger.error('Transaction rollback within retrieve()')
         return items
 

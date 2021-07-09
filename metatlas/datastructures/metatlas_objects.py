@@ -41,6 +41,7 @@ ADDUCTS = ('','[M]+','[M+H]+','[M+H]2+','[M+2H]2+','[M+H-H2O]2+','[M+K]2+','[M+N
 POLARITY = ('positive', 'negative', 'alternating')
 FRAGMENTATION_TECHNIQUE = ('hcd','cid','etd','ecd','irmpd')
 
+
 def retrieve(object_type, **kwargs):
     """Get objects from the Metatlas object database.
 
@@ -63,7 +64,10 @@ def retrieve(object_type, **kwargs):
       List of Metatlas Objects meeting the criteria.  Will return the
       latest version of each object.
     """
-    return Workspace.get_instance().retrieve(object_type, **kwargs)
+    workspace = Workspace.get_instance()
+    out = workspace.retrieve(object_type, **kwargs)
+    workspace.close_connection()
+    return out
 
 
 def remove(object_type, **kwargs):
@@ -81,7 +85,9 @@ def remove(object_type, **kwargs):
     if not isinstance(object_type, str):
         print('remove() expects a string argument, use remove_objects() to'
               'delete actual objects.')
-    return Workspace.get_instance().remove(object_type, **kwargs)
+    workspace = Workspace.get_instance()
+    workspace.remove(object_type, **kwargs)
+    workspace.close_connection()
 
 
 def remove_objects(objects, all_versions=True, **kwargs):
@@ -96,7 +102,9 @@ def remove_objects(objects, all_versions=True, **kwargs):
     if isinstance(objects, str):
         print('remove_objects() expects actual objects, use remove() to'
               'remove objects by type.')
-    return Workspace.get_instance().remove_objects(objects, all_versions, **kwargs)
+    workspace = Workspace.get_instance()
+    workspace.remove_objects(objects, all_versions, **kwargs)
+    workspace.close_connection()
 
 
 def store(objects, **kwargs):
@@ -107,7 +115,9 @@ def store(objects, **kwargs):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
-    Workspace.get_instance().save_objects(objects, **kwargs)
+    workspace = Workspace.get_instance()
+    workspace.save_objects(objects, **kwargs)
+    workspace.close_connection()
 
 
 @set_docstring
