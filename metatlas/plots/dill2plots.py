@@ -2033,25 +2033,12 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         transform=ax.transAxes)
 
 
-def get_refs(file_name, **kwargs):
+def get_refs(file_name, ref_dtypes, ref_index):
     """Load msms refs from file_name, returns pandas Dataframe"""
-    # Reference parameters
-    ref_dtypes = kwargs.pop('ref_dtypes', {'database': str, 'id': str, 'name': str,
-                                           'spectrum': object, 'decimal': int, 'precursor_mz': float,
-                                           'polarity': str, 'adduct': str, 'fragmentation_method': str,
-                                           'collision_energy': str, 'instrument': str, 'instrument_type': str,
-                                           'formula': str, 'exact_mass': float,
-                                           'inchi_key': str, 'inchi': str, 'smiles': str})
-
-    ref_index = kwargs.pop('ref_index', ['database', 'id'])
-    if 'ref_df' in kwargs:
-        ref_df = kwargs.pop('ref_df')
-    else:
-        ref_df = pd.read_csv(file_name,
-                             sep='\t',
-                             dtype=ref_dtypes
-                             ).set_index(ref_index)
-    return ref_df
+    return pd.read_csv(file_name,
+                       sep='\t',
+                       dtype=ref_dtypes
+                       ).set_index(ref_index)
 
 
 def convert_to_centroid(sample_df):
@@ -2062,20 +2049,57 @@ def convert_to_centroid(sample_df):
     return np.zeros((0, 0))
 
 
+def search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes, ref_index, ref_df):
+    return sp.search_ms_refs(msv_sample, **locals())
+
+
+def get_msms_hits_per_compound(rt_mz_i_df, msms_scan, do_centroid, query, inchi_key, polarity,
+                               precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes,
+                               ref_index, ref_df):
+    msv_sample = rt_mz_i_df.loc[rt_mz_i_df['rt'] == msms_scan,
+                                ['mz', 'i', 'rt', 'precursor_MZ', 'precursor_intensity']]
+    precursor_mz_sample = msv_sample['precursor_MZ'].values[0]
+    msv_sample.sort_values('mz', inplace=True)
+    msv_sample = msv_sample[['mz', 'i']].values.T
+    msv_sample = convert_to_centroid(msv_sample) if do_centroid else msv_sample
+    # Filter ions greater than 2.5 + precursor M/Z
+    msv_sample = msv_sample[:, msv_sample[0] < precursor_mz_sample + 2.5]
+    if msv_sample.size > 0:
+        return search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz,
+                              pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes,
+                              ref_index, ref_df), msv_sample
+    return pd.DataFrame(), msv_sample
+
+
+def get_empty_scan_df(columns):
+    return pd.DataFrame(data={'database': [np.nan], 'id': [np.nan]},
+                        index=pd.MultiIndex.from_tuples([(np.nan, np.nan)], names=['database', 'id']),
+                        columns=columns)
+
+
 def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
-                  pre_query='database == "metatlas"', query=None, **kwargs):
+                  pre_query='database == "metatlas"', query=None, ref_dtypes=None,
+                  ref_loc=None, ref_df=None, frag_mz_tolerance=.005, ref_index=None,
+                  do_centroid=False):
     if query is None:
         pre_mz_decimal = ".5*(@pre_mz_ppm**-decimal)/(decimal+1)"
         offset = f".5*(({pre_mz_decimal} + .005 + ({pre_mz_decimal} - .005)**2)**.5)"
         query = ("(@inchi_key == inchi_key) and "
                  "(@polarity == polarity) and "
                  f"( (@precursor_mz - {offset}) <= precursor_mz <= (@precursor_mz + {offset}) )")
-    kwargs = dict(locals(), **kwargs)
-    ref_loc = kwargs.pop(
-            'ref_loc',
-            '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab')
-    ref_df = get_refs(ref_loc, **kwargs)
-    do_centroid = kwargs.pop('do_centroid', False)
+    if ref_dtypes is None:
+        ref_dtypes = {'database': str, 'id': str, 'name': str,
+                      'spectrum': object, 'decimal': int, 'precursor_mz': float,
+                      'polarity': str, 'adduct': str, 'fragmentation_method': str,
+                      'collision_energy': str, 'instrument': str, 'instrument_type': str,
+                      'formula': str, 'exact_mass': float,
+                      'inchi_key': str, 'inchi': str, 'smiles': str}
+    if ref_index is None:
+        ref_index = ['database', 'id']
+    if ref_loc is None:
+        ref_loc = '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab'
+    if ref_df is None:
+        ref_df = get_refs(ref_loc, ref_dtypes, ref_index)
     ref_df = ref_df.query(pre_query).copy()
     ref_df.loc[:, 'spectrum'] = ref_df['spectrum'].apply(lambda s: np.array(json.loads(s)))
     file_names = ma_data.get_file_names(metatlas_dataset)
@@ -2085,7 +2109,7 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
                              'inchi_key', 'precursor_mz', 'measured_precursor_mz',
                              'measured_precursor_intensity']
     msms_hits = pd.DataFrame(columns=all_cols).set_index(index_cols)
-    for compound_idx, compound_name in enumerate(compound_names):
+    for compound_idx, _ in enumerate(compound_names):
         sys.stdout.write('\r'+'Processing: {} / {} compounds.'.format(compound_idx+1, len(compound_names)))
         sys.stdout.flush()
         cid = metatlas_dataset[0][compound_idx]['identification']
@@ -2096,7 +2120,6 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
         precursor_mz = cid.mz_references[0].mz
         rt_min = cid.rt_references[0].rt_min
         rt_max = cid.rt_references[0].rt_max
-        compound_hits = []
         for file_idx, file_name in enumerate(file_names):
             mfc = metatlas_dataset[file_idx][compound_idx]
             polarity = mfc['identification'].mz_references[0].detected_polarity
@@ -2110,40 +2133,30 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
             for msms_scan in rt_mz_i_df.rt.unique():
                 if not extra_time and not rt_min <= msms_scan <= rt_max:
                     continue
-                msv_sample = rt_mz_i_df.loc[rt_mz_i_df['rt'] == msms_scan,
-                                            ['mz', 'i', 'rt', 'precursor_MZ', 'precursor_intensity']]
-                precursor_mz_sample = msv_sample['precursor_MZ'].values[0]
-                precursor_intensity_sample = msv_sample['precursor_intensity'].values[0]
-                msv_sample.sort_values('mz', inplace=True)
-                msv_sample = msv_sample[['mz', 'i']].values.T
-                msv_sample = convert_to_centroid(msv_sample) if do_centroid else msv_sample
-                # Filter ions greater than 2.5 + precursor M/Z
-                msv_sample = msv_sample[:, msv_sample[0] < precursor_mz_sample + 2.5]
-                kwargs = dict(locals(), **kwargs)
-                scan_df = sp.search_ms_refs(msv_sample, **kwargs) if msv_sample.size > 0 else pd.DataFrame()
+                scan_df, msv_sample = get_msms_hits_per_compound(rt_mz_i_df, msms_scan, do_centroid,
+                                                                 query, inchi_key, polarity,
+                                                                 precursor_mz, pre_mz_ppm,
+                                                                 frag_mz_tolerance, ref_loc, ref_dtypes,
+                                                                 ref_index, ref_df)
+                precursor = rt_mz_i_df.loc[rt_mz_i_df['rt'] == msms_scan, ['precursor_MZ', 'precursor_intensity']]
                 hits = len(scan_df) > 0
                 if not hits and not keep_nonmatches:
                     continue
                 if not hits and keep_nonmatches:
-                    scan_df = pd.DataFrame(
-                                    data={'database': [np.nan], 'id': [np.nan]},
-                                    index=pd.MultiIndex.from_tuples(
-                                        [(np.nan, np.nan)],
-                                        names=['database', 'id']),
-                                    columns=all_cols[2:]  # leave out the cols that are used in the index
-                                    )
+                    # leave out the cols that are used in the index
+                    scan_df = get_empty_scan_df(all_cols[2:])
                 scan_df['file_name'] = file_name
                 scan_df['msms_scan'] = msms_scan
                 scan_df['name'] = name
                 scan_df['adduct'] = adduct
                 scan_df['inchi_key'] = inchi_key
                 scan_df['precursor_mz'] = precursor_mz
-                scan_df['measured_precursor_mz'] = precursor_mz_sample
-                scan_df['measured_precursor_intensity'] = precursor_intensity_sample
+                scan_df['measured_precursor_mz'] = precursor['precursor_MZ'].values[0]
+                scan_df['measured_precursor_intensity'] = precursor['precursor_intensity'].values[0]
                 scan_df.set_index(['file_name', 'msms_scan'], append=True, inplace=True)
                 if not hits and keep_nonmatches:
                     scan_df['num_matches'] = 0
-                    scan_df['score'] = precursor_intensity_sample
+                    scan_df['score'] = precursor['precursor_intensity'].values[0]
                     scan_df['msv_query_aligned'] = [msv_sample]
                     scan_df['msv_ref_aligned'] = [np.full_like(msv_sample, np.nan)]
                 msms_hits = msms_hits.append(scan_df)
