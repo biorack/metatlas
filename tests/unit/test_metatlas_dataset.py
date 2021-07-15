@@ -78,6 +78,17 @@ def test_filter_compounds04(mocker, metatlas_dataset, compound):
         metatlas_dataset.filter_compounds(remove_idxs=[999])
 
 
+def test_filter_compounds05(mocker, metatlas_dataset_with_2_cids, username):
+    original_rt_min = metatlas_dataset_with_2_cids.rts[1].rt_min
+    print([r.rt_min for r in metatlas_dataset_with_2_cids.rts])
+    updated_rt_min = 9.99
+    metatlas_dataset_with_2_cids.set_rt(1, "rt_min", updated_rt_min)
+    metatlas_dataset_with_2_cids.filter_compounds(remove_idxs=[0])
+    atlas = metob.retrieve("Atlas", name=metatlas_dataset_with_2_cids.atlas.name, username=username)[0]
+    assert atlas.compound_identifications[0].rt_references[0].rt_min != original_rt_min
+    assert atlas.compound_identifications[0].rt_references[0].rt_min == updated_rt_min
+
+
 def test_filter_hits_by_atlas01(mocker, metatlas_dataset_with_2_cids, hits, compound):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[compound])

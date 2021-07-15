@@ -15,6 +15,7 @@ import pandas as pd
 import tqdm
 
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures import object_helpers as metoh
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import targeted_output
 from metatlas.io import write_utils
@@ -300,20 +301,40 @@ class MetatlasDataset:
             _duration_since(start_time),
         )
 
-    def filter_compounds(self, keep_idxs=None, remove_idxs=None, name=None):
+    def _remove_compound_id(self, idx):
+        """
+        Remove compound identification at index idx from both in db and self._atlas
+        Does not invalidate _data or _hits or _atlas_df
+        This bypasses several ORM layers and therefore is a hack, but I couldn't get it to work with the ORM.
+        """
+        cid_id = self._atlas.compound_identifications[idx].unique_id
+        atlas_id = self._atlas.unique_id
+        link_table = "atlases_compound_identifications"
+        target = f"target_id='{cid_id}'"
+        workspace = metob.Workspace.get_instance()
+        workspace.get_connection()
+        workspace.db.begin()
+        try:
+            workspace.db.query(f"delete from {link_table} where ({target} and source_id='{atlas_id}')")
+            links = workspace.db.query(f"select source_id from {link_table} where {target}")
+            if len(list(links)) == 0:  # other atlases are not linked to this CompoundIdentification
+                workspace.db.query(f"delete from compoundidentifications where unique_id='{cid_id}'")
+            workspace.db.commit()
+            del self._atlas.compound_identifications[idx]
+        except Exception as err:
+            metoh.rollback_and_log(workspace.db, err)
+        workspace.close_connection()
+
+    def filter_compounds(self, keep_idxs=None, remove_idxs=None):
         """
         inputs:
             keep_idxs: the indexes of compounds to keep
             remove_idxs: the indexes of compounds to remove
                 Exactly one of keep_idxs or remove_idxs must be None
-            name: the name for the new atlas, defaults to current name
         output:
             If keep_idxs is not None then update self.atlas to contain only the compound_identifications at
             keep_idxs. If remove_idxs is not None then update self.atlas to contain only the compound
             identifications not at remove_idxs. Raises ValueError if both keep_idxs and remove_idxs are None.
-
-            There is an additional side effect that all mz_tolerances in the returned atlas
-            get their value from self.atlas.compound_identifications[0].mz_references[0].mz_tolerance
 
             Does not invalidate _data or _hits
         """
@@ -325,20 +346,14 @@ class MetatlasDataset:
             keep_idxs = self.atlas_df.index.difference(remove_idxs)
         self._atlas_df = self.atlas_df.iloc[keep_idxs].copy().reset_index(drop=True)
         self._atlas_df_valid = True
-        name = self.atlas.name if name is None else name
-        mz_tolerance = self.atlas.compound_identifications[0].mz_references[0].mz_tolerance
         if self._data_valid:
             self._data = [
                 [compound for idx, compound in enumerate(sample) if idx in keep_idxs] for sample in self._data
             ]
-        self._atlas = dp.make_atlas_from_spreadsheet(
-            self.atlas_df,
-            name,
-            filetype="dataframe",
-            polarity=self.polarity,
-            store=False,
-            mz_tolerance=mz_tolerance,
-        )
+        if remove_idxs is None:
+            remove_idxs = [idx for idx, _ in enumerate(self._atlas.compound_identifications)
+                           if idx not in keep_idxs]
+        _ = [self._remove_compound_id(idx) for idx in sorted(remove_idxs, reverse=True)]
         logger.info(
             "Filtering reduced atlas from %d to %d compounds (%d removed).",
             start_len,
@@ -367,10 +382,8 @@ class MetatlasDataset:
             start_len - len(self.hits),
         )
 
-    def filter_compounds_ms1_notes_remove(self, name=None):
+    def filter_compounds_ms1_notes_remove(self):
         """
-        inputs:
-            name: the name for the new atlas, defaults to current name
         output:
             updates self.atlas to contain only the compound_identifications that do not have ms1_notes
             starting with 'remove' (case insensitive)
@@ -378,22 +391,19 @@ class MetatlasDataset:
             get their value from self.atlas.compound_identifications[0].mz_references[0].mz_tolerance
         """
         logger.debug("Filtering atlas to exclude ms1_notes=='remove'.")
-        name = self.atlas.name if name is None else name
-        self.filter_compounds(remove_idxs=self.compound_indices_marked_remove(), name=name)
+        self.filter_compounds(remove_idxs=self.compound_indices_marked_remove())
 
-    def filter_compounds_by_signal(self, num_points, peak_height, name=None):
+    def filter_compounds_by_signal(self, num_points, peak_height):
         """
         inputs:
             num_points: number of points in EIC that must be exceeded in one or more samples
                         in order for the compound to remain in the atlas
             peak_height: max intensity in the EIC that must be exceeded in one or more samples
                          in order for the compound to remain in the atlas
-            name: the name for the new atlas, defaults to current name
         """
         logger.debug("Filtering atlas on num_points=%d, peak_height=%d.", num_points, peak_height)
-        name = self.atlas.name if name is None else name
         keep_idxs = dp.strong_signal_compound_idxs(self, num_points, peak_height)
-        self.filter_compounds(keep_idxs=keep_idxs, name=name)
+        self.filter_compounds(keep_idxs=keep_idxs)
 
     def store_atlas(self, even_if_exists=False):
         """
