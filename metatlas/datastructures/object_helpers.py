@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
+import inspect
 import logging
 import sys
 import os
@@ -168,6 +169,7 @@ class Workspace(object):
 
     @classmethod
     def get_instance(cls):
+        """Returns a existing instance of Workspace or creates a new one"""
         if Workspace.instance is None:
             return Workspace()
         return Workspace.instance
@@ -177,15 +179,20 @@ class Workspace(object):
         Get a re-useable connection to the database.
         Each activity that queries the database needs to have this function preceeding it.
         """
-        try:
-            self.db.begin()
-            self.db.query('SELECT 1')
-            self.db.commit()
-        except Exception:
+        if self.db is None:
             self.db = dataset.connect(self.path)
+        else:
+            self.db.begin()
+            try:
+                self.db.query('SELECT 1')
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                self.db = dataset.connect(self.path)
         assert self.db is not None
 
     def close_connection(self):
+        """close database connections"""
         if self.db is not None:
             self.db.close()
             self.db = None
@@ -197,10 +204,8 @@ class Workspace(object):
         try:
             self.db.query('alter table `%s` modify `%s` double' % (table, entry))
             self.db.commit()
-        except Exception as e:
-            self.db.rollback()
-            print(e)
-            logger.error('Transaction rollback within convert_to_double()')
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
@@ -213,7 +218,12 @@ class Workspace(object):
         self._inserts = defaultdict(list)
         for obj in objects:
             self._get_save_data(obj, _override)
-        logger.debug('Workspace._inserts=%s', self._inserts)
+        if self._inserts:
+            logger.debug('Workspace._inserts=%s', self._inserts)
+        if self._updates:
+            logger.debug('Workspace._updates=%s', self._updates)
+        if self._link_updates:
+            logger.debug('Workspace._link_updates=%s', self._link_updates)
         self.get_connection()
         self.db.begin()
         try:
@@ -241,9 +251,8 @@ class Workspace(object):
                 self.db[table_name].insert_many(inserts)
                 logger.debug('inserting %s', inserts)
             self.db.commit()
-        except Exception:
-            self.db.rollback()
-            logger.error('Transaction rollback within save_objects()')
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
     def create_link_tables(self, klass):
         """
@@ -264,9 +273,8 @@ class Workspace(object):
                                     target_table=uuid.uuid4().hex)
                         self.db[table_name].insert(link)
             self.db.commit()
-        except Exception:
-            self.db.rollback()
-            logger.error('Transaction rollback within create_link_tables()')
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
@@ -418,10 +426,7 @@ class Workspace(object):
             items.sort(key=lambda x: x.last_modified)
             self.db.commit()
         except Exception as err:
-            logger.exception(err)
-            self.db.rollback()
-            raise err
-            logger.error('Transaction rollback within retrieve()')
+            rollback_and_log(self.db, err)
         return items
 
     def remove(self, object_type, **kwargs):
@@ -488,9 +493,8 @@ class Workspace(object):
                     raise e
             print('Removed')
             self.db.commit()
-        except Exception:
-            self.db.rollback()
-            logger.error('Transaction rollback within retrieve()')
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
         """Remove a list of objects from the database."""
@@ -533,9 +537,8 @@ class Workspace(object):
                 self.db.query(query)
             print(('Removed %s object(s)' % len(objects)))
             self.db.commit()
-        except Exception:
-            self.db.rollback()
-            logger.error('Transaction rollback within remove_objects()')
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
 
 def format_timestamp(tstamp):
@@ -641,3 +644,16 @@ def get_from_nersc(user, relative_path):
     proc.expect('Download Complete')
     proc.close()
     return os.path.abspath(os.path.basename(relative_path))
+
+
+def rollback_and_log(db_connection, err):
+    """
+    inputs:
+        db_connection: a dataset instance in a transaction that needs to be rolled back
+        err: exception instance that ended the transaction
+    """
+    caller_name = inspect.stack()[1][3]
+    db_connection.rollback()
+    logger.error("Transaction rollback within %s()", caller_name)
+    logger.exception(err)
+    raise err
