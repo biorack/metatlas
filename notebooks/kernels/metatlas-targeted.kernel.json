@@ -1,6 +1,6 @@
 {
  "argv": [
-  "/global/common/software/m2650/metatlas-targeted-20210521/bin/python",
+  "/global/common/software/m2650/metatlas-targeted-2021-07-16/bin/python",
   "-m",
   "ipykernel_launcher",
   "-f",
