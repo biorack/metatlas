@@ -2,13 +2,16 @@
 # pylint: disable=too-many-arguments
 
 import itertools
+import logging
 import math
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
+import tqdm
 
 from matplotlib import gridspec
 from sklearn.linear_model import LinearRegression, RANSACRegressor
@@ -17,11 +20,13 @@ from sklearn.preprocessing import PolynomialFeatures
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
+from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 
+logger = logging.getLogger(__name__)
 
 TEMPLATES = {
-    "postive": [
+    "positive": [
         "HILICz150_ANT20190824_TPL_EMA_Unlab_POS",
         "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS",
         "HILICz150_ANT20190824_TPL_ISv5_Unlab_POS",
@@ -37,6 +42,8 @@ TEMPLATES = {
     ],
 }
 
+TQDM_CONFIG = {"file": sys.stdout, "colour": "green"}
+
 
 class Model:
     """Encapsulate both linear and polynomial models in a consistent interface"""
@@ -50,7 +57,7 @@ class Model:
         """
         self.sk_model = sk_model
         self.intercept = intercept
-        if isinstance(coefficents, list):
+        if isinstance(coefficents, (list, np.ndarray)):
             self.coefficents = coefficents
         else:
             self.coefficents = [coefficents]
@@ -65,7 +72,7 @@ class Model:
     @property
     def order(self):
         """Polynomial order of the model"""
-        return len(self.coefficents)
+        return 1 if len(self.coefficents) == 1 else len(self.coefficents) - 1
 
     @property
     def name(self):
@@ -74,7 +81,10 @@ class Model:
 
     def predict(self, x_values):
         """Returns y values for input x"""
-        return self.sk_model.predict(x_values)
+        x_transformed = x_values.reshape(-1, 1)
+        if self.order > 1:
+            x_transformed = np.array([[i[0] ** n for n in range(self.order + 1)] for i in x_transformed])
+        return self.sk_model.predict(x_transformed)
 
 
 def generate_rt_correction_models(
@@ -86,7 +96,7 @@ def generate_rt_correction_models(
         ids: an AnalysisIds object matching the one used in the main notebook
         groups_controlled_vocab: list of strings that will group together when creating groups
                                  application of groups_controlled_vocab is case insensitive
-        exclude_files: list of strings that will exclude files if they are substrings of the filename
+        exclude_files: list of strings that will exclude files if they are substrings of the file name
         include_groups: group will only be used in correction if their name has a substring match
                         to this list of strings
         cpus: max number of cpus to use
@@ -94,25 +104,26 @@ def generate_rt_correction_models(
     """
     # pylint: disable=too-many-locals
     metatlas_dataset = mads.MetatlasDataset(ids, groups_controlled_vocab, exclude_files, save_metadata=False)
-    qc_dir = os.path.join(ids.output_dir, "data_QC")
     groups = get_groups(metatlas_dataset, include_groups)
     files_df = get_files_df(groups)
     qc_atlas, qc_atlas_df = get_qc_atlas(metatlas_dataset.ids)
     metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)
-    save_measured_rts(metatlas_dataset, os.path.join(qc_dir, "QC_Measured_RTs.csv"))
+    save_measured_rts(metatlas_dataset, os.path.join(ids.output_dir, "QC_Measured_RTs.csv"))
     rts_df = get_rts(metatlas_dataset)
-    plot_compound_atlas_rts(metatlas_dataset, rts_df, os.path.join(qc_dir, "Compound_Atlas_RTs.pdf"))
-    selected_column = 9  # need to deal with this parameter, index from rts_df.columns
+    compound_atlas_rts_file_name = os.path.join(ids.output_dir, "Compound_Atlas_RTs.pdf")
+    plot_compound_atlas_rts(len(metatlas_dataset), rts_df, compound_atlas_rts_file_name)
+    selected_column = "median"
     actual_df, pred_df = actual_and_predicted_df(selected_column, rts_df, qc_atlas_df)
     linear, poly = generate_models(actual_df, pred_df)
     actual_rts, pred_rts = actual_and_predicted_rts(rts_df, qc_atlas_df, actual_df, pred_df)
-    actual_vs_pred_file_name = os.path.join(qc_dir, "Actual_vs_Predicted_RTs.pdf")
+    actual_vs_pred_file_name = os.path.join(ids.output_dir, "Actual_vs_Predicted_RTs.pdf")
     plot_actual_vs_pred_rts(pred_rts, actual_rts, rts_df, actual_vs_pred_file_name, linear, poly)
-    rt_comparison_file_name = os.path.join(qc_dir, "RT_Predicted_Model_Comparison.csv")
+    rt_comparison_file_name = os.path.join(ids.output_dir, "RT_Predicted_Model_Comparison.csv")
     save_model_comparison(selected_column, qc_atlas_df, rts_df, linear, poly, rt_comparison_file_name)
-    models_file_name = os.path.join(qc_dir, "rt_model.txt")
+    models_file_name = os.path.join(ids.output_dir, "rt_model.txt")
     write_models(models_file_name, linear, poly, groups, qc_atlas)
-    create_adjusted_atlases(linear, poly, qc_dir, save_to_db=save_to_db)
+    create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
+    logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
 
 
 def get_groups(metatlas_dataset, include_groups):
@@ -126,13 +137,16 @@ def get_groups(metatlas_dataset, include_groups):
     metatlas_dataset.store_groups(exist_ok=True)
     ids = metatlas_dataset.ids
     groups = dp.select_groups_for_analysis(
-        name=f"{ids.experiment}_{ids.short_polarity}_%",
+        name=f"{ids.experiment}_{ids.short_polarity}_%{ids.analysis}_%",
         most_recent=True,
         remove_empty=True,
         include_list=include_groups,
         exclude_list=ids.short_polarity_inverse,
+        do_print=False,
     )
-    return sorted(groups, key=lambda x: x.name)
+    ordered_groups = sorted(groups, key=lambda x: x.name)
+    _ = [logger.info("Selected group: %s, %s", grp.name, grp.last_modified) for grp in groups]
+    return ordered_groups
 
 
 def get_files_df(groups):
@@ -151,6 +165,7 @@ def get_files_df(groups):
 def get_qc_atlas(ids):
     """Retreives template QC atlas and return tuple (atlas, atlas_df)"""
     qc_atlas_name = f"HILICz150_ANT20190824_TPL_QCv3_Unlab_{ids.short_polarity}"
+    logger.info("Loading QC Atlas %s", qc_atlas_name)
     atlas = metob.retrieve("Atlas", name=qc_atlas_name, username="vrsingan")[0]
     atlas_df = ma_data.make_atlas_df(atlas)
     atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
@@ -167,21 +182,17 @@ def load_runs(files_df, qc_atlas_df, qc_atlas, cpus):
         cpus: number of cpus to use
     """
     files = [(i[1].file, i[1].group, qc_atlas_df, qc_atlas) for i in files_df.iterrows()]
+    logger.info("Loading LCMS data files")
     return mads.parallel_process(ma_data.get_data_for_atlas_df_and_file, files, cpus, unit="sample")
 
 
-def save_measured_rts(metatlas_dataset, filename):
+def save_measured_rts(metatlas_dataset, file_name):
     """Save RT values in csv format file"""
-    rts_df = dp.make_output_dataframe(
-        input_dataset=metatlas_dataset,
-        fieldname="rt_peak",
-        use_labels=True,
-        summarize=True,
-    )
-    rts_df.to_csv(filename)
+    rts_df = get_rts(metatlas_dataset, include_atlas_rt_peak=False)
+    write_utils.export_dataframe_die_on_diff(rts_df, file_name, "measured RT values")
 
 
-def get_rts(metatlas_dataset):
+def get_rts(metatlas_dataset, include_atlas_rt_peak=True):
     """Returns RT values in DataFrame format"""
     rts_df = dp.make_output_dataframe(
         input_dataset=metatlas_dataset,
@@ -189,44 +200,46 @@ def get_rts(metatlas_dataset):
         use_labels=True,
         summarize=True,
     )
-    rts_df["atlas RT peak"] = [
-        compound["identification"].rt_references[0].rt_peak for compound in metatlas_dataset[0]
-    ]
+    if include_atlas_rt_peak:
+        rts_df["atlas RT peak"] = [
+            compound["identification"].rt_references[0].rt_peak for compound in metatlas_dataset[0]
+        ]
     return rts_df
 
 
-def plot_compound_atlas_rts(num_files, rts_df, file_name):
+def plot_compound_atlas_rts(num_files, rts_df, file_name, fontsize=2, pad=0.1, cols=8):
     """
     Writes plot of RT peak for vs file for each compound
     inputs:
         num_files: number of files in data set, ie len(metatlas_dataset)
         rts_df: Dataframe with RTs values
-        filename: where to save plot
+        file_name: where to save plot
+        fontsize: size of text
+        pad: padding size
+        cols: number of columns in plot grid
     """
     # pylint: disable=too-many-locals
-    # number of columns in rts_df that are not values from a specific input file
-    num_not_files = len(rts_df.columns) - num_files
+    logger.info("Plotting RT Peak vs file for each compound")
     rts_df_plot = (
         rts_df.sort_values(by="standard deviation", ascending=False, na_position="last")
         .drop(["#NaNs"], axis=1)
-        .dropna(axis=0, how="all", subset=rts_df.columns[:-num_not_files])
+        .dropna(axis=0, how="all", subset=rts_df.columns[:num_files])
     )
-    fontsize = 2
-    pad = 0.1
-    cols = 8
     rows = int(math.ceil((rts_df.shape[0] + 1) / 8))
     fig = plt.figure()
     grid = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.2, hspace=0.4)
-    for i, (_, row) in enumerate(rts_df_plot.iterrows()):
+    for i, (_, row) in tqdm.tqdm(
+        enumerate(rts_df_plot.iterrows()), total=len(rts_df_plot), unit="plot", **TQDM_CONFIG
+    ):
         a_x = fig.add_subplot(grid[i])
         a_x.tick_params(direction="in", length=1, pad=pad, width=0.1, labelsize=fontsize)
-        a_x.scatter(range(rts_df_plot.shape[1] - num_not_files), row[:-num_not_files], s=0.2)
-        ticks_loc = np.arange(0, len(rts_df_plot.columns) - num_not_files, 1.0)
-        a_x.a_xhline(y=row["atlas RT peak"], color="r", linestyle="-", linewidth=0.2)
-        a_x.set_xlim(-0.5, len(rts_df_plot.columns) - num_not_files + 0.5)
-        a_x.xa_xis.set_major_locator(mticker.FixedLocator(ticks_loc))
-        range_columns = list(rts_df_plot.columns[:-num_not_files]) + ["atlas RT peak"]
-        a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanma_x(row.loc[range_columns]) + 0.12)
+        a_x.scatter(range(num_files), row[:num_files], s=0.2)
+        ticks_loc = np.arange(0, num_files, 1.0)
+        a_x.axhline(y=row["atlas RT peak"], color="r", linestyle="-", linewidth=0.2)
+        a_x.set_xlim(-0.5, num_files + 0.5)
+        a_x.xaxis.set_major_locator(mticker.FixedLocator(ticks_loc))
+        range_columns = list(rts_df_plot.columns[:num_files]) + ["atlas RT peak"]
+        a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanmax(row.loc[range_columns]) + 0.12)
         _ = [s.set_linewidth(0.1) for s in a_x.spines.values()]
         # truncate name so it fits above a single subplot
         a_x.set_title(row.name[:33], pad=pad, fontsize=fontsize)
@@ -263,7 +276,7 @@ def actual_and_predicted_df(selected_column, rts_df, atlas_df):
         atlas_df: QC atlas in dataframe format
     return a tuple of (actual_df, pred_df)
     """
-    actual_df = rts_df.loc[:, rts_df.columns[selected_column]]
+    actual_df = rts_df.loc[:, selected_column]
     bad_qc_compounds = np.where(~np.isnan(actual_df))
     actual_df = actual_df.iloc[bad_qc_compounds]
     pred_df = atlas_df.iloc[bad_qc_compounds][["rt_peak"]]
@@ -330,22 +343,29 @@ def save_model_comparison(selected_column, qc_atlas_df, rts_df, linear, poly, fi
         rts_df: dataframe with RT values
         linear: instance of class Model with first order model
         poly: instance of class Model with second order model
-        filename: where to save the plot
+        file_name: where to save the plot
     """
-    qc_df = rts_df[[rts_df.columns[selected_column]]].copy()
+    qc_df = rts_df[[selected_column]].copy()
     qc_df.columns = ["RT Measured"]
-    qc_df["RT Reference"] = qc_atlas_df["rt_peak"]
-    qc_df["RT Linear Pred"] = linear.predict(qc_df["RT Reference"])
-    qc_df["RT Polynomial Pred"] = poly.predict(qc_df["RT Reference"])
+    # qc_df["RT Reference"] = qc_atlas_df["rt_peak"]
+    qc_df.loc[:, "RT Reference"] = qc_atlas_df["rt_peak"].to_numpy()
+    qc_df.loc[:, "RT Linear Pred"] = pd.Series(
+        linear.predict(qc_df["RT Reference"].to_numpy()), index=qc_df.index
+    )
+    qc_df.loc[:, "RT Polynomial Pred"] = pd.Series(
+        poly.predict(qc_df["RT Reference"].to_numpy()), index=qc_df.index
+    )
+    # qc_df["RT Linear Pred"] = linear.predict(qc_df["RT Reference"].to_numpy())
+    # qc_df["RT Polynomial Pred"] = poly.predict(qc_df["RT Reference"].to_numpy())
     qc_df["RT Diff Linear"] = qc_df["RT Measured"] - qc_df["RT Linear Pred"]
     qc_df["RT Diff Polynomial"] = qc_df["RT Measured"] - qc_df["RT Polynomial Pred"]
-    qc_df.to_csv(file_name)
+    write_utils.export_dataframe_die_on_diff(qc_df, file_name, "model comparision")
 
 
 def write_models(file_name, linear_model, poly_model, groups, atlas):
     """
     inputs:
-        filename: text file to save model information
+        file_name: text file to save model information
         linear_model: instance of class Model with first order model
         poly_model: instance of class Model with second order model
         groups: list of groups used in model generation
@@ -360,12 +380,28 @@ def write_models(file_name, linear_model, poly_model, groups, atlas):
             out_fh.write(f"atlas = {atlas.name}\n\n")
 
 
-def create_adjusted_atlases(linear, poly, qc_dir, atlas_indices=None, free_text="", save_to_db=True):
+def get_atlas_name(template_name, ids, model, free_text):
+    """
+    input:
+        template_name: name of template atlas
+        ids: an AnalysisIds object matching the one used in the main notebook
+        model: an instance of Model
+        free_text: arbitrary string to append to atlas name
+    returns the name of the production atlas
+    """
+    prod_name = template_name.replace("TPL", "PRD")
+    prod_atlas_name = f"{prod_name}_{model.name}_{ids.project}_{ids.analysis}"
+    if free_text != "":
+        prod_atlas_name += f"_{free_text}"
+    return prod_atlas_name
+
+
+def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="", save_to_db=True):
     """
     input:
         linear_model: instance of class Model with first order model
         poly_model: instance of class Model with second order model
-        qc_dir: directory to write csv files to
+        ids: an AnalysisIds object matching the one used in the main notebook
         atlas_indices: list of integers for which adjusted atlases to create
                         0: EMA_Unlab
                         1: QCv3_Unlab
@@ -375,34 +411,39 @@ def create_adjusted_atlases(linear, poly, qc_dir, atlas_indices=None, free_text=
         free_text: arbitrary string to append to atlas name
         save_to_db: if True, save the atlases to the database
     """
-    if atlas_indices is None:
-        atlas_indices = [0, 4]
-    for polarity in ["positive", "negative"]:
-        for idx in atlas_indices:
-            for model in [linear, poly]:
-                template_name = TEMPLATES[polarity][idx]
-                atlas = metob.retrieve("Atlas", name=template_name, username="vrsingan")[-1]
-                prd_atlas_name = template_name.replace("TPL", "PRD") + f"_{model.name}"
-                if free_text != "":
-                    prd_atlas_name = prd_atlas_name + "_" + free_text
-                prd_atlas_filename = prd_atlas_name + ".csv"
-                prd_atlas_df = ma_data.make_atlas_df(atlas)
-                prd_atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
-                prd_atlas_df["rt_peak"] = model.predict(prd_atlas_df["rt_peak"])
-                prd_atlas_df["rt_min"] = prd_atlas_df["rt_peak"].apply(lambda rt: rt - 0.5)
-                prd_atlas_df["rt_max"] = prd_atlas_df["rt_peak"].apply(lambda rt: rt + 0.5)
-                prd_atlas_df.to_csv(os.path.join(qc_dir, prd_atlas_filename), index=False)
-                if save_to_db:
-                    dp.make_atlas_from_spreadsheet(
-                        prd_atlas_df,
-                        prd_atlas_name,
-                        filetype="dataframe",
-                        sheetname="",
-                        polarity=polarity,
-                        store=True,
-                        mz_tolerance=12,
-                    )
-                print(prd_atlas_name + " Created!")
+    atlas_indices = [0, 4] if atlas_indices is None else atlas_indices
+    plot_vars = [
+        (polarity, idx, model)
+        for polarity in ["positive", "negative"]
+        for idx in atlas_indices
+        for model in [linear, poly]
+    ]
+    for polarity, idx, model in tqdm.tqdm(plot_vars, unit="atlas", **TQDM_CONFIG):
+        template_name = TEMPLATES[polarity][idx]
+        atlas = metob.retrieve("Atlas", name=template_name, username="vrsingan")[-1]
+        prd_atlas_name = get_atlas_name(template_name, ids, model, free_text)
+        logger.info("Creating atlas %s", prd_atlas_name)
+        prd_atlas_file_name = os.path.join(ids.output_dir, f"{prd_atlas_name}.csv")
+        prd_atlas_df = ma_data.make_atlas_df(atlas)
+        prd_atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
+        prd_atlas_df["rt_peak"] = model.predict(prd_atlas_df["rt_peak"].to_numpy())
+        prd_atlas_df["rt_min"] = prd_atlas_df["rt_peak"].apply(lambda rt: rt - 0.5)
+        prd_atlas_df["rt_max"] = prd_atlas_df["rt_peak"].apply(lambda rt: rt + 0.5)
+        write_utils.export_dataframe_die_on_diff(
+            prd_atlas_df, prd_atlas_file_name, "predicted atlas", index=False
+        )
+        logger.info("Atlas exported as %s", prd_atlas_file_name)
+        if save_to_db:
+            dp.make_atlas_from_spreadsheet(
+                prd_atlas_df,
+                prd_atlas_name,
+                filetype="dataframe",
+                sheetname="",
+                polarity=polarity,
+                store=True,
+                mz_tolerance=12,
+            )
+            logger.info("Atlas %s stored in database", prd_atlas_name)
 
 
 def get_analysis_ids_for_rt_prediction(experiment, project_directory, analysis_number=0, polarity="positive"):
@@ -415,5 +456,5 @@ def get_analysis_ids_for_rt_prediction(experiment, project_directory, analysis_n
         polarity: defaults to 'positive', set to 'negative' if you only have neg mode data
     Returns an AnalysisIds instance
     """
-    ids = mads.AnalysisIdentifiers(None, experiment, "ISTDsEtc", polarity, analysis_number, project_directory)
+    ids = mads.AnalysisIdentifiers(None, experiment, "data_QC", polarity, analysis_number, project_directory)
     return ids

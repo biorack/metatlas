@@ -1,4 +1,10 @@
-"""Environment setup functions"""
+"""
+Environment setup functions
+
+Try to keep the imports in this file to the python standard libraries.
+Otherwise some of the metatlas_repo/kernel validation errors will
+not correctly report problems with the notebook configuration
+"""
 
 import getpass
 import json
@@ -6,6 +12,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 
 from pathlib import Path
 
@@ -36,6 +43,35 @@ def install_kernel():
     os.makedirs(dest_dir, exist_ok=True)
     shutil.copyfile(source, dest_dir / "kernel.json")
     logger.info('Kernel installation complete. Reload Jupyter notebook page to see new kernel". ')
+
+
+def validate_kernel():
+    """
+    Raise error if problem with kernel
+    When on NERSC, this will install the correct kernel if needed
+    """
+    allowed_exe = [
+        "/global/common/software/m2650/metatlas-targeted-2021-07-16/bin/python",
+    ]
+    error_msg = "Invalid kernel setting in Jupyter Notebook."
+    on_nersc = "METATLAS_LOCAL" not in os.environ
+    if on_nersc and sys.executable not in allowed_exe:
+        install_kernel()
+        if "/global/common/software/m2650/metatlas-targeted" in sys.executable:
+            logger.critical('Upgraded "Metatlas Targeted" kernel.')
+            logger.critical('Please reselect "Metatlas Targeted" kernel for upgrade to become active.')
+        else:
+            logger.critical('Please check that the kernel is set to "Metatlas Targeted".')
+        raise ValueError(error_msg)
+    try:
+        # pylint: disable=import-outside-toplevel,unused-import
+        import dataset  # noqa: F401
+    except ModuleNotFoundError as module_error:
+        logger.critical(
+            'Could not find dataset module. Please check that the kernel is set to "Metatlas Targeted".'
+        )
+        raise ModuleNotFoundError from module_error
+    logger.debug("Kernel validation passed. Using python from %s.", sys.executable)
 
 
 def repo_dir():

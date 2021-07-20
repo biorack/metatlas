@@ -231,4 +231,4 @@ def test_dill():
     test = mo.Group(items=[mo.Group(description="hello")])
     blob = dill.dumps(test)
     new = dill.loads(blob)
-    assert new.items[0].description == "hello"
+    assert new.items[0].description == "hello"  # pylint: disable=no-member

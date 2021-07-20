@@ -25,7 +25,7 @@ MSMS_REFS_PATH = "/global/project/projectdirs/metatlas/projects/spectral_librari
 POLARITIES = ["positive", "negative", "fast-polarity-switching"]
 SHORT_POLARITIES = {"positive": "POS", "negative": "NEG", "fast-polarity-switching": "FPS"}
 
-OUTPUT_TYPES = ["ISTDsEtc", "FinalEMA-HILIC"]
+OUTPUT_TYPES = ["ISTDsEtc", "FinalEMA-HILIC", "data_QC"]
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +103,19 @@ class AnalysisIdentifiers:
         return self._analysis_number
 
     @property
+    def _exp_tokens(self):
+        """Returns list of strings from the experiment name"""
+        return self.experiment.split("_")
+
+    @property
+    def project(self):
+        """Returns project number (proposal id)"""
+        return self._exp_tokens[3]
+
+    @property
     def atlas(self):
         """Atlas identifier (name)"""
-        exp_tokens = self.experiment.split("_")
-        return f"{'_'.join(exp_tokens[3:6])}_{self.output_type}_{self.short_polarity}_{self.analysis}"
+        return f"{'_'.join(self._exp_tokens[3:6])}_{self.output_type}_{self.short_polarity}_{self.analysis}"
 
     @property
     def username(self):
@@ -121,8 +130,7 @@ class AnalysisIdentifiers:
     @property
     def short_experiment_analysis(self):
         """Short experiment analysis identifier"""
-        exp_tokens = self.experiment.split("_")
-        return f"{exp_tokens[0]}_{exp_tokens[3]}_{self.output_type}_{self.analysis}"
+        return f"{self._exp_tokens[0]}_{self._exp_tokens[3]}_{self.output_type}_{self.analysis}"
 
     @property
     def short_polarity(self):
@@ -321,7 +329,7 @@ class MetatlasDataset:
                 workspace.db.query(f"delete from compoundidentifications where unique_id='{cid_id}'")
             workspace.db.commit()
             del self._atlas.compound_identifications[idx]
-        except Exception as err:
+        except Exception as err:  # pylint: disable=broad-except
             metoh.rollback_and_log(workspace.db, err)
         workspace.close_connection()
 
@@ -351,8 +359,9 @@ class MetatlasDataset:
                 [compound for idx, compound in enumerate(sample) if idx in keep_idxs] for sample in self._data
             ]
         if remove_idxs is None:
-            remove_idxs = [idx for idx, _ in enumerate(self._atlas.compound_identifications)
-                           if idx not in keep_idxs]
+            remove_idxs = [
+                idx for idx, _ in enumerate(self._atlas.compound_identifications) if idx not in keep_idxs
+            ]
         _ = [self._remove_compound_id(idx) for idx in sorted(remove_idxs, reverse=True)]
         logger.info(
             "Filtering reduced atlas from %d to %d compounds (%d removed).",
@@ -661,7 +670,9 @@ class MetatlasDataset:
     @property
     def existing_groups(self):
         """Get your own groups that are prefixed by self.experiment"""
-        return metob.retrieve("Groups", name=f"{self.ids.experiment}%", username=self.ids.username)
+        return metob.retrieve(
+            "Groups", name=f"{self.ids.experiment}%{self.ids.analysis}_%", username=self.ids.username
+        )
 
     @property
     def lcmsruns_dataframe(self):
@@ -952,5 +963,5 @@ def parallel_process(function, data, max_cpus, unit=None):
     kwargs = {"file": sys.stdout, "unit": unit, "colour": "green"}
     if max_cpus > 1 and len(data) > 1:
         with multiprocessing.Pool(processes=min(max_cpus, len(data))) as pool:
-            return list(tqdm.tqdm(pool.imap(function, data), length=len(data), **kwargs))
+            return list(tqdm.tqdm(pool.imap(function, data), total=len(data), **kwargs))
     return [function(i) for i in data]

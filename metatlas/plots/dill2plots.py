@@ -3148,8 +3148,6 @@ def select_groups_for_analysis(name = '%', description = [], username = '*', do_
     if exclude_list:
         groups = remove_metatlas_objects_by_list(groups,'name',exclude_list)
 
-    print((len(groups)))
-
     if remove_empty:
         groups = filter_empty_metatlas_objects(groups,'items')
     if do_print:
