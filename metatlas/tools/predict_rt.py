@@ -5,23 +5,25 @@ import itertools
 import logging
 import math
 import os
-import sys
+
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
-import tqdm
 
 from matplotlib import gridspec
 from sklearn.linear_model import LinearRegression, RANSACRegressor
 from sklearn.preprocessing import PolynomialFeatures
+from tqdm.notebook import tqdm
 
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
+from metatlas.tools import notebook
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +43,6 @@ TEMPLATES = {
         "HILICz150_ANT20190824_TPL_IS_LabUnlab2_NEG",
     ],
 }
-
-TQDM_CONFIG = {"file": sys.stdout, "colour": "green"}
 
 
 class Model:
@@ -88,7 +88,14 @@ class Model:
 
 
 def generate_rt_correction_models(
-    ids, groups_controlled_vocab, exclude_files, include_groups, cpus, save_to_db=True
+    ids,
+    groups_controlled_vocab,
+    exclude_files,
+    include_groups,
+    cpus,
+    repo_dir,
+    save_to_db=True,
+    use_poly_model=True,
 ):
     """
     Generate the RT correction models and associated atlases with adjusted RT values
@@ -100,7 +107,11 @@ def generate_rt_correction_models(
         include_groups: group will only be used in correction if their name has a substring match
                         to this list of strings
         cpus: max number of cpus to use
+        repo_dir: location of metatlas git repo on local filesystem
         save_to_db: If True, save the new atlases to the database
+        use_poly_model: If True, use the polynomial model, else use linear model
+                        Both types of models are always generated, this only determines which ones
+                        are pre-populated into the generated notebooks
     """
     # pylint: disable=too-many-locals
     metatlas_dataset = mads.MetatlasDataset(ids, groups_controlled_vocab, exclude_files, save_metadata=False)
@@ -122,7 +133,8 @@ def generate_rt_correction_models(
     save_model_comparison(selected_column, qc_atlas_df, rts_df, linear, poly, rt_comparison_file_name)
     models_file_name = os.path.join(ids.output_dir, "rt_model.txt")
     write_models(models_file_name, linear, poly, groups, qc_atlas)
-    create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
+    atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
+    write_notebooks(ids, atlases, repo_dir, use_poly_model)
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
 
 
@@ -218,7 +230,6 @@ def plot_compound_atlas_rts(num_files, rts_df, file_name, fontsize=2, pad=0.1, c
         pad: padding size
         cols: number of columns in plot grid
     """
-    # pylint: disable=too-many-locals
     logger.info("Plotting RT Peak vs file for each compound")
     rts_df_plot = (
         rts_df.sort_values(by="standard deviation", ascending=False, na_position="last")
@@ -228,16 +239,13 @@ def plot_compound_atlas_rts(num_files, rts_df, file_name, fontsize=2, pad=0.1, c
     rows = int(math.ceil((rts_df.shape[0] + 1) / 8))
     fig = plt.figure()
     grid = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.2, hspace=0.4)
-    for i, (_, row) in tqdm.tqdm(
-        enumerate(rts_df_plot.iterrows()), total=len(rts_df_plot), unit="plot", **TQDM_CONFIG
-    ):
+    for i, (_, row) in tqdm(enumerate(rts_df_plot.iterrows()), total=len(rts_df_plot), unit="plot"):
         a_x = fig.add_subplot(grid[i])
         a_x.tick_params(direction="in", length=1, pad=pad, width=0.1, labelsize=fontsize)
         a_x.scatter(range(num_files), row[:num_files], s=0.2)
-        ticks_loc = np.arange(0, num_files, 1.0)
         a_x.axhline(y=row["atlas RT peak"], color="r", linestyle="-", linewidth=0.2)
         a_x.set_xlim(-0.5, num_files + 0.5)
-        a_x.xaxis.set_major_locator(mticker.FixedLocator(ticks_loc))
+        a_x.xaxis.set_major_locator(mticker.FixedLocator(np.arange(0, num_files, 1.0)))
         range_columns = list(rts_df_plot.columns[:num_files]) + ["atlas RT peak"]
         a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanmax(row.loc[range_columns]) + 0.12)
         _ = [s.set_linewidth(0.1) for s in a_x.spines.values()]
@@ -410,7 +418,9 @@ def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="",
                         4: IS_LabUnlab2
         free_text: arbitrary string to append to atlas name
         save_to_db: if True, save the atlases to the database
+    returns a list of the names of atlases
     """
+    # pylint: disable=too-many-locals
     atlas_indices = [0, 4] if atlas_indices is None else atlas_indices
     plot_vars = [
         (polarity, idx, model)
@@ -418,10 +428,12 @@ def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="",
         for idx in atlas_indices
         for model in [linear, poly]
     ]
-    for polarity, idx, model in tqdm.tqdm(plot_vars, unit="atlas", **TQDM_CONFIG):
+    out = []
+    for polarity, idx, model in tqdm(plot_vars, unit="atlas"):
         template_name = TEMPLATES[polarity][idx]
         atlas = metob.retrieve("Atlas", name=template_name, username="vrsingan")[-1]
         prd_atlas_name = get_atlas_name(template_name, ids, model, free_text)
+        out.append(prd_atlas_name)
         logger.info("Creating atlas %s", prd_atlas_name)
         prd_atlas_file_name = os.path.join(ids.output_dir, f"{prd_atlas_name}.csv")
         prd_atlas_df = ma_data.make_atlas_df(atlas)
@@ -432,7 +444,6 @@ def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="",
         write_utils.export_dataframe_die_on_diff(
             prd_atlas_df, prd_atlas_file_name, "predicted atlas", index=False
         )
-        logger.info("Atlas exported as %s", prd_atlas_file_name)
         if save_to_db:
             dp.make_atlas_from_spreadsheet(
                 prd_atlas_df,
@@ -443,7 +454,38 @@ def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="",
                 store=True,
                 mz_tolerance=12,
             )
-            logger.info("Atlas %s stored in database", prd_atlas_name)
+    return out
+
+
+def write_notebooks(ids, atlases, repo_dir, use_poly_model):
+    """
+    Creates Targeted analysis jupyter notebooks with pre-populated parameter sets
+    Inputs:
+        ids: an AnalysisIds object matching the one used in the main notebook
+        atlases: list of atlas names to use as source atlases
+        repo_dir: location of metatlas git repo on local filesystem
+        use_poly_model: if True use polynomial RT prediction model, else use linear model
+                        this value is used to filter atlases from the input atlases list
+    """
+    for atlas_name in atlases:
+        if (use_poly_model and "linear" in atlas_name) or (not use_poly_model and "polynomial" in atlas_name):
+            continue
+        polarity = "positive" if "_POS_" in atlas_name else "negative"
+        short_polarity = "POS" if polarity == "positive" else "NEG"
+        output_type = "FinalEMA-HILIC" if "EMA_Unlab" in atlas_name else "ISTDsEtc"
+        repo_path = Path(__file__).resolve().parent.parent.parent
+        source = repo_path / "notebooks" / "reference" / "Targeted.ipynb"
+        dest = Path(ids.output_dir).resolve().parent / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
+        parameters = {
+            "experiment": ids.experiment,
+            "output_type": output_type,
+            "polarity": polarity,
+            "analysis_number": 0,
+            "metatlas_repo_path": repo_dir,
+            "project_directory": ids.project_directory,
+            "source_atlas": atlas_name,
+        }
+        notebook.create_notebook(source, dest, parameters)
 
 
 def get_analysis_ids_for_rt_prediction(experiment, project_directory, analysis_number=0, polarity="positive"):

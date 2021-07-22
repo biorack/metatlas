@@ -1,5 +1,6 @@
 """Jupyter notebook helper functions"""
 
+import json
 import logging
 import os
 
@@ -60,3 +61,35 @@ def activate_sql_logging(console_level="INFO", console_format=None, file_level="
     """
     logger.debug("Activaing SQL logging with console_level=%s and file_level=%s.", console_level, file_level)
     activate_module_logging("sqlalchemy.engine", console_level, console_format, file_level, filename)
+
+
+def create_notebook(input_file_name, output_file_name, parameters, injection_cell=2):
+    """
+    Copies from input_file_name to output_file_name and then places the parameters into a
+    cell of the output notebook.
+    inputs:
+        input_file_name: source notebook
+        output_file_name: destination notebook
+        parameters: dict where keys are LHS of assignment and values are RHS of assignment
+        injection_cell: zero-indexed number of cell to overwrite with the parameters
+    """
+    with open(input_file_name, "r") as in_fh:
+        notebook = json.load(in_fh)
+    notebook["cells"][injection_cell]["source"] = [assignment_string(k, v) for k, v in parameters.items()]
+    with open(output_file_name, "w", encoding="utf-8") as out_fh:
+        json.dump(notebook, out_fh, ensure_ascii=False, indent=4)
+    logger.info("Created jupyter notebook %s", output_file_name)
+
+
+def assignment_string(lhs, rhs):
+    """
+    inputs:
+        lhs: name of variable to be assigned value
+        rhs: python object that will be assigned
+    returns a string
+    """
+    if isinstance(rhs, bool):
+        rhs_str = "True" if rhs else "False"
+    else:
+        rhs_str = json.dumps(rhs)
+    return f"{lhs} = {rhs_str}\n"

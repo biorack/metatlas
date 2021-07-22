@@ -18,6 +18,7 @@ from metatlas.plots import chromplotplus as cpp
 from metatlas.io.metatlas_get_data_helper_fun import extract
 # from metatlas import gui
 
+from tqdm.notebook import tqdm
 from textwrap import fill, TextWrapper
 # import qgrid
 import pandas as pd
@@ -2109,9 +2110,7 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
                              'inchi_key', 'precursor_mz', 'measured_precursor_mz',
                              'measured_precursor_intensity']
     msms_hits = pd.DataFrame(columns=all_cols).set_index(index_cols)
-    for compound_idx, _ in enumerate(compound_names):
-        sys.stdout.write('\r'+'Processing: {} / {} compounds.'.format(compound_idx+1, len(compound_names)))
-        sys.stdout.flush()
+    for compound_idx, _ in tqdm(enumerate(compound_names), unit='compound'):
         cid = metatlas_dataset[0][compound_idx]['identification']
         name = cid.name.split('///')[0] if cid.name else getattr(cid.compound[-1], 'name', None)
         adduct = ma_data.extract(cid, ['mz_references', 0, 'adduct'], None)
@@ -2120,7 +2119,7 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
         precursor_mz = cid.mz_references[0].mz
         rt_min = cid.rt_references[0].rt_min
         rt_max = cid.rt_references[0].rt_max
-        for file_idx, file_name in enumerate(file_names):
+        for file_idx, file_name in tqdm(enumerate(file_names), unit='file'):
             mfc = metatlas_dataset[file_idx][compound_idx]
             polarity = mfc['identification'].mz_references[0].detected_polarity
             try:
@@ -2160,7 +2159,6 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
                     scan_df['msv_query_aligned'] = [msv_sample]
                     scan_df['msv_ref_aligned'] = [np.full_like(msv_sample, np.nan)]
                 msms_hits = msms_hits.append(scan_df)
-    sys.stdout.write('\n'+'Done!!!\n')
     return msms_hits
 
 
@@ -3009,7 +3007,7 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     check_filenames(atlas_df, 'file_msms')
     atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
     if store:
-        logger.debug('Saving atlas named %s to DB.', atlas_name)
+        logger.info('Saving atlas named %s to DB.', atlas_name)
         metob.store(atlas)
     return atlas
 

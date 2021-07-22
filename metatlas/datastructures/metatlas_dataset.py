@@ -7,12 +7,11 @@ import multiprocessing
 import numbers
 import os
 import shutil
-import sys
 import tarfile
 
 import humanize
 import pandas as pd
-import tqdm
+from tqdm.notebook import tqdm
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
@@ -960,8 +959,7 @@ def parallel_process(function, data, max_cpus, unit=None):
         max_cpus: number of cpus to use
         unit: string label for what is processed in one iteration, default 'it'
     """
-    kwargs = {"file": sys.stdout, "unit": unit, "colour": "green"}
     if max_cpus > 1 and len(data) > 1:
         with multiprocessing.Pool(processes=min(max_cpus, len(data))) as pool:
-            return list(tqdm.tqdm(pool.imap(function, data), total=len(data), **kwargs))
+            return list(tqdm(pool.imap(function, data), total=len(data), unit=unit))
     return [function(i) for i in data]
