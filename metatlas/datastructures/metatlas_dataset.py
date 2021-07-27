@@ -283,7 +283,6 @@ class MetatlasDataset:
 
     def _build(self):
         """Populate self._data from database and h5 files."""
-        logger.info("Loading data into MetatlasDataset")
         start_time = datetime.datetime.now()
         files = []
         for group in self.groups:
@@ -298,6 +297,7 @@ class MetatlasDataset:
                         self.extra_mz,
                     )
                 )
+        logger.info('Reading MSMS data from h5 files')
         samples = parallel_process(
             ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample"
         )
@@ -484,6 +484,7 @@ class MetatlasDataset:
         """atlas_df getter, update ._atlas_df if necessary"""
         if not self._atlas_df_valid:
             start_time = datetime.datetime.now()
+            logger.info('Generating atlas_df')
             self._atlas_df = ma_data.make_atlas_df(self.atlas)
             self._atlas_df_valid = True
             logger.info(
@@ -960,6 +961,8 @@ def parallel_process(function, data, max_cpus, unit=None):
         unit: string label for what is processed in one iteration, default 'it'
     """
     if max_cpus > 1 and len(data) > 1:
+        logger.debug('Starting parallel processing of %s with %d cpus.', function.__name__, max_cpus)
         with multiprocessing.Pool(processes=min(max_cpus, len(data))) as pool:
             return list(tqdm(pool.imap(function, data), total=len(data), unit=unit))
+    logger.debug('Processing of %s with 1 cpu.', function.__name__)
     return [function(i) for i in data]

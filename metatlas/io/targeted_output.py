@@ -57,6 +57,12 @@ def write_stats_table(
                        if False filter out row if MSMS thresholds are not passing
         overwrite: if True, will write over existing files
     """
+    prefix = f"{metatlas_dataset.ids.short_polarity}_"
+    scores_path = os.path.join(
+        metatlas_dataset.ids.output_dir, f"{prefix}stats_tables", f"{prefix}compound_scores.csv"
+    )
+    _ = metatlas_dataset.hits  # regenerate hits if needed before logging about scores
+    logger.info('Calculating scores and exporting them to %s.', scores_path)
     scores_df = fa.make_scores_df(metatlas_dataset, metatlas_dataset.hits)
     scores_df["passing"] = fa.test_scores_df(
         scores_df,
@@ -67,10 +73,6 @@ def write_stats_table(
         allow_no_msms,
         min_num_frag_matches,
         min_relative_frag_intensity,
-    )
-    prefix = f"{metatlas_dataset.ids.short_polarity}_"
-    scores_path = os.path.join(
-        metatlas_dataset.ids.output_dir, f"{prefix}stats_tables", f"{prefix}compound_scores.csv"
     )
     write_utils.export_dataframe(scores_df, scores_path, "scores", overwrite)
     fa.make_stats_table(
