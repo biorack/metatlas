@@ -626,6 +626,7 @@ class adjust_rt_for_selected_compound(object):
                              self.data[0][self.compound_idx]['identification'].mz_references[0].adduct
                              )
                 self.hit_ctr = 0
+                self.match_idx = None
                 self.update_plots()
         elif event.key in ['left', 'h']:
             if self.compound_idx > 0:
@@ -636,6 +637,7 @@ class adjust_rt_for_selected_compound(object):
                              self.data[0][self.compound_idx]['identification'].mz_references[0].adduct
                              )
                 self.hit_ctr = 0
+                self.match_idx = None
                 self.update_plots()
         elif event.key in ['up', 'k']:
             if self.hit_ctr > 0:
@@ -665,6 +667,17 @@ class adjust_rt_for_selected_compound(object):
                 self.similar_compounds = self.get_similar_compounds()
                 logger.debug("Enabling highlight of similar compounds on EIC plot.")
                 self.highlight_similar_compounds()
+        elif event.key == 'm':
+            num_sim = len(self.similar_compounds)
+            if num_sim > 0:
+                self.match_idx = 0 if self.match_idx is None else (self.match_idx + 1) % num_sim
+                self.match_rts()
+
+    def match_rts(self):
+        """Sets RT min and max to match similar compound referenced by match_idx"""
+        source = self.similar_compounds[self.match_idx]['rt']
+        self.update_rt('rt_min', source.rt_min)
+        self.update_rt('rt_max', source.rt_max)
 
     def update_y_scale(self, val):
         if self.slider_y_min < 0:
@@ -787,6 +800,7 @@ class adjust_mz_for_selected_compound(object):
         self.y_max = y_max
         self.y_min = y_min
         self.data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
+        self.match_idx = None
 
         # create figure and first axes
         self.fig,self.ax = plt.subplots(figsize=(width, height))
@@ -2082,6 +2096,17 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
                   pre_query='database == "metatlas"', query=None, ref_dtypes=None,
                   ref_loc=None, ref_df=None, frag_mz_tolerance=.005, ref_index=None,
                   do_centroid=False):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Mean of empty slice")
+        return get_msms_hits_with_warnings(metatlas_dataset, extra_time, keep_nonmatches, pre_query, query,
+                                           ref_dtypes, ref_loc, ref_df, frag_mz_tolerance, ref_index,
+                                           do_centroid)
+
+
+def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatches=False,
+                                pre_query='database == "metatlas"', query=None, ref_dtypes=None,
+                                ref_loc=None, ref_df=None, frag_mz_tolerance=.005, ref_index=None,
+                                do_centroid=False):
     if query is None:
         pre_mz_decimal = ".5*(@pre_mz_ppm**-decimal)/(decimal+1)"
         offset = f".5*(({pre_mz_decimal} + .005 + ({pre_mz_decimal} - .005)**2)**.5)"
@@ -2110,7 +2135,7 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
                              'inchi_key', 'precursor_mz', 'measured_precursor_mz',
                              'measured_precursor_intensity']
     msms_hits = pd.DataFrame(columns=all_cols).set_index(index_cols)
-    for compound_idx, _ in tqdm(enumerate(compound_names), unit='compound'):
+    for compound_idx, _ in enumerate(tqdm(compound_names, unit='compound')):
         cid = metatlas_dataset[0][compound_idx]['identification']
         name = cid.name.split('///')[0] if cid.name else getattr(cid.compound[-1], 'name', None)
         adduct = ma_data.extract(cid, ['mz_references', 0, 'adduct'], None)
@@ -2119,7 +2144,7 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
         precursor_mz = cid.mz_references[0].mz
         rt_min = cid.rt_references[0].rt_min
         rt_max = cid.rt_references[0].rt_max
-        for file_idx, file_name in tqdm(enumerate(file_names), unit='file'):
+        for file_idx, file_name in enumerate(file_names):
             mfc = metatlas_dataset[file_idx][compound_idx]
             polarity = mfc['identification'].mz_references[0].detected_polarity
             try:
