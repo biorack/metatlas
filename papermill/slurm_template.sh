@@ -11,11 +11,11 @@ export OMP_NUM_THREADS=1
 export OMP_PLACES=threads
 export OMP_PROC_BIND=spread
 
+CONDA_DIR="$(dirname "$(dirname "$(grep 'metatlas-targeted' ../notebooks/kernels/metatlas-targeted.kernel.json | cut -d\" -f 2)")")"
 date
 echo "input file: $IN_FILE"
 echo "output file: $OUT_FILE"
 eval "$(conda shell.bash hook)"
-conda activate /global/common/software/m2650/metatlas-targeted-2021-07-16
+conda activate "$CONDA_DIR"
 
 srun -n 1 -c 64 --cpu_bind=cores papermill "$IN_FILE" "$OUT_FILE" $PARAMETERS
-
