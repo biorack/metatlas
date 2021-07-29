@@ -55,7 +55,7 @@ def raise_on_diff(dataframe, file_path, description, **kwargs):
         return
     with tempfile.NamedTemporaryFile(delete=False) as temp_path:
         dataframe.to_csv(temp_path, **kwargs)
-        same = filecmp.cmp(file_path, temp_path.name)
+        same = filecmp.cmp(file_path, temp_path.name, shallow=False)
         os.remove(temp_path.name)
     if same:
         logger.info("Data in %s is the same as %s.", description, file_path)
