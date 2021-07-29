@@ -27,6 +27,7 @@ more_checks = [
     "metatlas/tools/logging.py",
     "metatlas/tools/notebook.py",
     "metatlas/tools/predict_rt.py",
+    "metatlas/tools/parallel.py",
     "tests",
 ]
 

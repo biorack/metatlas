@@ -3,7 +3,6 @@ import datetime
 import getpass
 import glob
 import logging
-import multiprocessing
 import numbers
 import os
 import shutil
@@ -11,7 +10,6 @@ import tarfile
 
 import humanize
 import pandas as pd
-from tqdm.notebook import tqdm
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
@@ -19,6 +17,7 @@ from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import targeted_output
 from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
+from metatlas.tools import parallel
 
 MSMS_REFS_PATH = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
 POLARITIES = ["positive", "negative", "fast-polarity-switching"]
@@ -164,6 +163,10 @@ class MetatlasDataset:
     automatically is re-calculated the next time you access the second property. For example:
     metatlas_dataset.extra_time = 0.5  # this invalidates the current hits property
     metatlas_dataset.hits  # this re-generates the hits before returning them
+
+    MetatlasDataset also has methods for updating RT values and identification notes while keeping
+    the atlas, atlas_df, metatlas_dataset, and database in sync. This removes the need to do kernel
+    restarts between steps in the workflow.
     """
 
     # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-public-methods
@@ -201,8 +204,8 @@ class MetatlasDataset:
         self._hits = None
         self._hits_valid = False  # based on all hits dependencies except RT min/max values
         self._hits_valid_for_rt_bounds = False  # based only on RT min/max changes
-        self._groups = None
-        self._groups_valid = False
+        self._all_groups = None
+        self._all_groups_valid = False
         self._groups_controlled_vocab = [] if groups_controlled_vocab is None else groups_controlled_vocab
         self._exclude_files = [] if exclude_files is None else exclude_files
         self._extra_time = extra_time
@@ -217,7 +220,7 @@ class MetatlasDataset:
             logger.debug("Writing MetatlasDataset metadata files")
             self.write_data_source_files()
             self.write_lcmsruns_short_names()
-        self.store_groups(exist_ok=True)
+        self.store_all_groups(exist_ok=True)
 
     def write_data_source_files(self):
         """Write the data source files if they don't already exist"""
@@ -297,9 +300,9 @@ class MetatlasDataset:
                         self.extra_mz,
                     )
                 )
-        logger.info('Reading MSMS data from h5 files')
-        samples = parallel_process(
-            ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample"
+        logger.info("Reading MSMS data from h5 files")
+        samples = parallel.parallel_process(
+            ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample", spread_args=False
         )
         self._data = tuple(MetatlasSample(x) for x in samples)
         logger.info(
@@ -484,7 +487,7 @@ class MetatlasDataset:
         """atlas_df getter, update ._atlas_df if necessary"""
         if not self._atlas_df_valid:
             start_time = datetime.datetime.now()
-            logger.info('Generating atlas_df')
+            logger.info("Generating atlas_df")
             self._atlas_df = ma_data.make_atlas_df(self.atlas)
             self._atlas_df_valid = True
             logger.info(
@@ -737,7 +740,12 @@ class MetatlasDataset:
         return file_dict
 
     @property
-    def groups_dataframe(self):
+    def groups(self):
+        """This needs to be updated to only return the currently selected groups"""
+        return self.all_groups
+
+    @property
+    def all_groups_dataframe(self):
         """Returns pandas Dataframe with one row per file"""
         out = pd.DataFrame(self._files_dict).T
         if out.empty:
@@ -747,15 +755,15 @@ class MetatlasDataset:
         return out.reset_index()
 
     @property
-    def groups(self):
+    def all_groups(self):
         """Returns a list of Group objects"""
-        if self._groups_valid:
-            return self._groups
+        if self._all_groups_valid:
+            return self._all_groups
         file_dict = self._files_dict
-        self._groups = []
-        unique_groups = self.groups_dataframe[["group", "short_name"]].drop_duplicates()
+        self._all_groups = []
+        unique_groups = self.all_groups_dataframe[["group", "short_name"]].drop_duplicates()
         for values in unique_groups.to_dict("index").values():
-            self._groups.append(
+            self._all_groups.append(
                 metob.Group(
                     name=values["group"],
                     short_name=values["short_name"],
@@ -766,10 +774,10 @@ class MetatlasDataset:
                     ],
                 )
             )
-        self._groups_valid = True
-        return self._groups
+        self._all_groups_valid = True
+        return self._all_groups
 
-    def store_groups(self, exist_ok=False):
+    def store_all_groups(self, exist_ok=False):
         """
         Save self.object_list to DB
         inputs:
@@ -778,7 +786,7 @@ class MetatlasDataset:
         """
         if not exist_ok:
             db_names = {group.name for group in self.existing_groups}
-            new_names = set(self.groups_dataframe["group"].to_list())
+            new_names = set(self.all_groups_dataframe["group"].to_list())
             overlap = db_names.intersection(new_names)
             try:
                 if overlap:
@@ -789,8 +797,8 @@ class MetatlasDataset:
             except ValueError as err:
                 logger.exception(err)
                 raise err
-        logger.debug("Storing %d groups in the database", len(self.groups))
-        metob.store(self.groups)
+        logger.debug("Storing %d groups in the database", len(self.all_groups))
+        metob.store(self.all_groups)
 
     def compound_idxs_not_evaluated(self):
         """NOT YET IMPLEMENTED"""
@@ -832,9 +840,9 @@ class MetatlasDataset:
         logger.info("extra_time set to 0.5 minutes for output generation.")
         targeted_output.write_atlas_to_spreadsheet(self, overwrite)
         targeted_output.write_stats_table(self, overwrite)
-        targeted_output.write_chromatograms(self, overwrite)
+        targeted_output.write_chromatograms(self, overwrite, max_cpus=self.max_cpus)
         targeted_output.write_identification_figure(self, overwrite)
-        targeted_output.write_metrics_and_boxplots(self, overwrite)
+        targeted_output.write_metrics_and_boxplots(self, overwrite, max_cpus=self.max_cpus)
         if msms_fragment_ions:
             targeted_output.write_msms_fragment_ions(self, overwrite)
         logger.info("Generation of output files completed sucessfully.")
@@ -948,21 +956,3 @@ def get_atlas(name, username):
 def quoted_string_list(strings):
     """Adds double quotes around each string and seperates with ', '."""
     return ", ".join([f'"{x}"' for x in strings])
-
-
-def parallel_process(function, data, max_cpus, unit=None):
-    """
-    performs map(function, data) using multiprocessing module but
-    adds a progress bar and bypasses multiprocessing in the 1 cpu case as this makes debugging easier
-    inputs:
-        function: the function to apply
-        data: iterater containing the inputs to function
-        max_cpus: number of cpus to use
-        unit: string label for what is processed in one iteration, default 'it'
-    """
-    if max_cpus > 1 and len(data) > 1:
-        logger.debug('Starting parallel processing of %s with %d cpus.', function.__name__, max_cpus)
-        with multiprocessing.Pool(processes=min(max_cpus, len(data))) as pool:
-            return list(tqdm(pool.imap(function, data), total=len(data), unit=unit))
-    logger.debug('Processing of %s with 1 cpu.', function.__name__)
-    return [function(i) for i in data]

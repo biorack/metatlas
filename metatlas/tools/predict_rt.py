@@ -24,6 +24,7 @@ from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import notebook
+from metatlas.tools import parallel
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +196,9 @@ def load_runs(files_df, qc_atlas_df, qc_atlas, cpus):
     """
     files = [(i[1].file, i[1].group, qc_atlas_df, qc_atlas) for i in files_df.iterrows()]
     logger.info("Loading LCMS data files")
-    return mads.parallel_process(ma_data.get_data_for_atlas_df_and_file, files, cpus, unit="sample")
+    return parallel.parallel_process(
+        ma_data.get_data_for_atlas_df_and_file, files, cpus, unit="sample", spread_args=False
+    )
 
 
 def save_measured_rts(metatlas_dataset, file_name):

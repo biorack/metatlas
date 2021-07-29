@@ -9,14 +9,13 @@ import warnings
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
 
-
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import write_utils
-from metatlas.tools import spectralprocessing as sp
-from metatlas.plots import chromplotplus as cpp
 from metatlas.io.metatlas_get_data_helper_fun import extract
-# from metatlas import gui
+from metatlas.plots import chromplotplus as cpp
+from metatlas.tools import parallel
+from metatlas.tools import spectralprocessing as sp
 
 from tqdm.notebook import tqdm
 from textwrap import fill, TextWrapper
@@ -1601,33 +1600,35 @@ def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
         plt.close(f)#f.clear()
 
 
-def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="", overwrite=True):
+def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="", overwrite=True, max_cpus=1):
     output_loc = os.path.expandvars(output_loc)
     plt.ioff()
-    for compound in df.index:
-        f, ax = plt.subplots(1, 1,figsize=(12,12))
-        if use_shortnames and 'short groupname' in df.columns.names:
-            g = df.loc[compound].groupby(level='short groupname')
-            g.apply(pd.DataFrame).plot(kind='box',ax=ax)
-        else:
-            g = df.loc[compound].groupby(level='group')
-            g.apply(pd.DataFrame).plot(kind='box',ax=ax)
+    args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite) for compound in df.index]
+    parallel.parallel_process(make_boxplot, args, max_cpus, unit='plot')
 
-        for i, (n, grp) in enumerate(g):
-            x = [i+1] *len(grp)
-            x = np.random.normal(x, 0.04, size=len(x))
-            plt.scatter(x, grp)
-        ax.set_title(compound,fontsize=12,weight='bold')
-        plt.xticks(rotation=90)
-        if ylabel != "":
-            plt.ylabel(ylabel)
-        plt.tight_layout()
-        fig_path = os.path.join(output_loc, compound + '_boxplot.pdf')
-        write_utils.check_existing_file(fig_path, overwrite)
-        f.savefig(fig_path)
-        #f.clear()
-        plt.close(f)#f.clear()
-        logger.info('Exported box plot of %s for %s at %s.', ylabel, compound, fig_path)
+
+def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite):
+    f, ax = plt.subplots(1, 1,figsize=(12,12))
+    if use_shortnames and 'short groupname' in df.columns.names:
+        g = df.loc[compound].groupby(level='short groupname')
+        g.apply(pd.DataFrame).plot(kind='box',ax=ax)
+    else:
+        g = df.loc[compound].groupby(level='group')
+        g.apply(pd.DataFrame).plot(kind='box',ax=ax)
+    for i, (n, grp) in enumerate(g):
+        x = [i+1] *len(grp)
+        x = np.random.normal(x, 0.04, size=len(x))
+        plt.scatter(x, grp)
+    ax.set_title(compound,fontsize=12,weight='bold')
+    plt.xticks(rotation=90)
+    if ylabel != "":
+        plt.ylabel(ylabel)
+    plt.tight_layout()
+    fig_path = os.path.join(output_loc, compound + '_boxplot.pdf')
+    write_utils.check_existing_file(fig_path, overwrite)
+    f.savefig(fig_path)
+    plt.close(f)
+    logger.info('Exported box plot of %s for %s at %s.', ylabel, compound, fig_path)
 
 
 def frag_refs_to_json(json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', name = 'frag_refs', save = True):
@@ -2187,7 +2188,7 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
     return msms_hits
 
 
-def make_chromatograms(input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[], include_groups=[], exclude_groups=[], group='index', share_y=True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity='', overwrite=False):
+def make_chromatograms(input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[], include_groups=[], exclude_groups=[], group='index', share_y=True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity='', overwrite=False, max_cpus=1):
     input_dataset = filter_runs(input_dataset, include_lcmsruns, include_groups,
                                 exclude_lcmsruns, exclude_groups)
     file_names = ma_data.get_file_names(input_dataset)
@@ -2223,9 +2224,7 @@ def make_chromatograms(input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[
                   'shortname': short_names_df,
                   'overwrite': overwrite}
         args_list.append(kwargs)
-    max_processes = 4
-    with mp.Pool(processes=min(max_processes, len(input_dataset[0]))) as pool:
-        pool.map(cpp.chromplotplus, args_list)
+    parallel.parallel_process(cpp.chromplotplus, args_list, max_cpus, unit='plot', spread_args=False)
 
 
 def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
@@ -2664,7 +2663,6 @@ def strong_signal_compound_idxs(data, num_points_passing, peak_height_passing):
 
 
 def filter_metatlas_objects_to_most_recent(object_list,field):
-    #from datetime import datetime, date
     #remove from list if another copy exists that is newer
     unique_values = []
     for i,a in enumerate(object_list):
@@ -2681,17 +2679,15 @@ def filter_metatlas_objects_to_most_recent(object_list,field):
                     old_last_modified = last_modified
         keep_object_list.append(keep_object)
     return keep_object_list
-#        print i, a.name,  datetime.utcfromtimestamp(a.last_modified)
+
 
 def get_metatlas_atlas(name = '%%',username = '*', most_recent = True,do_print = True):
-    from datetime import datetime, date
     atlas = metob.retrieve('Atlas',name = name,username=username)
     if most_recent:
         atlas = filter_metatlas_objects_to_most_recent(atlas,'name')
     if do_print:
         for i,a in enumerate(atlas):
             print((i, len(a.compound_identifications),a.name,  datetime.utcfromtimestamp(a.last_modified)))
-
     return atlas
 
 class interact_get_metatlas_files():
@@ -3157,27 +3153,24 @@ def filter_compounds_in_dataset_by_include_list(metatlas_dataset,include_list):
         filtered_dataset.append(filtered_row)
     return filtered_dataset
 
-def select_groups_for_analysis(name = '%', description = [], username = '*', do_print = True, most_recent = True, remove_empty = True, include_list = [], exclude_list = []):
+
+def select_groups_for_analysis(name='%', description=[], username='*', do_print=True, most_recent=True,
+                               remove_empty=True, include_list=[], exclude_list=[]):
     if description:
-        groups = metob.retrieve('Groups', name = name, description = description, username=username)
+        groups = metob.retrieve('Groups', name=name, description=description, username=username)
     else:
-        groups = metob.retrieve('Groups', name = name, username=username)
+        groups = metob.retrieve('Groups', name=name, username=username)
     if most_recent:
-        groups = filter_metatlas_objects_to_most_recent(groups,'name')
-
+        groups = filter_metatlas_objects_to_most_recent(groups, 'name')
     if include_list:
-        groups = filter_metatlas_objects_by_list(groups,'name',include_list)
-
+        groups = filter_metatlas_objects_by_list(groups, 'name', include_list)
     if exclude_list:
-        groups = remove_metatlas_objects_by_list(groups,'name',exclude_list)
-
+        groups = remove_metatlas_objects_by_list(groups, 'name', exclude_list)
     if remove_empty:
-        groups = filter_empty_metatlas_objects(groups,'items')
+        groups = filter_empty_metatlas_objects(groups, 'items')
     if do_print:
-        from datetime import datetime, date
-        for i,a in enumerate(groups):
-            print((i, a.name,  datetime.utcfromtimestamp(a.last_modified)))
-
+        for i, group in enumerate(groups):
+            print((i, group.name,  datetime.utcfromtimestamp(group.last_modified)))
     return groups
 
 

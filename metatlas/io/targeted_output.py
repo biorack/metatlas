@@ -62,7 +62,7 @@ def write_stats_table(
         metatlas_dataset.ids.output_dir, f"{prefix}stats_tables", f"{prefix}compound_scores.csv"
     )
     _ = metatlas_dataset.hits  # regenerate hits if needed before logging about scores
-    logger.info('Calculating scores and exporting them to %s.', scores_path)
+    logger.info("Calculating scores and exporting them to %s.", scores_path)
     scores_df = fa.make_scores_df(metatlas_dataset, metatlas_dataset.hits)
     scores_df["passing"] = fa.test_scores_df(
         scores_df,
@@ -91,7 +91,7 @@ def write_stats_table(
     )
 
 
-def write_chromatograms(metatlas_dataset, group_by="index", share_y=True, overwrite=False):
+def write_chromatograms(metatlas_dataset, group_by="index", share_y=True, overwrite=False, max_cpus=1):
     """
     inputs:
         metatlas_dataset: a MetatlasDataset instance
@@ -112,6 +112,7 @@ def write_chromatograms(metatlas_dataset, group_by="index", share_y=True, overwr
         short_names_header="short_samplename",
         polarity=metatlas_dataset.ids.short_polarity,
         overwrite=overwrite,
+        max_cpus=max_cpus,
     )
 
 
@@ -131,7 +132,7 @@ def write_identification_figure(metatlas_dataset, overwrite=False):
     )
 
 
-def write_metrics_and_boxplots(metatlas_dataset, overwrite=False):
+def write_metrics_and_boxplots(metatlas_dataset, overwrite=False, max_cpus=1):
     """
     Save metrics dataframes as csv and boxplots as PDF.
     Will not overwrite existing file unless overwrite is True
@@ -161,7 +162,7 @@ def write_metrics_and_boxplots(metatlas_dataset, overwrite=False):
                 metatlas_dataset.ids.output_dir,
                 f"{prefix}boxplot_{fields['name']}",
             )
-            dp.make_boxplot_plots(dataframe, output_loc=plot_dir, ylabel=fields["label"], overwrite=overwrite)
+            dp.make_boxplot_plots(dataframe, plot_dir, fields["label"], overwrite, max_cpus)
 
 
 Max = namedtuple("Max", ["file_idx", "pre_intensity_idx", "pre_intensity", "precursor_mz"])

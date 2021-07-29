@@ -569,7 +569,7 @@ def test_lcmsruns_dataframe(metatlas_dataset):
 def test_store_groups01(metatlas_dataset, mocker):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[])
     mocker.patch("metatlas.datastructures.metatlas_objects.store")
-    metatlas_dataset.store_groups()
+    metatlas_dataset.store_all_groups()
     assert metob.store.called  # pylint: disable=no-member
 
 
@@ -582,7 +582,7 @@ def test_store_groups02(metatlas_dataset, mocker, username):
     )
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[group])
     with pytest.raises(ValueError):
-        metatlas_dataset.store_groups()
+        metatlas_dataset.store_all_groups()
 
 
 def test_annotation_gui01(metatlas_dataset, hits, mocker):
