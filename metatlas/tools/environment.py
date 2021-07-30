@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import sys
 
 from pathlib import Path
@@ -163,3 +164,14 @@ def validate_data_dir(base_data_dir, experiment_id):
     except FileNotFoundError as err:
         logger.exception(err)
         raise err
+
+
+def get_repo_hash():
+    """
+    Returns the full hash for the current git commit or 'git not found, hash unknown'
+    """
+    try:
+        result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_dir(), capture_output=True, check=True)
+    except FileNotFoundError:
+        return "git not found, hash unknown"
+    return result.stdout.strip()
