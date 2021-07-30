@@ -90,9 +90,6 @@ class Model:
 
 def generate_rt_correction_models(
     ids,
-    groups_controlled_vocab,
-    exclude_files,
-    include_groups,
     cpus,
     repo_dir,
     save_to_db=True,
@@ -115,8 +112,8 @@ def generate_rt_correction_models(
                         are pre-populated into the generated notebooks
     """
     # pylint: disable=too-many-locals
-    metatlas_dataset = mads.MetatlasDataset(ids, groups_controlled_vocab, exclude_files, save_metadata=False)
-    groups = get_groups(metatlas_dataset, include_groups)
+    metatlas_dataset = mads.MetatlasDataset(ids, save_metadata=False)
+    groups = get_groups(metatlas_dataset, ids.include_groups)
     files_df = get_files_df(groups)
     qc_atlas, qc_atlas_df = get_qc_atlas(metatlas_dataset.ids)
     metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)

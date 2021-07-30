@@ -305,7 +305,7 @@ def test_atlas_setter02(metatlas_dataset):
 
 
 def test_groups01(metatlas_dataset):
-    assert metatlas_dataset.groups[0].short_name == "POS_Cone-S1"
+    assert metatlas_dataset.ids.groups[0].short_name == "POS_Cone-S1"
 
 
 def test_set_extra_mz_setter(metatlas_dataset, mocker, hits):
@@ -559,17 +559,17 @@ def test_get_atlas04(metatlas_dataset, username):
 def test_existing_groups(mocker, metatlas_dataset):
     """This test has little value, but is needed for coverage"""
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[])
-    assert metatlas_dataset.existing_groups == []
+    assert metatlas_dataset.ids.existing_groups == []
 
 
 def test_lcmsruns_dataframe(metatlas_dataset):
-    assert metatlas_dataset.lcmsruns_dataframe.shape == (1, 15)
+    assert metatlas_dataset.ids.lcmsruns_dataframe.shape == (1, 15)
 
 
 def test_store_groups01(metatlas_dataset, mocker):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[])
     mocker.patch("metatlas.datastructures.metatlas_objects.store")
-    metatlas_dataset.store_all_groups()
+    metatlas_dataset.ids.store_all_groups()
     assert metob.store.called  # pylint: disable=no-member
 
 
@@ -582,7 +582,7 @@ def test_store_groups02(metatlas_dataset, mocker, username):
     )
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[group])
     with pytest.raises(ValueError):
-        metatlas_dataset.store_all_groups()
+        metatlas_dataset.ids.store_all_groups()
 
 
 def test_annotation_gui01(metatlas_dataset, hits, mocker):

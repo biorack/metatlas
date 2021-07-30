@@ -28,7 +28,8 @@ def fixture_username():
 
 
 @pytest.fixture(name="analysis_ids")
-def fixture_analysis_ids(sqlite_with_atlas, username):
+def fixture_analysis_ids(sqlite_with_atlas, username, lcmsrun, mocker, groups_controlled_vocab):
+    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     return mads.AnalysisIdentifiers(
         f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
         "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
@@ -36,11 +37,15 @@ def fixture_analysis_ids(sqlite_with_atlas, username):
         "positive",
         0,
         str(os.getcwd()),
+        groups_controlled_vocab=groups_controlled_vocab,
     )
 
 
 @pytest.fixture(name="analysis_ids_with_2_cids")
-def fixture_analysis_ids_with_2_cids(sqlite_with_atlas_with_2_cids, username):
+def fixture_analysis_ids_with_2_cids(
+    sqlite_with_atlas_with_2_cids, username, lcmsrun, mocker, groups_controlled_vocab
+):
+    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     return mads.AnalysisIdentifiers(
         f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}1",
         "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
@@ -48,6 +53,7 @@ def fixture_analysis_ids_with_2_cids(sqlite_with_atlas_with_2_cids, username):
         "positive",
         0,
         str(os.getcwd()),
+        groups_controlled_vocab=groups_controlled_vocab,
     )
 
 
@@ -534,14 +540,12 @@ def fixture_groups_controlled_vocab():
 
 
 @pytest.fixture(name="metatlas_dataset")
-def fixture_metatlas_dataset(
-    mocker, df_container, analysis_ids, groups_controlled_vocab, lcmsrun, sqlite_with_atlas
-):
+def fixture_metatlas_dataset(mocker, df_container, analysis_ids, lcmsrun, sqlite_with_atlas):
     mocker.patch(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    return mads.MetatlasDataset(analysis_ids, groups_controlled_vocab, save_metadata=False)
+    return mads.MetatlasDataset(analysis_ids, save_metadata=False)
 
 
 @pytest.fixture(name="metatlas_dataset_with_2_cids")
@@ -549,7 +553,6 @@ def fixture_metatlas_dataset_with_2_cids(
     mocker,
     df_container,
     analysis_ids_with_2_cids,
-    groups_controlled_vocab,
     lcmsrun,
     sqlite_with_atlas_with_2_cids,
 ):
@@ -557,7 +560,7 @@ def fixture_metatlas_dataset_with_2_cids(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    return mads.MetatlasDataset(analysis_ids_with_2_cids, groups_controlled_vocab, save_metadata=False)
+    return mads.MetatlasDataset(analysis_ids_with_2_cids, save_metadata=False)
 
 
 @pytest.fixture(name="eic")

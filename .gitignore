@@ -91,3 +91,6 @@ scratch/
 # editor swap files
 .*.swp
 .vscode/
+
+# pyenv
+.python-version

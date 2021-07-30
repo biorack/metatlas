@@ -41,6 +41,10 @@ class AnalysisIdentifiers:
         analysis_number,
         project_directory,
         username=None,
+        groups_controlled_vocab=None,
+        include_groups=None,
+        exclude_groups=None,
+        exclude_files=None,
     ):
         self._source_atlas = source_atlas
         self._experiment = experiment
@@ -49,6 +53,22 @@ class AnalysisIdentifiers:
         self._analysis_number = analysis_number
         self._username = getpass.getuser() if username is None else username
         self.project_directory = project_directory
+        self._runs = None
+        self._runs_valid = False
+        self._all_groups = None
+        self._all_groups_valid = False
+        self._groups_controlled_vocab = [] if groups_controlled_vocab is None else groups_controlled_vocab
+        if include_groups is None and output_type == "data_QC":
+            self._include_groups = ["QC"]
+        self._include_groups = [] if include_groups is None else include_groups
+        self._exclude_groups = [] if exclude_groups is None else exclude_groups
+        if exclude_groups is None:
+            self._exclude_groups = ["InjBl", "InjBL"]
+        if polarity == "positive":
+            self._exclude_groups.append("NEG")
+        elif polarity == "negative":
+            self._exclude_groups.append("POS")
+        self._exclude_files = [] if exclude_files is None else exclude_files
         self.validate()
         logger.info(
             "IDs: source_atlas=%s, atlas=%s, short_experiment_analysis=%s, output_dir=%s",
@@ -57,6 +77,7 @@ class AnalysisIdentifiers:
             self.short_experiment_analysis,
             self.output_dir,
         )
+        self.store_all_groups(exist_ok=True)
 
     def validate(self):
         """Valid class inputs"""
@@ -69,8 +90,6 @@ class AnalysisIdentifiers:
             raise ValueError(f"Parameter output_type is not one of: {quoted_string_list(OUTPUT_TYPES)}.")
         if self.polarity not in POLARITIES:
             raise ValueError(f"Parameter polarity is not one of: {quoted_string_list(POLARITIES)}.")
-        if not isinstance(self.analysis_number, numbers.Integral):
-            raise TypeError("Parameter analysis_number is not an integer.")
         if self.analysis_number < 0:
             raise ValueError("Parameter analysis_number cannot be negative.")
         logger.debug("Inputs to AnalysisIdentifiers passed validation.")
@@ -147,6 +166,173 @@ class AnalysisIdentifiers:
         os.makedirs(out, exist_ok=True)
         return out
 
+    @property
+    def exclude_files(self):
+        return self._exclude_files
+
+    @property
+    def lcmsruns(self):
+        """Get LCMS runs from DB matching experiment"""
+        if self._runs_valid:
+            return self._runs
+        self._runs = dp.get_metatlas_files(experiment=self.experiment, name="%")
+        self._runs_valid = True
+        for run in self._runs:
+            logger.info("Run: %s", run.name)
+        logger.info("Number of LCMS output files matching '%s' is: %d.", self.experiment, len(self._runs))
+        return self._runs
+
+    @property
+    def lcmsruns_dataframe(self):
+        """Returns a pandas DataFrame with lcmsrun matching self.experiment"""
+        return metob.to_dataframe(self.lcmsruns)
+
+    def get_lcmsruns_short_names(self, fields=None):
+        """
+        Querys DB for lcms filenames from self.experiment and returns
+        a pandas DataFrame containing identifiers for each file
+        inputs:
+            fields: optional dict with column names as key
+                    and list of lcms filename metadata fields positions as value
+        """
+        if fields is None:
+            fields = {
+                "full_filename": range(16),
+                "sample_treatment": [12],
+                "short_filename": [0, 2, 4, 5, 7, 9, 14],
+                "short_samplename": [9, 12, 13, 14],
+            }
+        out = pd.DataFrame(columns=fields.keys())
+        for i, lcms_file in enumerate(self.lcmsruns):
+            tokens = lcms_file.name.split(".")[0].split("_")
+            for name, idxs in fields.items():
+                out.loc[i, name] = "_".join([tokens[n] for n in idxs])
+            out.loc[i, "last_modified"] = pd.to_datetime(lcms_file.last_modified, unit="s")
+        if out.empty:
+            return out
+        out.sort_values(by="last_modified", inplace=True)
+        out.drop(columns=["last_modified"], inplace=True)
+        out.drop_duplicates(subset=["full_filename"], keep="last", inplace=True)
+        out.set_index("full_filename", inplace=True)
+        return out.sort_values(by="full_filename")
+
+    lcmsruns_short_names = property(get_lcmsruns_short_names)
+
+    def write_lcmsruns_short_names(self):
+        """Write short names and raise error if exists and differs from current data"""
+        short_names = self.lcmsruns_short_names
+        short_names["full_filename"] = short_names.index
+        write_utils.export_dataframe_die_on_diff(
+            short_names,
+            os.path.join(self.output_dir, "short_names.csv"),
+            "LCMS runs short names",
+            index=False,
+        )
+
+    @property
+    def _files_dict(self):
+        """
+        Queries DB for all lcmsruns matching the class properties.
+        Returns a dict of dicts where keys are filenames minus extensions and values are
+        dicts with keys: object, group, and short_name
+        """
+        file_dict = {}
+        for lcms_file in self.lcmsruns:
+            if not any(map(lcms_file.name.__contains__, self._exclude_files)):
+                base_name = lcms_file.name.split(".")[0]
+                file_dict[base_name] = {"object": lcms_file, **self.group_name(base_name)}
+        return file_dict
+
+    @property
+    def groups(self):
+        """This needs to be updated to only return the currently selected groups"""
+        return self.all_groups
+
+    @property
+    def existing_groups(self):
+        """Get your own groups that are prefixed by self.experiment"""
+        return metob.retrieve("Groups", name=f"{self.experiment}%{self.analysis}_%", username=self.username)
+
+    def group_name(self, base_filename):
+        """Returns dict with keys group and short_name corresponding to base_filename"""
+        indices = [
+            i for i, s in enumerate(self._groups_controlled_vocab) if s.lower() in base_filename.lower()
+        ]
+        tokens = base_filename.split("_")
+        prefix = "_".join(tokens[:11])
+        suffix = self._groups_controlled_vocab[indices[0]].lstrip("_") if indices else tokens[12]
+        group_name = f"{prefix}_{self.analysis}_{suffix}"
+        short_name = f"{tokens[9]}_{suffix}"  # Prepending POL to short_name
+        return {"group": group_name, "short_name": short_name}
+
+    @property
+    def groups_controlled_vocab(self):
+        return self._groups_controlled_vocab
+
+    @property
+    def include_groups(self):
+        return self._include_groups
+
+    @property
+    def exclude_groups(self):
+        return self._exclude_groups
+
+    @property
+    def all_groups_dataframe(self):
+        """Returns pandas Dataframe with one row per file"""
+        out = pd.DataFrame(self._files_dict).T
+        if out.empty:
+            return out
+        out.drop(columns=["object"], inplace=True)
+        out.index.name = "filename"
+        return out.reset_index()
+
+    @property
+    def all_groups(self):
+        """Returns a list of Group objects"""
+        if self._all_groups_valid:
+            return self._all_groups
+        file_dict = self._files_dict
+        self._all_groups = []
+        unique_groups = self.all_groups_dataframe[["group", "short_name"]].drop_duplicates()
+        for values in unique_groups.to_dict("index").values():
+            self._all_groups.append(
+                metob.Group(
+                    name=values["group"],
+                    short_name=values["short_name"],
+                    items=[
+                        file_value["object"]
+                        for file_value in file_dict.values()
+                        if file_value["group"] == values["group"]
+                    ],
+                )
+            )
+        self._all_groups_valid = True
+        return self._all_groups
+
+    def store_all_groups(self, exist_ok=False):
+        """
+        Save self.object_list to DB
+        inputs:
+            exist_ok: if False, store nothing and raise ValueError if any of the group names
+                      have already been saved to the DB by you.
+        """
+        if not exist_ok:
+            db_names = {group.name for group in self.existing_groups}
+            new_names = set(self.all_groups_dataframe["group"].to_list())
+            overlap = db_names.intersection(new_names)
+            try:
+                if overlap:
+                    raise ValueError(
+                        "Not saving groups as you have already saved groups with these names: %s."
+                        % ", ".join(overlap),
+                    )
+            except ValueError as err:
+                logger.exception(err)
+                raise err
+        logger.debug("Storing %d groups in the database", len(self.all_groups))
+        metob.store(self.all_groups)
+
 
 class MetatlasDataset:
     """
@@ -173,8 +359,6 @@ class MetatlasDataset:
     def __init__(
         self,
         ids,
-        groups_controlled_vocab=None,
-        exclude_files=None,
         extra_time=0.75,
         extra_mz=0,
         keep_nonmatches=True,
@@ -197,17 +381,11 @@ class MetatlasDataset:
         self._atlas_valid = False
         self._atlas_df = None
         self._atlas_df_valid = False
-        self._runs = None
-        self._runs_valid = False
         self._data = None
         self._data_valid = False
         self._hits = None
         self._hits_valid = False  # based on all hits dependencies except RT min/max values
         self._hits_valid_for_rt_bounds = False  # based only on RT min/max changes
-        self._all_groups = None
-        self._all_groups_valid = False
-        self._groups_controlled_vocab = [] if groups_controlled_vocab is None else groups_controlled_vocab
-        self._exclude_files = [] if exclude_files is None else exclude_files
         self._extra_time = extra_time
         self._extra_mz = extra_mz
         self._keep_nonmatches = keep_nonmatches
@@ -219,8 +397,7 @@ class MetatlasDataset:
         if save_metadata:
             logger.debug("Writing MetatlasDataset metadata files")
             self.write_data_source_files()
-            self.write_lcmsruns_short_names()
-        self.store_all_groups(exist_ok=True)
+            self.ids.write_lcmsruns_short_names()
 
     def write_data_source_files(self):
         """Write the data source files if they don't already exist"""
@@ -236,19 +413,8 @@ class MetatlasDataset:
             shutil.rmtree(data_sources_dir, ignore_errors=True)
             logger.info("Writing data source files to %s.", data_sources_dir)
             ma_data.make_data_sources_tables(
-                self.groups, self.atlas, self.ids.output_dir, self.ids.short_polarity
+                self.ids.groups, self.atlas, self.ids.output_dir, self.ids.short_polarity
             )
-
-    def write_lcmsruns_short_names(self):
-        """Write short names and raise error if exists and differs from current data"""
-        short_names = self.lcmsruns_short_names
-        short_names["full_filename"] = short_names.index
-        write_utils.export_dataframe_die_on_diff(
-            short_names,
-            os.path.join(self.ids.output_dir, "short_names.csv"),
-            "LCMS runs short names",
-            index=False,
-        )
 
     def _get_atlas(self):
         """Copy source atlas from database into current analysis atlas"""
@@ -288,7 +454,7 @@ class MetatlasDataset:
         """Populate self._data from database and h5 files."""
         start_time = datetime.datetime.now()
         files = []
-        for group in self.groups:
+        for group in self.ids.groups:
             for h5_file in group.items:
                 files.append(
                     (
@@ -657,148 +823,6 @@ class MetatlasDataset:
         """
         ids = ["identification", "ms1_notes"]
         return [i for i, j in enumerate(self.data[0]) if _is_remove(ma_data.extract(j, ids))]
-
-    @property
-    def lcmsruns(self):
-        """Get LCMS runs from DB matching experiment"""
-        if self._runs_valid:
-            return self._runs
-        self._runs = dp.get_metatlas_files(experiment=self.ids.experiment, name="%")
-        self._runs_valid = True
-        for run in self._runs:
-            logger.info("Run: %s", run.name)
-        logger.info("Number of LCMS output files matching '%s' is: %d.", self.ids.experiment, len(self._runs))
-        return self._runs
-
-    @property
-    def existing_groups(self):
-        """Get your own groups that are prefixed by self.experiment"""
-        return metob.retrieve(
-            "Groups", name=f"{self.ids.experiment}%{self.ids.analysis}_%", username=self.ids.username
-        )
-
-    @property
-    def lcmsruns_dataframe(self):
-        """Returns a pandas DataFrame with lcmsrun matching self.experiment"""
-        return metob.to_dataframe(self.lcmsruns)
-
-    def get_lcmsruns_short_names(self, fields=None):
-        """
-        Querys DB for lcms filenames from self.experiment and returns
-        a pandas DataFrame containing identifiers for each file
-        inputs:
-            fields: optional dict with column names as key
-                    and list of lcms filename metadata fields positions as value
-        """
-        if fields is None:
-            fields = {
-                "full_filename": range(16),
-                "sample_treatment": [12],
-                "short_filename": [0, 2, 4, 5, 7, 9, 14],
-                "short_samplename": [9, 12, 13, 14],
-            }
-        out = pd.DataFrame(columns=fields.keys())
-        for i, lcms_file in enumerate(self.lcmsruns):
-            tokens = lcms_file.name.split(".")[0].split("_")
-            for name, idxs in fields.items():
-                out.loc[i, name] = "_".join([tokens[n] for n in idxs])
-            out.loc[i, "last_modified"] = pd.to_datetime(lcms_file.last_modified, unit="s")
-        if out.empty:
-            return out
-        out.sort_values(by="last_modified", inplace=True)
-        out.drop(columns=["last_modified"], inplace=True)
-        out.drop_duplicates(subset=["full_filename"], keep="last", inplace=True)
-        out.set_index("full_filename", inplace=True)
-        return out.sort_values(by="full_filename")
-
-    lcmsruns_short_names = property(get_lcmsruns_short_names)
-
-    def group_name(self, base_filename):
-        """Returns dict with keys group and short_name corresponding to base_filename"""
-        indices = [
-            i for i, s in enumerate(self._groups_controlled_vocab) if s.lower() in base_filename.lower()
-        ]
-        tokens = base_filename.split("_")
-        prefix = "_".join(tokens[:11])
-        suffix = self._groups_controlled_vocab[indices[0]].lstrip("_") if indices else tokens[12]
-        group_name = f"{prefix}_{self.ids.analysis}_{suffix}"
-        short_name = f"{tokens[9]}_{suffix}"  # Prepending POL to short_name
-        return {"group": group_name, "short_name": short_name}
-
-    @property
-    def _files_dict(self):
-        """
-        Queries DB for all lcmsruns matching the class properties.
-        Returns a dict of dicts where keys are filenames minus extensions and values are
-        dicts with keys: object, group, and short_name
-        """
-        file_dict = {}
-        for lcms_file in self.lcmsruns:
-            if not any(map(lcms_file.name.__contains__, self._exclude_files)):
-                base_name = lcms_file.name.split(".")[0]
-                file_dict[base_name] = {"object": lcms_file, **self.group_name(base_name)}
-        return file_dict
-
-    @property
-    def groups(self):
-        """This needs to be updated to only return the currently selected groups"""
-        return self.all_groups
-
-    @property
-    def all_groups_dataframe(self):
-        """Returns pandas Dataframe with one row per file"""
-        out = pd.DataFrame(self._files_dict).T
-        if out.empty:
-            return out
-        out.drop(columns=["object"], inplace=True)
-        out.index.name = "filename"
-        return out.reset_index()
-
-    @property
-    def all_groups(self):
-        """Returns a list of Group objects"""
-        if self._all_groups_valid:
-            return self._all_groups
-        file_dict = self._files_dict
-        self._all_groups = []
-        unique_groups = self.all_groups_dataframe[["group", "short_name"]].drop_duplicates()
-        for values in unique_groups.to_dict("index").values():
-            self._all_groups.append(
-                metob.Group(
-                    name=values["group"],
-                    short_name=values["short_name"],
-                    items=[
-                        file_value["object"]
-                        for file_value in file_dict.values()
-                        if file_value["group"] == values["group"]
-                    ],
-                )
-            )
-        self._all_groups_valid = True
-        return self._all_groups
-
-    def store_all_groups(self, exist_ok=False):
-        """
-        Save self.object_list to DB
-        inputs:
-            exist_ok: if False, store nothing and raise ValueError if any of the group names
-                      have already been saved to the DB by you.
-        """
-        if not exist_ok:
-            db_names = {group.name for group in self.existing_groups}
-            new_names = set(self.all_groups_dataframe["group"].to_list())
-            overlap = db_names.intersection(new_names)
-            try:
-                if overlap:
-                    raise ValueError(
-                        "Not saving groups as you have already saved groups with these names: %s."
-                        % ", ".join(overlap),
-                    )
-            except ValueError as err:
-                logger.exception(err)
-                raise err
-        logger.debug("Storing %d groups in the database", len(self.all_groups))
-        metob.store(self.all_groups)
 
     def compound_idxs_not_evaluated(self):
         """NOT YET IMPLEMENTED"""
