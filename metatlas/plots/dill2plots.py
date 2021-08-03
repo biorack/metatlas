@@ -2662,18 +2662,18 @@ def strong_signal_compound_idxs(data, num_points_passing, peak_height_passing):
     return np.flatnonzero(num_passing & peak_passing).tolist()
 
 
-def filter_metatlas_objects_to_most_recent(object_list,field):
-    #remove from list if another copy exists that is newer
+def filter_metatlas_objects_to_most_recent(object_list, field):
+    # remove from list if another copy exists that is newer
     unique_values = []
-    for i,a in enumerate(object_list):
-        unique_values.append( getattr(a,field) )
+    for a in object_list:
+        unique_values.append(getattr(a, field))
     unique_values = list(set(unique_values))
     keep_object_list = []
     for u in unique_values:
         old_last_modified = 0
-        for i,a in enumerate(object_list):
-            if getattr(a,field) == u:
-                last_modified = getattr(a,'last_modified')
+        for a in object_list:
+            if getattr(a, field) == u:
+                last_modified = getattr(a, 'last_modified')
                 if last_modified > old_last_modified:
                     keep_object = a
                     old_last_modified = last_modified
@@ -3074,7 +3074,7 @@ def filter_empty_metatlas_objects(object_list,field):
 def filter_metatlas_objects_by_list(object_list, field, filter_list):
     """
     inputs:
-        object_list: iterable to be filtered by its attribute values
+        object_list: list to be filtered by its attribute values
         field: name of attribute to filter on
         filter_list: strings that are tested to see if they are substrings of the attribute value
     returns filtered list of objects that have a match in filter_list
