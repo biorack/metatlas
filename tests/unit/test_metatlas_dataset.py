@@ -7,6 +7,7 @@ import logging
 
 import pandas as pd
 import pytest
+import traitlets
 
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
@@ -26,12 +27,12 @@ def test_metatlas_dataset_build01(metatlas_dataset):
 
 
 @pytest.mark.xfail
-def test_metatlas_dataset_build02(mocker, atlas, group_with_2_lcmsruns, df_container):
+def test_metatlas_dataset_build02(mocker, atlas, group_with_2_lcmsruns, df_container, analysis_ids):
     # need to mock multiprocessing for this to work
     mocker.patch(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
-    metatlas_dataset = mads.MetatlasDataset(atlas, [group_with_2_lcmsruns], max_cpus=2)
+    metatlas_dataset = mads.MetatlasDataset(ids=analysis_ids, max_cpus=2)
     assert len(metatlas_dataset) == 2
     assert len(metatlas_dataset[0]) == 1
 
@@ -110,11 +111,11 @@ def test_polarity(metatlas_dataset):
 def test_extra_time_setter(metatlas_dataset, hits, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     metatlas_dataset.hits  # pylint: disable=pointless-statement
-    assert metatlas_dataset._hits_valid
+    assert metatlas_dataset._hits is not None
     metatlas_dataset.extra_time = 0.3
-    assert not metatlas_dataset._hits_valid
+    assert metatlas_dataset._hits is None
     metatlas_dataset.hits  # pylint: disable=pointless-statement
-    assert metatlas_dataset._hits_valid
+    assert metatlas_dataset._hits is not None
 
 
 def test_rts01(metatlas_dataset):
@@ -124,7 +125,7 @@ def test_rts01(metatlas_dataset):
 
 
 def test_rts02(metatlas_dataset):
-    metatlas_dataset._atlas_df_valid = False
+    metatlas_dataset._atlas_df = None
     metatlas_dataset.set_rt(0, "rt_max", 9.99)
     assert metatlas_dataset.rts[0].rt_max == 9.99
     assert len(metatlas_dataset.rts) == 1
@@ -133,7 +134,7 @@ def test_rts02(metatlas_dataset):
 def test_rts03(metatlas_dataset, analysis_ids):
     assert metatlas_dataset.rts[0].rt_max != 9.99
     metatlas_dataset.set_rt(0, "rt_max", 9.99)
-    second_metatlas_dataset = mads.MetatlasDataset(analysis_ids)
+    second_metatlas_dataset = mads.MetatlasDataset(ids=analysis_ids)
     assert second_metatlas_dataset.rts[0].rt_max == 9.99
     assert len(second_metatlas_dataset.rts) == 1
 
@@ -143,12 +144,12 @@ def test_rts04(analysis_ids, sqlite_with_atlas, mocker, lcmsrun, df_container):
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    first = mads.MetatlasDataset(analysis_ids)
+    first = mads.MetatlasDataset(ids=analysis_ids)
     first.set_rt(0, "rt_max", 1.11)
-    second = mads.MetatlasDataset(analysis_ids)
+    second = mads.MetatlasDataset(ids=analysis_ids)
     assert second.rts[0].rt_max == 1.11
     second.set_rt(0, "rt_max", 2.22)
-    third = mads.MetatlasDataset(analysis_ids)
+    third = mads.MetatlasDataset(ids=analysis_ids)
     assert third.rts[0].rt_max == 2.22
 
 
@@ -158,7 +159,7 @@ def test_set_note01(metatlas_dataset, sqlite):
 
 
 def test_set_note02(metatlas_dataset):
-    metatlas_dataset._atlas_df_valid = False
+    metatlas_dataset._atlas_df = None
     metatlas_dataset.set_note(0, "ms1_notes", "keeper")
     assert metatlas_dataset[0][0]["identification"].ms1_notes == "keeper"
 
@@ -295,12 +296,12 @@ def test_export_atlas_to_csv01(metatlas_dataset, tmp_path):
 def test_atlas_setter01(metatlas_dataset, atlas_with_2_cids):
     metatlas_dataset.data  # pylint: disable=pointless-statement
     metatlas_dataset.atlas = atlas_with_2_cids
-    assert not metatlas_dataset._data_valid
+    assert metatlas_dataset._data is None
     assert len(metatlas_dataset[0]) == 2
 
 
 def test_atlas_setter02(metatlas_dataset):
-    with pytest.raises(TypeError):
+    with pytest.raises(traitlets.traitlets.TraitError):
         metatlas_dataset.atlas = [1, 2]
 
 
@@ -313,8 +314,8 @@ def test_set_extra_mz_setter(metatlas_dataset, mocker, hits):
     metatlas_dataset.data  # pylint: disable=pointless-statement
     metatlas_dataset.hits  # pylint: disable=pointless-statement
     metatlas_dataset.extra_mz = 0.43
-    assert not metatlas_dataset._data_valid
-    assert not metatlas_dataset._hits_valid
+    assert metatlas_dataset._data is None
+    assert metatlas_dataset._hits is None
     assert metatlas_dataset.extra_mz == 0.43
 
 
@@ -322,7 +323,7 @@ def test_set_keep_nonmatches_setter(metatlas_dataset, mocker, hits):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     metatlas_dataset.hits  # pylint: disable=pointless-statement
     metatlas_dataset.keep_nonmatches = False
-    assert not metatlas_dataset._hits_valid
+    assert metatlas_dataset._hits is None
     assert not metatlas_dataset.keep_nonmatches
 
 
@@ -330,7 +331,7 @@ def test_set_frag_mz_tolerance_setter(metatlas_dataset, mocker, hits):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     metatlas_dataset.hits  # pylint: disable=pointless-statement
     metatlas_dataset.frag_mz_tolerance = 1e-4
-    assert not metatlas_dataset._hits_valid
+    assert metatlas_dataset._hits is None
     assert metatlas_dataset.frag_mz_tolerance == 1e-4
 
 
@@ -338,7 +339,7 @@ def test_set_msms_refs_loc_setter(metatlas_dataset, mocker, hits):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     metatlas_dataset.hits  # pylint: disable=pointless-statement
     metatlas_dataset.msms_refs_loc = "/tmp/some_file.tab"
-    assert not metatlas_dataset._hits_valid
+    assert metatlas_dataset._hits is None
     assert metatlas_dataset.msms_refs_loc == "/tmp/some_file.tab"
 
 
@@ -411,91 +412,100 @@ def test_store_atlas07(atlas, sqlite, username):
 
 
 def test_analysis_identifiers01(sqlite):
-    with pytest.raises(ValueError, match=r"Database does not contain an atlas.*"):
+    with pytest.raises(traitlets.traitlets.TraitError, match=r"Database does not contain an atlas.*"):
         mads.AnalysisIdentifiers(
-            "source_atlas_name_not_valid",
-            "experiment_not_valid",
-            "output_type_not_valid",
-            "polarity_not_valid",
-            "analysis_number_not_valid",
-            "/foo/bar",
+            source_atlas="Not_A_Real_Atlas_Name",
+            experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            output_type="FinalEMA-HILIC",
+            polarity="positive",
+            analysis_number=1,
+            project_directory="/foo/bar",
         )
 
 
 def test_analysis_identifiers02(sqlite_with_atlas, username):
     with pytest.raises(
-        ValueError, match='Parameter output_type is not one of: "ISTDsEtc", "FinalEMA-HILIC".'
+        traitlets.traitlets.TraitError,
+        match="Parameter output_type must be one of ISTDsEtc, FinalEMA-HILIC, data_QC",
     ):
         mads.AnalysisIdentifiers(
-            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
-            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
-            "output_type_not_valid",
-            "polarity_not_valid",
-            "analysis_number_not_valid",
-            "/foo/bar",
+            source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+            experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            output_type="output_type_not_valid",
+            polarity="positive",
+            analysis_number=1,
+            project_directory="/foo/bar",
         )
 
 
 def test_analysis_identifiers03(username, sqlite_with_atlas):
     with pytest.raises(
-        ValueError,
-        match='Parameter polarity is not one of: "positive", "negative", "fast-polarity-switching".',
+        traitlets.traitlets.TraitError,
+        match="Parameter polarity must be one of positive, negative, fast-polarity-switching",
     ):
         mads.AnalysisIdentifiers(
-            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
-            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
-            "FinalEMA-HILIC",
-            "polarity_not_valid",
-            "analysis_number_not_valid",
-            "/foo/bar",
+            source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+            experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            output_type="FinalEMA-HILIC",
+            polarity="not a polarity value",
+            analysis_number=1,
+            project_directory="/foo/bar",
         )
 
 
 def test_analysis_identifiers04(username, sqlite_with_atlas):
-    with pytest.raises(TypeError, match="Parameter analysis_number is not an integer."):
+    with pytest.raises(
+        traitlets.traitlets.TraitError,
+        match="The 'analysis_number' trait of an AnalysisIdentifiers instance expected an int, not",
+    ):
         mads.AnalysisIdentifiers(
-            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
-            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
-            "FinalEMA-HILIC",
-            "positive",
-            "analysis_number_not_valid",
-            "/foo/bar",
+            source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+            experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            output_type="FinalEMA-HILIC",
+            polarity="positive",
+            analysis_number="this is a string",
+            project_directory="/foo/bar",
         )
 
 
 def test_analysis_identifiers05(username, sqlite_with_atlas):
-    with pytest.raises(TypeError, match="Parameter analysis_number is not an integer."):
+    with pytest.raises(
+        traitlets.traitlets.TraitError,
+        match="The 'analysis_number' trait of an AnalysisIdentifiers instance expected an int, not",
+    ):
         mads.AnalysisIdentifiers(
-            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
-            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
-            "FinalEMA-HILIC",
-            "positive",
-            "1",
-            "/foo/bar",
+            source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+            experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            output_type="FinalEMA-HILIC",
+            polarity="positive",
+            analysis_number="1",
+            project_directory="/foo/bar",
         )
 
 
 def test_analysis_identifiers06(username, sqlite_with_atlas):
-    with pytest.raises(ValueError, match="Parameter analysis_number cannot be negative."):
+    with pytest.raises(traitlets.traitlets.TraitError, match="Parameter analysis_number cannot be negative."):
         mads.AnalysisIdentifiers(
-            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
-            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
-            "FinalEMA-HILIC",
-            "positive",
-            -9,
-            "/foo/bar",
+            source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+            experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            output_type="FinalEMA-HILIC",
+            polarity="positive",
+            analysis_number=-9,
+            project_directory="/foo/bar",
         )
 
 
 def test_analysis_identifiers07(username, sqlite_with_atlas):
-    with pytest.raises(ValueError, match='Parameter experiment does contain 9 fields when split on "_".'):
+    with pytest.raises(
+        traitlets.traitlets.TraitError, match='Parameter experiment does contain 9 fields when split on "_".'
+    ):
         mads.AnalysisIdentifiers(
-            f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
-            "experiment_name_not_valid",
-            "output_type_not_valid",
-            "polarity_not_valid",
-            "analysis_number_not_valid",
-            "/foo/bar",
+            source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+            experiment="experiment_name_not_valid",
+            output_type="FinalEMA-HILIC",
+            polarity="positive",
+            analysis_number=0,
+            project_directory="/foo/bar",
         )
 
 
@@ -531,7 +541,7 @@ def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, atlas, usernam
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     mocker.patch("glob.glob", return_value=range(10))
-    metatlas_dataset = mads.MetatlasDataset(analysis_ids)
+    metatlas_dataset = mads.MetatlasDataset(ids=analysis_ids)
     assert metatlas_dataset.atlas.name == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
 
 
@@ -539,14 +549,14 @@ def test_get_atlas02(mocker, analysis_ids, caplog):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[])
     caplog.set_level(logging.INFO)
     with pytest.raises(ValueError):
-        mads.MetatlasDataset(analysis_ids)
+        mads.MetatlasDataset(ids=analysis_ids)
     assert "Database does not contain an atlas" in caplog.text
 
 
 def test_get_atlas03(mocker, analysis_ids, caplog, username):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[0, 0])
     with pytest.raises(ValueError):
-        mads.MetatlasDataset(analysis_ids)
+        mads.MetatlasDataset(ids=analysis_ids)
     atlas = f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
     assert f"2 atlases with name {atlas} and owned by {username} already exist." in caplog.text
 

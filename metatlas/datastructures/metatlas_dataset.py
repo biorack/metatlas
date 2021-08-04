@@ -3,13 +3,15 @@ import datetime
 import getpass
 import glob
 import logging
-import numbers
 import os
 import shutil
 import tarfile
 
 import humanize
 import pandas as pd
+
+from traitlets import HasTraits, TraitError, default, observe, validate
+from traitlets import Bool, Float, Instance, Int, List, Tuple, Unicode
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
@@ -20,56 +22,41 @@ from metatlas.plots import dill2plots as dp
 from metatlas.tools import parallel
 
 MSMS_REFS_PATH = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
+DEFAULT_GROUPS_CONTROLLED_VOCAB = ["QC", "InjBl", "InjBL", "ISTD"]
+OUTPUT_TYPES = ["ISTDsEtc", "FinalEMA-HILIC", "data_QC"]
 POLARITIES = ["positive", "negative", "fast-polarity-switching"]
 SHORT_POLARITIES = {"positive": "POS", "negative": "NEG", "fast-polarity-switching": "FPS"}
-
-OUTPUT_TYPES = ["ISTDsEtc", "FinalEMA-HILIC", "data_QC"]
 
 logger = logging.getLogger(__name__)
 
 
-class AnalysisIdentifiers:
+class AnalysisIdentifiers(HasTraits):
     """Names used in generating an analysis"""
 
-    # pylint: disable=too-many-arguments
-    def __init__(
-        self,
-        source_atlas,
-        experiment,
-        output_type,
-        polarity,
-        analysis_number,
-        project_directory,
-        username=None,
-        groups_controlled_vocab=None,
-        include_groups=None,
-        exclude_groups=None,
-        exclude_files=None,
-    ):
-        self._source_atlas = source_atlas
-        self._experiment = experiment
-        self._output_type = output_type
-        self._polarity = polarity
-        self._analysis_number = analysis_number
-        self._username = getpass.getuser() if username is None else username
-        self.project_directory = project_directory
-        self._runs = None
-        self._runs_valid = False
-        self._all_groups = None
-        self._all_groups_valid = False
-        self._groups_controlled_vocab = [] if groups_controlled_vocab is None else groups_controlled_vocab
-        if include_groups is None and output_type == "data_QC":
-            self._include_groups = ["QC"]
-        self._include_groups = [] if include_groups is None else include_groups
-        self._exclude_groups = [] if exclude_groups is None else exclude_groups
-        if exclude_groups is None:
-            self._exclude_groups = ["InjBl", "InjBL"]
-        if polarity == "positive":
-            self._exclude_groups.append("NEG")
-        elif polarity == "negative":
-            self._exclude_groups.append("POS")
-        self._exclude_files = [] if exclude_files is None else exclude_files
-        self.validate()
+    source_atlas = Unicode(allow_none=True)
+    experiment = Unicode()
+    output_type = Unicode()
+    polarity = Unicode(default_value="positive")
+    analysis_number = Int(default_value=0)
+    username = Unicode(default_value=getpass.getuser())
+    project_directory = Unicode()
+    exclude_files = List(trait=Unicode(), allow_none=True, default_value=[])
+    groups_controlled_vocab = List(
+        trait=Unicode(), allow_none=True, default_value=DEFAULT_GROUPS_CONTROLLED_VOCAB
+    )
+    include_groups = List(allow_none=True, default_value=None)
+    exclude_groups = List(allow_none=True, default_value=["InjBl", "InjBL"])
+    _lcmsruns = List(allow_none=True, default_value=None)
+    _all_groups = List(allow_none=True, default_value=None)
+    _groups = List(allow_none=True, default_value=None)
+
+    # pylint: disable=no-self-use
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.polarity == "positive":
+            self.exclude_groups.append("NEG")
+        elif self.polarity == "negative":
+            self.exclude_groups.append("POS")
         logger.info(
             "IDs: source_atlas=%s, atlas=%s, short_experiment_analysis=%s, output_dir=%s",
             self.source_atlas,
@@ -79,45 +66,44 @@ class AnalysisIdentifiers:
         )
         self.store_all_groups(exist_ok=True)
 
-    def validate(self):
-        """Valid class inputs"""
-        logger.debug("Validating inputs to AnalysisIdentifiers")
-        if self._source_atlas is not None:
-            get_atlas(self.source_atlas, self.username)  # will raise error if not found or matches multiple
-        if len(self.experiment.split("_")) != 9:
-            raise ValueError('Parameter experiment does contain 9 fields when split on "_".')
-        if self.output_type not in OUTPUT_TYPES:
-            raise ValueError(f"Parameter output_type is not one of: {quoted_string_list(OUTPUT_TYPES)}.")
-        if self.polarity not in POLARITIES:
-            raise ValueError(f"Parameter polarity is not one of: {quoted_string_list(POLARITIES)}.")
-        if self.analysis_number < 0:
-            raise ValueError("Parameter analysis_number cannot be negative.")
-        logger.debug("Inputs to AnalysisIdentifiers passed validation.")
+    @default("include_groups")
+    def _default_include_groups(self):
+        if self.output_type == "data_QC":
+            return ["QC"]
+        return []
 
-    @property
-    def source_atlas(self):
-        """Returns source atlas identifier"""
-        return self._source_atlas
+    @validate("polarity")
+    def _valid_polarity(self, proposal):
+        if proposal["value"] not in POLARITIES:
+            raise TraitError(f"Parameter polarity must be one of {', '.join(POLARITIES)}")
+        return proposal["value"]
 
-    @property
-    def experiment(self):
-        """Returns experiment identifier"""
-        return self._experiment
+    @validate("output_type")
+    def _valid_output_type(self, proposal):
+        if proposal["value"] not in OUTPUT_TYPES:
+            raise TraitError(f"Parameter output_type must be one of {', '.join(OUTPUT_TYPES)}")
+        return proposal["value"]
 
-    @property
-    def output_type(self):
-        """Returns output type identifier"""
-        return self._output_type
+    @validate("source_atlas")
+    def _valid_source_atlas(self, proposal):
+        if proposal["value"] is not None:
+            try:
+                get_atlas(proposal["value"], self.username)  # raises error if not found or matches multiple
+            except ValueError as err:
+                raise TraitError(str(err)) from err
+        return proposal["value"]
 
-    @property
-    def polarity(self):
-        """Returns polarity identifier"""
-        return self._polarity
+    @validate("analysis_number")
+    def _valid_analysis_number(self, proposal):
+        if proposal["value"] < 0:
+            raise TraitError("Parameter analysis_number cannot be negative.")
+        return proposal["value"]
 
-    @property
-    def analysis_number(self):
-        """Returns analysis number"""
-        return self._analysis_number
+    @validate("experiment")
+    def _valid_experiment(self, proposal):
+        if len(proposal["value"].split("_")) != 9:
+            raise TraitError('Parameter experiment does contain 9 fields when split on "_".')
+        return proposal["value"]
 
     @property
     def _exp_tokens(self):
@@ -133,11 +119,6 @@ class AnalysisIdentifiers:
     def atlas(self):
         """Atlas identifier (name)"""
         return f"{'_'.join(self._exp_tokens[3:6])}_{self.output_type}_{self.short_polarity}_{self.analysis}"
-
-    @property
-    def username(self):
-        """Returns username identifier"""
-        return self._username
 
     @property
     def analysis(self):
@@ -167,20 +148,22 @@ class AnalysisIdentifiers:
         return out
 
     @property
-    def exclude_files(self):
-        return self._exclude_files
-
-    @property
     def lcmsruns(self):
         """Get LCMS runs from DB matching experiment"""
-        if self._runs_valid:
-            return self._runs
-        self._runs = dp.get_metatlas_files(experiment=self.experiment, name="%")
-        self._runs_valid = True
-        for run in self._runs:
+        if self._lcmsruns is not None:
+            return self._lcmsruns
+        all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
+        self._lcmsruns = [r for r in all_lcmsruns if not any(map(r.name.__contains__, self.exclude_files))]
+        if len(self.exclude_files) > 0:
+            logger.info(
+                "Excluding %d LCMS runs containing any of: %s",
+                len(all_lcmsruns) - len(self._lcmsruns),
+                self.exclude_files,
+            )
+        for run in self._lcmsruns:
             logger.info("Run: %s", run.name)
-        logger.info("Number of LCMS output files matching '%s' is: %d.", self.experiment, len(self._runs))
-        return self._runs
+        logger.info("Number of LCMS output files matching '%s' is: %d.", self.experiment, len(self._lcmsruns))
+        return self._lcmsruns
 
     @property
     def lcmsruns_dataframe(self):
@@ -238,15 +221,52 @@ class AnalysisIdentifiers:
         """
         file_dict = {}
         for lcms_file in self.lcmsruns:
-            if not any(map(lcms_file.name.__contains__, self._exclude_files)):
-                base_name = lcms_file.name.split(".")[0]
-                file_dict[base_name] = {"object": lcms_file, **self.group_name(base_name)}
+            base_name = lcms_file.name.split(".")[0]
+            file_dict[base_name] = {"object": lcms_file, **self.group_name(base_name)}
         return file_dict
 
     @property
     def groups(self):
-        """This needs to be updated to only return the currently selected groups"""
-        return self.all_groups
+        """Return the currently selected groups"""
+        if self._groups is not None:
+            return self._groups
+        out = dp.filter_metatlas_objects_to_most_recent(self.all_groups, "name")
+        if len(self.include_groups) > 0:
+            out = dp.filter_metatlas_objects_by_list(out, "name", self.include_groups)
+        if len(self.exclude_groups) > 0:
+            out = dp.remove_metatlas_objects_by_list(out, "name", self.exclude_groups)
+        self._groups = dp.filter_empty_metatlas_objects(out, "items")
+        return self._groups
+
+    @observe("all_groups")
+    def _observe_all_groups(self, signal):
+        if signal.type == "change":
+            self._groups = None
+            logger.debug("Change to all_groups invalidates groups")
+
+    @observe("groups_controlled_vocab")
+    def _observe_groups_controlled_vocab(self, signal):
+        if signal.type == "change":
+            self._lcmsruns = None
+            logger.debug("Change to groups_controlled_vocab invalidates lcmsruns")
+
+    @observe("include_groups")
+    def _observe_include_groups(self, signal):
+        if signal.type == "change":
+            self._groups = None
+            logger.debug("Change to include_groups invalidates groups")
+
+    @observe("exclude_groups")
+    def _observe_exclude_groups(self, signal):
+        if signal.type == "change":
+            self._groups = None
+            logger.debug("Change to exclude_groups invalidates groups")
+
+    @observe("exclude_files")
+    def _observe_exclude_files(self, signal):
+        if signal.type == "change":
+            self._lcmsruns = None
+            logger.debug("Change to exclude_files invalidates lcmsruns")
 
     @property
     def existing_groups(self):
@@ -256,26 +276,14 @@ class AnalysisIdentifiers:
     def group_name(self, base_filename):
         """Returns dict with keys group and short_name corresponding to base_filename"""
         indices = [
-            i for i, s in enumerate(self._groups_controlled_vocab) if s.lower() in base_filename.lower()
+            i for i, s in enumerate(self.groups_controlled_vocab) if s.lower() in base_filename.lower()
         ]
         tokens = base_filename.split("_")
         prefix = "_".join(tokens[:11])
-        suffix = self._groups_controlled_vocab[indices[0]].lstrip("_") if indices else tokens[12]
+        suffix = self.groups_controlled_vocab[indices[0]].lstrip("_") if indices else tokens[12]
         group_name = f"{prefix}_{self.analysis}_{suffix}"
         short_name = f"{tokens[9]}_{suffix}"  # Prepending POL to short_name
         return {"group": group_name, "short_name": short_name}
-
-    @property
-    def groups_controlled_vocab(self):
-        return self._groups_controlled_vocab
-
-    @property
-    def include_groups(self):
-        return self._include_groups
-
-    @property
-    def exclude_groups(self):
-        return self._exclude_groups
 
     @property
     def all_groups_dataframe(self):
@@ -290,9 +298,8 @@ class AnalysisIdentifiers:
     @property
     def all_groups(self):
         """Returns a list of Group objects"""
-        if self._all_groups_valid:
+        if self._all_groups is not None:
             return self._all_groups
-        file_dict = self._files_dict
         self._all_groups = []
         unique_groups = self.all_groups_dataframe[["group", "short_name"]].drop_duplicates()
         for values in unique_groups.to_dict("index").values():
@@ -302,12 +309,11 @@ class AnalysisIdentifiers:
                     short_name=values["short_name"],
                     items=[
                         file_value["object"]
-                        for file_value in file_dict.values()
+                        for file_value in self._files_dict.values()
                         if file_value["group"] == values["group"]
                     ],
                 )
             )
-        self._all_groups_valid = True
         return self._all_groups
 
     def store_all_groups(self, exist_ok=False):
@@ -334,7 +340,7 @@ class AnalysisIdentifiers:
         metob.store(self.all_groups)
 
 
-class MetatlasDataset:
+class MetatlasDataset(HasTraits):
     """
     Like the non-object oriented metatlas_dataset, you can index into this class by file_idx and compound_idx:
     metatlas_dataset = MetatlasDataset(analysis_ids)
@@ -353,48 +359,34 @@ class MetatlasDataset:
     MetatlasDataset also has methods for updating RT values and identification notes while keeping
     the atlas, atlas_df, metatlas_dataset, and database in sync. This removes the need to do kernel
     restarts between steps in the workflow.
+
+
+    ids: AnalysisIdentifiers instance defining the analysis
+    save_metadata: if True, write metadata files containing data sources and LCMS runs short name
     """
 
-    # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-public-methods
-    def __init__(
-        self,
-        ids,
-        extra_time=0.75,
-        extra_mz=0,
-        keep_nonmatches=True,
-        frag_mz_tolerance=0.01,
-        msms_refs_loc=MSMS_REFS_PATH,
-        max_cpus=1,
-        save_metadata=True,
-    ):
-        """
-        inputs:
-            ids: AnalysisIdentifiers instance defining the analysis
-            groups_controlled_vocab: array of strings that will group together when creating groups
-                                     application of groups_controlled_vocab is case insensitive
-            exclude_files: array of strings that will exclude files if they are substrings of the filename
-            save_metadata: if True, write metadata files containing data sources and LCMS runs short name
-        """
+    extra_time = Float(default_value=0.75)
+    extra_mz = Float(default_value=0)
+    frag_mz_tolerance = Float(default_value=0.01)
+    max_cpus = Int(default_value=1)
+    save_metadata = Bool(default_value=True)
+    keep_nonmatches = Bool(default_value=True)
+    msms_refs_loc = Unicode(default_value=MSMS_REFS_PATH)
+    ids = Instance(klass=AnalysisIdentifiers)
+    atlas = Instance(klass=metob.Atlas, allow_none=True, default_value=None)
+    _atlas_df = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
+    _data = Tuple(allow_none=True, default_value=None)
+    _hits = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
+
+    # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-public-methods, no-self-use
+    def __init__(self, **kwargs):
+        """Constructor"""
+        super().__init__(**kwargs)
         logger.debug("Creating new MetatlasDataset instance...")
-        self.ids = ids
-        self._atlas = None
-        self._atlas_valid = False
-        self._atlas_df = None
-        self._atlas_df_valid = False
-        self._data = None
-        self._data_valid = False
-        self._hits = None
-        self._hits_valid = False  # based on all hits dependencies except RT min/max values
         self._hits_valid_for_rt_bounds = False  # based only on RT min/max changes
-        self._extra_time = extra_time
-        self._extra_mz = extra_mz
-        self._keep_nonmatches = keep_nonmatches
-        self._frag_mz_tolerance = frag_mz_tolerance
-        self._msms_refs_loc = msms_refs_loc
-        self.max_cpus = max_cpus
-        if ids.source_atlas is not None:
+        if self.ids.source_atlas is not None:
             self._get_atlas()
-        if save_metadata:
+        if self.save_metadata:
             logger.debug("Writing MetatlasDataset metadata files")
             self.write_data_source_files()
             self.ids.write_lcmsruns_short_names()
@@ -428,8 +420,7 @@ class MetatlasDataset:
                 self.ids.atlas,
                 self.ids.source_atlas,
             )
-            self._atlas = atlases[0]
-            self._atlas_valid = True
+            self.atlas = atlases[0]
         elif len(atlases) > 1:
             try:
                 raise ValueError(
@@ -445,9 +436,8 @@ class MetatlasDataset:
             logger.info("Retriving source atlas: %s", self.ids.source_atlas)
             source = get_atlas(self.ids.source_atlas, self.ids.username)
             logger.info("Cloning source atlas")
-            self._atlas = source.clone()
-            self._atlas.name = self.ids.atlas
-            self._atlas_valid = True
+            self.atlas = source.clone()
+            self.atlas.name = self.ids.atlas
             self.store_atlas()
 
     def _build(self):
@@ -479,12 +469,12 @@ class MetatlasDataset:
 
     def _remove_compound_id(self, idx):
         """
-        Remove compound identification at index idx from both in db and self._atlas
+        Remove compound identification at index idx from both in db and self.atlas
         Does not invalidate _data or _hits or _atlas_df
         This bypasses several ORM layers and therefore is a hack, but I couldn't get it to work with the ORM.
         """
-        cid_id = self._atlas.compound_identifications[idx].unique_id
-        atlas_id = self._atlas.unique_id
+        cid_id = self.atlas.compound_identifications[idx].unique_id
+        atlas_id = self.atlas.unique_id
         link_table = "atlases_compound_identifications"
         target = f"target_id='{cid_id}'"
         workspace = metob.Workspace.get_instance()
@@ -496,7 +486,7 @@ class MetatlasDataset:
             if len(list(links)) == 0:  # other atlases are not linked to this CompoundIdentification
                 workspace.db.query(f"delete from compoundidentifications where unique_id='{cid_id}'")
             workspace.db.commit()
-            del self._atlas.compound_identifications[idx]
+            del self.atlas.compound_identifications[idx]
         except Exception as err:  # pylint: disable=broad-except
             metoh.rollback_and_log(workspace.db, err)
         workspace.close_connection()
@@ -521,14 +511,13 @@ class MetatlasDataset:
             _error_if_bad_idxs(self.atlas_df, remove_idxs)
             keep_idxs = self.atlas_df.index.difference(remove_idxs)
         self._atlas_df = self.atlas_df.iloc[keep_idxs].copy().reset_index(drop=True)
-        self._atlas_df_valid = True
-        if self._data_valid:
+        if self._data is not None:
             self._data = [
                 [compound for idx, compound in enumerate(sample) if idx in keep_idxs] for sample in self._data
             ]
         if remove_idxs is None:
             remove_idxs = [
-                idx for idx, _ in enumerate(self._atlas.compound_identifications) if idx not in keep_idxs
+                idx for idx, _ in enumerate(self.atlas.compound_identifications) if idx not in keep_idxs
             ]
         _ = [self._remove_compound_id(idx) for idx in sorted(remove_idxs, reverse=True)]
         logger.info(
@@ -537,7 +526,7 @@ class MetatlasDataset:
             len(self.atlas_df),
             start_len - len(self.atlas_df),
         )
-        if self._hits_valid:
+        if self._hits is not None:
             self.filter_hits_by_atlas()
 
     def filter_hits_by_atlas(self):
@@ -621,41 +610,20 @@ class MetatlasDataset:
         """get sample at idx"""
         return self.data[idx]
 
-    def _set_and_invalidate_properties(self, attribute_name, new_value, property_names):
-        """
-        inputs:
-            attribute_name: name of the class attribute being modified
-            new_value: value to assign to attribute
-            property_names: list of names of the class properties that are dependent on the attribute's value
-        side effects:
-            If the property is valid and new_value is different from previous value, then invalidate.
-            And set attribute to new_value
-        """
-        for prop in property_names:
-            valid_attr_name = f"_{prop}_valid"
-            setattr(
-                self,
-                valid_attr_name,
-                getattr(self, valid_attr_name) and new_value == getattr(self, attribute_name),
-            )
-        setattr(self, f"_{attribute_name}", new_value)
-
     @property
     def data(self):
         """data getter, update ._data if necessary"""
-        if not self._data_valid:
+        if self._data is None:
             self._build()
-            self._data_valid = True
         return self._data
 
     @property
     def atlas_df(self):
         """atlas_df getter, update ._atlas_df if necessary"""
-        if not self._atlas_df_valid:
+        if self._atlas_df is None:
             start_time = datetime.datetime.now()
             logger.info("Generating atlas_df")
             self._atlas_df = ma_data.make_atlas_df(self.atlas)
-            self._atlas_df_valid = True
             logger.info(
                 "Generated atlas_df with %d rows in %s.",
                 len(self.atlas_df),
@@ -663,17 +631,12 @@ class MetatlasDataset:
             )
         return self._atlas_df
 
-    @property
-    def atlas(self):
-        """atlas getter"""
-        return self._atlas
-
-    @atlas.setter
-    def atlas(self, atlas):
-        """atlas setter, invalidate atlas_df and data"""
-        if not isinstance(atlas, metob.Atlas):
-            raise TypeError("Cannot set atlas to contain a non-Atlas object")
-        self._set_and_invalidate_properties("atlas", atlas, ["atlas_df", "data"])
+    @observe("atlas")
+    def _observe_atlas(self, signal):
+        if signal.type == "change":
+            self._atlas_df = None
+            self._data = None
+            logger.debug("Change to atlas invalidates atlas_df, data")
 
     @property
     def polarity(self):
@@ -687,60 +650,42 @@ class MetatlasDataset:
             return "positive"
         return cid.mz_references[0].detected_polarity
 
-    @property
-    def extra_time(self):
-        """extra_time getter"""
-        return self._extra_time
+    @observe("extra_time")
+    def _observe_extra_time(self, signal):
+        if signal.type == "change":
+            self._hits = None
+            self._data = None
+            logger.debug("Change to extra_time invalidates hits, data")
 
-    @extra_time.setter
-    def extra_time(self, extra_time):
-        """extra_time setter, invalidates data and hits"""
-        self._set_and_invalidate_properties("extra_time", extra_time, ["data", "hits"])
+    @observe("extra_mz")
+    def _observe_extra_mz(self, signal):
+        if signal.type == "change":
+            self._hits = None
+            self._data = None
+            logger.debug("Change to extra_mz invalidates hits, data")
 
-    @property
-    def extra_mz(self):
-        """extra_mz getter"""
-        return self._extra_mz
+    @observe("keep_nonmatches")
+    def _observe_keep_nonmatches(self, signal):
+        if signal.type == "change":
+            self._hits = None
+            logger.debug("Change to keep_nonmatches invalidates hits")
 
-    @extra_mz.setter
-    def extra_mz(self, extra_mz):
-        """extra_mz setter, invalidates data and hits"""
-        self._set_and_invalidate_properties("extra_mz", extra_mz, ["data", "hits"])
+    @observe("frag_mz_tolerance")
+    def _observe_frag_mz_tolerance(self, signal):
+        if signal.type == "change":
+            self._hits = None
+            logger.debug("Change to frag_mz_tolerance invalidates hits")
 
-    @property
-    def keep_nonmatches(self):
-        """keep_nonmatches getter"""
-        return self._keep_nonmatches
-
-    @keep_nonmatches.setter
-    def keep_nonmatches(self, keep_nonmatches):
-        """keep_nonmatches setter, invalidates hits"""
-        self._set_and_invalidate_properties("keep_nonmatches", keep_nonmatches, ["hits"])
-
-    @property
-    def frag_mz_tolerance(self):
-        """frag_mz_tolerance getter"""
-        return self._frag_mz_tolerance
-
-    @frag_mz_tolerance.setter
-    def frag_mz_tolerance(self, frag_mz_tolerance):
-        """frag_mz_tolerance setter, invlidates hits"""
-        self._set_and_invalidate_properties("frag_mz_tolerance", frag_mz_tolerance, ["hits"])
-
-    @property
-    def msms_refs_loc(self):
-        """msms_refs_loc getter"""
-        return self._msms_refs_loc
-
-    @msms_refs_loc.setter
-    def msms_refs_loc(self, msms_refs_loc):
-        """msms_refs_loc setter, invalidates hits"""
-        self._set_and_invalidate_properties("msms_refs_loc", msms_refs_loc, ["hits"])
+    @observe("msms_refs_loc")
+    def _observe_msms_refs_loc(self, signal):
+        if signal.type == "change":
+            self._hits = None
+            logger.debug("Change to msms_refs_loc invalidates hits")
 
     @property
     def hits(self):
         """get msms hits DataFrame"""
-        if not self._hits_valid:
+        if self._hits is None:
             logger.info(
                 "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs_loc=%s.",
                 self.extra_time,
@@ -756,7 +701,6 @@ class MetatlasDataset:
                 ref_loc=self.msms_refs_loc,
             )
             logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
-            self._hits_valid = True
             self._hits_valid_for_rt_bounds = True
         return self._hits
 
@@ -766,10 +710,9 @@ class MetatlasDataset:
 
     def set_data(self, ids, value):
         """update a value within self._data"""
-        if not self._data_valid:
+        if self._data is None:
             self._build()
-            self._data_valid = True
-        self._atlas_df_valid = False
+        self._atlas_df = None
         _set_nested(self._data, ids, value)
 
     @property
@@ -859,7 +802,7 @@ class MetatlasDataset:
             overwrite: if False, throw error if any output files already exist
         """
         if not self._hits_valid_for_rt_bounds:
-            self._hits_valid = False  # force hits to be regenerated
+            self._hits = None  # force hits to be regenerated
         self.extra_time = 0.5
         logger.info("extra_time set to 0.5 minutes for output generation.")
         targeted_output.write_atlas_to_spreadsheet(self, overwrite)

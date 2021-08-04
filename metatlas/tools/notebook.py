@@ -25,7 +25,7 @@ def configure_environment(log_level):
     logger.debug("Running import and environment setup block of notebook.")
     logger.debug("Configuring notebook environment with console log level of %s.", log_level)
     os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
-    logger.info('Running on git commit: %s', get_repo_hash())
+    logger.info("Running on git commit: %s", get_repo_hash())
 
 
 def configure_pandas_display(max_rows=5000, max_columns=500, max_colwidth=100):
