@@ -8,8 +8,9 @@ ENV METATLAS_LOCAL=True
 
 EXPOSE 8888
 
-RUN apt-get update && apt-get install -y jq && \
-    rm -rf /var/lib/apt/lists/*
+ADD https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 /usr/local/bin/jq
+
+RUN chmod +x /usr/local/bin/jq
 
 COPY requirements.txt /requirements.txt
 
