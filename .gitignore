@@ -70,6 +70,7 @@ target/
 *.db
 *-shm
 *-wal
+dumps/
 
 # kbase installation directories
 bootstrap/
