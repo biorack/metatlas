@@ -46,7 +46,23 @@ DELETE FROM functionalsets;
 DELETE FROM fragmentationreferences_mz_intensities;
 DELETE FROM compoundidentifications_frag_references;
 DELETE FROM fragmentationreferences;
-DELETE FROM lcmsruns;
+
+DELETE l
+FROM lcmsruns AS l
+LEFT JOIN (
+        SELECT unique_id
+        FROM lcmsruns AS l1
+        JOIN (
+                SELECT MAX(creation_time) AS ctime, hdf5_file
+                FROM lcmsruns
+                WHERE (name LIKE '20201106\_JGI-AK\_PS-KM\_505892\_OakGall\_final\_QE-HF\_HILICZ\_USHXG01583\_POS\_MSMS\_0\_QC\_P%')
+                GROUP BY hdf5_file
+        ) AS early
+        ON l1.creation_time=early.ctime AND l1.hdf5_file=early.hdf5_file
+) AS j
+ON l.unique_id=j.unique_id
+WHERE j.unique_id is NULL;
+
 
 -- delete atlases that are not the most recent version of the atlases listed
 DELETE FROM atlases

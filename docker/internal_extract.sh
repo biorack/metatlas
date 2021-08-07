@@ -13,7 +13,7 @@ apt-get install -y python3 python3-pip
 pip3 install mysql-to-sqlite3
 
 # wait for mysql to be ready for connections
-while ! mysqladmin ping --silent; do
+while ! mysqladmin ping "--password=$2" --silent; do
     sleep 1
 done
 

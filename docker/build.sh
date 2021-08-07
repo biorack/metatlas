@@ -7,13 +7,15 @@ SPIN_USER="$USER"
 PROJECT="metatlas_test"
 REGISTRY="registry.spin.nersc.gov"
 DOCKER="docker"
+DOCKERFILE=""
 
-IMAGE_NAME="metatlas_ci01"
+IMAGE_NAME=""
 TAG=""
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     -d|--docker) DOCKER="$2"; shift ;;
+    -f|--dockerfile) DOCKERFILE="$2"; shift ;;
     -i|--image) IMAGE_NAME="$2"; shift ;;
     -r|--registry) REGISTRY="$2"; shift ;;
     -p|--project) PROJECT="$2"; shift ;;
@@ -24,7 +26,8 @@ while [[ "$#" -gt 0 ]]; do
         echo ""
         echo "   -h, --help              show this command reference"
 	echo "   -d, --docker            name of docker command (default ${DOCKER})"
-        echo "   -i, --image string      name of image to build (default ${IMAGE_NAME})"
+	echo "   -f, --dockerfile        name of Dockerfile"
+        echo "   -i, --image string      name of image to build"
         echo "   -p, --project string    project name within the registry (default ${PROJECT})"
         echo "   -r, --registry string   FQDN of container registry to push to"
         echo "                           use 'NONE' to not push (default ${REGISTRY})"
@@ -37,6 +40,16 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
+if [[ "$IMAGE_NAME" == "" ]]; then
+  >&2 echo "ERROR: no Dockerfile value given"
+  exit 10
+fi
+
+if [[ "$DOCKERFILE" == "" ]]; then
+  >&2 echo "ERROR: no Dockerfile value given"
+  exit 10
+fi
+
 if [[ "$TAG" == "" ]]; then
   >&2 echo "ERROR: no tag value given"
   exit 9
@@ -45,14 +58,14 @@ fi
 SHORT_TAG="${IMAGE_NAME}:${TAG}"
 LONG_TAG="${REGISTRY}/${PROJECT}/${SHORT_TAG}"
 
-DOCKERFILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-if [[ ! -r "${DOCKERFILE_DIR}/Dockerfile" ]]; then
-  >&2 echo "ERROR: Could not find readable Dockerfile in ${DOCKERFILE_DIR}."
+if [[ ! -r "${DOCKERFILE}" ]]; then
+  >&2 echo "ERROR: Could not find readable Dockerfile at ${DOCKERFILE}."
   exit 1
 fi
 
-${DOCKER} image build --tag "${SHORT_TAG}" "${DOCKERFILE_DIR}"
+${DOCKER} image build --tag "${SHORT_TAG}" --file "${DOCKERFILE}" "$SCRIPT_DIR"
 
 if [[ "$REGISTRY" != "NONE" ]]; then
   if [[ $(uname -s) == "Darwin" ]]; then
