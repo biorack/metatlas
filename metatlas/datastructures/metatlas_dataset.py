@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 class AnalysisIdentifiers(HasTraits):
     """Names used in generating an analysis"""
 
-    source_atlas = Unicode(allow_none=True)
+    source_atlas = Unicode(allow_none=True, default_value=None)
     experiment = Unicode()
     output_type = Unicode()
     polarity = Unicode(default_value="positive")
@@ -238,7 +238,16 @@ class AnalysisIdentifiers(HasTraits):
         self._groups = dp.filter_empty_metatlas_objects(out, "items")
         return self._groups
 
-    @observe("all_groups")
+    @observe("polarity")
+    def _observe_polarity(self, signal):
+        if signal.type == "change":
+            if signal.new == "positive":
+                self.exclude_groups.append("NEG")
+            elif signal.new == "negative":
+                self.exclude_groups.append("POS")
+            logger.debug("Change to polarity invalidates exclude_groups")
+
+    @observe("_all_groups")
     def _observe_all_groups(self, signal):
         if signal.type == "change":
             self._groups = None
@@ -267,6 +276,12 @@ class AnalysisIdentifiers(HasTraits):
         if signal.type == "change":
             self._lcmsruns = None
             logger.debug("Change to exclude_files invalidates lcmsruns")
+
+    @observe("_lcmsruns")
+    def _observe_lcmsruns(self, signal):
+        if signal.type == "change":
+            self._all_groups = None
+            logger.debug("Change to lcmsruns invalidates all_groups")
 
     @property
     def existing_groups(self):
@@ -300,8 +315,8 @@ class AnalysisIdentifiers(HasTraits):
         """Returns a list of Group objects"""
         if self._all_groups is not None:
             return self._all_groups
-        self._all_groups = []
         unique_groups = self.all_groups_dataframe[["group", "short_name"]].drop_duplicates()
+        self._all_groups = []
         for values in unique_groups.to_dict("index").values():
             self._all_groups.append(
                 metob.Group(
@@ -638,6 +653,12 @@ class MetatlasDataset(HasTraits):
             self._data = None
             logger.debug("Change to atlas invalidates atlas_df, data")
 
+    @observe("_atlas_df")
+    def _observe_atlas_df(self, signal):
+        if signal.type == "change":
+            self._data = None
+            logger.debug("Change to atlas_df invalidates data")
+
     @property
     def polarity(self):
         """
@@ -707,13 +728,6 @@ class MetatlasDataset(HasTraits):
     def __len__(self):
         """len is from data"""
         return len(self.data)
-
-    def set_data(self, ids, value):
-        """update a value within self._data"""
-        if self._data is None:
-            self._build()
-        self._atlas_df = None
-        _set_nested(self._data, ids, value)
 
     @property
     def rts(self):

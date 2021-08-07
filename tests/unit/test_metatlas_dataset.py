@@ -4,6 +4,7 @@
 import datetime
 import glob
 import logging
+import os
 
 import pandas as pd
 import pytest
@@ -343,11 +344,6 @@ def test_set_msms_refs_loc_setter(metatlas_dataset, mocker, hits):
     assert metatlas_dataset.msms_refs_loc == "/tmp/some_file.tab"
 
 
-def test_set_data01(metatlas_dataset):
-    metatlas_dataset.set_data([0, 0, "identification", "ms2_notes"], "extact match")
-    assert metatlas_dataset[0][0]["identification"].ms2_notes == "extact match"
-
-
 def test_store_atlas01(atlas, sqlite, username):
     atlas.name = "test_store_atlas01"
     atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)
@@ -644,3 +640,53 @@ def test_load_atlas02(atlas, sqlite_with_atlas, username):
 def test_load_atlas03(sqlite_with_atlas, atlas, username):
     results = metob.retrieve("Atlas", name=atlas.name, username=username)
     assert results[0].compound_identifications[0].rt_references[0].rt_peak == 2.1964640053707174
+
+
+def test_invalidation01(analysis_ids):
+    _ = analysis_ids.groups
+    assert analysis_ids._groups is not None
+    analysis_ids.exclude_files = ['Cone-S1']
+    assert analysis_ids._groups is None
+
+
+def test_negative_polarity01(sqlite_with_atlas, username, lcmsrun, mocker, groups_controlled_vocab):
+    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
+    ids = mads.AnalysisIdentifiers(
+        experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+        output_type="FinalEMA-HILIC",
+        polarity="negative",
+        analysis_number=0,
+        project_directory=str(os.getcwd()),
+        groups_controlled_vocab=groups_controlled_vocab,
+    )
+    assert 'POS' in ids.exclude_groups
+
+
+def test_include_groups01(sqlite_with_atlas, username, lcmsrun, mocker, groups_controlled_vocab):
+    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
+    ids = mads.AnalysisIdentifiers(
+        experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+        output_type="data_QC",
+        polarity="negative",
+        analysis_number=0,
+        project_directory=str(os.getcwd()),
+        groups_controlled_vocab=groups_controlled_vocab,
+    )
+    assert 'QC' in ids.include_groups
+
+
+def test_project01(analysis_ids):
+    assert analysis_ids.project == '505892'
+
+
+def test_exclude_files01(analysis_ids):
+    analysis_ids.exclude_files = ['POS']
+    assert len(analysis_ids.lcmsruns) == 0
+    assert analysis_ids.lcmsruns_short_names.empty
+
+
+def test_invlidate_groups_controlled_vocab01(analysis_ids):
+    _ = analysis_ids.lcmsruns
+    assert analysis_ids._lcmsruns is not None
+    analysis_ids.groups_controlled_vocab = ['FOOBAR']
+    assert analysis_ids._lcmsruns is None

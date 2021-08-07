@@ -112,7 +112,7 @@ def generate_rt_correction_models(
                         are pre-populated into the generated notebooks
     """
     # pylint: disable=too-many-locals
-    metatlas_dataset = mads.MetatlasDataset(ids, save_metadata=False)
+    metatlas_dataset = mads.MetatlasDataset(ids=ids, save_metadata=False)
     groups = get_groups(metatlas_dataset, ids.include_groups)
     files_df = get_files_df(groups)
     qc_atlas, qc_atlas_df = get_qc_atlas(metatlas_dataset.ids)
@@ -144,7 +144,7 @@ def get_groups(metatlas_dataset, include_groups):
         include_groups: group will only be used in correction if their name has a substring match
                         to this list of strings
     """
-    metatlas_dataset.store_groups(exist_ok=True)
+    metatlas_dataset.ids.store_all_groups(exist_ok=True)
     ids = metatlas_dataset.ids
     groups = dp.select_groups_for_analysis(
         name=f"{ids.experiment}_{ids.short_polarity}_%{ids.analysis}_%",
@@ -498,5 +498,11 @@ def get_analysis_ids_for_rt_prediction(experiment, project_directory, analysis_n
         polarity: defaults to 'positive', set to 'negative' if you only have neg mode data
     Returns an AnalysisIds instance
     """
-    ids = mads.AnalysisIdentifiers(None, experiment, "data_QC", polarity, analysis_number, project_directory)
+    ids = mads.AnalysisIdentifiers(
+        experiment=experiment,
+        output_type="data_QC",
+        polarity=polarity,
+        analysis_number=analysis_number,
+        project_directory=project_directory,
+    )
     return ids
