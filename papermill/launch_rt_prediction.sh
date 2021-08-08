@@ -19,7 +19,7 @@ PROPOSAL="${TOKENS[0]}"
 mkdir -p "$EXP_DIR"
 
 export IN_FILE="${REPO_DIR}/notebooks/reference/RT_Prediction.ipynb"
-export OUT_FILE="$/503256_RT_Prediction_papermill_12.ipynb"
+export OUT_FILE="$(pwd)/503256_RT_Prediction_papermill_12.ipynb"
 export PARAMETERS="-p experiment $EXP -p metatlas_repo_path $REPO_DIR -p project_directory $PROJECT_DIR -p max_cpus 32 -p analysis_number $ANALYSIS_NUM"
 
 sbatch -J "${PROPOSAL}_RT_Pred" "${REPO_DIR}/papermill/slurm_template.sh"
