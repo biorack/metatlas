@@ -676,7 +676,9 @@ class adjust_rt_for_selected_compound(object):
         """Sets RT min and max to match similar compound referenced by match_idx"""
         source = self.similar_compounds[self.match_idx]['rt']
         self.update_rt('rt_min', source.rt_min)
+        self.rt_min_slider.set_val(source.rt_min)
         self.update_rt('rt_max', source.rt_max)
+        self.rt_max_slider.set_val(source.rt_max)
 
     def update_y_scale(self, val):
         if self.slider_y_min < 0:
