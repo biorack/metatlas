@@ -95,6 +95,7 @@ def generate_rt_correction_models(
     repo_dir,
     save_to_db=True,
     use_poly_model=True,
+    model_only=False
 ):
     """
     Generate the RT correction models and associated atlases with adjusted RT values
@@ -106,6 +107,7 @@ def generate_rt_correction_models(
         use_poly_model: If True, use the polynomial model, else use linear model
                         Both types of models are always generated, this only determines which ones
                         are pre-populated into the generated notebooks
+        model_only: If True, do not create atlases or notebooks, if False create them
     """
     # pylint: disable=too-many-locals
     metatlas_dataset = mads.MetatlasDataset(ids=ids, save_metadata=False)
@@ -127,8 +129,9 @@ def generate_rt_correction_models(
     save_model_comparison(selected_column, qc_atlas_df, rts_df, linear, poly, rt_comparison_file_name)
     models_file_name = os.path.join(ids.output_dir, "rt_model.txt")
     write_models(models_file_name, linear, poly, groups, qc_atlas)
-    atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
-    write_notebooks(ids, atlases, repo_dir, use_poly_model)
+    if not model_only:
+        atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
+        write_notebooks(ids, atlases, repo_dir, use_poly_model)
     targeted_output.copy_outputs_to_google_drive(ids)
     targeted_output.archive_outputs(ids)
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
