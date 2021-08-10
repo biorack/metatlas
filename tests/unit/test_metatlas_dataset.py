@@ -645,7 +645,7 @@ def test_load_atlas03(sqlite_with_atlas, atlas, username):
 def test_invalidation01(analysis_ids):
     _ = analysis_ids.groups
     assert analysis_ids._groups is not None
-    analysis_ids.exclude_files = ['Cone-S1']
+    analysis_ids.exclude_files = ["Cone-S1"]
     assert analysis_ids._groups is None
 
 
@@ -659,7 +659,7 @@ def test_negative_polarity01(sqlite_with_atlas, username, lcmsrun, mocker, group
         project_directory=str(os.getcwd()),
         groups_controlled_vocab=groups_controlled_vocab,
     )
-    assert 'POS' in ids.exclude_groups
+    assert "POS" in ids.exclude_groups
 
 
 def test_include_groups01(sqlite_with_atlas, username, lcmsrun, mocker, groups_controlled_vocab):
@@ -672,15 +672,15 @@ def test_include_groups01(sqlite_with_atlas, username, lcmsrun, mocker, groups_c
         project_directory=str(os.getcwd()),
         groups_controlled_vocab=groups_controlled_vocab,
     )
-    assert 'QC' in ids.include_groups
+    assert "QC" in ids.include_groups
 
 
 def test_project01(analysis_ids):
-    assert analysis_ids.project == '505892'
+    assert analysis_ids.project == "505892"
 
 
 def test_exclude_files01(analysis_ids):
-    analysis_ids.exclude_files = ['POS']
+    analysis_ids.exclude_files = ["POS"]
     assert len(analysis_ids.lcmsruns) == 0
     assert analysis_ids.lcmsruns_short_names.empty
 
@@ -688,5 +688,5 @@ def test_exclude_files01(analysis_ids):
 def test_invlidate_groups_controlled_vocab01(analysis_ids):
     _ = analysis_ids.lcmsruns
     assert analysis_ids._lcmsruns is not None
-    analysis_ids.groups_controlled_vocab = ['FOOBAR']
+    analysis_ids.groups_controlled_vocab = ["FOOBAR"]
     assert analysis_ids._lcmsruns is None

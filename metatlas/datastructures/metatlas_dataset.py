@@ -5,7 +5,6 @@ import glob
 import logging
 import os
 import shutil
-import tarfile
 
 import humanize
 import pandas as pd
@@ -471,7 +470,7 @@ class MetatlasDataset(HasTraits):
                         self.extra_mz,
                     )
                 )
-        logger.info("Reading MSMS data from h5 files")
+        logger.info("Generating MetatlasDataset by reading MSMS data from h5 files")
         samples = parallel.parallel_process(
             ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample", spread_args=False
         )
@@ -706,6 +705,8 @@ class MetatlasDataset(HasTraits):
     @property
     def hits(self):
         """get msms hits DataFrame"""
+        _ = self.atlas_df  # regenerate if needed before logging hits generation
+        _ = self.data  # regenerate if needed before logging hits generation
         if self._hits is None:
             logger.info(
                 "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs_loc=%s.",
@@ -827,13 +828,8 @@ class MetatlasDataset(HasTraits):
         if msms_fragment_ions:
             targeted_output.write_msms_fragment_ions(self, overwrite)
         logger.info("Generation of output files completed sucessfully.")
-        logger.info("Generating archive of output files.")
-        output_path = os.path.join(
-            self.ids.project_directory, self.ids.experiment, f"{self.ids.short_experiment_analysis}.tar.gz"
-        )
-        with tarfile.open(output_path, "w:gz") as tar:
-            tar.add(self.ids.output_dir, arcname=os.path.basename(self.ids.output_dir))
-        logger.info("Generation of archive completed succesfully: %s", output_path)
+        targeted_output.archive_outputs(self.ids)
+        targeted_output.copy_outputs_to_google_drive(self.ids)
 
 
 class MetatlasSample:

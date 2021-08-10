@@ -21,6 +21,7 @@ from tqdm.notebook import tqdm
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
+from metatlas.io import targeted_output
 from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import notebook
@@ -99,11 +100,6 @@ def generate_rt_correction_models(
     Generate the RT correction models and associated atlases with adjusted RT values
     inputs:
         ids: an AnalysisIds object matching the one used in the main notebook
-        groups_controlled_vocab: list of strings that will group together when creating groups
-                                 application of groups_controlled_vocab is case insensitive
-        exclude_files: list of strings that will exclude files if they are substrings of the file name
-        include_groups: group will only be used in correction if their name has a substring match
-                        to this list of strings
         cpus: max number of cpus to use
         repo_dir: location of metatlas git repo on local filesystem
         save_to_db: If True, save the new atlases to the database
@@ -113,7 +109,7 @@ def generate_rt_correction_models(
     """
     # pylint: disable=too-many-locals
     metatlas_dataset = mads.MetatlasDataset(ids=ids, save_metadata=False)
-    groups = get_groups(metatlas_dataset, ids.include_groups)
+    groups = get_groups(metatlas_dataset)
     files_df = get_files_df(groups)
     qc_atlas, qc_atlas_df = get_qc_atlas(metatlas_dataset.ids)
     metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)
@@ -133,10 +129,12 @@ def generate_rt_correction_models(
     write_models(models_file_name, linear, poly, groups, qc_atlas)
     atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
     write_notebooks(ids, atlases, repo_dir, use_poly_model)
+    targeted_output.copy_outputs_to_google_drive(ids)
+    targeted_output.archive_outputs(ids)
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
 
 
-def get_groups(metatlas_dataset, include_groups):
+def get_groups(metatlas_dataset):
     """
     Create all experiment groups if they don't already exist and return the subset matching include_list
     inputs:
@@ -144,18 +142,8 @@ def get_groups(metatlas_dataset, include_groups):
         include_groups: group will only be used in correction if their name has a substring match
                         to this list of strings
     """
-    metatlas_dataset.ids.store_all_groups(exist_ok=True)
-    ids = metatlas_dataset.ids
-    groups = dp.select_groups_for_analysis(
-        name=f"{ids.experiment}_{ids.short_polarity}_%{ids.analysis}_%",
-        most_recent=True,
-        remove_empty=True,
-        include_list=include_groups,
-        exclude_list=ids.short_polarity_inverse,
-        do_print=False,
-    )
-    ordered_groups = sorted(groups, key=lambda x: x.name)
-    _ = [logger.info("Selected group: %s, %s", grp.name, grp.last_modified) for grp in groups]
+    ordered_groups = sorted(metatlas_dataset.ids.groups, key=lambda x: x.name)
+    _ = [logger.info("Selected group: %s, %s", grp.name, grp.last_modified) for grp in ordered_groups]
     return ordered_groups
 
 
@@ -216,7 +204,21 @@ def get_rts(metatlas_dataset, include_atlas_rt_peak=True):
         rts_df["atlas RT peak"] = [
             compound["identification"].rt_references[0].rt_peak for compound in metatlas_dataset[0]
         ]
-    return rts_df
+    return order_df_columns_by_run(rts_df)
+
+
+def order_df_columns_by_run(dataframe):
+    """
+    Returns a dataframe with re-ordered columns such that second column up to column 'mean'
+    are ordered by run number from low to high
+    """
+    cols = dataframe.columns.tolist()
+    stats_idx = cols.index("mean")
+    to_sort = cols[1:stats_idx]
+    no_sort = cols[stats_idx:]
+    to_sort.sort(key=lambda x: int(x.split(".")[0].split("_Run")[1]))
+    new_cols = [cols[0]] + to_sort + no_sort
+    return dataframe[new_cols]
 
 
 def plot_compound_atlas_rts(num_files, rts_df, file_name, fontsize=2, pad=0.1, cols=8):

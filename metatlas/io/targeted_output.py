@@ -3,17 +3,21 @@
 
 import logging
 import os
+import tarfile
 
 from collections import namedtuple
 
 import numpy as np
 import pandas as pd
 
+from metatlas.io import rclone
 from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
 
 logger = logging.getLogger(__name__)
+
+RCLONE_PATH = "/global/cfs/cdirs/m342/USA/shared-repos/rclone/bin/rclone"
 
 
 def write_atlas_to_spreadsheet(metatlas_dataset, overwrite=False):
@@ -162,7 +166,14 @@ def write_metrics_and_boxplots(metatlas_dataset, overwrite=False, max_cpus=1):
                 metatlas_dataset.ids.output_dir,
                 f"{prefix}boxplot_{fields['name']}",
             )
-            dp.make_boxplot_plots(dataframe, plot_dir, fields["label"], overwrite, max_cpus)
+            dp.make_boxplot_plots(
+                dataframe,
+                output_loc=plot_dir,
+                use_shortnames=True,
+                ylabel=fields["label"],
+                overwrite=overwrite,
+                max_cpus=max_cpus,
+            )
 
 
 Max = namedtuple("Max", ["file_idx", "pre_intensity_idx", "pre_intensity", "precursor_mz"])
@@ -276,3 +287,38 @@ def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, sca
                 intensity = (intensity / max_msms_intensity * scale_intensity).astype(int)
             return msms_mz[keep_idx], intensity[keep_idx]
     return None, None
+
+
+def archive_outputs(ids):
+    """
+    Creates a .tar.gz file containing all output files
+    Inputs:
+        ids: an AnalysisIds object
+    """
+    logger.info("Generating archive of output files.")
+    output_file = f"{ids.short_experiment_analysis}.tar.gz"
+    output_path = os.path.join(ids.project_directory, ids.experiment, output_file)
+    with tarfile.open(output_path, "w:gz") as tar:
+        tar.add(ids.output_dir, arcname=os.path.basename(ids.output_dir))
+    logger.info("Generation of archive completed succesfully: %s", output_path)
+
+
+def copy_outputs_to_google_drive(ids):
+    """
+    Recursively copy the output files to Google Drive using rclone
+    Inputs:
+        ids: an AnalysisIds object
+    """
+    logger.info("Coping output files to Google Drive")
+    rci = rclone.RClone(RCLONE_PATH)
+    fail_suffix = "not copying files to Google Drive"
+    if rci.config_file() is None:
+        logger.warning("RClone config file not found -- %s.", fail_suffix)
+        return
+    drive = rci.get_name_for_id(ids.google_folder)
+    if drive is None:
+        logger.warning("RClone config file missing JGI_Metabolomics_Projects -- %s.", fail_suffix)
+        return
+    sub_folder = os.path.join(ids.experiment, ids.analysis, ids.output_type)
+    rci.copy_to_drive(ids.output_dir, drive, sub_folder)
+    logger.info("Done copying output files to Google Drive")
