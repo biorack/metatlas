@@ -21,6 +21,7 @@ nox.options.sessions = [
 # has not yet been updated to pass all checks.
 more_checks = [
     "metatlas/io/targeted_output.py",
+    "metatlas/io/rclone.py",
     "metatlas/io/write_utils.py",
     "metatlas/datastructures/metatlas_dataset.py",
     "metatlas/tools/environment.py",
@@ -76,7 +77,7 @@ flake8_deps = [
 
 nox.options.error_on_external_run = True
 REUSE_LARGE_VENV = True
-
+NB_LINE_LEN = 140
 
 @nox.session(python=py_versions[0])
 def flake8_diff(session):
@@ -127,7 +128,7 @@ def pylint_nb(session):
     # dupliate code cannot be disabled on per-cell level https://github.com/PyCQA/pylint/issues/214
     # Some duplicate code is required to setup the notebook and do error handling.
     # So turn off duplicate code for whole session -- not ideal.
-    session.run("nbqa", "pylint", "--disable=duplicate-code", *notebooks)
+    session.run("nbqa", "pylint", "--disable=duplicate-code",  f"--max-line-length={NB_LINE_LEN}", *notebooks)
 
 
 @nox.session(python=py_versions[0])
@@ -139,14 +140,14 @@ def flake8_nb(session):
 @nox.session(python=py_versions[0])
 def black_nb(session):
     session.install("black", *nbqa_deps)
-    session.run("nbqa", "black", "--check", *notebooks)
+    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--check", *notebooks)
 
 
 @nox.session(python=py_versions[0])
 def blacken_nb(session):
     """this modifies notebook files to meet black's requirements"""
     session.install("black", *nbqa_deps)
-    session.run("nbqa", "black", "--nbqa-mutate", *notebooks)
+    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--nbqa-mutate", *notebooks)
 
 
 @nox.session(python=py_versions, reuse_venv=REUSE_LARGE_VENV)
