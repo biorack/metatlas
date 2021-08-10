@@ -95,3 +95,6 @@ scratch/
 
 # pyenv
 .python-version
+
+# slurm
+slurm-*.out
