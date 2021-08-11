@@ -55,7 +55,7 @@ LEFT JOIN (
         JOIN (
                 SELECT MAX(creation_time) AS ctime, hdf5_file
                 FROM lcmsruns
-                WHERE (name LIKE '20201106\_JGI-AK\_PS-KM\_505892\_OakGall\_final\_QE-HF\_HILICZ\_USHXG01583\_POS\_MSMS\_0\_QC\_P%')
+                WHERE (name LIKE '20201106\_JGI-AK\_PS-KM\_505892\_OakGall\_final\_QE-HF\_HILICZ\_USHXG01583\_%\_QC\_%')
                 GROUP BY hdf5_file
         ) AS early
         ON l1.creation_time=early.ctime AND l1.hdf5_file=early.hdf5_file
