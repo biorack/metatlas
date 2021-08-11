@@ -152,13 +152,17 @@ class AnalysisIdentifiers(HasTraits):
         if self._lcmsruns is not None:
             return self._lcmsruns
         all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
-        self._lcmsruns = [r for r in all_lcmsruns if not any(map(r.name.__contains__, self.exclude_files))]
         if len(self.exclude_files) > 0:
+            self._lcmsruns = [
+                r for r in all_lcmsruns if not any(map(r.name.__contains__, self.exclude_files))
+            ]
             logger.info(
                 "Excluding %d LCMS runs containing any of: %s",
                 len(all_lcmsruns) - len(self._lcmsruns),
                 self.exclude_files,
             )
+        else:
+            self._lcmsruns = all_lcmsruns
         for run in self._lcmsruns:
             logger.info("Run: %s", run.name)
         logger.info("Number of LCMS output files matching '%s' is: %d.", self.experiment, len(self._lcmsruns))

@@ -10,6 +10,8 @@ import os
 import sqlite3
 import threading
 
+from datetime import datetime
+
 import pytest
 import numpy as np
 import pandas as pd
@@ -20,6 +22,10 @@ from metatlas.datastructures import object_helpers as metoh
 
 
 logger = logging.getLogger(__name__)
+
+
+def date_str_to_int(date_str):
+    return int(datetime.fromisoformat(date_str).timestamp())
 
 
 @pytest.fixture(name="username", scope="session")
@@ -563,6 +569,17 @@ def fixture_metatlas_dataset_with_2_cids(
     return mads.MetatlasDataset(ids=analysis_ids_with_2_cids, save_metadata=False)
 
 
+@pytest.fixture(name="metatlas_dataset_with_qc_runs")
+def fixture_metatlas_dataset_with_qc_runs(
+    mocker, df_container, analysis_ids, lcmsrun, sqlite_with_atlas, qc_lcmsruns
+):
+    mocker.patch(
+        "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
+    )
+    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=qc_lcmsruns)
+    return mads.MetatlasDataset(ids=analysis_ids, save_metadata=False)
+
+
 @pytest.fixture(name="eic")
 def fixture_eic():
     return {
@@ -1102,6 +1119,133 @@ def fixture_lcmsrun(username):
     run.acquisition_time = 1604770080
     run.pass_qc = False
     return run
+
+
+@pytest.fixture(name="qc_lcmsruns")
+def fixture_qc_lcmsruns(username):
+    json = [
+        {
+            "acquisition_time": 1604734158,
+            "creation_time": date_str_to_int("2020-11-13T16:05:46"),
+            "description": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 "
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run7.mzML",
+            "experiment": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "hdf5_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run7.h5",
+            "head_id": "c0459a277f654fdeacf48243a34207b4",
+            "injection_volume": 0.0,
+            "injection_volume_units": "uL",
+            "last_modified": date_str_to_int("2021-02-16T19:40:27"),
+            "method": None,
+            "mzml_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run7.mzML",
+            "name": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run7.mzML",
+            "pass_qc": False,
+            "prev_uid": "origin",
+            "sample": None,
+            "unique_id": "c0459a277f654fdeacf48243a34207b4",
+            "username": username,
+        },
+        {
+            "acquisition_time": 1605168081,
+            "creation_time": date_str_to_int("2020-11-13T15:57:27"),
+            "description": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 "
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run309.mzML",
+            "experiment": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "hdf5_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run309.h5",
+            "head_id": "9f33a0c1793e46fc9c70a19b587a0117",
+            "injection_volume": 0.0,
+            "injection_volume_units": "uL",
+            "last_modified": date_str_to_int("2021-02-16T19:39:25"),
+            "method": None,
+            "mzml_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run309.mzML",
+            "name": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run309.mzML",
+            "pass_qc": False,
+            "prev_uid": "origin",
+            "sample": None,
+            "unique_id": "9f33a0c1793e46fc9c70a19b587a0117",
+            "username": username,
+        },
+        {
+            "acquisition_time": 1605166749,
+            "creation_time": date_str_to_int("2020-11-13T15:42:04"),
+            "description": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 "
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run308.mzML",
+            "experiment": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "hdf5_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run308.h5",
+            "head_id": "8c93ee10f2af4238ae905d86debc87ce",
+            "injection_volume": 0.0,
+            "injection_volume_units": "uL",
+            "last_modified": date_str_to_int("2021-02-16T19:40:27"),
+            "method": None,
+            "mzml_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run308.mzML",
+            "name": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run308.mzML",
+            "pass_qc": False,
+            "prev_uid": "origin",
+            "sample": None,
+            "unique_id": "8c93ee10f2af4238ae905d86debc87ce",
+            "username": username,
+        },
+        {
+            "acquisition_time": 1604735488,
+            "creation_time": date_str_to_int("2020-11-13T15:52:48"),
+            "description": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 "
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run8.mzML",
+            "experiment": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "hdf5_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run8.h5",
+            "head_id": "855e0081dbb2473c8970f40db129d8f7",
+            "injection_volume": 0.0,
+            "injection_volume_units": "uL",
+            "last_modified": date_str_to_int("2021-02-16T19:39:25"),
+            "method": None,
+            "mzml_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run8.mzML",
+            "name": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run8.mzML",
+            "pass_qc": False,
+            "prev_uid": "origin",
+            "sample": None,
+            "unique_id": "855e0081dbb2473c8970f40db129d8f7",
+            "username": username,
+        },
+        {
+            "acquisition_time": 1605165417,
+            "creation_time": date_str_to_int("2020-11-13T16:03:25"),
+            "description": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 "
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Post_Rg70to1050-CE102040--QC_Run307.mzML",
+            "experiment": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "hdf5_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Post_Rg70to1050-CE102040--QC_Run307.h5",
+            "head_id": "58905ea702f44d9199be928bc46fdb20",
+            "injection_volume": 0.0,
+            "injection_volume_units": "uL",
+            "last_modified": date_str_to_int("2021-02-16T19:38:49"),
+            "method": None,
+            "mzml_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Post_Rg70to1050-CE102040--QC_Run307.mzML",
+            "name": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Post_Rg70to1050-CE102040--QC_Run307.mzML",
+            "pass_qc": False,
+            "prev_uid": "origin",
+            "sample": None,
+            "unique_id": "58905ea702f44d9199be928bc46fdb20",
+            "username": username,
+        },
+        {
+            "acquisition_time": 1604732826,
+            "creation_time": date_str_to_int("2020-11-13T16:15:04"),
+            "description": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 "
+            "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Pre_Rg70to1050-CE102040--QC_Run6.mzML",
+            "experiment": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
+            "hdf5_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Pre_Rg70to1050-CE102040--QC_Run6.h5",
+            "head_id": "392b1a859ed54e07bc34b55e06459db2",
+            "injection_volume": 0.0,
+            "injection_volume_units": "uL",
+            "last_modified": date_str_to_int("2021-02-16T19:38:49"),
+            "method": None,
+            "mzml_file": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Pre_Rg70to1050-CE102040--QC_Run6.mzML",
+            "name": "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Pre_Rg70to1050-CE102040--QC_Run6.mzML",
+            "pass_qc": False,
+            "prev_uid": "origin",
+            "sample": None,
+            "unique_id": "392b1a859ed54e07bc34b55e06459db2",
+            "username": username,
+        },
+    ]
+    return [metob.LcmsRun(**run) for run in json]
 
 
 @pytest.fixture(name="group")
