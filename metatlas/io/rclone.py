@@ -20,7 +20,7 @@ class RClone:
             result = subprocess.check_output(f"{self.rclone_path} config file", text=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
             return None
-        return result.split('\n')[1]
+        return result.split("\n")[1]
 
     def get_name_for_id(self, identifier):
         """
@@ -55,4 +55,4 @@ class RClone:
             logger.exception(err)
             raise err
         except FileNotFoundError:
-            logger.info('rclone not found. Skipping transfer to Google Drive')
+            logger.info("rclone not found. Skipping transfer to Google Drive")

@@ -90,12 +90,7 @@ class Model:
 
 
 def generate_rt_correction_models(
-    ids,
-    cpus,
-    repo_dir,
-    save_to_db=True,
-    use_poly_model=True,
-    model_only=False
+    ids, cpus, repo_dir, save_to_db=True, use_poly_model=True, model_only=False
 ):
     """
     Generate the RT correction models and associated atlases with adjusted RT values
