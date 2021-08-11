@@ -216,11 +216,11 @@ def order_df_columns_by_run(dataframe):
     are ordered by run number from low to high
     """
     cols = dataframe.columns.tolist()
-    stats_idx = cols.index("mean")
-    to_sort = cols[1:stats_idx]
-    no_sort = cols[stats_idx:]
+    stats_start_idx = cols.index("mean")
+    to_sort = cols[:stats_start_idx]
+    no_sort = cols[stats_start_idx:]
     to_sort.sort(key=lambda x: int(x.split(".")[0].split("_Run")[1]))
-    new_cols = [cols[0]] + to_sort + no_sort
+    new_cols = to_sort + no_sort
     return dataframe[new_cols]
 
 
