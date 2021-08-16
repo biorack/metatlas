@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-from __future__ import print_function
 import logging
 import numpy as np
 import os.path
@@ -60,56 +58,28 @@ def compare_EIC_to_BPC_for_file(metatlas_dataset,file_index,yscale = 'linear'):
     plt.close(fig)
     return fig
 
+
 def get_data_for_atlas_df_and_file(input_tuple):
-    my_file = input_tuple[0]
-    my_group = input_tuple[1]
-    atlas_df = input_tuple[2]
-    myAtlas = input_tuple[3]
-    extra_time = 0.5
-    extra_mz = 0.0
-    if len(input_tuple) == 6:
-        extra_time = input_tuple[4]
-        extra_mz = input_tuple[5]
-    elif len(input_tuple) == 5:
-        extra_time = input_tuple[4]
-
-    df_container = df_container_from_metatlas_file(my_file)
-
-    df_container = remove_ms1_data_not_in_atlas(atlas_df,df_container)
-    dict_ms1_summary,dict_eic,dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time, extra_mz)
+    my_file, group, atlas_df, atlas = input_tuple[:4]
+    extra_time = input_tuple[4] if len(input_tuple) >= 5 else 0.5
+    extra_mz = input_tuple[5] if len(input_tuple) == 6 else 0.0
+    df_container = remove_ms1_data_not_in_atlas(atlas_df, df_container_from_metatlas_file(my_file))
+    dict_ms1_summary, dict_eic, dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df, df_container,
+                                                                          extra_time, extra_mz)
     row = []
     for i in range(atlas_df.shape[0]):
-        result = {}
-        result['atlas_name'] = myAtlas.name
-        result['atlas_unique_id'] = myAtlas.unique_id
-        result['lcmsrun'] = my_file
-        result['group'] = my_group
-        temp_compound = copy.deepcopy(myAtlas.compound_identifications[i])
-        result['identification'] = temp_compound
-        result['data'] = {}
-        if dict_eic:
-            result['data']['eic'] = dict_eic[i]
-        else:
-            result['data']['eic'] = None
-        if dict_ms1_summary:
-            result['data']['ms1_summary'] = dict_ms1_summary[i]
-        else:
-            result['data']['ms1_summary'] = None
-
-        result['data']['msms'] = {}
+        result = {'atlas_name': atlas.name, 'atlas_unique_id': atlas.unique_id, 'lcmsrun': my_file,
+                  'group': group, 'identification': copy.deepcopy(atlas.compound_identifications[i])}
+        result['data'] = {'msms': {}, 'eic': dict_eic[i] if dict_eic else None}
+        result['data']['ms1_summary'] = dict_ms1_summary[i] if dict_ms1_summary else None
         if dict_ms2:
-            if len(dict_ms2[i])>0:#dict_ms2[i]['mz']:
-                for k in dict_ms2[0].keys():
-                    dict_ms2[i][k] = np.asarray(dict_ms2[i][k])
-        #                 if temp_compound.mz_references[0].observed_polarity == 'positive':
-        #                     dict_ms2[i]['polarity'] = dict_ms2[i]['mz'] * 0.0 + 1.0
-        #                 else:
-        #                     dict_ms2[i]['polarity'] = dict_ms2[i]['mz'] * 0.0
-                result['data']['msms']['data'] = dict_ms2[i]
+            if len(dict_ms2[i]) > 0:
+                result['data']['msms']['data'] = {key: np.asarray(val) for key, val in dict_ms2[i].items()}
         else:
             result['data']['msms']['data'] = []
         row.append(result)
     return tuple(row)
+
 
 def get_bpc(filename,dataset='ms1_pos',integration='bpc'):
     """
@@ -318,40 +288,27 @@ def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz'
     return_df = pd.Series({'padded_feature_data':all_df,'in_feature':(all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
     return return_df
 
+
 def get_ms1_summary(row):
-    #A DataFrame of all points typically padded by "extra time"
+    # A DataFrame of all points typically padded by "extra time"
     all_df = row.padded_feature_data
-
-    #slice out ms1 data that is NOT padded by extra_time
-    ms1_df = all_df[(row.in_feature == True)]#[['i','mz','polarity','rt']]
-
+    # slice out ms1 data that is NOT padded by extra_time
+    ms1_df = all_df[(row.in_feature)]
     num_ms1_datapoints = ms1_df.shape[0]
-    if num_ms1_datapoints > 0:
-        idx = ms1_df.i.idxmax()
+    has_data = num_ms1_datapoints > 0
+    if has_data:
         ms1_peak_df = ms1_df.loc[ms1_df['i'].idxmax()]
-        mz_peak = ms1_peak_df.mz
-        rt_peak = ms1_peak_df.rt
-        mz_centroid = sum(ms1_df.mz * ms1_df.i) / sum(ms1_df.i)
-        rt_centroid = sum(ms1_df.rt * ms1_df.i) / sum(ms1_df.i)
-        peak_height = ms1_peak_df.i
         peak_area = sum(ms1_df.i)
-    else:
-        mz_peak = np.nan
-        rt_peak = np.nan
-        mz_centroid = np.nan
-        rt_centroid = np.nan
-        peak_height = np.nan
-        peak_area = np.nan
+    return pd.Series({
+        'num_ms1_datapoints': num_ms1_datapoints,
+        'mz_peak': ms1_peak_df.mz if has_data else np.nan,
+        'rt_peak': ms1_peak_df.rt if has_data else np.nan,
+        'mz_centroid': sum(ms1_df.mz * ms1_df.i) / peak_area if has_data else np.nan,
+        'rt_centroid': sum(ms1_df.rt * ms1_df.i) / peak_area if has_data else np.nan,
+        'peak_height': ms1_peak_df.i if has_data else np.nan,
+        'peak_area': peak_area if has_data else np.nan
+    })
 
-    return_df = pd.Series({ 'num_ms1_datapoints':num_ms1_datapoints,
-                            'mz_peak':mz_peak,
-                            'rt_peak':rt_peak,
-                            'mz_centroid':mz_centroid,
-                            'rt_centroid':rt_centroid,
-                            'peak_height':peak_height,
-                            'peak_area':peak_area})
-
-    return return_df
 
 def get_ms2_data(row):
     #A DataFrame of all points typically padded by "extra time"
