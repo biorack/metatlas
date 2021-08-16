@@ -407,6 +407,7 @@ def retrieve_most_intense_msms_scan(data):
     msms_data['precursor_intensity'] = pintensity
     return msms_data
 
+
 def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz):
     '''
     Accepts
@@ -415,74 +416,49 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
 
     Returns python dictionaries of ms1, eic, and ms2 results for each compound in the atlas dataframe.
     '''
+    # filtered the ms2 and ms1 pos and neg frames in the container by rt and mz extreme points.
+    is_pos = atlas_df.detected_polarity == 'positive'
+    is_neg = atlas_df.detected_polarity == 'negative'
+    pos_filter_params = [atlas_df[is_pos].rt_max.max(), atlas_df[is_pos].rt_min.min(), 0,
+                         atlas_df[is_pos].mz.max()+1, extra_time, extra_mz]
+    neg_filter_params = [atlas_df[is_neg].rt_max.max(), atlas_df[is_neg].rt_min.min(), 0,
+                         atlas_df[is_neg].mz.max()+1, extra_time, extra_mz]
+    filtered_ms1_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_pos'], *pos_filter_params)
+    filtered_ms1_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_neg'], *neg_filter_params)
+    filtered_ms2_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_pos'], *pos_filter_params)
+    filtered_ms2_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_neg'], *neg_filter_params)
 
-    #filtered the ms2 and ms1 pos and neg frames in the container by rt and mz extreme points.
-    filtered_ms1_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_pos'],
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
-                                                               0,
-                                                               #atlas_df[atlas_df.detected_polarity == 'positive'].mz.min()-1,
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.max()+1,
-                                                               extra_time = extra_time,
-                                                               extra_mz = extra_mz)
-    filtered_ms1_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_neg'],
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
-                                                           0,
-                                                           #atlas_df[atlas_df.detected_polarity == 'negative'].mz.min()-1,
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max()+1,
-                                                           extra_time = extra_time,
-                                                           extra_mz = extra_mz)
-    filtered_ms2_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_pos'],
-                                                           atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
-                                                           atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
-                                                           0,
-                                                           #atlas_df[atlas_df.detected_polarity == 'positive'].mz.min()-1,
-                                                           atlas_df[atlas_df.detected_polarity == 'positive'].mz.max()+1,
-                                                           extra_time = extra_time,
-                                                           extra_mz = extra_mz)
-
-    filtered_ms2_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_neg'],
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
-                                                           0,
-                                                           #atlas_df[atlas_df.detected_polarity == 'negative'].mz.min()-1,
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max()+1,
-                                                           extra_time = extra_time,
-                                                           extra_mz = extra_mz)
+    def get_feature_data(atlas_df, pos_df, neg_df, use_mz='mz'):
+        return atlas_df.apply(
+            lambda x: get_data_for_mzrt(x, pos_df, neg_df, extra_time, use_mz, extra_mz), axis=1
+        )
+    ms1_features = get_feature_data(atlas_df, filtered_ms1_pos, filtered_ms1_neg)
+    if ms1_features.shape[1] == 0:
+        return None, None, None
+    ms2_features = get_feature_data(atlas_df, filtered_ms2_pos, filtered_ms2_neg, use_mz='precursor_MZ')
+    return get_ms1_summary_data(ms1_features), get_eic_data(ms1_features), get_ms2_dict(ms2_features)
 
 
-    ms1_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms1_pos,filtered_ms1_neg, extra_time=extra_time, extra_mz = extra_mz),axis=1)
-    ms1_summary = ms1_feature_data.apply(get_ms1_summary,axis=1)
-    #if ms1_summary.size == 0:
-    #    return [],[],[]
-    if ms1_feature_data.shape[1] == 0:
-        return None,None,None
-    else:
-        ms1_eic = ms1_feature_data.apply(get_ms1_eic,axis=1)
-    #print ms1_eic
-        ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ', extra_mz = extra_mz, extra_time=extra_time),axis=1)
-        ms2_data = ms2_feature_data.apply(get_ms2_data,axis=1)
-        dict_ms1_summary = [dict(row) for i,row in ms1_summary.iterrows()]
-
-    dict_eic = []
-    for i,row in ms1_eic.iterrows():
-        dict_eic.append(row.eic.T.to_dict(orient='list'))
-
-    #rename the "i" to "intensity".
-    for i,d in enumerate(dict_eic):
-        dict_eic[i]['intensity'] = dict_eic[i].pop('i')
-
-    dict_ms2 = []
-    for i,row in ms2_data.iterrows():
-        if 'ms2_datapoints' in list(row.keys()):
-            dict_ms2.append(row.ms2_datapoints.T.to_dict(orient='list'))
-        else:
-            dict_ms2.append([])
-
-    return dict_ms1_summary,dict_eic,dict_ms2
+def get_ms2_dict(ms2_feature_data_df):
+    """ extract a dict of ms2 data from the ms2 dataframe """
+    ms2_data = ms2_feature_data_df.apply(get_ms2_data, axis=1)
+    return [row.ms2_datapoints.T.to_dict(orient='list') if 'ms2_datapoints' in list(row.keys()) else []
+            for _, row in ms2_data.iterrows()]
 
 
+def get_ms1_summary_data(ms1_feature_data_df):
+    """ extract a list of ms1 data from the ms1 dataframe """
+    ms1_summary = ms1_feature_data_df.apply(get_ms1_summary, axis=1)
+    return [dict(row) for _, row in ms1_summary.iterrows()]
+
+
+def get_eic_data(ms1_feature_data_df):
+    """ extract a list of eic data from the ms1 dataframe """
+    ms1_eic = ms1_feature_data_df.apply(get_ms1_eic, axis=1)
+    dict_eic = [row.eic.T.to_dict(orient='list') for _, row in ms1_eic.iterrows()]
+    for _, value in enumerate(dict_eic):
+        value['intensity'] = value.pop('i')  # rename the "i" to "intensity"
+    return dict_eic
 
 
 def get_unique_scan_data(data):
