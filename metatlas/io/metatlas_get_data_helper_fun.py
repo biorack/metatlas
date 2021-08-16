@@ -1,18 +1,23 @@
-import logging
-import numpy as np
-import os.path
-import sys
 import copy
-import tables
-from metatlas.datastructures import metatlas_objects as metob
-from metatlas.io import write_utils
-import pandas as pd
+import logging
+import math
+import os.path
+import re
+import sys
+
+from collections import defaultdict
 from textwrap import wrap
+
+import dill
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import six
-from six.moves import map
-from six.moves import range
-from six.moves import zip
+import tables
+
+from metatlas.datastructures import metatlas_objects as metob
+from metatlas.io import h5_query as h5q
+from metatlas.io import write_utils
 
 logger = logging.getLogger(__name__)
 
@@ -328,7 +333,6 @@ def get_ms2_data(row):
 
 
 def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_max, extra_time = 0.5, extra_mz = 0.01):
-    import math
     if (data_df.shape[0]==0) | (math.isnan(rt_max)):
         return []
     prefilter_query_str = 'rt <= %5.4f & rt >= %5.4f & mz >= %5.4f & mz <= %5.4f'%(rt_max+extra_time, rt_min-extra_time, mz_min-extra_mz, mz_max+extra_mz)
@@ -346,7 +350,6 @@ def get_ms1_eic(row):
 
 
 def retrieve_most_intense_msms_scan(data):
-    import numpy as np
     urt,idx = np.unique(data['rt'],return_index=True)
     sx = np.argsort(data['precursor_intensity'][idx])[::-1]
     prt = data['rt'][idx[sx]]
@@ -487,7 +490,6 @@ def organize_msms_scan_data(data,list_of_prt,list_of_pmz,list_of_pintensity):
     return msms_data
 
 def retrieve_most_intense_msms_scan(data):
-    import numpy as np
     urt,idx = np.unique(data['rt'],return_index=True)
     sx = np.argsort(data['precursor_intensity'][idx])[::-1]
     prt = data['rt'][idx[sx]]
@@ -528,9 +530,6 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     -------
     """
     #TODO : polarity should be handled in the experiment and not a loose parameter
-    import numpy as np
-    from metatlas.io import h5_query as h5q
-    import tables
 
     #get a pointer to the hdf5 file
     fid = tables.open_file(h5file) #TODO: should be a "with open:"
@@ -653,7 +652,6 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     return return_data
 
 
-
 def get_dill_data(fname):
     """
     Parameters
@@ -663,21 +661,15 @@ def get_dill_data(fname):
     Returns a list containing the data present in the dill file
     -------
     """
-    import dill
-
-    data = list()
-
     if os.path.exists(fname):
-        with open(fname,'r') as f:
+        with open(fname, 'r') as handle:
             try:
-                data = dill.load(f)
-            except IOError as e:
-                print(("I/O error({0}): {1}".format(e.errno, e.strerror)))
+                return dill.load(handle)
+            except IOError as err:
+                print(("I/O error({0}): {1}".format(err.errno, err.strerror)))
             except:  # handle other exceptions such as attribute errors
                 print(("Unexpected error:", sys.exc_info()[0]))
-
-
-    return data
+    return list()
 
 
 def get_group_names(data):
@@ -730,7 +722,6 @@ def get_file_names(data,full_path=False):
     Returns list containing the hdf file names present in the dill file
     -------
     """
-    import os.path
 
     # if data is a string then it's a file name - get its data
     if isinstance(data, six.string_types):
@@ -755,8 +746,6 @@ def get_compound_names(data,use_labels=False):
     Returns a tuple of lists containing the compound names and compound objects present in the dill file
     -------
     """
-    from collections import defaultdict
-    import re
 
     # if data is a string then it's a file name - get its data
     if isinstance(data, six.string_types):
