@@ -274,24 +274,19 @@ def transfer_identification_data_to_atlas(data, atlas, ids_list=None):
             set_nested(aci, ids, from_data)
     return out
 
-def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz',extra_mz = 0.0):
-    min_mz = '(%s >= %5.4f & '%(use_mz,row.mz - row.mz*row.mz_tolerance / 1e6 - extra_mz)
-    rt_min = 'rt >= %5.4f & '%(row.rt_min - extra_time)
-    rt_max = 'rt <= %5.4f & '%(row.rt_max + extra_time)
-    max_mz = '%s <= %5.4f)'%(use_mz,row.mz + row.mz*row.mz_tolerance / 1e6 + extra_mz)
-    ms1_query_str = '%s%s%s%s'%(min_mz,rt_min,rt_max,max_mz)
-    if row.detected_polarity == 'positive':
-        if len(data_df_pos)>0:
-            all_df = data_df_pos.query(ms1_query_str)
-        else:
-            return pd.Series(dtype=np.float64)
-    else:
-        if len(data_df_neg)>0:
-            all_df = data_df_neg.query(ms1_query_str)
-        else:
-            return pd.Series()
-    return_df = pd.Series({'padded_feature_data':all_df,'in_feature':(all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
-    return return_df
+
+def get_data_for_mzrt(row, data_df_pos, data_df_neg, extra_time=0.5, use_mz='mz', extra_mz=0.0):
+    mz_min = '%s >= %5.4f' % (use_mz, row.mz - row.mz*row.mz_tolerance / 1e6 - extra_mz)
+    rt_min = 'rt >= %5.4f' % (row.rt_min - extra_time)
+    rt_max = 'rt <= %5.4f' % (row.rt_max + extra_time)
+    mz_max = '%s <= %5.4f' % (use_mz, row.mz + row.mz*row.mz_tolerance / 1e6 + extra_mz)
+    ms1_query_str = f"({mz_min} & {rt_min} & {rt_max} & {mz_max})"
+    data_df = data_df_pos if row.detected_polarity == 'positive' else data_df_neg
+    if len(data_df) == 0:
+        return pd.Series(dtype=np.float64)
+    all_df = data_df.query(ms1_query_str)
+    return pd.Series({'padded_feature_data': all_df,
+                      'in_feature': (all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
 
 
 def get_ms1_summary(row):
