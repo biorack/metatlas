@@ -332,12 +332,12 @@ def get_ms2_data(row):
     return return_df
 
 
-def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_max, extra_time = 0.5, extra_mz = 0.01):
-    if (data_df.shape[0]==0) | (math.isnan(rt_max)):
+def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_max, extra_time=0.5, extra_mz=0.01):
+    if (data_df.shape[0] == 0) | (math.isnan(rt_max)):
         return []
-    prefilter_query_str = 'rt <= %5.4f & rt >= %5.4f & mz >= %5.4f & mz <= %5.4f'%(rt_max+extra_time, rt_min-extra_time, mz_min-extra_mz, mz_max+extra_mz)
-    new_df = data_df.query(prefilter_query_str)
-    return new_df
+    return data_df.query(f"rt <= {rt_max+extra_time:5.4f} & rt >= {rt_min-extra_time:5.4f} "
+                         f"& mz >= {mz_min-extra_mz:5.4f} & mz <= {mz_max+extra_mz:5.4f}")
+
 
 def get_ms1_eic(row):
     #A DataFrame of all points typically padded by "extra time"
@@ -377,25 +377,22 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
     Returns python dictionaries of ms1, eic, and ms2 results for each compound in the atlas dataframe.
     '''
     # filtered the ms2 and ms1 pos and neg frames in the container by rt and mz extreme points.
-    is_pos = atlas_df.detected_polarity == 'positive'
-    is_neg = atlas_df.detected_polarity == 'negative'
-    pos_filter_params = [atlas_df[is_pos].rt_max.max(), atlas_df[is_pos].rt_min.min(), 0,
-                         atlas_df[is_pos].mz.max()+1, extra_time, extra_mz]
-    neg_filter_params = [atlas_df[is_neg].rt_max.max(), atlas_df[is_neg].rt_min.min(), 0,
-                         atlas_df[is_neg].mz.max()+1, extra_time, extra_mz]
-    filtered_ms1_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_pos'], *pos_filter_params)
-    filtered_ms1_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_neg'], *neg_filter_params)
-    filtered_ms2_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_pos'], *pos_filter_params)
-    filtered_ms2_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_neg'], *neg_filter_params)
+    filtered = {}
+    for level in ['ms1', 'ms2']:
+        for polarity in ['positive', 'negative']:
+            mode = f'{level}_{polarity[:3]}'
+            pol = atlas_df[atlas_df.detected_polarity == polarity]
+            params = [pol.rt_max.max(), pol.rt_min.min(), 0, pol.mz.max()+1, extra_time, extra_mz]
+            filtered[mode] = prefilter_ms1_dataframe_with_boundaries(df_container[mode], *params)
 
     def get_feature_data(atlas_df, pos_df, neg_df, use_mz='mz'):
         return atlas_df.apply(
             lambda x: get_data_for_mzrt(x, pos_df, neg_df, extra_time, use_mz, extra_mz), axis=1
         )
-    ms1_features = get_feature_data(atlas_df, filtered_ms1_pos, filtered_ms1_neg)
+    ms1_features = get_feature_data(atlas_df, filtered['ms1_pos'], filtered['ms1_neg'])
     if ms1_features.shape[1] == 0:
         return None, None, None
-    ms2_features = get_feature_data(atlas_df, filtered_ms2_pos, filtered_ms2_neg, use_mz='precursor_MZ')
+    ms2_features = get_feature_data(atlas_df, filtered['ms2_pos'], filtered['ms2_neg'], use_mz='precursor_MZ')
     return get_ms1_summary_data(ms1_features), get_eic_data(ms1_features), get_ms2_dict(ms2_features)
 
 
