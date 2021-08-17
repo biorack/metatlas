@@ -3273,6 +3273,27 @@ def disable_keyboard_shortcuts(mapping):
                 plt.rcParams[action].remove(key_combo)
 
 
+def get_ms1_df_in_rt_range(data, compound_idx):
+    rt_min = data[0][compound_idx]['identification'].rt_references[0].rt_min
+    rt_max = data[0][compound_idx]['identification'].rt_references[0].rt_max
+    ms1_df = pd.DataFrame(data=data[0][compound_idx]['data']['eic'])
+    keep = np.logical_and(rt_min < ms1_df['rt'], ms1_df['rt'] < rt_max)
+    return ms1_df[keep]
+
+
+def get_mz_centroid(ms1_df):
+    if ms1_df.empty:
+        return np.nan
+    return sum(ms1_df.mz * ms1_df.intensity) / sum(ms1_df.intensity)
+
+
+def get_rt_peak(ms1_df):
+    if ms1_df.empty:
+        return np.nan
+    ms1_peak_df = ms1_df.loc[ms1_df['intensity'].idxmax()]
+    return ms1_peak_df.rt
+
+
 def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_compounds, file_names):
     """
     inputs:
@@ -3285,8 +3306,6 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
         tuple of strings
             (mz_header, rt_header, cpd_header)
     """
-    avg_mz_measured = []
-    avg_rt_measured = []
     if not hits.empty:
         rt_ms2 = hits.index.get_level_values('msms_scan')[hit_ctr]
         mz_precursor = hits['measured_precursor_mz'].iloc[hit_ctr]
@@ -3294,8 +3313,9 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
     file_idx = file_with_max_ms1_intensity(data, compound_idx)[0]
     rt_theoretical = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
     mz_theoretical = data[file_idx][compound_idx]['identification'].mz_references[0].mz
-    mz_measured = data[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']
-    rt_ms1 = data[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']
+    ms1_df = get_ms1_df_in_rt_range(data, compound_idx)
+    mz_measured = get_mz_centroid(ms1_df)
+    rt_ms1 = get_rt_peak(ms1_df)
 
     delta_mz = abs(mz_theoretical - mz_measured)
     delta_ppm = delta_mz / mz_theoretical * 1e6
