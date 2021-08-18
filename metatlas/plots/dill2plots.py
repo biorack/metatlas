@@ -466,15 +466,16 @@ class adjust_rt_for_selected_compound(object):
 
     def filter_hits(self):
         ident = self.data[0][self.compound_idx]['identification']
-        inchi_key = extract(ident, ['compound', -1, 'inchi_key'])
+        inchi_key = extract(ident, ['compound', -1, 'inchi_key'], None)
         hits_mz_tolerance = ident.mz_references[-1].mz_tolerance*1e-6
         mz_theoretical = ident.mz_references[0].mz
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
-        self.hits = self.msms_hits[(my_scan_rt >= float(self.rts[self.compound_idx].rt_min)) &
-                                   (my_scan_rt <= float(self.rts[self.compound_idx].rt_max)) &
-                                   (self.msms_hits['inchi_key'] == inchi_key) &
-                                   within_tolerance(self.msms_hits['measured_precursor_mz'],
-                                                    mz_theoretical, hits_mz_tolerance)]
+        filtered = self.msms_hits[(my_scan_rt >= float(self.rts[self.compound_idx].rt_min)) &
+                                  (my_scan_rt <= float(self.rts[self.compound_idx].rt_max)) &
+                                  within_tolerance(self.msms_hits['measured_precursor_mz'],
+                                                   mz_theoretical, hits_mz_tolerance)]
+        self.hits = filtered if inchi_key is None else filtered[(filtered['inchi_key'] == inchi_key)]
+
 
     def msms_plot(self, font_scale=10.0):
         compound = None
