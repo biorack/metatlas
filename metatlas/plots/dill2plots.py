@@ -474,7 +474,7 @@ class adjust_rt_for_selected_compound(object):
                                   (my_scan_rt <= float(self.rts[self.compound_idx].rt_max)) &
                                   within_tolerance(self.msms_hits['measured_precursor_mz'],
                                                    mz_theoretical, hits_mz_tolerance)]
-        self.hits = filtered if inchi_key is None else filtered[(self.msms_hits['inchi_key'] == inchi_key)]
+        self.hits = filtered if inchi_key is None else filtered[(filtered['inchi_key'] == inchi_key)]
 
 
     def msms_plot(self, font_scale=10.0):
