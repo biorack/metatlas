@@ -681,7 +681,8 @@ class adjust_rt_for_selected_compound(object):
         slider = {'rt_min': self.rt_min_slider, 'rt_peak': self.rt_peak_slider,
                   'rt_max': self.rt_max_slider}
         line = {'rt_min': self.min_line, 'rt_peak': self.peak_line, 'rt_max': self.max_line}
-        setattr(self.data[0][self.compound_idx]['identification'].rt_references[-1], which, val)
+        for sample in self.data:
+            setattr(sample[self.compound_idx]['identification'].rt_references[-1], which, val)
         setattr(self.rts[self.compound_idx], which, val)
         slider[which].valinit = val
         metob.store(self.rts[self.compound_idx])
