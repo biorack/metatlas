@@ -17,7 +17,7 @@ class RClone:
     def config_file(self):
         """Returns path to config file or None"""
         try:
-            result = subprocess.check_output(f"{self.rclone_path} config file", text=True)
+            result = subprocess.check_output([self.rclone_path, "config", "file"], text=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
             return None
         return result.split("\n")[1]
@@ -50,7 +50,7 @@ class RClone:
         """
         dest = f"{drive}:" if dest_path is None else f"{drive}:{dest_path}"
         try:
-            subprocess.check_output(f"{self.rclone_path} copy {source} {dest}", text=True)
+            subprocess.check_output([self.rclone_path, "copy", source, dest], text=True)
         except subprocess.CalledProcessError as err:
             logger.exception(err)
             raise err
