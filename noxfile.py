@@ -79,6 +79,7 @@ nox.options.error_on_external_run = True
 REUSE_LARGE_VENV = True
 NB_LINE_LEN = 140
 
+
 @nox.session(python=py_versions[0])
 def flake8_diff(session):
     session.install(*flake8_deps)
@@ -128,7 +129,7 @@ def pylint_nb(session):
     # dupliate code cannot be disabled on per-cell level https://github.com/PyCQA/pylint/issues/214
     # Some duplicate code is required to setup the notebook and do error handling.
     # So turn off duplicate code for whole session -- not ideal.
-    session.run("nbqa", "pylint", "--disable=duplicate-code",  f"--max-line-length={NB_LINE_LEN}", *notebooks)
+    session.run("nbqa", "pylint", "--disable=duplicate-code", f"--max-line-length={NB_LINE_LEN}", *notebooks)
 
 
 @nox.session(python=py_versions[0])
@@ -153,7 +154,9 @@ def blacken_nb(session):
 @nox.session(python=py_versions, reuse_venv=REUSE_LARGE_VENV)
 def unit_tests(session):
     session.install("-r", "docker/requirements.txt", *pytest_deps)
-    session.run("pytest", "-vv", *session.posargs, "--cov", "metatlas", "tests/unit/", env={"METATLAS_LOCAL": "TRUE"})
+    session.run(
+        "pytest", "-vv", *session.posargs, "--cov", "metatlas", "tests/unit/", env={"METATLAS_LOCAL": "TRUE"}
+    )
 
 
 @nox.session(python=py_versions[0], reuse_venv=REUSE_LARGE_VENV)
