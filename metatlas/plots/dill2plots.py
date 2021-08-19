@@ -2918,18 +2918,20 @@ def make_groups_from_fileinfo_sheet(filename,filetype='tab',store=False):
             metob.store(myGroup)
     return return_groups
 
-def check_compound_names(df):
-    # compounds that have the wrong compound name will be listed
-    # Keep running this until no more compounds are listed
-    bad_names = []
-    for i,row in df.iterrows():
-        #if type(df.name[x]) != float or type(df.label[x]) != float:
-            #if type(df.name[x]) != float:
-        if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key)>0):# or type(df.inchi_key[x]) != float:
-            if not metob.retrieve('Compounds',inchi_key=row.inchi_key, username = '*'):
-                print((row.inchi_key, "compound is not in database. Exiting Without Completing Task!"))
-                bad_names.append(row.inchi_key)
-    return bad_names
+
+def check_compound_names(atlas_df):
+    """
+    Returns a list of inchi key values that could not be found in the database
+    NaN, None, 'None' and '' are excluded from the returned list
+    """
+    not_found = []
+    for i, row in atlas_df.iterrows():
+        if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key) > 0) and row.inchi_key != 'None':
+            if not metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*'):
+                print((f"Compound with label '{row.label}' and index {i} has inchi key '{row.inchi_key}' "
+                       "which cannot be found in the database. Exiting Without Completing Task!"))
+                not_found.append(row.inchi_key)
+    return not_found
 
 
 def check_file_names(df,field):
