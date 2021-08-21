@@ -488,21 +488,22 @@ def write_notebooks(ids, atlases, repo_dir, use_poly_model):
         notebook.create_notebook(source, dest, parameters)
 
 
-def get_analysis_ids_for_rt_prediction(experiment, project_directory, analysis_number=0, polarity="positive"):
+def get_analysis_ids_for_rt_prediction(experiment, project_directory, google_folder, analysis_number=0, polarity="positive"):
     """
     Simplified interface for generating an AnalysisIds instance for use in rt prediction
     inputs:
         experiment: name of experiment as given in LCMS run names
         project_directory: directory where per-experiment output directory will be created
+        google_folder: id from URL of base export folder on Google Drive
         analysis_number: integer, defaults to 0, increment if redoing analysis
         polarity: defaults to 'positive', set to 'negative' if you only have neg mode data
     Returns an AnalysisIds instance
     """
-    ids = mads.AnalysisIdentifiers(
+    return mads.AnalysisIdentifiers(
         experiment=experiment,
         output_type="data_QC",
         polarity=polarity,
         analysis_number=analysis_number,
         project_directory=project_directory,
+        google_folder=google_folder,
     )
-    return ids
