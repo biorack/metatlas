@@ -21,7 +21,8 @@ from metatlas.plots import dill2plots as dp
 from metatlas.tools import parallel
 
 MSMS_REFS_PATH = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
-DEFAULT_GROUPS_CONTROLLED_VOCAB = ["QC", "InjBl", "ISTD"]  # these are case insensitive
+DEFAULT_GROUPS_CONTROLLED_VOCAB = ["QC", "InjBl", "ISTD"]
+DEFAULT_EXCLUDE_GROUPS = ["InjBl", "InjBL", "QC"]
 OUTPUT_TYPES = ["ISTDsEtc", "FinalEMA-HILIC", "data_QC"]
 POLARITIES = ["positive", "negative", "fast-polarity-switching"]
 SHORT_POLARITIES = {"positive": "POS", "negative": "NEG", "fast-polarity-switching": "FPS"}
@@ -41,11 +42,11 @@ class AnalysisIdentifiers(HasTraits):
     project_directory = Unicode()
     google_folder = Unicode()
     exclude_files = List(trait=Unicode(), allow_none=True, default_value=[])
+    include_groups = List(allow_none=True, default_value=None)
+    exclude_groups = List(allow_none=True, default_value=DEFAULT_EXCLUDE_GROUPS)
     groups_controlled_vocab = List(
         trait=Unicode(), allow_none=True, default_value=DEFAULT_GROUPS_CONTROLLED_VOCAB
     )
-    include_groups = List(allow_none=True, default_value=None)
-    exclude_groups = List(allow_none=True, default_value=["InjBl", "InjBL"])
     _lcmsruns = List(allow_none=True, default_value=None)
     _all_groups = List(allow_none=True, default_value=None)
     _groups = List(allow_none=True, default_value=None)
@@ -297,7 +298,7 @@ class AnalysisIdentifiers(HasTraits):
         tokens = base_filename.split("_")
         prefix = "_".join(tokens[:11])
         indices = [
-            i for i, s in enumerate(self.groups_controlled_vocab) if s.lower() in tokens[12].lower()
+            i for i, s in enumerate(self.groups_controlled_vocab) if s.lower() in base_filename.lower()
         ]
         suffix = self.groups_controlled_vocab[indices[0]].lstrip("_") if indices else tokens[12]
         group_name = f"{prefix}_{self.analysis}_{suffix}"
