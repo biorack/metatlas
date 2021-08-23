@@ -429,7 +429,12 @@ class MetatlasDataset(HasTraits):
             )
 
     def _get_atlas(self):
-        """Copy source atlas from database into current analysis atlas"""
+        """
+        Copy source atlas from database into current analysis atlas
+        If the atlas does not yet exist, it will be copied from source_atlas and there will be an
+        an additional side effect that all mz_tolerances in the resulting atlas
+        get their value from source_atlas' atlas.compound_identifications[0].mz_references[0].mz_tolerance
+        """
         atlases = metob.retrieve("Atlas", name=self.ids.atlas, username=self.ids.username)
         if len(atlases) == 1:
             logger.warning(
@@ -454,11 +459,18 @@ class MetatlasDataset(HasTraits):
                 raise err
         else:
             logger.info("Retriving source atlas: %s", self.ids.source_atlas)
-            source = get_atlas(self.ids.source_atlas, self.ids.username)
+            source_atlas = get_atlas(self.ids.source_atlas, self.ids.username)
+            source_atlas_df = ma_data.make_atlas_df(source_atlas)
             logger.info("Cloning source atlas")
-            self.atlas = source.clone()
-            self.atlas.name = self.ids.atlas
-            self.store_atlas()
+            self.atlas = dp.make_atlas_from_spreadsheet(
+                source_atlas_df,
+                self.ids.atlas,
+                filetype="dataframe",
+                sheetname="",
+                polarity=self.ids.polarity,
+                store=True,
+                mz_tolerance=source_atlas.compound_identifications[0].mz_references[0].mz_tolerance,
+            )
 
     def _build(self):
         """Populate self._data from database and h5 files."""
