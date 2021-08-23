@@ -488,7 +488,9 @@ def write_notebooks(ids, atlases, repo_dir, use_poly_model):
         notebook.create_notebook(source, dest, parameters)
 
 
-def get_analysis_ids_for_rt_prediction(experiment, project_directory, google_folder, analysis_number=0, polarity="positive"):
+def get_analysis_ids_for_rt_prediction(
+    experiment, project_directory, google_folder, analysis_number=0, polarity="positive"
+):
     """
     Simplified interface for generating an AnalysisIds instance for use in rt prediction
     inputs:
