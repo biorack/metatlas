@@ -22,7 +22,6 @@ from metatlas.tools import parallel
 
 MSMS_REFS_PATH = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
 DEFAULT_GROUPS_CONTROLLED_VOCAB = ["QC", "InjBl", "ISTD"]
-DEFAULT_EXCLUDE_GROUPS = ["InjBl", "InjBL", "QC"]
 OUTPUT_TYPES = ["ISTDsEtc", "FinalEMA-HILIC", "data_QC"]
 POLARITIES = ["positive", "negative", "fast-polarity-switching"]
 SHORT_POLARITIES = {"positive": "POS", "negative": "NEG", "fast-polarity-switching": "FPS"}
@@ -43,7 +42,7 @@ class AnalysisIdentifiers(HasTraits):
     google_folder = Unicode()
     exclude_files = List(trait=Unicode(), allow_none=True, default_value=[])
     include_groups = List(allow_none=True, default_value=None)
-    exclude_groups = List(allow_none=True, default_value=DEFAULT_EXCLUDE_GROUPS)
+    exclude_groups = List(allow_none=True, default_value=None)
     groups_controlled_vocab = List(
         trait=Unicode(), allow_none=True, default_value=DEFAULT_GROUPS_CONTROLLED_VOCAB
     )
@@ -72,6 +71,17 @@ class AnalysisIdentifiers(HasTraits):
         if self.output_type == "data_QC":
             return ["QC"]
         return []
+
+    @default("exclude_groups")
+    def _default_exclude_groups(self):
+        out = ["InjBl", "InjBL"]
+        if self.output_type != "data_QC":
+            out.append("QC")
+        if self.polarity == "positive":
+            out.append("NEG")
+        elif self.polarity == "negative":
+            out.append("POS")
+        return out
 
     @validate("polarity")
     def _valid_polarity(self, proposal):

@@ -1,17 +1,14 @@
-# pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long
+# pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long, duplicate-code
 
-import os
-import subprocess
+from . import utils
 
 
 def test_targeted_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci02:v1.3.3"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci02:v1.3.5"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
-    out_files = {}
     expected = {}
-    out_files["rt_model"] = tmp_path / experiment / "root0/data_QC/rt_model.txt"
     expected[
-        "rt_model"
+        str(tmp_path / experiment / "root0/data_QC/rt_model.txt")
     ] = """RANSACRegressor(random_state=42)
 Linear model with intercept=-0.004 and slope=0.99798
 groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_QC
@@ -22,12 +19,8 @@ Polynomial model with intercept=0.097 and coefficents=[0.00000, 0.96116, 0.00213
 groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_QC
 atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 """
-
-    out_files["RT_Predicted_Model_Comparison"] = (
-        tmp_path / experiment / "root0/data_QC/RT_Predicted_Model_Comparison.csv"
-    )
     expected[
-        "RT_Predicted_Model_Comparison"
+        str(tmp_path / experiment / "root0/data_QC/RT_Predicted_Model_Comparison.csv")
     ] = """,RT Measured,RT Reference,RT Linear Pred,RT Polynomial Pred,RT Diff Linear,RT Diff Polynomial
 0000_4-methoxyphenylacetic_acid_unlabeled_positive_M+H167p0703_1p07,0.7757497429847717,1.068941733,1.062903572946303,1.1269157193507062,-0.28715382996153127,-0.3511659763659345
 0001_nicotinamide_unlabeled_positive_M+H123p0553_1p22,1.2491384744644165,1.224396021,1.2180440647072988,1.277093230335882,0.031094409757117747,-0.027954755871465453
@@ -102,9 +95,8 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 0070_lysine_unlabeled_positive_M+H147p1128_17p01,17.048407554626465,17.01131041,16.973091372879324,17.06496535505383,0.07531618174714083,-0.0165578004273641
 0071_ornithine_unlabeled_positive_M+H133p0972_17p04,17.070573806762695,17.03725065,16.998979250542746,17.09178209803637,0.07159455621994937,-0.021208291273673296"""
 
-    out_files["QC_Measured_RTs"] = tmp_path / experiment / "root0/data_QC/QC_Measured_RTs.csv"
     expected[
-        "QC_Measured_RTs"
+        str(tmp_path / experiment / "root0/data_QC/QC_Measured_RTs.csv")
     ] = """,20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Pre_Rg70to1050-CE102040--QC_Run6.h5,20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run7.h5,20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Post_Rg70to1050-CE102040--QC_Run307.h5,20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run308.h5,mean,median,min,max,standard deviation,standard error,#NaNs
 0000_4-methoxyphenylacetic_acid_unlabeled_positive_M+H167p0703_1p07,0.760883629322052,0.7883098125457764,0.7816191911697388,0.7698802947998047,0.775173231959343,0.7757497429847717,0.760883629322052,0.7883098125457764,0.012197377682005251,0.006098688841002626,0
 0001_nicotinamide_unlabeled_positive_M+H123p0553_1p22,1.2340805530548096,1.2472213506698608,1.2510555982589722,1.2544312477111816,1.246697187423706,1.2491384744644165,1.2340805530548096,1.2544312477111816,0.008911895485740983,0.004455947742870492,0
@@ -178,20 +170,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 0069_arginine_unlabeled_positive_M+H175p1190_16p94,16.963918685913086,16.961685180664062,16.988910675048828,16.9918212890625,16.97658395767212,16.976414680480957,16.961685180664062,16.9918212890625,0.01598443924833885,0.007992219624169425,0
 0070_lysine_unlabeled_positive_M+H147p1128_17p01,17.043212890625,17.035064697265625,17.05360221862793,17.05995750427246,17.047959327697754,17.048407554626465,17.035064697265625,17.05995750427246,0.011024194876641502,0.005512097438320751,0
 0071_ornithine_unlabeled_positive_M+H133p0972_17p04,17.058874130249023,17.06319236755371,17.085508346557617,17.07795524597168,17.071382522583008,17.070573806762695,17.058874130249023,17.085508346557617,0.0124669979531353,0.00623349897656765,0"""
-
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            f"{os.getcwd()}:/src",
-            "-v",
-            f"{tmp_path}:/out",
-            image,
-            "/bin/bash",
-            "-c",
-            """\
+    command = """\
                     jq -M '(.cells[] | select(.source[] | contains("predict_rt.generate_rt_correction_models(ids, max_cpus, metatlas_repo_path)")).source) \
                                 = ["predict_rt.generate_rt_correction_models(ids, max_cpus, metatlas_repo_path, model_only=True)"]' \
                                 /src/notebooks/reference/RT_Prediction.ipynb > /out/Remove.ipynb &&  \
@@ -203,23 +182,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         -p max_cpus 2 \
                         /out/Remove.ipynb \
                         /out/Remove-done.ipynb
-                   """,
-        ],
-        check=True,
-    )
-    files = subprocess.check_output(f"find {str(tmp_path)} -type f", shell=True, text=True).strip()
-    print(files)
-    num_files_created = int(
-        subprocess.check_output(f"find {str(tmp_path)} -type f | wc -l", shell=True, text=True).strip()
-    )
-    for _, path in out_files.items():
-        os.system(f"cat {path}")
-    assert num_files_created == 8
-    for metric_name, path in out_files.items():
-        with open(path, "r") as handle:
-            expected_lines = expected[metric_name].split("\n")
-            num = None
-            for num, line in enumerate(handle.readlines()):
-                clean_line = line.rstrip("\n")
-                assert expected_lines[num] == clean_line
-            assert len(expected_lines) == num + 1
+                   """
+    utils.exec_docker(image, command, tmp_path)
+    assert utils.num_files_in(tmp_path) == 8
+    utils.assert_files_match(expected)
