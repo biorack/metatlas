@@ -16,7 +16,7 @@ EXP_DIR="${PROJECT_DIR}/$EXP"
 ANALYSIS_DIR="${EXP_DIR}/${USER}${ANALYSIS_NUM}"
 
 IFS='_' read -ra TOKENS <<< "$EXP"
-PROPOSAL="${TOKENS[0]}"
+PROPOSAL="${TOKENS[3]}"
 
 export IN_FILE="${REPO_DIR}/notebooks/reference/RT_Prediction.ipynb"
 export OUT_FILE="${ANALYSIS_DIR}/${PROPOSAL}_RT_Prediction_papermill.ipynb"
