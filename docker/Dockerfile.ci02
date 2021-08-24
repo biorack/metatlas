@@ -13,8 +13,8 @@ EXPOSE 8888
 RUN apt-get update && apt-get install -y libxrender1 && \
     rm -rf /var/lib/apt/lists/*
 
- ADD https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 /usr/local/bin/jq
- RUN chmod +x /usr/local/bin/jq
+ADD https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 /usr/local/bin/jq
+RUN chmod +x /usr/local/bin/jq
 
 RUN mkdir -p /io /src /work $REFS_DIR $H5_DIR
 ADD $BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Post_Rg70to1050-CE102040--QC_Run307.h5 $H5_DIR/
@@ -28,6 +28,9 @@ COPY requirements.txt /requirements.txt
 RUN pip install --quiet -r requirements.txt
 
 ADD $BASE_DATA_URL/meta_atlas_rt_predict.sqlite3 /work/root_workspace.db
+
+RUN mkdir -p /root/.local/share/jupyter/kernels/metatlas-targeted
+COPY kernel.json /root/.local/share/jupyter/kernels/metatlas-targeted/kernel.json
 
 WORKDIR /work
 

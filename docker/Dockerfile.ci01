@@ -29,6 +29,9 @@ ADD $BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG
 
 ADD $BASE_DATA_URL/meta_atlas.sqlite3 /work/root_workspace.db
 
+RUN mkdir -p /root/.local/share/jupyter/kernels/metatlas-targeted
+COPY kernel.json /root/.local/share/jupyter/kernels/metatlas-targeted/kernel.json
+
 WORKDIR /work
 
 RUN apt-get update && apt-get install -y libxrender1 && \
