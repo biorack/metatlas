@@ -738,14 +738,13 @@ def get_compound_names(data,use_labels=False):
     Returns a tuple of lists containing the compound names and compound objects present in the dill file
     -------
     """
-
     # if data is a string then it's a file name - get its data
     if isinstance(data, six.string_types):
         data = get_dill_data(data)
-
     compound_names = list()
     compound_objects = list()
-
+    if len(data) == 0:
+        return (compound_names, compound_objects)
     for i,d in enumerate(data[0]):
         compound_objects.append(d['identification'])
         if use_labels:
@@ -760,20 +759,15 @@ def get_compound_names(data,use_labels=False):
                 d['identification'].mz_references[0].adduct,d['identification'].mz_references[0].mz,
                 d['identification'].rt_references[0].rt_peak)
         newstr = re.sub(r'\.', 'p', newstr)  # 2 or more in regexp
-
         newstr = re.sub(r'[\[\]]', '', newstr)
         newstr = re.sub('[^A-Za-z0-9+-]+', '_', newstr)
         newstr = re.sub('i_[A-Za-z]+_i_', '', newstr)
-        if newstr[0] == '_':
-            newstr = newstr[1:]
-        if newstr[0] == '-':
+        if newstr[0] in ['_', '-']:
             newstr = newstr[1:]
         if newstr[-1] == '_':
             newstr = newstr[:-1]
-
         newstr = re.sub('[^A-Za-z0-9]{2,}', '', newstr) #2 or more in regexp
         compound_names.append(newstr)
-
     # If duplicate compound names exist, then append them with a number
     D = defaultdict(list)
     for i,item in enumerate(compound_names):
@@ -782,7 +776,6 @@ def get_compound_names(data,use_labels=False):
     for k in D.keys():
         for i,f in enumerate(D[k]):
             compound_names[f] = '%s%d'%(compound_names[f],i)
-
     return (compound_names, compound_objects)
 
 
