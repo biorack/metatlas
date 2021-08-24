@@ -6,6 +6,7 @@ import logging
 import math
 import os
 
+from datetime import datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -113,6 +114,7 @@ def generate_rt_correction_models(
     if len(metatlas_dataset) == 0:
         logger.error("No matching LCMS runs, terminating without generating outputs.")
         return
+    save_rt_peak(metatlas_dataset, os.path.join(ids.output_dir, "rt_peak.tab"))
     save_measured_rts(metatlas_dataset, os.path.join(ids.output_dir, "QC_Measured_RTs.csv"))
     rts_df = get_rts(metatlas_dataset)
     compound_atlas_rts_file_name = os.path.join(ids.output_dir, "Compound_Atlas_RTs.pdf")
@@ -144,8 +146,14 @@ def get_groups(metatlas_dataset):
                         to this list of strings
     """
     ordered_groups = sorted(metatlas_dataset.ids.groups, key=lambda x: x.name)
-    _ = [logger.info("Selected group: %s, %s", grp.name, grp.last_modified) for grp in ordered_groups]
+    for grp in ordered_groups:
+        logger.info("Selected group: %s, %s", grp.name, int_to_date_str(grp.last_modified))
     return ordered_groups
+
+
+def int_to_date_str(i_time):
+    """ unix epoc time in seconds to YYYY-MM-DD hh:mm:ss """
+    return str(datetime.fromtimestamp(i_time))
 
 
 def get_files_df(groups):
@@ -191,6 +199,12 @@ def save_measured_rts(metatlas_dataset, file_name):
     """Save RT values in csv format file"""
     rts_df = get_rts(metatlas_dataset, include_atlas_rt_peak=False)
     write_utils.export_dataframe_die_on_diff(rts_df, file_name, "measured RT values")
+
+
+def save_rt_peak(metatlas_dataset, file_name):
+    """Save peak RT values in tsv format file"""
+    rts_df = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname='rt_peak', use_labels=True)
+    write_utils.export_dataframe_die_on_diff(rts_df, file_name, "peak RT values", sep='\t')
 
 
 def get_rts(metatlas_dataset, include_atlas_rt_peak=True):
