@@ -1453,12 +1453,8 @@ def make_output_dataframe(input_fname='', input_dataset=None, include_lcmsruns=N
     """
     fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
     """
-    if not input_dataset:
-        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
-    else:
-        data = input_dataset
-    data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
-
+    full_data = or_default(input_dataset, ma_data.get_dill_data(os.path.expandvars(input_fname)))
+    data = filter_runs(full_data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
     compound_names = ma_data.get_compound_names(data, use_labels=use_labels)[0]
     file_names = ma_data.get_file_names(data)
     group_names = ma_data.get_group_names(data)
@@ -3314,3 +3310,12 @@ def rt_range_overlaps(rt1, rt2):
     """
     return ((rt2.rt_min <= rt1.rt_min <= rt2.rt_max) or (rt2.rt_min <= rt1.rt_max <= rt2.rt_max) or
             (rt1.rt_min <= rt2.rt_min <= rt1.rt_max) or (rt1.rt_min <= rt2.rt_max <= rt1.rt_max))
+
+
+def or_default(none_or_value, default):
+    """
+    inputs:
+        none_or_value: variable to test
+        default: value to return if none_or_value is None
+    """
+    return none_or_value if none_or_value is not None else default
