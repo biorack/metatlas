@@ -2,7 +2,10 @@
 line-length = 110
 
 [tool.pylint.messages_control]
-disable = "C0330, C0326"
+# first two are for black compatibility
+# duplicate-code cannot be disabled on per file/block/line
+#                https://github.com/PyCQA/pylint/issues/214
+disable = "bad-continuation, bad-whitespace, duplicate-code"
 
 [tool.pylint.format]
 max-line-length = "110"
