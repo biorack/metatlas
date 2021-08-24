@@ -110,6 +110,9 @@ def generate_rt_correction_models(
     files_df = get_files_df(groups)
     qc_atlas, qc_atlas_df = get_qc_atlas(metatlas_dataset.ids)
     metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)
+    if len(metatlas_dataset) == 0:
+        logger.error("No matching LCMS runs, terminating without generating outputs.")
+        return
     save_measured_rts(metatlas_dataset, os.path.join(ids.output_dir, "QC_Measured_RTs.csv"))
     rts_df = get_rts(metatlas_dataset)
     compound_atlas_rts_file_name = os.path.join(ids.output_dir, "Compound_Atlas_RTs.pdf")
