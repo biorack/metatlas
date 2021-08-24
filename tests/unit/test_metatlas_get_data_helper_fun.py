@@ -374,6 +374,7 @@ def test_get_data_for_atlas_and_lcmsrun(atlas_df, df_container):
 
 
 def test_get_data_for_atlas_df_and_file(lcmsrun, group, atlas_df, atlas, username):
+    # pylint: disable=line-too-long
     result = gdhf.get_data_for_atlas_df_and_file((lcmsrun.hdf5_file, group, atlas_df, atlas))
     expected = (
         {
