@@ -2186,42 +2186,36 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
     return msms_hits
 
 
-def make_chromatograms(input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[], include_groups=[], exclude_groups=[], group='index', share_y=True, save=True, output_loc=[], short_names_df=pd.DataFrame(), short_names_header=None, polarity='', overwrite=False, max_cpus=1):
-    input_dataset = filter_runs(input_dataset, include_lcmsruns, include_groups,
-                                exclude_lcmsruns, exclude_groups)
-    file_names = ma_data.get_file_names(input_dataset)
-
-    if short_names_df.empty:
-        if short_names_header != None:
-            sys.stdout.write('short_names_df not provided. Using full_filename for the plots!')
+def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, group='index', share_y=True, save=True, output_loc=None, short_names_df=None, short_names_header=None, polarity='', overwrite=False, max_cpus=1):
+    data = filter_runs(input_dataset, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
+    file_names = ma_data.get_file_names(data)
+    if short_names_df is None:
+        if short_names_header is not None:
+            logger.info('short_names_df not provided. Using full_filename for the plots!')
             short_names_df = pd.DataFrame()
-    elif short_names_header == None:
-            sys.stdout.write('short_names_header not provided. Using full_filename for the plots!')
-            short_names_df = pd.DataFrame()
+    elif short_names_header is None:
+        logger.info('short_names_header not provided. Using full_filename for the plots!')
+        short_names_df = pd.DataFrame()
     elif short_names_header not in short_names_df.columns:
-            sys.stdout.write('short_names_header not found in short_names_df. Using full_filename for the plots!')
-            short_names_df = pd.DataFrame()
+        logger.info('short_names_header not found in short_names_df. Using full_filename for the plots!')
     else:
         short_names_df = short_names_df[[short_names_header]]
-        short_names_df.columns=['shortname']
-
+        short_names_df.columns = ['shortname']
     os.makedirs(output_loc, exist_ok=True)
-    compound_names = ma_data.get_compound_names(input_dataset,use_labels=True)[0]
-    args_list = []
-
+    compound_names = ma_data.get_compound_names(data, use_labels=True)[0]
     prefix = f"{polarity}_" if polarity != '' else ''
     chromatogram_dir = os.path.join(output_loc, f"{prefix}compound_EIC_chromatograms")
+    args_list = []
     for compound_idx, my_compound in enumerate(compound_names):
-        my_data = [input_dataset[file_idx][compound_idx] for file_idx, _ in enumerate(file_names)]
-        kwargs = {'data': my_data,
-                  'file_name': os.path.join(chromatogram_dir, my_compound+'.pdf'),
-                  'group': group,
-                  'save': save,
-                  'share_y': share_y,
-                  'names': file_names,
-                  'shortname': short_names_df,
-                  'overwrite': overwrite}
-        args_list.append(kwargs)
+        my_data = [data[file_idx][compound_idx] for file_idx, _ in enumerate(file_names)]
+        args_list.append({'data': my_data,
+                          'shortname': short_names_df,
+                          'group': group,
+                          'file_name': os.path.join(chromatogram_dir, my_compound+'.pdf'),
+                          'save': save,
+                          'share_y': share_y,
+                          'names': file_names,
+                          'overwrite': overwrite})
     parallel.parallel_process(cpp.chromplotplus, args_list, max_cpus, unit='plot', spread_args=False)
 
 
