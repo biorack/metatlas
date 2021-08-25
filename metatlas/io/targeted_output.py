@@ -309,7 +309,7 @@ def copy_outputs_to_google_drive(ids):
     Inputs:
         ids: an AnalysisIds object
     """
-    logger.info("Coping output files to Google Drive")
+    logger.info("Copying output files to Google Drive")
     rci = rclone.RClone(RCLONE_PATH)
     fail_suffix = "not copying files to Google Drive"
     if rci.config_file() is None:
