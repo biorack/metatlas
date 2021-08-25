@@ -848,13 +848,13 @@ class MetatlasDataset(HasTraits):
             self._hits = None  # force hits to be regenerated
         self.extra_time = 0.5
         logger.info("extra_time set to 0.5 minutes for output generation.")
-        targeted_output.write_atlas_to_spreadsheet(self, overwrite)
-        targeted_output.write_stats_table(self, overwrite)
-        targeted_output.write_chromatograms(self, overwrite, max_cpus=self.max_cpus)
-        targeted_output.write_identification_figure(self, overwrite)
-        targeted_output.write_metrics_and_boxplots(self, overwrite, max_cpus=self.max_cpus)
+        targeted_output.write_atlas_to_spreadsheet(self, overwrite=overwrite)
+        targeted_output.write_stats_table(self, overwrite=overwrite)
+        targeted_output.write_chromatograms(self, overwrite=overwrite, max_cpus=self.max_cpus)
+        targeted_output.write_identification_figure(self, overwrite=overwrite)
+        targeted_output.write_metrics_and_boxplots(self, overwrite=overwrite, max_cpus=self.max_cpus)
         if msms_fragment_ions:
-            targeted_output.write_msms_fragment_ions(self, overwrite)
+            targeted_output.write_msms_fragment_ions(self, overwrite=overwrite)
         logger.info("Generation of output files completed sucessfully.")
         targeted_output.archive_outputs(self.ids)
         targeted_output.copy_outputs_to_google_drive(self.ids)
