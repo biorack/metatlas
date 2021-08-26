@@ -9,6 +9,7 @@ nox.options.sessions = [
     "flake8",
     "black",
     "pylint-3.8",
+    "mypy-3.8",
     "unit_tests-3.8",
     "flake8_nb",
     "black_nb",
@@ -51,6 +52,15 @@ pytest_deps = [
     "pytest-cov==2.11.1",
     "pytest-mock==3.6.1",
     "toml==0.10.2",
+]
+
+mypy_deps = [
+    "mypy==0.910",
+    "types-PyYAML",
+    "types-requests",
+    "types-simplejson",
+    "types-six",
+    "types-tabulate",
 ]
 
 pylint_deps = [
@@ -115,6 +125,12 @@ def blacken(session):
     """this modifies the files to meet black's requirements"""
     session.install("black")
     session.run("black", *more_checks)
+
+
+@nox.session(python=py_versions, reuse_venv=REUSE_LARGE_VENV)
+def mypy(session):
+    session.install("-r", "docker/requirements.txt", *mypy_deps)
+    session.run("mypy", "metatlas")
 
 
 @nox.session(python=py_versions, reuse_venv=REUSE_LARGE_VENV)

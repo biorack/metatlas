@@ -481,24 +481,6 @@ def organize_msms_scan_data(data,list_of_prt,list_of_pmz,list_of_pintensity):
         msms_data['precursor_intensity'].append(pintensity)
     return msms_data
 
-def retrieve_most_intense_msms_scan(data):
-    urt,idx = np.unique(data['rt'],return_index=True)
-    sx = np.argsort(data['precursor_intensity'][idx])[::-1]
-    prt = data['rt'][idx[sx]]
-    pmz = data['precursor_MZ'][idx[sx]]
-    pintensity = data['precursor_intensity'][idx[sx]]
-    #setup data format for searching
-    msms_data = {}
-    msms_data['spectra'] = []
-    msms_data['precursor_mz'] = []
-    msms_data['precursor_intensity'] = []
-    idx = np.argwhere((data['precursor_MZ'] == pmz[0]) & (data['rt'] == prt[0] )).flatten()
-    arr = np.array([data['mz'][idx], data['i'][idx]]).T
-    msms_data['spectra'] = arr
-    msms_data['precursor_mz'] = pmz
-    msms_data['precursor_intensity'] = pintensity
-    return msms_data
-
 
 def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     """

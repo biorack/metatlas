@@ -152,7 +152,7 @@ def get_groups(metatlas_dataset):
 
 
 def int_to_date_str(i_time):
-    """ unix epoc time in seconds to YYYY-MM-DD hh:mm:ss """
+    """unix epoc time in seconds to YYYY-MM-DD hh:mm:ss"""
     return str(datetime.fromtimestamp(i_time))
 
 
@@ -203,8 +203,8 @@ def save_measured_rts(metatlas_dataset, file_name):
 
 def save_rt_peak(metatlas_dataset, file_name):
     """Save peak RT values in tsv format file"""
-    rts_df = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname='rt_peak', use_labels=True)
-    write_utils.export_dataframe_die_on_diff(rts_df, file_name, "peak RT values", sep='\t')
+    rts_df = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname="rt_peak", use_labels=True)
+    write_utils.export_dataframe_die_on_diff(rts_df, file_name, "peak RT values", sep="\t")
 
 
 def get_rts(metatlas_dataset, include_atlas_rt_peak=True):

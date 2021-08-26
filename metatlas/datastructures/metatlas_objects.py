@@ -7,6 +7,8 @@ import pprint
 import time
 import uuid
 
+from typing import Dict
+
 from pwd import getpwuid
 from tabulate import tabulate
 import pandas as pd
@@ -479,7 +481,7 @@ class IdentificationGrade(MetatlasObject):
     pass
 
 
-ID_GRADES = dict()
+ID_GRADES: Dict[str, IdentificationGrade] = dict()
 
 
 class _IdGradeTrait(MetInstance):
@@ -713,11 +715,3 @@ def to_dataframe(objects):
     for col in ['last_modified', 'creation_time']:
         dataframe[col] = pd.to_datetime(dataframe[col], unit='s')
     return dataframe
-
-
-if __name__ == '__main__':
-    m1 = Group(name='spam')
-    store(m1)
-    m1.description = 'baz'
-    store(m1)
-    print((retrieve('group', name='spam')))

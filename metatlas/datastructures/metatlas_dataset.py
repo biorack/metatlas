@@ -6,11 +6,14 @@ import logging
 import os
 import shutil
 
+from typing import Any, Dict, List
+
 import humanize
 import pandas as pd
+import traitlets
 
 from traitlets import HasTraits, TraitError, default, observe, validate
-from traitlets import Bool, Float, Instance, Int, List, Tuple, Unicode
+from traitlets import Bool, Float, Instance, Int, Tuple, Unicode
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
@@ -20,11 +23,11 @@ from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import parallel
 
-MSMS_REFS_PATH = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
-DEFAULT_GROUPS_CONTROLLED_VOCAB = ["QC", "InjBl", "ISTD"]
-OUTPUT_TYPES = ["ISTDsEtc", "FinalEMA-HILIC", "data_QC"]
-POLARITIES = ["positive", "negative", "fast-polarity-switching"]
-SHORT_POLARITIES = {"positive": "POS", "negative": "NEG", "fast-polarity-switching": "FPS"}
+MSMS_REFS_PATH: str = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
+DEFAULT_GROUPS_CONTROLLED_VOCAB: List[str] = ["QC", "InjBl", "ISTD"]
+OUTPUT_TYPES: List[str] = ["ISTDsEtc", "FinalEMA-HILIC", "data_QC"]
+POLARITIES: List[str] = ["positive", "negative", "fast-polarity-switching"]
+SHORT_POLARITIES: Dict[str, str] = {"positive": "POS", "negative": "NEG", "fast-polarity-switching": "FPS"}
 
 logger = logging.getLogger(__name__)
 
@@ -32,26 +35,26 @@ logger = logging.getLogger(__name__)
 class AnalysisIdentifiers(HasTraits):
     """Names used in generating an analysis"""
 
-    source_atlas = Unicode(allow_none=True, default_value=None)
-    experiment = Unicode()
-    output_type = Unicode()
-    polarity = Unicode(default_value="positive")
-    analysis_number = Int(default_value=0)
-    username = Unicode(default_value=getpass.getuser())
-    project_directory = Unicode()
-    google_folder = Unicode()
-    exclude_files = List(trait=Unicode(), allow_none=True, default_value=[])
-    include_groups = List(allow_none=True, default_value=None)
-    exclude_groups = List(allow_none=True, default_value=None)
-    groups_controlled_vocab = List(
+    source_atlas: str = Unicode(allow_none=True, default_value=None)
+    experiment: str = Unicode()
+    output_type: str = Unicode()
+    polarity: str = Unicode(default_value="positive")
+    analysis_number: int = Int(default_value=0)
+    username: str = Unicode(default_value=getpass.getuser())
+    project_directory: str = Unicode()
+    google_folder: str = Unicode()
+    exclude_files: List[str] = traitlets.List(trait=Unicode(), allow_none=True, default_value=[])
+    include_groups: List[str] = traitlets.List(allow_none=True, default_value=None)
+    exclude_groups: List[str] = traitlets.List(allow_none=True, default_value=None)
+    groups_controlled_vocab: List[str] = traitlets.List(
         trait=Unicode(), allow_none=True, default_value=DEFAULT_GROUPS_CONTROLLED_VOCAB
     )
-    _lcmsruns = List(allow_none=True, default_value=None)
-    _all_groups = List(allow_none=True, default_value=None)
-    _groups = List(allow_none=True, default_value=None)
+    _lcmsruns: List[metob.LcmsRun] = traitlets.List(allow_none=True, default_value=None)
+    _all_groups: List[metob.Group] = traitlets.List(allow_none=True, default_value=None)
+    _groups: List[metob.Group] = traitlets.List(allow_none=True, default_value=None)
 
     # pylint: disable=no-self-use
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         if self.polarity == "positive":
             self.exclude_groups.append("NEG")
@@ -67,14 +70,14 @@ class AnalysisIdentifiers(HasTraits):
         self.store_all_groups(exist_ok=True)
 
     @default("include_groups")
-    def _default_include_groups(self):
+    def _default_include_groups(self) -> List[str]:
         if self.output_type == "data_QC":
             return ["QC"]
         return []
 
     @default("exclude_groups")
-    def _default_exclude_groups(self):
-        out = ["InjBl", "InjBL"]
+    def _default_exclude_groups(self) -> List[str]:
+        out: List[str] = ["InjBl", "InjBL"]
         if self.output_type != "data_QC":
             out.append("QC")
         if self.polarity == "positive":
@@ -84,19 +87,19 @@ class AnalysisIdentifiers(HasTraits):
         return out
 
     @validate("polarity")
-    def _valid_polarity(self, proposal):
+    def _valid_polarity(self, proposal: Dict[str, Any]) -> str:
         if proposal["value"] not in POLARITIES:
             raise TraitError(f"Parameter polarity must be one of {', '.join(POLARITIES)}")
         return proposal["value"]
 
     @validate("output_type")
-    def _valid_output_type(self, proposal):
+    def _valid_output_type(self, proposal: Dict[str, Any]) -> str:
         if proposal["value"] not in OUTPUT_TYPES:
             raise TraitError(f"Parameter output_type must be one of {', '.join(OUTPUT_TYPES)}")
         return proposal["value"]
 
     @validate("source_atlas")
-    def _valid_source_atlas(self, proposal):
+    def _valid_source_atlas(self, proposal: Dict[str, Any]) -> str:
         if proposal["value"] is not None:
             try:
                 get_atlas(proposal["value"], self.username)  # raises error if not found or matches multiple
@@ -105,7 +108,7 @@ class AnalysisIdentifiers(HasTraits):
         return proposal["value"]
 
     @validate("analysis_number")
-    def _valid_analysis_number(self, proposal):
+    def _valid_analysis_number(self, proposal: Dict[str, Any]) -> int:
         if proposal["value"] < 0:
             raise TraitError("Parameter analysis_number cannot be negative.")
         return proposal["value"]

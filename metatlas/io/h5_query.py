@@ -261,7 +261,7 @@ if __name__ == '__main__':  # pragma: no cover
     import argparse
     import os
     import matplotlib.pyplot as plt
-    from metatlas import plot_chromatogram, plot_spectrogram, plot_heatmap
+    from metatlas.plots.plotting import plot_chromatogram, plot_spectrogram, plot_heatmap
 
     desc = "Query and plot MZML data from HDF files"
     parser = argparse.ArgumentParser(description=desc)

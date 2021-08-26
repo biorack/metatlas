@@ -1,6 +1,46 @@
 [tool.black]
 line-length = 110
 
+[[tool.mypy.overrides]]
+module = [
+    "colorama.*",
+    "dataset.*",
+    "dill.*",
+    "gspread.*",
+    "humanize.*",
+    "h5py.*",
+    "ijson.*",
+    "IPython.*",
+    "ipywidgets.*",
+    "labkey.*",
+    "matplotlib.*",
+    "metatlas.h5_query.*",
+    "metatlas.helpers.*",
+    "metatlas.kbase.*",
+    "metatlas.metatlas_objects.*",
+    "metatlas.mzml_loader.*",
+    "metatlas.plotting.*",
+    "metatlas.object_helpers.*",
+    "networkx.*",
+    "numpy.fft.fftpack",
+    "numpy.testing.decorators",
+    "oauth2client.*",
+    "pandas.*",
+    "pathlib2.*",
+    "pexpect.*",
+    "PIL.*",
+    "pymzml.*",
+    "pyteomics.*",
+    "qgrid.*",
+    "rdkit.*",
+    "scipy.*",
+    "sklearn.*",
+    "tables.*",
+    "tqdm.*",
+    "traitlets.*"
+]
+ignore_missing_imports = true
+
 [tool.pylint.messages_control]
 # first two are for black compatibility
 # duplicate-code cannot be disabled on per file/block/line

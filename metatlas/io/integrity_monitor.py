@@ -1,6 +1,3 @@
-# import argparse
-from __future__ import absolute_import
-from __future__ import print_function
 import smtplib
 import mimetypes
 import itertools
@@ -13,6 +10,7 @@ import metatlas.metatlas_objects.metatlas_objects as metob
 import multiprocessing as mp
 import numpy as np
 
+from typing import Any, Dict
 from datetime import datetime, time as dtime
 from collections import defaultdict
 from metatlas.io.mzml_loader import VERSION_TIMESTAMP
@@ -24,8 +22,6 @@ from subprocess import check_output
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.metatlas_objects.metatlas_objects import find_invalid_runs
 from metatlas.io.system_utils import send_mail
-from six.moves import range
-from six.moves import zip
 
 
 # TO-DO: have these vars be defined from external YML (probably nersc.yml?)
@@ -41,7 +37,7 @@ std = 229.981116596
 std_neg = 227.966564596
 std_name = 'ABMBA'
 rt_max = -1
-run_times = {}
+run_times: Dict[str, Any] = {}
 save_path = '/project/projectdirs/metatlas/projects/istd_logs/'
 
 
@@ -106,7 +102,7 @@ def get_ppms(dataset, tolerance=15, std=229.981116596, std_neg=227.966564596, th
     if data.empty:
         mz_t = std_neg
         ms1 = 'ms1_neg'
-        ms2 = 'ms2_neg'        
+        ms2 = 'ms2_neg'
 
     # Looking through ms1_pos
     # MS 1
@@ -177,7 +173,7 @@ def data_verify(file_name,tolerance=tolerance,std=std,std_neg=std_neg,threshold=
     else:
         #its a metatlas object
         samples_dict['acquisition timestamp'] = file_name.acquisition_time
-        
+
     samples_dict['acquisition time'] = datetime.fromtimestamp(
         samples_dict['acquisition timestamp']).strftime('%Y-%m-%d %H:%M:%S')
 
@@ -354,7 +350,7 @@ def run_checker():
     # parser = argparse.ArgumentParser(description="Parameters for custom compounds")
     # parser.add_argument('-mz_pos', '--mz_pos', type=float, required=False)
     # parser.add_argument('-mz_neg', '--mz_neg', type=float, required=False)
-    
+
     # args = parser.parse_args()
     # if args.mz_pos is not None:
     #     std = args.mz_pos
