@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-from __future__ import print_function
 import logging
 import sys
 import os
@@ -50,9 +48,9 @@ import gspread
 # from oauth2client.client import SignedJwtAssertionCredentials
 from oauth2client.service_account import ServiceAccountCredentials
 
+from metatlas.tools.util import or_default
+
 import six
-from six.moves import range
-from six.moves import zip
 from functools import reduce
 from io import StringIO
 
@@ -3275,12 +3273,3 @@ def rt_range_overlaps(rt1, rt2):
     """
     return ((rt2.rt_min <= rt1.rt_min <= rt2.rt_max) or (rt2.rt_min <= rt1.rt_max <= rt2.rt_max) or
             (rt1.rt_min <= rt2.rt_min <= rt1.rt_max) or (rt1.rt_min <= rt2.rt_max <= rt1.rt_max))
-
-
-def or_default(none_or_value, default):
-    """
-    inputs:
-        none_or_value: variable to test
-        default: value to return if none_or_value is None
-    """
-    return none_or_value if none_or_value is not None else default

@@ -30,6 +30,7 @@ more_checks = [
     "metatlas/tools/notebook.py",
     "metatlas/tools/predict_rt.py",
     "metatlas/tools/parallel.py",
+    "metatlas/tools/util.py",
     "tests",
 ]
 
