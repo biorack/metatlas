@@ -106,10 +106,10 @@ def generate_rt_correction_models(
         model_only: If True, do not create atlases or notebooks, if False create them
     """
     # pylint: disable=too-many-locals
-    metatlas_dataset = mads.MetatlasDataset(ids=ids, save_metadata=False)
-    groups = get_groups(metatlas_dataset)
+    groups = get_groups(ids)
     files_df = get_files_df(groups)
-    qc_atlas, qc_atlas_df = get_qc_atlas(metatlas_dataset.ids)
+    qc_atlas, qc_atlas_df = get_qc_atlas(ids)
+    # this metatlas_dataset is not a class instance. Only has metatlas_dataset[file_idx][compound_idx]...
     metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)
     if len(metatlas_dataset) == 0:
         logger.error("No matching LCMS runs, terminating without generating outputs.")
@@ -137,15 +137,13 @@ def generate_rt_correction_models(
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
 
 
-def get_groups(metatlas_dataset):
+def get_groups(ids):
     """
     Create all experiment groups if they don't already exist and return the subset matching include_list
     inputs:
-        metatlas_datset: instance of MetatlasDataset
-        include_groups: group will only be used in correction if their name has a substring match
-                        to this list of strings
+        ids: instance of AnalysisIds
     """
-    ordered_groups = sorted(metatlas_dataset.ids.groups, key=lambda x: x.name)
+    ordered_groups = sorted(ids.groups, key=lambda x: x.name)
     for grp in ordered_groups:
         logger.info("Selected group: %s, %s", grp.name, int_to_date_str(grp.last_modified))
     return ordered_groups
