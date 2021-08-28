@@ -53,10 +53,16 @@ def test_filter_compounds01(metatlas_dataset_with_2_cids):
     metatlas_dataset = metatlas_dataset_with_2_cids
     metatlas_dataset.filter_compounds(remove_idxs=[])
     assert len(metatlas_dataset[0]) == 2
+    assert len(metatlas_dataset.atlas.compound_identifications) == 2
+    assert metatlas_dataset.atlas_df.shape[0] == 2
     metatlas_dataset.filter_compounds(keep_idxs=[0, 1])
     assert len(metatlas_dataset[0]) == 2
+    assert len(metatlas_dataset.atlas.compound_identifications) == 2
+    assert metatlas_dataset.atlas_df.shape[0] == 2
     metatlas_dataset.filter_compounds(keep_idxs=[])
     assert len(metatlas_dataset[0]) == 0
+    assert len(metatlas_dataset.atlas.compound_identifications) == 0
+    assert metatlas_dataset.atlas_df.shape[0] == 0
     with pytest.raises(ValueError):
         metatlas_dataset.filter_compounds()
 
