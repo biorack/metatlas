@@ -2,7 +2,7 @@
 set -euf -o pipefail
 
 if [ "$#" -ne 3 ]; then
-    echo "Usage $: experiment_name analysis_number project_directory"
+    echo "Usage $0: experiment_name analysis_number project_directory"
     exit 0
 fi
 
