@@ -25,6 +25,7 @@ def configure_environment(log_level):
     logger.debug("Running import and environment setup block of notebook.")
     logger.debug("Configuring notebook environment with console log level of %s.", log_level)
     os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
     logger.info("Running on git commit: %s", get_repo_hash())
 
 
