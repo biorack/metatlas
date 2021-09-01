@@ -83,7 +83,7 @@ def write_stats_table(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
         output_loc=metatlas_dataset.ids.output_dir,
-        output_sheetname="Draft_Final_Identifications.xlsx",
+        output_sheetname=f"{metatlas_dataset.ids.project}_Final_Identifications.xlsx",
         min_peak_height=1e5,
         use_labels=True,
         min_msms_score=0.01,

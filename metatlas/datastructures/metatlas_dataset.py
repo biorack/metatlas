@@ -961,8 +961,17 @@ class MetatlasDataset(HasTraits):
         return [i for i, j in enumerate(self.data[0].compounds) if _is_remove(ma_data.extract(j, ids))]
 
     def compound_idxs_not_evaluated(self) -> List[int]:
-        """NOT YET IMPLEMENTED"""
-        return []
+        """
+        Returns list of compound indices where ms1 note is not 'remove' and
+        ms2 note is None or 'no selection'
+        """
+        out = []
+        for i, compound in enumerate(self.data[0].compounds):
+            ms1_note = ma_data.extract(compound, ["identification", "ms1_notes"])
+            ms2_note = ma_data.extract(compound, ["identification", "ms2_notes"])
+            if (not _is_remove(ms1_note)) and (not _has_selection(ms2_note)):
+                out.append(i)
+        return out
 
     def annotation_gui(
         self, compound_idx: int = 0, width: float = 15, height: float = 3, alpha: float = 0.5, colors=""
@@ -1025,6 +1034,11 @@ def _duration_since(start: datetime.datetime) -> str:
 def _is_remove(obj: object) -> bool:
     """is obj a string that starts with 'remove' (case insensitive)?"""
     return isinstance(obj, str) and obj.lower().startswith("remove")
+
+
+def _has_selection(obj: object) -> bool:
+    """is obj a string that is not None, '', or 'no selection' (case insensitive)?"""
+    return not (obj is None or obj == '' or obj.lower() == 'no selection')
 
 
 def _set_nested(data: Any, ids: List[Union[int, str, Tuple[str]]], value: Any):
