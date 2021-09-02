@@ -152,6 +152,9 @@ ADDUCT_INFO = {'[2M+H]': {'charge': '1',
               'comp_num': '1',
               'mass': '0'}}
 
+GUI_FIG_LABEL = 'Annotation GUI'
+
+
 def get_google_sheet(notebook_name = "Sheet name",
                      token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
                      sheet_name = 'Sheet1',
@@ -506,8 +509,8 @@ class adjust_rt_for_selected_compound(object):
 
         # create figure and first axes
         combined_plot_height = self.height * (2 + self.plot_hspace)
-        self.fig, (self.ax2, self.ax) = plt.subplots(2, 1, figsize=(self.width,
-                                                                    combined_plot_height))
+        self.fig, (self.ax2, self.ax) = plt.subplots(2, 1, num=GUI_FIG_LABEL,
+                                                     figsize=(self.width, combined_plot_height))
         plt.subplots_adjust(left=self.plot_left_pos, right=self.plot_right_pos,
                             bottom=self.plot_bottom_pos, top=self.plot_top_pos,
                             hspace=self.plot_hspace)
@@ -756,6 +759,12 @@ class adjust_rt_for_selected_compound(object):
                             'overlaps': rt_range_overlaps(self.data.rts[self.compound_idx],
                                                           self.data.rts[compound_iter_idx])})
         return out
+
+    @staticmethod
+    def disable():
+        """Stops the GUI from being updated and interfering with the generation of output figures"""
+        plt.close(GUI_FIG_LABEL)
+
 
 class adjust_mz_for_selected_compound(object):
     def __init__(self,
@@ -1067,7 +1076,7 @@ def plot_all_compounds_for_each_file(input_dataset = [], input_fname = '', inclu
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
 
-
+    disable_interactive_plots()
     for file_idx,my_file in enumerate(file_names):
         ax = plt.subplot(111)#, aspect='equal')
         plt.setp(ax, 'frame_on', False)
@@ -1176,7 +1185,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
     # create ouput dir
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
-    plt.ioff()
+    disable_interactive_plots()
     for compound_idx,compound in enumerate(compound_names):
         ax = plt.subplot(111)#, aspect='equal')
         plt.setp(ax, 'frame_on', False)
@@ -1540,7 +1549,7 @@ def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
     if not os.path.exists(output_loc):
         os.makedirs(output_loc)
 
-    plt.ioff()
+    disable_interactive_plots()
     for compound in df.index:
         if 'short groupname' in df.columns.names and use_shortnames:
             m = df.loc[compound].groupby(level='short groupname').mean()
@@ -1569,7 +1578,7 @@ def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
 
 def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="", overwrite=True, max_cpus=1):
     output_loc = os.path.expandvars(output_loc)
-    plt.ioff()
+    disable_interactive_plots()
     args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite) for compound in df.index]
     parallel.parallel_process(make_boxplot, args, max_cpus, unit='plot')
 
@@ -1653,8 +1662,7 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
 
 
     frag_refs = pd.read_json(os.path.join(frag_json_dir, frag_json_name + ".json"))
-
-
+    disable_interactive_plots()
     for compound_idx in range(len(compound_names)):
         file_idx = None
         file_precursor_intensity = 0
@@ -1713,7 +1721,6 @@ def make_identification_figure(frag_json_dir = '/project/projectdirs/metatlas/pr
 #                 print data[file_idx][compound_idx]['identification'].compound[0].name, float(intensity[sx[0]]), float(min(ref_intensity))
                 ax.vlines(ref_mz,ref_zeros,[r*s for r in ref_intensity],colors='r',linewidth = 2)
 #                 print "we have reference spectra", len(ref_spec[0])
-            plt.ioff()
             plt.axhline()
             plt.tight_layout()
             L = plt.ylim()
@@ -2175,6 +2182,7 @@ def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=No
     prefix = f"{polarity}_" if polarity != '' else ''
     chromatogram_dir = os.path.join(output_loc, f"{prefix}compound_EIC_chromatograms")
     args_list = []
+    disable_interactive_plots()
     for compound_idx, my_compound in enumerate(compound_names):
         my_data = [data[file_idx][compound_idx] for file_idx, _ in enumerate(file_names)]
         args_list.append({'data': my_data,
@@ -2205,7 +2213,7 @@ def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcms
     compound_names = ma_data.get_compound_names(data, use_labels)[0]
     file_names = ma_data.get_file_names(data)
     match = pd.DataFrame()
-    plt.ioff()
+    disable_interactive_plots()
     plt.clf()
     for compound_idx, _ in enumerate(compound_names):
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
@@ -2398,6 +2406,7 @@ def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', 
     lcms_polarity = 'ms1_' + polarity[:3]
     titles = ['Unscaled', 'Scaled', 'Full Range']
 
+    disable_interactive_plots()
     for compound_idx in [i for i,c in enumerate(all_compound_names) if c in compound_names]:
         print(('compound is',compound_idx))
         #Find file_idx of with highest RT peak
@@ -2425,7 +2434,6 @@ def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', 
                            (df_all['mz'] < mz_peak_actual + mz_max) ]
 
         #Plot compound name, mz, and RT peak
-        plt.ioff()
         fig = plt.gcf()
         fig.suptitle('%s, m/z: %5.4f, rt: %f'%(all_compound_names[compound_idx], mz_peak_actual, rt_peak_actual),
                                                 fontsize=8,weight='bold')
@@ -3273,3 +3281,9 @@ def rt_range_overlaps(rt1, rt2):
     """
     return ((rt2.rt_min <= rt1.rt_min <= rt2.rt_max) or (rt2.rt_min <= rt1.rt_max <= rt2.rt_max) or
             (rt1.rt_min <= rt2.rt_min <= rt1.rt_max) or (rt1.rt_min <= rt2.rt_max <= rt1.rt_max))
+
+
+def disable_interactive_plots():
+    """Close interactive figures and turn off interactive plotting"""
+    adjust_rt_for_selected_compound.disable()
+    plt.ioff()
