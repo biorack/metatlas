@@ -696,3 +696,11 @@ def test_invlidate_groups_controlled_vocab01(analysis_ids):
     assert analysis_ids._lcmsruns is not None
     analysis_ids.groups_controlled_vocab = ["FOOBAR"]
     assert analysis_ids._lcmsruns is None
+
+
+def test_has_selection01():
+    assert mads._has_selection("foobar")
+    assert not mads._has_selection(None)
+    assert not mads._has_selection("")
+    assert not mads._has_selection("no selection")
+    assert not mads._has_selection("NO Selection")

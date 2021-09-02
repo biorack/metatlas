@@ -973,6 +973,21 @@ class MetatlasDataset(HasTraits):
                 out.append(i)
         return out
 
+    def error_if_not_all_evaluated(self) -> None:
+        """Raises ValueError if there are compounds that have not been evaluated"""
+        not_evaluated = self.compound_idxs_not_evaluated()
+        try:
+            if len(not_evaluated) != 0:
+                raise ValueError(
+                    (
+                        "Compounds with the following indices need notes selected via radio "
+                        f"buttons before continuing: {','.join([str(i) for i in not_evaluated])}"
+                    )
+                )
+        except ValueError as err:
+            logger.exception(err)
+            raise err
+
     def annotation_gui(
         self, compound_idx: int = 0, width: float = 15, height: float = 3, alpha: float = 0.5, colors=""
     ) -> dp.adjust_rt_for_selected_compound:
@@ -1038,7 +1053,9 @@ def _is_remove(obj: object) -> bool:
 
 def _has_selection(obj: object) -> bool:
     """is obj a string that is not None, '', or 'no selection' (case insensitive)?"""
-    return not (obj is None or obj == '' or obj.lower() == 'no selection')
+    if obj is None or not isinstance(obj, str):
+        return False
+    return obj.lower() not in ["", "no selection"]
 
 
 def _set_nested(data: Any, ids: List[Union[int, str, Tuple[str]]], value: Any):
@@ -1124,3 +1141,41 @@ def remove_items(edit_list: List[str], remove_list: List[str], ignore_case: bool
         lower_remove_list = [x.lower() for x in remove_list]
         return [x for x in edit_list if x.lower() not in lower_remove_list]
     return [x for x in edit_list if x not in remove_list]
+
+
+def pre_annotation(
+    source_atlas: AtlasName,
+    experiment: Experiment,
+    output_type: OutputType,
+    polarity: Polarity,
+    analysis_number: AnalysisNumber,
+    project_directory: PathString,
+    google_folder: str,
+    groups_controlled_vocab: GroupMatchList,
+    exclude_files: FileMatchList,
+    num_points: int,
+    peak_height: float,
+    max_cpus: int,
+) -> MetatlasDataset:
+    ids = AnalysisIdentifiers(
+        source_atlas=source_atlas,
+        experiment=experiment,
+        output_type=output_type,
+        polarity=polarity,
+        analysis_number=analysis_number,
+        project_directory=project_directory,
+        google_folder=google_folder,
+        groups_controlled_vocab=groups_controlled_vocab,
+        exclude_files=exclude_files,
+    )
+    metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=max_cpus)
+    if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
+        metatlas_dataset.filter_compounds_by_signal(num_points=num_points, peak_height=peak_height)
+    return metatlas_dataset
+
+
+def post_annotation(metatlas_dataset: MetatlasDataset) -> None:
+    if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
+        metatlas_dataset.error_if_not_all_evaluated()
+        metatlas_dataset.filter_compounds_ms1_notes_remove()
+    metatlas_dataset.generate_all_outputs()
