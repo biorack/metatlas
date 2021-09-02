@@ -1143,6 +1143,7 @@ def remove_items(edit_list: List[str], remove_list: List[str], ignore_case: bool
     return [x for x in edit_list if x not in remove_list]
 
 
+# pylint: disable=too-many-arguments
 def pre_annotation(
     source_atlas: AtlasName,
     experiment: Experiment,
@@ -1157,6 +1158,7 @@ def pre_annotation(
     peak_height: float,
     max_cpus: int,
 ) -> MetatlasDataset:
+    """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
     ids = AnalysisIdentifiers(
         source_atlas=source_atlas,
         experiment=experiment,
@@ -1175,6 +1177,7 @@ def pre_annotation(
 
 
 def post_annotation(metatlas_dataset: MetatlasDataset) -> None:
+    """All data processing that needs to occur after the annotation GUI in Targeted notebook"""
     if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
         metatlas_dataset.error_if_not_all_evaluated()
         metatlas_dataset.filter_compounds_ms1_notes_remove()
