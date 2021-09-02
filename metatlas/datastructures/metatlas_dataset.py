@@ -1182,3 +1182,4 @@ def post_annotation(metatlas_dataset: MetatlasDataset) -> None:
         metatlas_dataset.error_if_not_all_evaluated()
         metatlas_dataset.filter_compounds_ms1_notes_remove()
     metatlas_dataset.generate_all_outputs()
+    logger.info("DONE - execution of notebook is complete.")
