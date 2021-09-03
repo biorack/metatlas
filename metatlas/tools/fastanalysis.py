@@ -4,7 +4,7 @@ import logging
 import os
 import multiprocessing as mp
 import pprint
-from six.moves import range
+import statistics
 
 import numpy as np
 import pandas as pd
@@ -94,7 +94,6 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     msms_hits_df.reset_index(inplace=True)
 
     for compound_idx, compound_name in enumerate(compound_names):
-
         ref_rt_peak = dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
         ref_mz = dataset[0][compound_idx]['identification'].mz_references[0].mz
 
@@ -222,15 +221,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'exact_mass'] = cid.compound[0].mono_isotopic_molecular_weight
             final_df.loc[compound_idx, 'inchi_key'] = cid.compound[0].inchi_key
 
-        if file_idxs != []:
-            if len(mz_sample_matches) == 1:
-                final_df.loc[compound_idx, 'msms_quality'] = 0
-            elif scores[0] >= 0.8:
-                final_df.loc[compound_idx, 'msms_quality'] = 1
-            else:
-                final_df.loc[compound_idx, 'msms_quality'] = ""
-        else:
-            final_df.loc[compound_idx, 'msms_quality'] = 0
+        final_df.loc[compound_idx, 'identified_metabolite'] = final_df.loc[compound_idx, 'overlapping_compound'] or final_df.loc[compound_idx, 'label']
+        final_df.loc[compound_idx, 'msms_quality'] = ""  # this gets updated after ms2_notes column is added
 
         if delta_ppm <= 5 or delta_mz <= 0.001:
             final_df.loc[compound_idx, 'mz_quality'] = 1
@@ -250,13 +242,23 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'rt_quality'] = 0
         else:
             final_df.loc[compound_idx, 'rt_quality'] = ""
-
-        final_df.loc[compound_idx, 'total_score'] = ""
-        final_df.loc[compound_idx, 'msi_level'] = ""
+        final_df.loc[compound_idx, 'total_score'] = ""  # this gets updated after ms2_notes column is added
+        final_df.loc[compound_idx, 'msi_level'] = ""    # this gets updated after ms2_notes column is added
         final_df.loc[compound_idx, 'isomer_details'] = ""
         final_df.loc[compound_idx, 'identification_notes'] = cid.identification_notes
         final_df.loc[compound_idx, 'ms1_notes'] = cid.ms1_notes
         final_df.loc[compound_idx, 'ms2_notes'] = cid.ms2_notes
+        final_df.loc[compound_idx, 'msms_quality'] = int(final_df.loc[compound_idx, 'ms2_notes'].split(',')[0])
+        scores = [final_df.loc[compound_idx, x] for x in ['msms_quality', 'mz_quality', 'rt_quality']]
+        final_df.loc[compound_idx, 'total_score'] = sum([x if x != '' else 0 for x in scores])
+        if final_df.loc[compound_idx, 'msms_quality'] == -1:
+            final_df.loc[compound_idx, 'msi_level'] = "REMOVE, INVALIDATED BY BAD MSMS MATCH"
+        elif statistics.median(scores) < 1:
+            final_df.loc[compound_idx, 'msi_level'] = "putative"
+        elif sum(scores) == 3:
+            final_df.loc[compound_idx, 'msi_level'] = "Exceeds Level 1"
+        else:
+            final_df.loc[compound_idx, 'msi_level'] = "Level 1"
         if len(intensities) > 0:
             final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].idxmax()]['intensity']
             max_intensity_file_id = int(intensities.loc[intensities['intensity'].idxmax()]['file_id'])
