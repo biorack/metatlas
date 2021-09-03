@@ -61,10 +61,9 @@ def write_stats_table(
                        if False filter out row if MSMS thresholds are not passing
         overwrite: if True, will write over existing files
     """
-    prefix = f"{metatlas_dataset.ids.short_polarity}_"
-    scores_path = os.path.join(
-        metatlas_dataset.ids.output_dir, f"{prefix}stats_tables", f"{prefix}compound_scores.csv"
-    )
+    ids = metatlas_dataset.ids
+    prefix = f"{ids.short_polarity}_"
+    scores_path = os.path.join(ids.output_dir, f"{prefix}stats_tables", f"{prefix}compound_scores.csv")
     _ = metatlas_dataset.hits  # regenerate hits if needed before logging about scores
     logger.info("Calculating scores and exporting them to %s.", scores_path)
     scores_df = fa.make_scores_df(metatlas_dataset, metatlas_dataset.hits)
@@ -82,15 +81,15 @@ def write_stats_table(
     fa.make_stats_table(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
-        output_loc=metatlas_dataset.ids.output_dir,
-        output_sheetname=f"{metatlas_dataset.ids.project}_Final_Identifications.xlsx",
+        output_loc=ids.output_dir,
+        output_sheetname=f"{ids.project}_{ids.output_type}_Identifications.xlsx",
         min_peak_height=1e5,
         use_labels=True,
         min_msms_score=0.01,
         min_num_frag_matches=1,
         include_lcmsruns=[],
         exclude_lcmsruns=["QC"],
-        polarity=metatlas_dataset.ids.short_polarity,
+        polarity=ids.short_polarity,
         overwrite=overwrite,
     )
 
