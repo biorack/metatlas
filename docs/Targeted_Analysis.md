@@ -26,7 +26,7 @@ On Cori run:
 ```
 cd
 git clone https://github.com/biorack/metatlas.git
-cd metatlas
+cd ~/metatlas
 git checkout oo_mads3
 ```
 
@@ -101,10 +101,17 @@ Once the job has completed, you should check the files generated to make sure th
 ### Key Bindings
 
 `l` or right arrow - next compound-adduct pair
-`h' or left arrow - previous compound-adduct pair
+
+`h` or left arrow - previous compound-adduct pair
+
 `k` or up arrow - next MSMS reference for this compound-adduct pair
+
 `j` or down arrow - previous MSMS reference for this compound-adduct pair
+
 `x` - sets the remove radio button
+
 `m` - steps through the similar compound-adduct pairs and matches the RT bounds to those of the similar compound-adduct pair
+
 `z` - steps though zoom levels of 1x, 5x, 25x on the MSMS mirror plot by 5
+
 `s` - toggles on/off the red and blue shading of EIC plot that show RT ranges for similar compounds
