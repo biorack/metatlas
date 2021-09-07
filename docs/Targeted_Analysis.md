@@ -5,11 +5,19 @@
 ### RClone configuration
 
 #### For MacOS/Linux
-Open a terminal and run:
+
+Open a terminal on Cori and run:
+`
+mkdir -p ~/.config/rclone
+`
+
+Open a terminal on your local machine and run:
 ```
-curl https://rclone.org/install.sh | sudo bash
+curl --silent --show-error https://rclone.org/install.sh | sudo -k bash > /dev/null
+# You will be prompted to enter your password, this allows the installation of rclone
 rclone config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
-scp $(rclone config file | tail -1) \ dtn01.nersc.gov:~/.config/rclone/rclone.config
+# You will be prompted in your web browser to grant rclone access to Google Drive
+scp $(rclone config file | tail -1) dtn01.nersc.gov:~/.config/rclone/rclone.config
 ```
 
 #### For Windows
@@ -43,7 +51,7 @@ mkdir -p ~/metabolomics_data
 
 On Cori run:
 ```
-cd metatlas
+cd ~/metatlas
 git pull
 ```
 
