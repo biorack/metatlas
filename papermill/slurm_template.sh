@@ -15,6 +15,7 @@ CONDA_DIR="$(dirname "$(dirname "$(grep 'metatlas-targeted' ../notebooks/kernels
 date
 echo "input file: $IN_FILE"
 echo "output file: $OUT_FILE"
+module load python/3.8-anaconda-2020.11
 eval "$(conda shell.bash hook)"
 conda activate "$CONDA_DIR"
 
