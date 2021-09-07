@@ -14,7 +14,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 EXP_DIR="${PROJECT_DIR}/$EXP"
 ANALYSIS_DIR="${EXP_DIR}/${USER}${ANALYSIS_NUM}"
-KERNEL_SOURCE="${SCRIPT_DIR}/notebooks/kernels/metatlas-targeted.kernel.json"
+KERNEL_SOURCE="${REPO_DIR}/notebooks/kernels/metatlas-targeted.kernel.json"
 KERNEL_DESTINATION="${HOME}/.local/share/jupyter/kernels/metatlas-targeted/kernel.json"
 
 IFS='_' read -ra TOKENS <<< "$EXP"
