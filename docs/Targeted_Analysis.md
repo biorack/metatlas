@@ -13,7 +13,7 @@ mkdir -p ~/.config/rclone
 
 Open a terminal on your local machine and run:
 ```
-curl --silent --show-error https://rclone.org/install.sh | sudo -k bash > /dev/null
+curl --silent --show-error https://rclone.org/install.sh | sudo bash > /dev/null
 # You will be prompted to enter your password, this allows the installation of rclone
 rclone config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
 # You will be prompted in your web browser to grant rclone access to Google Drive
@@ -76,7 +76,7 @@ This will submit a slurm job. You will receive an email when the job starts exec
 
 #### Outputs
 
-Once the job has completed, you should check the files generated to make sure the RT correction models look acceptable. You can find the output files at `~/metabolomics_data/EXPERIMENT_NAME/${USER}ANALYSIS_NUMBER/`.
+Once the job has completed, you should check the files generated to make sure the RT correction models look acceptable. You can find the output files at `~/metabolomics_data/EXPERIMENT_NAME/${USER}ANALYSIS_NUMBER/`. One easy way to view these files is to open them from the [jupyter](https://jupyter.nersc.gov/) file browser.
 
 
 ### Perform ISTDsEtc Analysis
