@@ -248,7 +248,10 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         final_df.loc[compound_idx, 'identification_notes'] = cid.identification_notes
         final_df.loc[compound_idx, 'ms1_notes'] = cid.ms1_notes
         final_df.loc[compound_idx, 'ms2_notes'] = cid.ms2_notes
-        final_df.loc[compound_idx, 'msms_quality'] = int(final_df.loc[compound_idx, 'ms2_notes'].split(',')[0])
+        try:
+            final_df.loc[compound_idx, 'msms_quality'] = int(final_df.loc[compound_idx, 'ms2_notes'].split(',')[0])
+        except ValueError:
+            final_df.loc[compound_idx, 'msms_quality'] = ''
         scores = [final_df.loc[compound_idx, x] for x in ['msms_quality', 'mz_quality', 'rt_quality']]
         final_df.loc[compound_idx, 'total_score'] = sum([x if x != '' else 0 for x in scores])
         if final_df.loc[compound_idx, 'msms_quality'] == -1:
