@@ -22,12 +22,9 @@ RCLONE_PATH = "/global/cfs/cdirs/m342/USA/shared-repos/rclone/bin/rclone"
 
 def write_atlas_to_spreadsheet(metatlas_dataset, overwrite=False):
     """Save atlas as csv file. Will not overwrite existing file unless overwrite is True"""
-    export_atlas_filename = os.path.join(
-        metatlas_dataset.ids.output_dir,
-        f"{metatlas_dataset.atlas.name}_export.csv",
-    )
-    atlas_export_df = dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas)
-    write_utils.export_dataframe(atlas_export_df, export_atlas_filename, "atlas", overwrite)
+    out_file_name = os.path.join(metatlas_dataset.ids.output_dir, f"{metatlas_dataset.atlas.name}_export.csv")
+    out_df = dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas)
+    write_utils.export_dataframe_die_on_diff(out_df, out_file_name, "atlas", overwrite=overwrite)
 
 
 def write_stats_table(
