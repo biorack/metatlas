@@ -67,18 +67,23 @@ def raise_on_diff(dataframe, file_path, description, **kwargs):
             raise
 
 
-def export_dataframe_die_on_diff(dataframe, file_path, description, **kwargs):
+def export_dataframe_die_on_diff(dataframe, file_path, description, overwrite=False, **kwargs):
     """
     inputs:
         dataframe: pandas DataFrame to save
         file_path: string with path of file to create
         description: free string for logging
+        overwrite: bool
         kwargs: passed through to to_csv()
 
+    If overwrite then save the dataframe to file_path
     If file_path does not exist then save the dataframe there
     If file_path exists and matches data in dataframe then do nothing
     If file_path exists and does not match dataframe then raise ValueError
     """
-    raise_on_diff(dataframe, file_path, description, **kwargs)
-    if not os.path.exists(file_path):
+    if overwrite:
         export_dataframe(dataframe, file_path, description, **kwargs)
+    else:
+        raise_on_diff(dataframe, file_path, description, **kwargs)
+        if not os.path.exists(file_path):
+            export_dataframe(dataframe, file_path, description, **kwargs)
