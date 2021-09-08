@@ -253,15 +253,19 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         except ValueError:
             final_df.loc[compound_idx, 'msms_quality'] = ''
         scores = [final_df.loc[compound_idx, x] for x in ['msms_quality', 'mz_quality', 'rt_quality']]
-        final_df.loc[compound_idx, 'total_score'] = sum([x if x != '' else 0 for x in scores])
-        if final_df.loc[compound_idx, 'msms_quality'] == -1:
-            final_df.loc[compound_idx, 'msi_level'] = "REMOVE, INVALIDATED BY BAD MSMS MATCH"
-        elif statistics.median(scores) < 1:
-            final_df.loc[compound_idx, 'msi_level'] = "putative"
-        elif sum(scores) == 3:
-            final_df.loc[compound_idx, 'msi_level'] = "Exceeds Level 1"
+        if all(isinstance(x, (int, float)) for x in scores):
+            final_df.loc[compound_idx, 'total_score'] = sum(scores)
+            if final_df.loc[compound_idx, 'msms_quality'] == -1:
+                final_df.loc[compound_idx, 'msi_level'] = "REMOVE, INVALIDATED BY BAD MSMS MATCH"
+            elif statistics.median(scores) < 1:
+                final_df.loc[compound_idx, 'msi_level'] = "putative"
+            elif sum(scores) == 3:
+                final_df.loc[compound_idx, 'msi_level'] = "Exceeds Level 1"
+            else:
+                final_df.loc[compound_idx, 'msi_level'] = "Level 1"
         else:
-            final_df.loc[compound_idx, 'msi_level'] = "Level 1"
+            final_df.loc[compound_idx, 'total_score'] = ""
+            final_df.loc[compound_idx, 'msi_level'] = ""
         if len(intensities) > 0:
             final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].idxmax()]['intensity']
             max_intensity_file_id = int(intensities.loc[intensities['intensity'].idxmax()]['file_id'])
