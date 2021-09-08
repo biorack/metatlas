@@ -291,6 +291,8 @@ class adjust_rt_for_selected_compound(object):
                                     'keymap.xscale': ['k'],
                                     'keymap.save': ['s'],
                                     'keymap.home': ['h']})
+
+        adjust_rt_for_selected_compound.disable()
         # Turn On interactive plot
         plt.ion()
         self.layout_figure()
