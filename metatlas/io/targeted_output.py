@@ -26,9 +26,8 @@ def write_atlas_to_spreadsheet(metatlas_dataset, overwrite=False):
         metatlas_dataset.ids.output_dir,
         f"{metatlas_dataset.atlas.name}_export.csv",
     )
-    write_utils.check_existing_file(export_atlas_filename, overwrite)
-    dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas, export_atlas_filename)
-    logger.info("Exported atlas to file: %s.", export_atlas_filename)
+    atlas_export_df = dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas)
+    write_utils.export_dataframe(atlas_export_df, export_atlas_filename, "atlas", overwrite)
 
 
 def write_stats_table(
