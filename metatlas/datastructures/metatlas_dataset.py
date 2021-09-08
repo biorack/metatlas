@@ -1157,6 +1157,7 @@ def pre_annotation(
     num_points: int,
     peak_height: float,
     max_cpus: int,
+    username: Username = None,
 ) -> MetatlasDataset:
     """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
     ids = AnalysisIdentifiers(
@@ -1169,6 +1170,7 @@ def pre_annotation(
         google_folder=google_folder,
         groups_controlled_vocab=groups_controlled_vocab,
         exclude_files=exclude_files,
+        username=getpass.getuser() if username is None else username
     )
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=max_cpus)
     if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
