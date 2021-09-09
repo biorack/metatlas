@@ -73,7 +73,7 @@ def write_stats_table(
         min_num_frag_matches,
         min_relative_frag_intensity,
     )
-    write_utils.export_dataframe(scores_df, scores_path, "scores", overwrite)
+    write_utils.export_dataframe_die_on_diff(scores_df, scores_path, "scores", overwrite=overwrite)
     fa.make_stats_table(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
@@ -200,7 +200,7 @@ def write_msms_fragment_ions(
         )
     out_df = pd.DataFrame(out)
     path = os.path.join(data.ids.output_dir, f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut.csv")
-    write_utils.export_dataframe(out_df, path, "MSMS fragment ions", overwrite)
+    write_utils.export_dataframe_die_on_diff(out_df, path, "MSMS fragment ions", overwrite=overwrite)
     return out_df
 
 

@@ -1465,9 +1465,7 @@ def make_output_dataframe(input_fname='', input_dataset=None, include_lcmsruns=N
     if output_loc:
         prefix = f"{polarity}_" if polarity != '' else ''
         df_path = os.path.join(output_loc, f"{prefix}{fieldname}.tab")
-        write_utils.check_existing_file(df_path, overwrite)
-        out.to_csv(df_path, sep="\t")
-        logger.info('Exported %s to %s.', fieldname, df_path)
+        write_utils.export_dataframe_die_on_diff(out, df_path, fieldname, overwrite=overwrite, sep="\t")
     return out
 
 

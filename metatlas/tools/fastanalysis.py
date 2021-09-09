@@ -409,7 +409,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     if output_loc is not None:
         stats_tables_dir = os.path.join(output_loc, f"{prefix}stats_tables")
         stats_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.tab")
-        write_utils.export_dataframe(stats_table, stats_path, 'stats table', overwrite, sep='\t')
+        write_utils.export_dataframe_die_on_diff(stats_table, stats_path, 'stats table', overwrite, sep='\t')
         readme_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.readme")
         write_utils.check_existing_file(readme_path, overwrite)
         with open(readme_path, 'w') as readme:
