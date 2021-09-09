@@ -82,7 +82,7 @@ def export_dataframe_die_on_diff(dataframe, file_path, description, overwrite=Fa
     If file_path exists and does not match dataframe then raise ValueError
     """
     if overwrite:
-        export_dataframe(dataframe, file_path, description, **kwargs)
+        export_dataframe(dataframe, file_path, description, overwrite, **kwargs)
     else:
         raise_on_diff(dataframe, file_path, description, **kwargs)
         if not os.path.exists(file_path):
