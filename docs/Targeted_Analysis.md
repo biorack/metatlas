@@ -17,7 +17,7 @@ curl --silent --show-error https://rclone.org/install.sh | sudo bash > /dev/null
 # You will be prompted to enter your password, this allows the installation of rclone
 rclone config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
 # You will be prompted in your web browser to grant rclone access to Google Drive
-scp $(rclone config file | tail -1) dtn01.nersc.gov:~/.config/rclone/rclone.config
+scp $(rclone config file | tail -1) dtn01.nersc.gov:~/.config/rclone/rclone.conf
 ```
 
 #### For Windows
