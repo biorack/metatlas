@@ -8,7 +8,7 @@ def test_targeted_by_line01_with_remove(tmp_path):
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
-        str(tmp_path / experiment / "root0/FinalEMA-HILIC/POS_data_sheets/POS_peak_height.tab")
+        str(tmp_path / experiment / "root0/FinalEMA-HILIC/POS/POS_data_sheets/POS_peak_height.tab")
     ] = "\n".join(
         [
             f"group\t{experiment}_POS_MSMS_root0_Cone-S1\t{experiment}_POS_MSMS_root0_Cone-S2\t{experiment}_POS_MSMS_root0_Cone-S3\t{experiment}_POS_MSMS_root0_Cone-S4",  # noqa: E501
@@ -22,7 +22,7 @@ def test_targeted_by_line01_with_remove(tmp_path):
             "0002_adenosine_positive_M+H268p1041_3p02\t26611868.0\t119774184.0\t267718880.0\t473905024.0",
         ]
     )
-    expected[str(tmp_path / experiment / "root0/FinalEMA-HILIC/POS_data_sheets/POS_rt_peak.tab")] = "\n".join(
+    expected[str(tmp_path / experiment / "root0/FinalEMA-HILIC/POS/POS_data_sheets/POS_rt_peak.tab")] = "\n".join(
         [
             f"group\t{experiment}_POS_MSMS_root0_Cone-S1\t{experiment}_POS_MSMS_root0_Cone-S2\t{experiment}_POS_MSMS_root0_Cone-S3\t{experiment}_POS_MSMS_root0_Cone-S4",
             f"file\t{experiment}_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5\t{experiment}_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5\t{experiment}_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5\t{experiment}_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5",
