@@ -252,14 +252,14 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'msms_quality'] = int(final_df.loc[compound_idx, 'ms2_notes'].split(',')[0])
         except ValueError:
             final_df.loc[compound_idx, 'msms_quality'] = ''
-        scores = [final_df.loc[compound_idx, x] for x in ['msms_quality', 'mz_quality', 'rt_quality']]
-        if all(isinstance(x, (int, float)) for x in scores):
-            final_df.loc[compound_idx, 'total_score'] = sum(scores)
+        quality_scores = [final_df.loc[compound_idx, x] for x in ['msms_quality', 'mz_quality', 'rt_quality']]
+        if all(isinstance(x, (int, float)) for x in quality_scores):
+            final_df.loc[compound_idx, 'total_score'] = sum(quality_scores)
             if final_df.loc[compound_idx, 'msms_quality'] == -1:
                 final_df.loc[compound_idx, 'msi_level'] = "REMOVE, INVALIDATED BY BAD MSMS MATCH"
-            elif statistics.median(scores) < 1:
+            elif statistics.median(quality_scores) < 1:
                 final_df.loc[compound_idx, 'msi_level'] = "putative"
-            elif sum(scores) == 3:
+            elif sum(quality_scores) == 3:
                 final_df.loc[compound_idx, 'msi_level'] = "Exceeds Level 1"
             else:
                 final_df.loc[compound_idx, 'msi_level'] = "Level 1"
