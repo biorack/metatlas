@@ -614,19 +614,15 @@ class MetatlasDataset(HasTraits):
     def _build(self) -> None:
         """Populate self._data from database and h5 files."""
         start_time = datetime.datetime.now()
-        files = []
-        for group in self.ids.groups:
-            for h5_file in group.items:
-                files.append(
-                    (
-                        h5_file,
-                        group,
-                        self.atlas_df,
-                        self.atlas,
-                        self.extra_time,
-                        self.extra_mz,
-                    )
-                )
+        files = [(h5_file, group, self.atlas_df, self.atlas, self.extra_time, self.extra_mz)
+                 for group in self.ids.groups
+                 for h5_file in group.items]
+        try:
+            if len(files) == 0:
+                raise ValueError('No matching h5 files were found')
+        except ValueError as err:
+            logger.exception(err)
+            raise err
         logger.info("Generating MetatlasDataset by reading MSMS data from h5 files")
         samples = parallel.parallel_process(
             ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample", spread_args=False
@@ -1173,7 +1169,7 @@ def pre_annotation(
         google_folder=google_folder,
         groups_controlled_vocab=groups_controlled_vocab,
         exclude_files=exclude_files,
-        username=getpass.getuser() if username is None else username
+        username=getpass.getuser() if username is None else username,
     )
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=max_cpus)
     if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
