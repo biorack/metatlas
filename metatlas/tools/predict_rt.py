@@ -90,20 +90,13 @@ class Model:
         return self.sk_model.predict(x_transformed)
 
 
-def generate_rt_correction_models(
-    ids, cpus, repo_dir, save_to_db=True, use_poly_model=True, model_only=False
-):
+def generate_rt_correction_models(ids: mads.AnalysisIdentifiers, cpus: int) -> (Model, Model):
     """
-    Generate the RT correction models and associated atlases with adjusted RT values
+    Generate the RT correction models and model charaterization files
     inputs:
         ids: an AnalysisIds object matching the one used in the main notebook
         cpus: max number of cpus to use
-        repo_dir: location of metatlas git repo on local filesystem
-        save_to_db: If True, save the new atlases to the database
-        use_poly_model: If True, use the polynomial model, else use linear model
-                        Both types of models are always generated, this only determines which ones
-                        are pre-populated into the generated notebooks
-        model_only: If True, do not create atlases or notebooks, if False create them
+    Returns a tuple with a linear and polynomial model
     """
     # pylint: disable=too-many-locals
     groups = get_groups(ids)
@@ -111,9 +104,12 @@ def generate_rt_correction_models(
     qc_atlas, qc_atlas_df = get_qc_atlas(ids)
     # this metatlas_dataset is not a class instance. Only has metatlas_dataset[file_idx][compound_idx]...
     metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)
-    if len(metatlas_dataset) == 0:
-        logger.error("No matching LCMS runs, terminating without generating outputs.")
-        return
+    try:
+        if len(metatlas_dataset) == 0:
+            raise ValueError("No matching LCMS runs, terminating without generating outputs.")
+    except ValueError as err:
+        logger.exception(err)
+        raise err
     save_rt_peak(metatlas_dataset, os.path.join(ids.output_dir, "rt_peak.tab"))
     save_measured_rts(metatlas_dataset, os.path.join(ids.output_dir, "QC_Measured_RTs.csv"))
     rts_df = get_rts(metatlas_dataset)
@@ -129,6 +125,24 @@ def generate_rt_correction_models(
     save_model_comparison(selected_column, qc_atlas_df, rts_df, linear, poly, rt_comparison_file_name)
     models_file_name = os.path.join(ids.output_dir, "rt_model.txt")
     write_models(models_file_name, linear, poly, groups, qc_atlas)
+    return (linear, poly)
+
+
+def generate_outputs(ids, cpus, repo_dir, save_to_db=True, use_poly_model=True, model_only=False):
+    """
+    Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
+    msms hits pickles
+    inputs:
+        ids: an AnalysisIds object matching the one used in the main notebook
+        cpus: max number of cpus to use
+        repo_dir: location of metatlas git repo on local filesystem
+        save_to_db: If True, save the new atlases to the database
+        use_poly_model: If True, use the polynomial model, else use linear model
+                        Both types of models are always generated, this only determines which ones
+                        are pre-populated into the generated notebooks
+        model_only: If True, do not create atlases or notebooks, if False create them
+    """
+    linear, poly = generate_rt_correction_models(ids, cpus)
     if not model_only:
         atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
         write_notebooks(ids, atlases, repo_dir, use_poly_model)
