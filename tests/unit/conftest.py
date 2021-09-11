@@ -957,7 +957,7 @@ def fixture_compound_identification(compound, rt_reference, mz_reference, userna
     ident.internal_standard_id = ""
     ident.do_normalization = False
     ident.identification_notes = "my id note"
-    ident.ms2_notes = "bad match to ref"
+    ident.ms2_notes = "-1,bad match to ref"
     ident.ms1_notes = "keep"
     ident.frag_references = []
     ident.intensity_references = []
