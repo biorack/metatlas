@@ -4,7 +4,7 @@
 #SBATCH --account=gtrnd
 #SBATCH --qos=genepool
 #SBATCH --mail-type=ALL
-#SBATCH -t 02:00:00
+#SBATCH -t 12:00:00
 
 #OpenMP settings:
 export OMP_NUM_THREADS=1

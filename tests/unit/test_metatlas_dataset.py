@@ -704,3 +704,40 @@ def test_has_selection01():
     assert not mads._has_selection("")
     assert not mads._has_selection("no selection")
     assert not mads._has_selection("NO Selection")
+
+
+def test_cache_dir(metatlas_dataset):
+    assert os.path.isdir(metatlas_dataset.ids.cache_dir)
+
+
+def test_cache01(metatlas_dataset):
+    data = "foobar"
+    metadata = {"_variable_name": "test_var"}
+    metatlas_dataset._save_to_cache(data, metadata)
+    assert metatlas_dataset._query_cache(metadata) == data
+
+
+def test_cache02(metatlas_dataset):
+    metadata = {"_variable_name": "test_var", "foo": "bar"}
+    metatlas_dataset._save_to_cache("", metadata)
+    metadata["new_key"] = ""
+    assert metatlas_dataset._query_cache(metadata) is None
+    del metadata["new_key"]
+    metadata["foo"] = "zoop"
+    assert metatlas_dataset._query_cache(metadata) is None
+    del metadata["foo"]
+    assert metatlas_dataset._query_cache(metadata) is None
+
+
+def test_save_to_cache(metatlas_dataset):
+    with pytest.raises(AssertionError):
+        metatlas_dataset._save_to_cache("", {})
+
+
+def test_query_cache01(metatlas_dataset):
+    with pytest.raises(AssertionError):
+        metatlas_dataset._query_cache({})
+
+
+def test_query_cache02(metatlas_dataset):
+    assert metatlas_dataset._query_cache({"_variable_name": "foobar"}) is None

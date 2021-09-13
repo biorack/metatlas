@@ -6,7 +6,9 @@ import getpass
 import glob
 import logging
 import os
+import pickle
 import shutil
+import uuid
 
 from typing import cast, Any, Dict, List, NewType, Optional, Tuple, TypedDict, Union
 
@@ -254,9 +256,16 @@ class AnalysisIdentifiers(HasTraits):
     def output_dir(self) -> PathString:
         """Creates the output directory and returns the path as a string"""
         sub_dirs = [self.experiment, self.analysis, self.output_type]
-        if self.output_type != 'data_QC':
+        if self.output_type != "data_QC":
             sub_dirs.append(self.short_polarity)
         out = os.path.join(self.project_directory, *sub_dirs)
+        os.makedirs(out, exist_ok=True)
+        return PathString(out)
+
+    @property
+    def cache_dir(self) -> PathString:
+        """Creates directory for storing cache files and returns the path as a string"""
+        out = os.path.join(self.project_directory, self.experiment, "cache")
         os.makedirs(out, exist_ok=True)
         return PathString(out)
 
@@ -541,6 +550,34 @@ class MetatlasDataset(HasTraits):
             self.write_data_source_files()
             self.ids.write_lcmsruns_short_names()
 
+    def _save_to_cache(self, data: Any, metadata: dict) -> None:
+        assert "_variable_name" in metadata.keys()
+        metadata = metadata.copy()
+        name = metadata["_variable_name"]
+        base_name = f"{name}_{uuid.uuid4()}"
+        metadata["_pickle_file_name"] = os.path.join(self.ids.cache_dir, f"{base_name}.pkl")
+        metadata_file_name = os.path.join(self.ids.cache_dir, f"{base_name}.metadata")
+        with open(metadata["_pickle_file_name"], "wb") as pickle_fh:
+            pickle.dump(data, pickle_fh)
+        with open(metadata_file_name, "wb") as metadata_fh:
+            pickle.dump(metadata, metadata_fh)
+        logger.info("Caching %s in %s.", name, metadata["_pickle_file_name"])
+
+    def _query_cache(self, required_metadata: dict) -> Optional[Any]:
+        assert "_variable_name" in required_metadata.keys()
+        name = required_metadata["_variable_name"]
+        for metadata_file in glob.glob(os.path.join(self.ids.cache_dir, f"{name}_*.metadata")):
+            with open(metadata_file, "rb") as metadata_fh:
+                potential_metadata = pickle.load(metadata_fh)
+                pickle_file_name = potential_metadata["_pickle_file_name"]
+                # require_metadata does not have a '_pickle_file_name' key, so remove before equality test
+                del potential_metadata["_pickle_file_name"]
+                if required_metadata == potential_metadata:
+                    with open(pickle_file_name, "rb") as pickle_fh:
+                        logger.info("Loading cached %s from %s.", name, pickle_file_name)
+                        return pickle.load(pickle_fh)
+        return None
+
     def write_data_source_files(self) -> None:
         """Write the data source files if they don't already exist"""
         data_sources_dir = os.path.join(self.ids.output_dir, f"{self.ids.short_polarity}_data_sources")
@@ -614,12 +651,14 @@ class MetatlasDataset(HasTraits):
     def _build(self) -> None:
         """Populate self._data from database and h5 files."""
         start_time = datetime.datetime.now()
-        files = [(h5_file, group, self.atlas_df, self.atlas, self.extra_time, self.extra_mz)
-                 for group in self.ids.groups
-                 for h5_file in group.items]
+        files = [
+            (h5_file, group, self.atlas_df, self.atlas, self.extra_time, self.extra_mz)
+            for group in self.ids.groups
+            for h5_file in group.items
+        ]
         try:
             if len(files) == 0:
-                raise ValueError('No matching h5 files were found')
+                raise ValueError("No matching h5 files were found")
         except ValueError as err:
             logger.exception(err)
             raise err
@@ -871,22 +910,37 @@ class MetatlasDataset(HasTraits):
         _ = self.atlas_df  # regenerate if needed before logging hits generation
         _ = self.data  # regenerate if needed before logging hits generation
         if self._hits is None:
-            logger.info(
-                "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs_loc=%s.",
-                self.extra_time,
-                self.frag_mz_tolerance,
-                self.msms_refs_loc,
-            )
-            start_time = datetime.datetime.now()
-            self._hits = dp.get_msms_hits(
-                self.data,
-                extra_time=self.extra_time > 0,
-                keep_nonmatches=self.keep_nonmatches,
-                frag_mz_tolerance=self.frag_mz_tolerance,
-                ref_loc=self.msms_refs_loc,
-            )
-            logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
-            self._hits_valid_for_rt_bounds = True
+            metadata = {
+                "_variable_name": "hits",
+                "polarity": self.ids.polarity,
+                "extra_time": self.extra_time,
+                "keep_nonmatches": self.keep_nonmatches,
+                "frag_mz_tolerance": self.frag_mz_tolerance,
+                "ref_loc": self.msms_refs_loc,
+                "extra_mz": self.extra_mz,
+                "output_type": self.ids.output_type,
+            }
+            self._hits = self._query_cache(metadata)
+            if self._hits is None:
+                logger.info(
+                    "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs_loc=%s.",
+                    self.extra_time,
+                    self.frag_mz_tolerance,
+                    self.msms_refs_loc,
+                )
+                start_time = datetime.datetime.now()
+                self._hits = dp.get_msms_hits(
+                    self.data,
+                    extra_time=self.extra_time > 0,
+                    keep_nonmatches=self.keep_nonmatches,
+                    frag_mz_tolerance=self.frag_mz_tolerance,
+                    ref_loc=self.msms_refs_loc,
+                )
+                logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
+                self._hits_valid_for_rt_bounds = True
+                self._save_to_cache(self._hits, metadata)
+            else:
+                self._hits_valid_for_rt_bounds = False  # unsure, so assume False
         return self._hits
 
     def __len__(self) -> int:

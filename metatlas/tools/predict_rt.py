@@ -8,6 +8,7 @@ import os
 
 from datetime import datetime
 from pathlib import Path
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -90,7 +91,7 @@ class Model:
         return self.sk_model.predict(x_transformed)
 
 
-def generate_rt_correction_models(ids: mads.AnalysisIdentifiers, cpus: int) -> (Model, Model):
+def generate_rt_correction_models(ids: mads.AnalysisIdentifiers, cpus: int) -> Tuple[Model, Model]:
     """
     Generate the RT correction models and model charaterization files
     inputs:
@@ -146,9 +147,38 @@ def generate_outputs(ids, cpus, repo_dir, save_to_db=True, use_poly_model=True, 
     if not model_only:
         atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
         write_notebooks(ids, atlases, repo_dir, use_poly_model)
+        get_msms_hits_for_all_notebooks(ids, atlases, cpus, use_poly_model)
     targeted_output.copy_outputs_to_google_drive(ids)
     targeted_output.archive_outputs(ids)
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
+
+
+def get_msms_hits_for_all_notebooks(ids, atlases, cpus, use_poly_model):
+    """
+    inputs:
+        ids: an AnalysisIds object matching the one used in the main notebook
+        atlases: list of atlas names to consider generating hits for
+        cpus: max number of cpus to use
+        use_poly_model: If True, use the polynomial model, else use linear model
+                        Both types of models are always generated, this only determines which ones
+                        are pre-populated into the generated notebooks
+    Calls MetatlasDataset().hits, which will create a hits cache file
+    """
+    for atlas_name in atlases:
+        if (use_poly_model and "linear" in atlas_name) or (not use_poly_model and "polynomial" in atlas_name):
+            continue
+        polarity = "positive" if "_POS_" in atlas_name else "negative"
+        output_type = "FinalEMA-HILIC" if "EMA_Unlab" in atlas_name else "ISTDsEtc"
+        current_ids = mads.AnalysisIdentifiers(
+            source_atlas=atlas_name,
+            experiment=ids.experiment,
+            output_type=output_type,
+            polarity=polarity,
+            analysis_number=ids.analysis_number,
+            project_directory=ids.project_directory,
+            google_folder=ids.google_folder,
+        )
+        _ = mads.MetatlasDataset(ids=current_ids, max_cpus=cpus).hits
 
 
 def get_groups(ids):
