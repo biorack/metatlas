@@ -20,6 +20,23 @@ rclone config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0
 scp $(rclone config file | tail -1) dtn01.nersc.gov:~/.config/rclone/rclone.conf
 ```
 
+Now you can verify that rclone is working correctly by running this on Cori:
+```
+/global/cfs/cdirs/m342/USA/shared-repos/rclone/bin/rclone lsd metabolomics:Analysis_uploads
+```
+
+which should yield a listing of metabolomics experiment names similar to:
+
+```
+          -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
+          -1 2021-08-30 12:32:39        -1 20210518_JGI-AK_IG-SS_503256_BETO_Pceleri_QE-HF_HILICZ_USHXG01602
+          -1 2021-09-13 16:39:15        -1 20210721_JGI-AK_JB_504782_PseudoOphi_final_QE-139_HILICZ_USHXG01490
+          -1 2021-09-13 17:40:55        -1 20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494
+          -1 2021-09-13 16:39:15        -1 20210728_JGI-AK_MD_507130_Bioscales_pilot2_QE-139_HILICZ_USHXG01490
+          -1 2021-09-10 16:05:18        -1 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490
+          -1 2021-09-13 16:34:45        -1 20210819_JGI-AK_MK_506588_SoilWaterRep_final_QE-139_HILICZ_USHXG01490
+```
+
 #### For Windows
 
 1. Download and unzip [rclone-current-windows-amd64.zip](https://downloads.rclone.org/rclone-current-windows-amd64.zip).
