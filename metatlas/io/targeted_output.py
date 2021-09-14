@@ -315,6 +315,9 @@ def copy_outputs_to_google_drive(ids):
     if drive is None:
         logger.warning("RClone config file missing JGI_Metabolomics_Projects -- %s.", fail_suffix)
         return
-    sub_folder = os.path.join("Analysis_uploads", ids.experiment, ids.analysis, ids.output_type)
+    folders = [ids.experiment, ids.analysis, ids.output_type]
+    if ids.output_type != 'data_QC':
+        folders.append(ids.short_polarity)
+    sub_folder = os.path.join("Analysis_uploads", *folders)
     rci.copy_to_drive(ids.output_dir, drive, sub_folder)
     logger.info("Done copying output files to Google Drive")
