@@ -10,6 +10,8 @@ from collections import namedtuple
 import numpy as np
 import pandas as pd
 
+from IPython.core.display import display, HTML
+
 from metatlas.io import rclone
 from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
@@ -98,7 +100,8 @@ def write_chromatograms(metatlas_dataset, group_by="index", share_y=True, overwr
         share_y: use a common y-axis scaling
         overwrite: if False raise error if file already exists
     """
-    # logging and overwrite checks done within dp.make_chromatograms
+    # overwrite checks done within dp.make_chromatograms
+    logger.info('Exporting chromotograms to %s', metatlas_dataset.ids.output_dir)
     dp.make_chromatograms(
         input_dataset=metatlas_dataset,
         include_lcmsruns=[],
@@ -116,8 +119,9 @@ def write_chromatograms(metatlas_dataset, group_by="index", share_y=True, overwr
 
 
 def write_identification_figure(metatlas_dataset, overwrite=False):
-    """Save identificatoin figure. Will not overwrite existing file unless overwrite is True"""
-    # logging and overwrite checks done within dp.make_identification_figure_v2
+    """Save identification figure. Will not overwrite existing file unless overwrite is True"""
+    # overwrite checks done within dp.make_identification_figure_v2
+    logger.info('Exporting indentification figures to %s', metatlas_dataset.ids.output_dir)
     dp.make_identification_figure_v2(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
@@ -318,6 +322,8 @@ def copy_outputs_to_google_drive(ids):
     folders = [ids.experiment, ids.analysis, ids.output_type]
     if ids.output_type != 'data_QC':
         folders.append(ids.short_polarity)
-    sub_folder = os.path.join("Analysis_uploads", *folders)
-    rci.copy_to_drive(ids.output_dir, drive, sub_folder)
+    sub_folders_string = os.path.join("Analysis_uploads", *folders)
+    rci.copy_to_drive(ids.output_dir, drive, sub_folders_string)
     logger.info("Done copying output files to Google Drive")
+    path_string = f"{drive}:{sub_folders_string}"
+    display(HTML(f'Data is now on Google Drive at <a href="{rci.path_to_url(path_string)}">{path_string}</a>'))

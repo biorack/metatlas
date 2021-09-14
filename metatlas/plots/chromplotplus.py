@@ -233,7 +233,7 @@ class ChromPlotPlus:
             plt.rcParams['text.usetex'] = False
             pdf.savefig(self.fig)
             plt.close()
-            logger.info("Exported chromatogram to %s.", self.file_name)
+            logger.debug("Exported chromatogram to %s.", self.file_name)
 
     @staticmethod
     def __yield_label():

@@ -1,6 +1,7 @@
 """ copy files to Google Drive using rclone """
 
 import configparser
+import json
 import logging
 import subprocess
 
@@ -56,3 +57,47 @@ class RClone:
             raise err
         except FileNotFoundError:
             logger.info("rclone not found. Skipping transfer to Google Drive")
+
+    def parse_path(self, path_string):
+        """
+        Inputs:
+            path_string: a string containing drive_name a colon and one or more folders like:
+                         'my_drive:folder1/folder2'
+        returns a tuple of the drive_name, folder_list
+        """
+        drive = path_string.split(':')[0]
+        remainder = ':'.join(path_string.split(':')[1:])
+        return drive, remainder.split('/')
+
+    def get_id_for_path(self, path_string):
+        """
+        Inputs:
+            path_string: a string containing drive_name a colon and one or more folders like:
+                         'my_drive:folder1/folder2'
+        returns an ID string which can be used in a Google Drive URL
+        """
+        drive, folders = self.parse_path(path_string)
+        assert isinstance(folders, list)
+        assert isinstance(folders[:-1], list)
+        all_but_last = f"{drive}:{'/'.join(folders[:-1])}"
+        command_list = [self.rclone_path, "lsjson", "--dirs-only", all_but_last]
+        try:
+            result = subprocess.check_output(command_list, text=True)
+        except subprocess.CalledProcessError as err:
+            logger.exception(err)
+            raise err
+        returned_folders = json.loads(result)
+        for folder in returned_folders:
+            if folder['Name'] == folders[-1]:
+                return folder['ID']
+        raise FileNotFoundError(f"Could not find a file or folder at {path_string}")
+
+    def path_to_url(self, path_string):
+        """
+        Inputs:
+            path_string: a string containing drive_name a colon and one or more folders like:
+                         'my_drive:folder1/folder2'
+        returns an URL for opening the object at path_string
+        """
+        drive_id = self.get_id_for_path(path_string)
+        return f"https://drive.google.com/drive/folders/{drive_id}"

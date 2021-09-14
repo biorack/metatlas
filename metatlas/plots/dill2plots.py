@@ -1578,6 +1578,7 @@ def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
 
 def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="", overwrite=True, max_cpus=1):
     output_loc = os.path.expandvars(output_loc)
+    logger.info('Exporting box plots of %s to %s.', ylabel, output_loc)
     disable_interactive_plots()
     args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite) for compound in df.index]
     parallel.parallel_process(make_boxplot, args, max_cpus, unit='plot')
@@ -1604,7 +1605,7 @@ def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite):
     write_utils.check_existing_file(fig_path, overwrite)
     f.savefig(fig_path)
     plt.close(f)
-    logger.info('Exported box plot of %s for %s at %s.', ylabel, compound, fig_path)
+    logger.debug('Exported box plot of %s for %s at %s.', ylabel, compound, fig_path)
 
 
 def frag_refs_to_json(json_dir = '/project/projectdirs/metatlas/projects/sharepoint/', name = 'frag_refs', save = True):
@@ -2357,7 +2358,7 @@ def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcms
         write_utils.check_existing_file(fig_path, overwrite)
         plt.savefig(fig_path)
         plt.close()
-        logger.info('Exported identification figures for %s to %s.', compound_names[compound_idx], fig_path)
+        logger.debug('Exported identification figures for %s to %s.', compound_names[compound_idx], fig_path)
     match_path = os.path.join(output_loc, 'MatchingMZs.tab')
     write_utils.export_dataframe(match, match_path, 'matching MZs', overwrite, sep='\t')
 
