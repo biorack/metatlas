@@ -249,7 +249,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         final_df.loc[compound_idx, 'ms1_notes'] = cid.ms1_notes
         final_df.loc[compound_idx, 'ms2_notes'] = cid.ms2_notes
         try:
-            final_df.loc[compound_idx, 'msms_quality'] = int(final_df.loc[compound_idx, 'ms2_notes'].split(',')[0])
+            final_df.loc[compound_idx, 'msms_quality'] = float(final_df.loc[compound_idx, 'ms2_notes'].split(',')[0])
         except ValueError:
             final_df.loc[compound_idx, 'msms_quality'] = ''
         quality_scores = [final_df.loc[compound_idx, x] for x in ['msms_quality', 'mz_quality', 'rt_quality']]
