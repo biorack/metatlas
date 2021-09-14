@@ -291,7 +291,8 @@ def archive_outputs(ids):
         ids: an AnalysisIds object
     """
     logger.info("Generating archive of output files.")
-    output_file = f"{ids.short_experiment_analysis}.tar.gz"
+    suffix = "" if ids.output_type == 'data_QC' else f"-{ids.short_polarity}"
+    output_file = f"{ids.short_experiment_analysis}{suffix}.tar.gz"
     output_path = os.path.join(ids.project_directory, ids.experiment, output_file)
     with tarfile.open(output_path, "w:gz") as tar:
         tar.add(ids.output_dir, arcname=os.path.basename(ids.output_dir))
