@@ -555,13 +555,14 @@ class MetatlasDataset(HasTraits):
         metadata = metadata.copy()
         name = metadata["_variable_name"]
         base_name = f"{name}_{uuid.uuid4()}"
-        metadata["_pickle_file_name"] = os.path.join(self.ids.cache_dir, f"{base_name}.pkl")
+        metadata["_pickle_file_name"] = f"{base_name}.pkl"  # relative to metadata file
         metadata_file_name = os.path.join(self.ids.cache_dir, f"{base_name}.metadata")
-        with open(metadata["_pickle_file_name"], "wb") as pickle_fh:
+        pickle_path = os.path.join(self.ids.cache_dir, metadata["_pickle_file_name"])
+        with open(pickle_path, "wb") as pickle_fh:
             pickle.dump(data, pickle_fh)
         with open(metadata_file_name, "wb") as metadata_fh:
             pickle.dump(metadata, metadata_fh)
-        logger.info("Caching %s in %s.", name, metadata["_pickle_file_name"])
+        logger.info("Caching %s in %s.", name, pickle_path)
 
     def _query_cache(self, required_metadata: dict) -> Optional[Any]:
         assert "_variable_name" in required_metadata.keys()
@@ -569,7 +570,7 @@ class MetatlasDataset(HasTraits):
         for metadata_file in glob.glob(os.path.join(self.ids.cache_dir, f"{name}_*.metadata")):
             with open(metadata_file, "rb") as metadata_fh:
                 potential_metadata = pickle.load(metadata_fh)
-                pickle_file_name = potential_metadata["_pickle_file_name"]
+                pickle_file_name = os.path.join(self.ids.cache_dir, potential_metadata["_pickle_file_name"])
                 # require_metadata does not have a '_pickle_file_name' key, so remove before equality test
                 del potential_metadata["_pickle_file_name"]
                 if required_metadata == potential_metadata:
