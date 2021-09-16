@@ -101,7 +101,7 @@ def write_chromatograms(metatlas_dataset, group_by="index", share_y=True, overwr
         overwrite: if False raise error if file already exists
     """
     # overwrite checks done within dp.make_chromatograms
-    logger.info('Exporting chromotograms to %s', metatlas_dataset.ids.output_dir)
+    logger.info("Exporting chromotograms to %s", metatlas_dataset.ids.output_dir)
     dp.make_chromatograms(
         input_dataset=metatlas_dataset,
         include_lcmsruns=[],
@@ -121,7 +121,7 @@ def write_chromatograms(metatlas_dataset, group_by="index", share_y=True, overwr
 def write_identification_figure(metatlas_dataset, overwrite=False):
     """Save identification figure. Will not overwrite existing file unless overwrite is True"""
     # overwrite checks done within dp.make_identification_figure_v2
-    logger.info('Exporting indentification figures to %s', metatlas_dataset.ids.output_dir)
+    logger.info("Exporting indentification figures to %s", metatlas_dataset.ids.output_dir)
     dp.make_identification_figure_v2(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
@@ -295,7 +295,7 @@ def archive_outputs(ids):
         ids: an AnalysisIds object
     """
     logger.info("Generating archive of output files.")
-    suffix = "" if ids.output_type == 'data_QC' else f"-{ids.short_polarity}"
+    suffix = "" if ids.output_type == "data_QC" else f"-{ids.short_polarity}"
     output_file = f"{ids.short_experiment_analysis}{suffix}.tar.gz"
     output_path = os.path.join(ids.project_directory, ids.experiment, output_file)
     with tarfile.open(output_path, "w:gz") as tar:
@@ -320,10 +320,12 @@ def copy_outputs_to_google_drive(ids):
         logger.warning("RClone config file missing JGI_Metabolomics_Projects -- %s.", fail_suffix)
         return
     folders = [ids.experiment, ids.analysis, ids.output_type]
-    if ids.output_type != 'data_QC':
+    if ids.output_type != "data_QC":
         folders.append(ids.short_polarity)
     sub_folders_string = os.path.join("Analysis_uploads", *folders)
     rci.copy_to_drive(ids.output_dir, drive, sub_folders_string)
     logger.info("Done copying output files to Google Drive")
     path_string = f"{drive}:{sub_folders_string}"
-    display(HTML(f'Data is now on Google Drive at <a href="{rci.path_to_url(path_string)}">{path_string}</a>'))
+    display(
+        HTML(f'Data is now on Google Drive at <a href="{rci.path_to_url(path_string)}">{path_string}</a>')
+    )

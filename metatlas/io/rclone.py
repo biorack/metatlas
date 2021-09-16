@@ -65,9 +65,9 @@ class RClone:
                          'my_drive:folder1/folder2'
         returns a tuple of the drive_name, folder_list
         """
-        drive = path_string.split(':')[0]
-        remainder = ':'.join(path_string.split(':')[1:])
-        return drive, remainder.split('/')
+        drive = path_string.split(":")[0]
+        remainder = ":".join(path_string.split(":")[1:])
+        return drive, remainder.split("/")
 
     def get_id_for_path(self, path_string):
         """
@@ -88,8 +88,8 @@ class RClone:
             raise err
         returned_folders = json.loads(result)
         for folder in returned_folders:
-            if folder['Name'] == folders[-1]:
-                return folder['ID']
+            if folder["Name"] == folders[-1]:
+                return folder["ID"]
         raise FileNotFoundError(f"Could not find a file or folder at {path_string}")
 
     def path_to_url(self, path_string):
