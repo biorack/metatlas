@@ -195,7 +195,7 @@ class AnalysisIdentifiers(HasTraits):
         if proposal["value"] is not None:
             proposed_name = cast(AtlasName, proposal["value"])
             try:
-                get_atlas(proposed_name, self.username)  # raises error if not found or matches multiple
+                get_atlas(proposed_name, "*")  # raises error if not found or matches multiple
             except ValueError as err:
                 raise TraitError(str(err)) from err
             return proposed_name
