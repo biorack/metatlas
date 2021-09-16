@@ -636,7 +636,7 @@ class MetatlasDataset(HasTraits):
 
     def _clone_source_atlas(self) -> metob.Atlas:
         logger.info("Retriving source atlas: %s", self.ids.source_atlas)
-        source_atlas = get_atlas(cast(AtlasName, self.ids.source_atlas), self.ids.username)
+        source_atlas = get_atlas(cast(AtlasName, self.ids.source_atlas), "*")
         source_atlas_df = ma_data.make_atlas_df(source_atlas)
         logger.info("Cloning atlas %s", self.ids.source_atlas)
         return dp.make_atlas_from_spreadsheet(
