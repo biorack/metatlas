@@ -543,6 +543,7 @@ class MetatlasDataset(HasTraits):
         super().__init__(**kwargs)
         logger.debug("Creating new MetatlasDataset instance...")
         self._hits_valid_for_rt_bounds = False  # based only on RT min/max changes
+        self._data_valid_for_rt_bounds = False  # based only on RT min/max changes
         if self.ids.source_atlas is not None:
             self._get_atlas()
         if self.save_metadata:
@@ -832,6 +833,7 @@ class MetatlasDataset(HasTraits):
         """data getter, update ._data if necessary"""
         if self._data is None:
             self._build()
+            self._data_valid_for_rt_bounds = True
         return cast(Tuple[MetatlasSample, ...], self._data)
 
     @property
@@ -982,6 +984,7 @@ class MetatlasDataset(HasTraits):
         metob.store(atlas_rt_ref)
         if which in ["rt_min", "rt_max"]:
             self._hits_valid_for_rt_bounds = False
+            self._data_valid_for_rt_bounds = False
 
     def set_note(self, compound_idx: int, which: str, value: str) -> None:
         """
@@ -1074,6 +1077,8 @@ class MetatlasDataset(HasTraits):
         """
         if not self._hits_valid_for_rt_bounds:
             self._hits = None  # force hits to be regenerated
+        if not self._data_valid_for_rt_bounds:
+            self._data = None  # force data to be regenerated
         self.extra_time = 0.5
         logger.info("extra_time set to 0.5 minutes for output generation.")
         logger.info("Removing InjBl from exclude_groups.")

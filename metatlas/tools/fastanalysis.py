@@ -270,7 +270,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].idxmax()]['intensity']
             max_intensity_file_id = int(intensities.loc[intensities['intensity'].idxmax()]['file_id'])
             final_df.loc[compound_idx, 'max_intensity_file'] = file_names[max_intensity_file_id]
-            final_df.loc[compound_idx, 'ms1_rt_peak'] = dataset[max_intensity_file_id][compound_idx]['identification'].rt_references[0].rt_peak
+            final_df.loc[compound_idx, 'ms1_rt_peak'] = dataset[max_intensity_file_id][compound_idx]['data']['ms1_summary']['rt_peak']
         else:
             final_df.loc[compound_idx, 'max_intensity'] = ""
             final_df.loc[compound_idx, 'max_intensity_file'] = ""
