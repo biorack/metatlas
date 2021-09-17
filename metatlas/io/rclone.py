@@ -5,6 +5,7 @@ import json
 import logging
 import subprocess
 
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +13,10 @@ logger = logging.getLogger(__name__)
 class RClone:
     """Access to Google Drive"""
 
-    def __init__(self, rclone_path):
+    def __init__(self, rclone_path: str) -> None:
         self.rclone_path = rclone_path
 
-    def config_file(self):
+    def config_file(self) -> Optional[str]:
         """Returns path to config file or None"""
         try:
             result = subprocess.check_output([self.rclone_path, "config", "file"], text=True)
@@ -23,7 +24,7 @@ class RClone:
             return None
         return result.split("\n")[1]
 
-    def get_name_for_id(self, identifier):
+    def get_name_for_id(self, identifier: str) -> Optional[str]:
         """
         Inputs:
             identifer: unique folder identifier from Google Drive URL
@@ -42,7 +43,7 @@ class RClone:
                     return name
         return None
 
-    def copy_to_drive(self, source, drive, dest_path=None):
+    def copy_to_drive(self, source: str, drive: str, dest_path: str = None) -> None:
         """
         Inputs:
             source: file or directory to copy to drive
@@ -58,25 +59,14 @@ class RClone:
         except FileNotFoundError:
             logger.info("rclone not found. Skipping transfer to Google Drive")
 
-    def parse_path(self, path_string):
-        """
-        Inputs:
-            path_string: a string containing drive_name a colon and one or more folders like:
-                         'my_drive:folder1/folder2'
-        returns a tuple of the drive_name, folder_list
-        """
-        drive = path_string.split(":")[0]
-        remainder = ":".join(path_string.split(":")[1:])
-        return drive, remainder.split("/")
-
-    def get_id_for_path(self, path_string):
+    def get_id_for_path(self, path_string: str) -> str:
         """
         Inputs:
             path_string: a string containing drive_name a colon and one or more folders like:
                          'my_drive:folder1/folder2'
         returns an ID string which can be used in a Google Drive URL
         """
-        drive, folders = self.parse_path(path_string)
+        drive, folders = parse_path(path_string)
         assert isinstance(folders, list)
         assert isinstance(folders[:-1], list)
         all_but_last = f"{drive}:{'/'.join(folders[:-1])}"
@@ -92,7 +82,7 @@ class RClone:
                 return folder["ID"]
         raise FileNotFoundError(f"Could not find a file or folder at {path_string}")
 
-    def path_to_url(self, path_string):
+    def path_to_url(self, path_string: str) -> str:
         """
         Inputs:
             path_string: a string containing drive_name a colon and one or more folders like:
@@ -101,3 +91,15 @@ class RClone:
         """
         drive_id = self.get_id_for_path(path_string)
         return f"https://drive.google.com/drive/folders/{drive_id}"
+
+
+def parse_path(path_string: str) -> Tuple[str, List[str]]:
+    """
+    Inputs:
+        path_string: a string containing drive_name a colon and one or more folders like:
+                     'my_drive:folder1/folder2'
+    returns a tuple of the drive_name, folder_list
+    """
+    drive = path_string.split(":")[0]
+    remainder = ":".join(path_string.split(":")[1:])
+    return drive, remainder.split("/")
