@@ -41,6 +41,11 @@ module = [
 ]
 ignore_missing_imports = true
 
+[tool.pylint.MASTER]
+extension-pkg-allow-list = [
+    "rdkit"
+]
+
 [tool.pylint.messages_control]
 # first two are for black compatibility
 # duplicate-code cannot be disabled on per file/block/line

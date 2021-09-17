@@ -1,0 +1,40 @@
+FROM python:3.8-slim-bullseye
+
+# https://portal.nersc.gov/cfs/m2650/metatlas/test_data
+# serves from /global/cfs/cdirs/m2650/www/metatlas/test_data
+ARG BASE_DATA_URL=https://portal.nersc.gov/cfs/m2650/metatlas/test_data/ci01
+ARG REFS_DIR=/global/project/projectdirs/metatlas/projects/spectral_libraries
+
+ENV METATLAS_LOCAL=True
+
+EXPOSE 8888
+
+RUN apt-get update && \
+    apt-get install -y \
+        libxrender1 \
+	nodejs \
+	npm && \
+    rm -rf /var/lib/apt/lists/*
+
+
+COPY requirements.txt /requirements.txt
+
+RUN pip install --quiet -r requirements.txt && \
+    pip install qgrid && \
+    jupyter nbextension enable --py --sys-prefix qgrid && \
+    jupyter nbextension enable --py --sys-prefix widgetsnbextension && \
+    jupyter labextension install @jupyter-widgets/jupyterlab-manager
+
+
+RUN mkdir -p /io /src /work $REFS_DIR
+
+ADD $BASE_DATA_URL/msms_refs_v3.tab $REFS_DIR/
+
+ADD $BASE_DATA_URL/meta_atlas.sqlite3 /work/root_workspace.db
+
+RUN mkdir -p /root/.local/share/jupyter/kernels/metatlas-targeted
+COPY kernel.json /root/.local/share/jupyter/kernels/metatlas-targeted/kernel.json
+
+WORKDIR /work
+
+CMD ["/usr/local/bin/jupyter", "lab", "--ip=0.0.0.0", "--allow-root", "--ServerApp.token=''", "--ServerApp.root_dir=/"]
