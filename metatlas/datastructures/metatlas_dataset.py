@@ -195,7 +195,7 @@ class AnalysisIdentifiers(HasTraits):
         if proposal["value"] is not None:
             proposed_name = cast(AtlasName, proposal["value"])
             try:
-                get_atlas(proposed_name, "*")  # raises error if not found or matches multiple
+                get_atlas(proposed_name, cast(Username, "*"))  # raises error if not found or matches multiple
             except ValueError as err:
                 raise TraitError(str(err)) from err
             return proposed_name
@@ -636,7 +636,7 @@ class MetatlasDataset(HasTraits):
 
     def _clone_source_atlas(self) -> metob.Atlas:
         logger.info("Retriving source atlas: %s", self.ids.source_atlas)
-        source_atlas = get_atlas(cast(AtlasName, self.ids.source_atlas), "*")
+        source_atlas = get_atlas(cast(AtlasName, self.ids.source_atlas), cast(Username, "*"))
         source_atlas_df = ma_data.make_atlas_df(source_atlas)
         logger.info("Cloning atlas %s", self.ids.source_atlas)
         return dp.make_atlas_from_spreadsheet(
