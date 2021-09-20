@@ -1,13 +1,10 @@
 """ For minipulating msms_refs files """
+import json
 import logging
 import math
 import uuid
 
 from typing import cast, Optional, List, TypedDict
-
-# os.chdir("/work")
-# sys.path.insert(0, "/src")
-# os.environ["METATLAS_LOCAL"] = "TRUE"
 
 import numpy as np
 import pandas as pd
@@ -22,9 +19,7 @@ from rdkit import Chem
 # from metatlas.tools import environment
 from metatlas.datastructures import metatlas_objects as metob
 
-# from metatlas.tools import notebook  # noqa: E402
-
-# notebook.setup("INFO")
+logger = logging.getLogger(__name__)
 
 REFS_V3_FILE_NAME = "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
 
@@ -125,7 +120,6 @@ class Proposal(TypedDict):
 
 class Spectrum(HasTraits):
     """List of intensities with list of corresponding MZ values"""
-
     intensities: List[float] = traitlets.List(trait=Float())
     mzs: List[float] = traitlets.List(trait=Float())
 
@@ -154,6 +148,11 @@ class Spectrum(HasTraits):
         if any(x <= 0 for x in value):
             raise TraitError("mzs values must be positive")
         return value
+
+
+def str_to_spectrum(spectrum_str: str) -> Spectrum:
+    x = json.loads(str)
+    return Spectrum(msz=x[0], intensities=x[1])
 
 
 class MsmsRef(HasTraits):
@@ -329,17 +328,17 @@ class MsmsRef(HasTraits):
         """
         # pylint: disable=too-many-return-statements
         if self.fragmentation_method not in FRAG_METHODS:
-            logging.error('Invalid fragmentation method "%s" for %s.', self.fragmentation_method, self.name)
+            logger.error('Invalid fragmentation method "%s" for %s.', self.fragmentation_method, self.name)
             return True
         if not is_valid_inchi_pair(self.inchi, self.inchi_key):
-            logging.error("Invalid inchi/inchi_key pair for %s.", self.name)
+            logger.error("Invalid inchi/inchi_key pair for %s.", self.name)
             return True
         results = metob.retrieve("compounds", username="*", inchi_key=self.inchi_key)
         if len(results) == 0:
             return False
         ref_compound = results[0]
         if self.formula != ref_compound.formula:
-            logging.error(
+            logger.error(
                 'Formula "%s" for %s does not match value "%s" in database.',
                 self.formula,
                 self.name,
@@ -347,7 +346,7 @@ class MsmsRef(HasTraits):
             )
             return True
         if not math.isclose(self.exact_mass, ref_compound.mono_isotopic_molecular_weight, rel_tol=1e-9):
-            logging.error(
+            logger.error(
                 "Exact mass %s for %s does not match value %s in database.",
                 self.exact_mass,
                 self.name,
@@ -355,7 +354,7 @@ class MsmsRef(HasTraits):
             )
             return True
         if not is_synonym(self.name, ref_compound.synonyms):
-            logging.error("Inchi_key %s does not contain name %s in database.", self.inchi_key, self.name)
+            logger.error("Inchi_key %s does not contain name %s in database.", self.inchi_key, self.name)
             return True
         return False
 
