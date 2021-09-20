@@ -19,12 +19,7 @@ RUN apt-get update && \
 
 COPY requirements.txt /requirements.txt
 
-RUN pip install --quiet -r requirements.txt && \
-    pip install qgrid && \
-    jupyter nbextension enable --py --sys-prefix qgrid && \
-    jupyter nbextension enable --py --sys-prefix widgetsnbextension && \
-    jupyter labextension install @jupyter-widgets/jupyterlab-manager
-
+RUN pip install --quiet -r requirements.txt
 
 RUN mkdir -p /io /src /work $REFS_DIR
 
