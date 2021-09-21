@@ -6,17 +6,18 @@ import uuid
 
 from typing import cast, Optional, List, TypedDict
 
+import ipysheet
+import ipywidgets as widgets
 import numpy as np
 import pandas as pd
 import traitlets
 
+from ipysheet import sheet, row, to_dataframe
+from pandas.api.types import CategoricalDtype
+from rdkit import Chem
 from traitlets import TraitError, default, validate
 from traitlets import Float, HasTraits, Instance, Int, TraitType, Unicode
 
-from pandas.api.types import CategoricalDtype
-from rdkit import Chem
-
-# from metatlas.tools import environment
 from metatlas.datastructures import metatlas_objects as metob
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,26 @@ polarity_type = CategoricalDtype(categories=POLARITIES, ordered=True)
 frag_method_type = CategoricalDtype(categories=FRAG_METHODS, ordered=False)
 instrument_type_type = CategoricalDtype(categories=INSTRUMENT_TYPES, ordered=False)
 
+REFS_TYPES = {
+    "database": "string",
+    "id": "string",
+    "name": "string",
+    "spectrum": "string",
+    "decimal": np.ushort,
+    "precursor_mz": np.float64,
+    "polarity": polarity_type,
+    "adduct": "string",
+    "fragmentation_method": frag_method_type,
+    "collision_energy": "string",
+    "instrument": "string",
+    "instrument_type": instrument_type_type,
+    "formula": "string",
+    "exact_mass": np.float64,
+    "inchi_key": "string",
+    "inchi": "string",
+    "smiles": "string",
+}
+
 
 def is_inchi(test_inchi: str) -> bool:
     """True if input can be parsed as an inchi string"""
@@ -81,6 +102,8 @@ def is_valid_inchi_smiles_pair(test_inchi: str, test_smiles: str) -> bool:
         return is_inchi(test_inchi)
     mol_from_inchi = Chem.inchi.MolFromInchi(test_inchi)
     mol_from_smiles = Chem.MolFromSmiles(test_smiles)
+    if mol_from_inchi is None or mol_from_smiles is None:
+        return False
     return are_equal(mol_from_inchi, mol_from_smiles)
 
 
@@ -119,9 +142,17 @@ class Proposal(TypedDict):
 
 
 class Spectrum(HasTraits):
+    # pylint: disable=too-few-public-methods
     """List of intensities with list of corresponding MZ values"""
     intensities: List[float] = traitlets.List(trait=Float())
     mzs: List[float] = traitlets.List(trait=Float())
+
+    def __init__(self, mzs: List[float], intensities: List[float], **kwargs) -> None:
+        """required fields are inputs"""
+        with self.hold_trait_notifications():
+            super().__init__(**kwargs)
+            self.intensities = intensities
+            self.mzs = mzs
 
     @validate("intensities")
     def _valid_intensities(self, proposal: Proposal) -> List[float]:
@@ -151,8 +182,9 @@ class Spectrum(HasTraits):
 
 
 def str_to_spectrum(spectrum_str: str) -> Spectrum:
-    x = json.loads(str)
-    return Spectrum(msz=x[0], intensities=x[1])
+    """Converts a spectrum string into a Spectrum class instance"""
+    decoded = json.loads(spectrum_str)
+    return Spectrum(mzs=decoded[0], intensities=decoded[1])
 
 
 class MsmsRef(HasTraits):
@@ -361,27 +393,58 @@ class MsmsRef(HasTraits):
 
 def read_msms_refs(file_name: str, sep="\t", **kwargs) -> pd.DataFrame:
     """Read in msms refs from file with correct types"""
-    return pd.read_csv(
-        file_name,
-        sep=sep,
-        dtype={
-            "database": "string",
-            "id": "string",
-            "name": "string",
-            "spectrum": "string",
-            "decimal": np.ushort,
-            "precursor_mz": np.float64,
-            "polarity": polarity_type,
-            "adduct": "string",
-            "fragmentation_method": frag_method_type,
-            "collision_energy": "string",
-            "instrument": "string",
-            "instrument_type": instrument_type_type,
-            "formula": "string",
-            "exact_mass": np.float64,
-            "inchi_key": "string",
-            "inchi": "string",
-            "smiles": "string",
-        },
-        **kwargs,
-    )
+    logger.info("Reading in existing references from %s", file_name)
+    return pd.read_csv(file_name, sep=sep, dtype=REFS_TYPES, **kwargs)
+
+
+def get_empty_refs() -> pd.DataFrame:
+    """Returns an empty MSMS refs DataFrame with the correct columns and types"""
+    return pd.DataFrame(data={k: [] for k, v in REFS_TYPES.items()}).astype(REFS_TYPES)
+
+
+def valid_refs(refs_df: pd.DataFrame) -> int:
+    """Return number of rows that fail validation in refs_df. Info on failures to logger"" """
+    return sum([1 if MsmsRef(**row).is_bad() else 0 for row in refs_df.rows()])
+
+
+def add_cells_for_last_row(refs_sheet: sheet) -> None:
+    """Creates cells for the last row. Required to be able to export the row later"""
+    row(refs_sheet.rows - 1, [None for _, _ in enumerate(REFS_TYPES.keys())])
+
+
+def display_refs_edit_ui(
+    input_file_name: Optional[str], output_file_name: str, validate_input_file: bool = False
+) -> widgets.Box:
+    """Create GUI spreadsheet for edited MSMS references"""
+    if input_file_name is None:
+        old_df = get_empty_refs()
+    else:
+        logger.info("Reading in existsing references from %s", input_file_name)
+        old_df = read_msms_refs(input_file_name)
+        if validate_input_file:
+            old_pass = valid_refs(old_df)
+        logger.info("%s of %s references passed validation.", old_pass, len(old_df))
+
+    sheet1 = ipysheet.sheet(rows=1, columns=len(REFS_TYPES), column_headers=list(REFS_TYPES.keys()))
+    add_cells_for_last_row(sheet1)
+    auto_populate = widgets.Button(description="Auto-populate")
+    add_row = widgets.Button(description="Add row")
+    export = widgets.Button(description="Export")
+
+    def on_auto_populate_clicked(_):
+        logger.info("Auto-populate button clicked.")
+
+    def on_add_row_clicked(_):
+        sheet1.rows += 1
+        add_cells_for_last_row(sheet1)
+
+    def on_export_clicked(_):
+        old_df = read_msms_refs(input_file_name)
+        to_add_df = to_dataframe(sheet1).dropna()
+        updated_df = pd.concat([old_df, to_add_df], ignore_index=True)
+        updated_df.to_csv(output_file_name, sep="\t", index=False)
+
+    auto_populate.on_click(on_auto_populate_clicked)
+    add_row.on_click(on_add_row_clicked)
+    export.on_click(on_export_clicked)
+    return widgets.VBox([sheet1, widgets.HBox([add_row, auto_populate, export])])

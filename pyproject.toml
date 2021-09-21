@@ -10,6 +10,7 @@ module = [
     "humanize.*",
     "h5py.*",
     "ijson.*",
+    "ipysheet.*",
     "IPython.*",
     "ipywidgets.*",
     "labkey.*",
