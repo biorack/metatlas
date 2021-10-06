@@ -150,6 +150,7 @@ INPUTS = [
 
 class InputDict(TypedDict, total=False):
     """Type for holding one row from input sheet"""
+
     name: str
     molecule_id: str
     adduct: str
@@ -640,11 +641,9 @@ def build_msms_ref(in_dict: InputDict) -> MsmsRef:
             in_dict["mz_tolerance"],
         )
     except IndexError as err:
-        logger.error(f"Matching spectrum not found for {in_dict['name']}")
+        logger.error("Matching spectrum not found for %s.", in_dict["name"])
         raise err
-    ref_dict["polarity"] = (
-        "positive" if cheminfo.is_positive_mode(str(ref_dict["adduct"])) else "negative"
-    )
+    ref_dict["polarity"] = "positive" if cheminfo.is_positive_mode(str(ref_dict["adduct"])) else "negative"
     mol = cheminfo.normalize_molecule(cheminfo.inchi_or_smiles_to_molecule(in_dict["molecule_id"]))
     ref_dict["inchi"] = Chem.inchi.MolToInchi(mol)
     ref_dict["smiles"] = Chem.MolToSmiles(mol)
