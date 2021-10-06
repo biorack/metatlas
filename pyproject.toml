@@ -14,6 +14,7 @@ module = [
     "IPython.*",
     "ipywidgets.*",
     "labkey.*",
+    "matchms.*",
     "matplotlib.*",
     "metatlas.h5_query.*",
     "metatlas.helpers.*",

@@ -1,11 +1,8 @@
 """ unit tests for add_msms_refs module """
 # pylint: disable=missing-function-docstring,line-too-long
 
-import json
 import pytest
 import traitlets
-
-from rdkit import Chem
 
 from metatlas.tools import add_msms_ref
 
@@ -24,7 +21,7 @@ def tests_msms_ref01(mocker, compound):
         precursor_mz=251.101839276,
         polarity="negative",
         adduct="[M-H]+",
-        fragmentation_method="cid",
+        fragmentation_method="CID",
         collision_energy="60eV",
         instrument="ThermoTOF-3000",
         instrument_type="LC-ESI-QTOF",
@@ -46,7 +43,7 @@ def tests_msms_ref02(mocker, compound):
             precursor_mz=251.101839276,
             polarity="negative",
             adduct="[M-H]+",
-            fragmentation_method="cid",
+            fragmentation_method="CID",
             collision_energy="60eV",
             instrument="ThermoTOF-3000",
             instrument_type="LC-ESI-QTOF",
@@ -55,46 +52,6 @@ def tests_msms_ref02(mocker, compound):
             inchi_key="xxx",
             inchi=INCHI,
         )
-
-
-def test_is_inchi01():
-    assert add_msms_ref.is_inchi(INCHI)
-    assert not add_msms_ref.is_inchi("f{INCHI}BLAH")
-    assert not add_msms_ref.is_inchi("")
-    assert not add_msms_ref.is_inchi("InChI=")
-
-
-def test_is_valid_inchi_pair():
-    assert add_msms_ref.is_valid_inchi_pair(INCHI, INCHI_KEY)
-    assert not add_msms_ref.is_valid_inchi_pair("", INCHI_KEY)
-    assert not add_msms_ref.is_valid_inchi_pair(INCHI, "")
-    assert not add_msms_ref.is_valid_inchi_pair(f"{INCHI}foobar!", INCHI_KEY)
-    assert not add_msms_ref.is_valid_inchi_pair(INCHI, f"{INCHI_KEY}foobar!")
-
-
-def test_is_valid_inchi_smiles_pair():
-    assert add_msms_ref.is_valid_inchi_smiles_pair(INCHI, SMILES)
-    assert not add_msms_ref.is_valid_inchi_smiles_pair("", SMILES)
-    assert not add_msms_ref.is_valid_inchi_smiles_pair(INCHI, "")
-    assert not add_msms_ref.is_valid_inchi_smiles_pair(f"{INCHI}foobar!", SMILES)
-    assert not add_msms_ref.is_valid_inchi_smiles_pair(INCHI, f"{SMILES}foobar!")
-
-
-def test_are_equal():
-    mol1 = Chem.inchi.MolFromInchi(INCHI)
-    mol2 = Chem.inchi.MolFromInchi("InChI=1S/H2O/h1H2")
-    assert add_msms_ref.are_equal(mol1, mol1)
-    assert add_msms_ref.are_equal(mol2, mol2)
-    assert not add_msms_ref.are_equal(mol1, mol2)
-    assert not add_msms_ref.are_equal(mol2, mol1)
-
-
-def test_is_synonym():
-    assert add_msms_ref.is_synonym("foobar", "FOO///bar///FooZoo///FooBar")
-    assert add_msms_ref.is_synonym("foobar", "FOOBAR")
-    assert add_msms_ref.is_synonym("FooBar", "foobar///bar///FooZoo///FooBeeear")
-    assert not add_msms_ref.is_synonym("foobar", "")
-    assert not add_msms_ref.is_synonym("FooBarz", "foobar///bar///FooZoo///FooBeeear")
 
 
 def test_spectrum01():
@@ -116,12 +73,61 @@ def test_spectrum02():
         add_msms_ref.Spectrum(intensities=[1, 1], mzs=[123, 22])
 
 
-def test_str_to_spectrum():
+def test_str_to_spectrum(caplog):
     spectrum1 = add_msms_ref.str_to_spectrum("[[123.456,145.789],[1.0,2.2]]")
     assert spectrum1.mzs == [123.456, 145.789]
     assert spectrum1.intensities == [1.0, 2.2]
     spectrum2 = add_msms_ref.str_to_spectrum("[ [123.456, 145.789], [1.0, 2.2] ]")
     assert spectrum2.mzs == [123.456, 145.789]
     assert spectrum2.intensities == [1.0, 2.2]
-    with pytest.raises(json.JSONDecodeError):
-        add_msms_ref.str_to_spectrum("foobar")
+    spectrum3 = add_msms_ref.str_to_spectrum("[ [], [] ]")
+    assert spectrum3.mzs == []
+    assert spectrum3.intensities == []
+    spectrum4 = add_msms_ref.str_to_spectrum("foobar")
+    assert spectrum4.mzs == []
+    assert spectrum4.intensities == []
+    assert "Cannot convert 'foobar' to a Spectrum object, setting to empty spectrum" in caplog.text
+
+
+def test_has_missing_fields01():
+    ref = add_msms_ref.MsmsRef(
+        id="abcdefghijklmnop",
+        database="my_db",
+        name="2'-deoxyadenosine",
+        spectrum=add_msms_ref.Spectrum(intensities=[1, 1.4, 2], mzs=[100, 101, 555]),
+        decimal=4,
+        precursor_mz=251.101839276,
+        polarity="negative",
+        adduct="[M-H]+",
+        fragmentation_method="CID",
+        collision_energy="60eV",
+        instrument="ThermoTOF-3000",
+        instrument_type="LC-ESI-QTOF",
+        formula="C10H13N5O3",
+        exact_mass=251.101839276,
+        inchi_key=INCHI_KEY,
+        inchi=INCHI,
+    )
+    assert not ref.has_missing_fields()
+
+
+def test_has_missing_fields02(caplog):
+    ref = add_msms_ref.MsmsRef(
+        database="my_db",
+        name="2'-deoxyadenosine",
+        spectrum=add_msms_ref.Spectrum(intensities=[1, 1.4, 2], mzs=[100, 101, 555]),
+        decimal=4,
+        precursor_mz=251.101839276,
+        polarity="negative",
+        adduct="[M-H]+",
+        fragmentation_method="CID",
+        collision_energy="60eV",
+        instrument="ThermoTOF-3000",
+        instrument_type="LC-ESI-QTOF",
+        formula="C10H13N5O3",
+        exact_mass=251.101839276,
+        inchi_key=INCHI_KEY,
+        inchi=INCHI,
+    )
+    assert ref.has_missing_fields()
+    assert "No 'id' field in" in caplog.text
