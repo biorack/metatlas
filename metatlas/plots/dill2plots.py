@@ -459,15 +459,16 @@ class adjust_rt_for_selected_compound(object):
 
     def filter_hits(self):
         ident = self.data[0][self.compound_idx]['identification']
-        inchi_key = extract(ident, ['compound', -1, 'inchi_key'])
+        inchi_key = extract(ident, ['compound', -1, 'inchi_key'], None)
         hits_mz_tolerance = ident.mz_references[-1].mz_tolerance*1e-6
         mz_theoretical = ident.mz_references[0].mz
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
-        self.hits = self.msms_hits[(my_scan_rt >= float(self.data.rts[self.compound_idx].rt_min)) &
-                                   (my_scan_rt <= float(self.data.rts[self.compound_idx].rt_max)) &
-                                   (self.msms_hits['inchi_key'] == inchi_key) &
-                                   within_tolerance(self.msms_hits['measured_precursor_mz'],
-                                                    mz_theoretical, hits_mz_tolerance)]
+        filtered = self.msms_hits[(my_scan_rt >= float(self.data.rts[self.compound_idx].rt_min)) &
+                                  (my_scan_rt <= float(self.data.rts[self.compound_idx].rt_max)) &
+                                  within_tolerance(self.msms_hits['measured_precursor_mz'],
+                                                   mz_theoretical, hits_mz_tolerance)]
+        self.hits = filtered if inchi_key is None else filtered[(filtered['inchi_key'] == inchi_key)]
+
 
     def msms_plot(self, font_scale=10.0):
         logger.debug('Starting msms_plot')
@@ -477,9 +478,7 @@ class adjust_rt_for_selected_compound(object):
             hit_file_name, compound = get_hit_metadata(self.data, self.hits, self.file_names,
                                                        self.hit_ctr, self.compound_idx)
         mz_header, rt_header, cpd_header = get_msms_plot_headers(self.data, self.hits, self.hit_ctr,
-                                                                 self.compound_idx, compound,
-                                                                 self.similar_compounds,
-                                                                 self.file_names)
+                                                                 self.compound_idx, self.similar_compounds)
         cpd_header_wrap = fill(cpd_header, width=int(self.width * font_scale))  # text wrap
         hit_ref_id, hit_score, hit_query, hit_ref = get_msms_plot_data(self.hits, self.hit_ctr)
         self.ax2.cla()
@@ -1493,18 +1492,20 @@ def file_with_max_precursor_intensity(data,compound_idx):
                     if m > my_max:
                         my_max = m
                         idx = i
-    return idx,my_max
-
-def file_with_max_ms1_intensity(data,compound_idx):
-    idx = None
-    my_max = 0
-    for i,d in enumerate(data):
-        if d[compound_idx]['data']['eic'] and 'intensity' in list(d[compound_idx]['data']['eic'].keys()) and d[compound_idx]['data']['eic']['intensity'] != []:
-            temp = max(d[compound_idx]['data']['eic']['intensity'])
-            if temp > my_max:
-                my_max = temp
-                idx = i
-    return idx,my_max
+    return idx, my_max
+ 
+def file_with_max_ms1_intensity(data, compound_idx, limit_to_rt_range=False):
+    file_idx_max = None
+    value_max = 0
+    for file_idx, sample in enumerate(data):
+        try:
+            temp = get_ms1_df(sample[compound_idx], limit_to_rt_range)['intensity'].max()
+            if temp > value_max:
+                value_max = temp
+                file_idx_max = file_idx
+        except KeyError:
+            pass
+    return file_idx_max, value_max
 
 def file_with_max_score(data, frag_refs, compound_idx, filter_by):
     idx = []
@@ -2742,7 +2743,7 @@ def check_compound_names(atlas_df):
     """
     bad_names = []
     for _, row in atlas_df.iterrows():
-        if pd.notna(row.inchi_key):
+        if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key) > 0) and row.inchi_key != 'None':
             if not metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*'):
                 bad_names.append(row.inchi_key)
     if bad_names:
@@ -3155,7 +3156,30 @@ def disable_keyboard_shortcuts(mapping):
                 plt.rcParams[action].remove(key_combo)
 
 
-def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_compounds, file_names):
+def get_ms1_df(sample, limit_to_rt_range=True):
+    ms1_df = pd.DataFrame(data=sample['data']['eic'])
+    if not limit_to_rt_range:
+        return ms1_df
+    rt_min = sample['identification'].rt_references[0].rt_min
+    rt_max = sample['identification'].rt_references[0].rt_max
+    keep = np.logical_and(rt_min < ms1_df['rt'], ms1_df['rt'] < rt_max)
+    return ms1_df[keep]
+
+
+def get_mz_centroid(ms1_df):
+    if ms1_df.empty:
+        return np.nan
+    return sum(ms1_df.mz * ms1_df.intensity) / sum(ms1_df.intensity)
+
+
+def get_rt_peak(ms1_df):
+    if ms1_df.empty:
+        return np.nan
+    ms1_peak_df = ms1_df.loc[ms1_df['intensity'].idxmax()]
+    return ms1_peak_df.rt
+
+
+def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, similar_compounds):
     """
     inputs:
         data: metatlas_dataset-like object
@@ -3171,11 +3195,12 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, compound, similar_c
         rt_ms2 = hits.index.get_level_values('msms_scan')[hit_ctr]
         mz_precursor = hits['measured_precursor_mz'].iloc[hit_ctr]
 
-    file_idx = file_with_max_ms1_intensity(data, compound_idx)[0]
+    file_idx = file_with_max_ms1_intensity(data, compound_idx, limit_to_rt_range=True)[0]
     rt_theoretical = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
     mz_theoretical = data[file_idx][compound_idx]['identification'].mz_references[0].mz
-    mz_measured = data[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']
-    rt_ms1 = data[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']
+    ms1_df = get_ms1_df(data[file_idx][compound_idx])
+    mz_measured = get_mz_centroid(ms1_df)
+    rt_ms1 = get_rt_peak(ms1_df)
 
     delta_mz = abs(mz_theoretical - mz_measured)
     delta_ppm = delta_mz / mz_theoretical * 1e6
@@ -3247,7 +3272,7 @@ def get_hit_metadata(data, hits, file_names, hit_ctr, compound_idx):
     if not hits.empty:
         hit_file_name = hits.index.get_level_values('file_name')[hit_ctr]
         return (hit_file_name, data[int(file_names.index(hit_file_name))][compound_idx])
-    file_idx = file_with_max_ms1_intensity(data, compound_idx)[0]
+    file_idx = file_with_max_ms1_intensity(data, compound_idx, limit_to_rt_range=True)[0]
     if file_idx:
         return (os.path.basename(data[file_idx][compound_idx]['lcmsrun'].hdf5_file),
                 data[file_idx][compound_idx])
