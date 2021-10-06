@@ -17,7 +17,7 @@ def assert_files_match(expected):
     returns None
     """
     for path, contents in expected.items():
-        with open(path, "r") as handle:
+        with open(path, "r", encoding="utf8") as handle:
             expected_lines = contents.split("\n")
             num = None
             for num, line in enumerate(handle.readlines()):

@@ -472,8 +472,8 @@ class AnalysisIdentifiers(HasTraits):
             try:
                 if overlap:
                     raise ValueError(
-                        "Not saving groups as you have already saved groups with these names: %s."
-                        % ", ".join(overlap),
+                        "Not saving groups as you have already saved groups"
+                        f'with these names: {", ".join(overlap)}.'
                     )
             except ValueError as err:
                 logger.exception(err)
@@ -1191,7 +1191,7 @@ def quoted_string_list(strings: List[str]) -> str:
 def append_inverse(in_list: List[str], polarity: Polarity) -> List[str]:
     """appends short version of inverse of polarity to and retuns the list"""
     inverse = {"positive": "NEG", "negative": "POS"}
-    return in_list + [inverse[polarity]] if polarity in inverse.keys() else in_list
+    return in_list + [inverse[polarity]] if polarity in inverse else in_list
 
 
 def remove_items(edit_list: List[str], remove_list: List[str], ignore_case: bool = True) -> List[str]:

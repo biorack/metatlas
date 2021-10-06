@@ -61,7 +61,7 @@ def raise_on_diff(dataframe, file_path, description, **kwargs):
         logger.info("Data in %s is the same as %s.", description, file_path)
     else:
         try:
-            raise ValueError("Data in %s is not the same as %s." % (description, file_path))
+            raise ValueError(f"Data in {description} is not the same as {file_path}.")
         except ValueError as err:
             logger.exception(err)
             raise

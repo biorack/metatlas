@@ -139,7 +139,7 @@ def create_notebook_with_parameters(source, dest, parameters):
         dest: path of destination notebook
         parameters: dict with name of parameter in key and new value in value
     """
-    with open(source) as source_fh:
+    with open(source, encoding="utf8") as source_fh:
         data = json.load(source_fh)
     eq_pat = re.compile(r"^([^#= ]+)\s*=.+$")
     param_source = data["cells"][1]["source"]
@@ -151,7 +151,7 @@ def create_notebook_with_parameters(source, dest, parameters):
                 new_value = parameters[param_name]
                 out_value = f"'{new_value}'" if isinstance(new_value, str) else new_value
                 param_source[i] = f"{param_name} = {out_value}\n"
-    with open(dest, "w") as out_fh:
+    with open(dest, "w", encoding="utf8") as out_fh:
         json.dump(data, out_fh)
 
 

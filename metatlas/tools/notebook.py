@@ -76,7 +76,7 @@ def create_notebook(input_file_name, output_file_name, parameters, injection_cel
         parameters: dict where keys are LHS of assignment and values are RHS of assignment
         injection_cell: zero-indexed number of cell to overwrite with the parameters
     """
-    with open(input_file_name, "r") as in_fh:
+    with open(input_file_name, "r", encoding="utf8") as in_fh:
         notebook = json.load(in_fh)
     notebook["cells"][injection_cell]["source"] = [assignment_string(k, v) for k, v in parameters.items()]
     with open(output_file_name, "w", encoding="utf-8") as out_fh:

@@ -253,8 +253,8 @@ def get_spectra_strings(data, max_pre_intensity, min_mz, max_mz, intensity_fract
     mz_list, intensity_list = get_spectra(
         data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity
     )
-    mz_str = str(["%.2f" % x for x in mz_list]).replace("'", "")
-    intensity_str = str(["%d" % x for x in intensity_list]).replace("'", "")
+    mz_str = str([f"{x:.2f}" for x in mz_list]).replace("'", "")
+    intensity_str = str([int(x) for x in intensity_list]).replace("'", "")
     spectra_str = str([mz_str, intensity_str]).replace("'", "")
     name = data["identification"].name
     return {"name": name, "spectrum": spectra_str, "mz": mz_str, "intensity": intensity_str}

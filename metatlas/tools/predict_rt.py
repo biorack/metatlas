@@ -438,7 +438,7 @@ def write_models(file_name, linear_model, poly_model, groups, atlas):
         groups: list of groups used in model generation
         atlas: QC atlas
     """
-    with open(file_name, "w") as out_fh:
+    with open(file_name, "w", encoding="utf8") as out_fh:
         for model in [linear_model, poly_model]:
             out_fh.write(f"{model.sk_model.set_params()}\n")
             out_fh.write(f"{model}\n")
