@@ -46,14 +46,14 @@ notebooks = [
 
 pytest_deps = [
     "attrs==21.2.0",
-    "coverage==5.5",
+    "coverage==6.0",
     "iniconfig==1.1.1",
-    "packaging==20.9",
+    "packaging==21.0",
     "pluggy==0.13.1",
     "py==1.10.0",
     "pyparsing==2.4.7",
     "pytest==6.2.4",
-    "pytest-cov==2.11.1",
+    "pytest-cov==3.0.0",
     "pytest-mock==3.6.1",
     "toml==0.10.2",
 ]
@@ -68,15 +68,15 @@ mypy_deps = [
 ]
 
 pylint_deps = [
-    "pylint==2.8.2",
-    "pytest==6.2.4",  # so "import pytest" doesn't get reported
+    "pylint==2.11.1",
+    "pytest==6.2.5",  # so "import pytest" doesn't get reported
 ]
 
 nbqa_deps = [
     "nbqa==0.8.1",
     "tokenize-rt==4.1.0",
     "importlib-metadata==4.0.1",
-    "astroid==2.5.6",
+    "astroid==2.8.0",
     "wrapt==1.12.1",
     "lazy_object_proxy==1.6.0",
     "isort==5.8.0",
@@ -84,9 +84,9 @@ nbqa_deps = [
 
 flake8_deps = [
     "flake8==3.9.2",
-    "flake8-bugbear==21.4.3",
+    "flake8-bugbear==21.9.2",
     "flake8-builtins==1.5.3",
-    "flake8-comprehensions==3.5.0",
+    "flake8-comprehensions==3.6.1",
 ]
 
 nox.options.error_on_external_run = True
