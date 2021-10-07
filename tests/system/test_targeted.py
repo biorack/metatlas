@@ -4,39 +4,31 @@ from . import utils
 
 
 def test_targeted_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.2"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.4"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
         str(tmp_path / experiment / "root0/FinalEMA-HILIC/POS/POS_data_sheets/POS_peak_height.tab")
-    ] = "\n".join(
-        [
-            f"group\t{experiment}_POS_MSMS_root0_Cone-S1\t{experiment}_POS_MSMS_root0_Cone-S2\t{experiment}_POS_MSMS_root0_Cone-S3\t{experiment}_POS_MSMS_root0_Cone-S4",  # noqa: E501
-            f"file\t{experiment}_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5\t{experiment}_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5\t{experiment}_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5\t{experiment}_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5",  # noqa: E501
-            "short groupname\tPOS_Cone-S1\tPOS_Cone-S2\tPOS_Cone-S3\tPOS_Cone-S4",
-            "sample treatment\tCone-S1\tCone-S2\tCone-S3\tCone-S4",
-            "short filename\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1",  # noqa: E501
-            "short samplename\tPOS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1",  # noqa: E501
-            "0000_2deoxyadenosine_positive_M+H252p1091_2p20\t304761.90625\t416788.03125\t837662.0625\t2359861.25",
-            "0001_adenine_positive_M+H136p0618_2p52\t1594753.875\t12096485.0\t51774956.0\t91955488.0",
-            "0002_adenosine_positive_M+H268p1041_3p02\t26611868.0\t119774184.0\t267718880.0\t473905024.0",
-        ]
-    )
+    ] = """group	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S1	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S2	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S3	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S4
+file	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5
+short groupname	POS_Cone-S1	POS_Cone-S2	POS_Cone-S3	POS_Cone-S4
+sample treatment	Cone-S1	Cone-S2	Cone-S3	Cone-S4
+short filename	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1
+short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1
+0000_2deoxyadenosine_positive_M+H252p1091_2p20	3.047619062e+05	4.167880312e+05	8.376620625e+05	2.359861250e+06
+0001_adenine_positive_M+H136p0618_2p52	1.594753875e+06	1.209648500e+07	5.177495600e+07	9.195548800e+07
+0002_adenosine_positive_M+H268p1041_3p02	2.661186800e+07	1.197741840e+08	2.677188800e+08	4.739050240e+08"""
     expected[
         str(tmp_path / experiment / "root0/FinalEMA-HILIC/POS/POS_data_sheets/POS_rt_peak.tab")
-    ] = "\n".join(
-        [
-            f"group\t{experiment}_POS_MSMS_root0_Cone-S1\t{experiment}_POS_MSMS_root0_Cone-S2\t{experiment}_POS_MSMS_root0_Cone-S3\t{experiment}_POS_MSMS_root0_Cone-S4",
-            f"file\t{experiment}_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5\t{experiment}_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5\t{experiment}_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5\t{experiment}_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5",
-            "short groupname\tPOS_Cone-S1\tPOS_Cone-S2\tPOS_Cone-S3\tPOS_Cone-S4",
-            "sample treatment\tCone-S1\tCone-S2\tCone-S3\tCone-S4",
-            "short filename\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1",  # noqa: E501
-            "short samplename\tPOS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1",  # noqa: E501
-            "0000_2deoxyadenosine_positive_M+H252p1091_2p20\t2.2775044441223145\t2.2806363105773926\t2.2833268642425537\t2.2922415733337402",
-            "0001_adenine_positive_M+H136p0618_2p52\t2.6164748668670654\t2.639369249343872\t2.6182913780212402\t2.657374620437622",
-            "0002_adenosine_positive_M+H268p1041_3p02\t3.098848819732666\t3.1250929832458496\t3.1176068782806396\t3.139331817626953",
-        ]
-    )
+    ] = """group	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S1	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S2	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S3	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S4
+file	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5
+short groupname	POS_Cone-S1	POS_Cone-S2	POS_Cone-S3	POS_Cone-S4
+sample treatment	Cone-S1	Cone-S2	Cone-S3	Cone-S4
+short filename	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1
+short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1
+0000_2deoxyadenosine_positive_M+H252p1091_2p20	2.277504444e+00	2.280636311e+00	2.283326864e+00	2.292241573e+00
+0001_adenine_positive_M+H136p0618_2p52	2.616474867e+00	2.639369249e+00	2.618291378e+00	2.657374620e+00
+0002_adenosine_positive_M+H268p1041_3p02	3.098848820e+00	3.125092983e+00	3.117606878e+00	3.139331818e+00"""
     command = """\
                     jq -M '(.cells[] | select(.source[] | contains("compound_idx=0")).source) \
                                += ["\\n", \

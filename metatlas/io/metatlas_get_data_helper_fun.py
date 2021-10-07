@@ -771,7 +771,7 @@ def make_data_sources_tables(groups, myatlas, output_loc, polarity=None, overwri
     output_dir = os.path.join(output_loc, f"{prefix}data_sources")
     atlas_path = os.path.join(output_dir, f"{prefix}atlas_metadata.tab")
     write_utils.export_dataframe(metob.to_dataframe([myatlas]), atlas_path, "atlas metadata",
-                                 overwrite, sep='\t')
+                                 overwrite, sep='\t', float_format="%.8e")
     groups_path = os.path.join(output_dir, f"{prefix}groups_metadata.tab")
     write_utils.export_dataframe(metob.to_dataframe(groups), groups_path, "groups metadata",
                                  overwrite, sep='\t')
@@ -779,7 +779,7 @@ def make_data_sources_tables(groups, myatlas, output_loc, polarity=None, overwri
     atlas_df = make_atlas_df(myatlas)
     atlas_df['label'] = [cid.name for cid in myatlas.compound_identifications]
     atlas_df_path = os.path.join(output_dir, myatlas.name+'_originalatlas.tab')
-    write_utils.export_dataframe(atlas_df, atlas_df_path, "atlas dataframe", overwrite, sep='\t')
+    write_utils.export_dataframe(atlas_df, atlas_df_path, "atlas dataframe", overwrite, sep='\t', float_format="%.6e")
 
     group_path_df = pd.DataFrame(columns=['group_name', 'group_path', 'file_name'])
     loc_counter = 0

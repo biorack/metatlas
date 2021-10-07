@@ -1464,7 +1464,7 @@ def make_output_dataframe(input_fname='', input_dataset=None, include_lcmsruns=N
     if output_loc:
         prefix = f"{polarity}_" if polarity != '' else ''
         df_path = os.path.join(output_loc, f"{prefix}{fieldname}.tab")
-        write_utils.export_dataframe_die_on_diff(out, df_path, fieldname, overwrite=overwrite, sep="\t")
+        write_utils.export_dataframe_die_on_diff(out, df_path, fieldname, overwrite=overwrite, sep="\t", float_format="%.9e")
     return out
 
 
@@ -2361,7 +2361,7 @@ def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcms
         plt.close()
         logger.debug('Exported identification figures for %s to %s.', compound_names[compound_idx], fig_path)
     match_path = os.path.join(output_loc, 'MatchingMZs.tab')
-    write_utils.export_dataframe(match, match_path, 'matching MZs', overwrite, sep='\t')
+    write_utils.export_dataframe(match, match_path, 'matching MZs', overwrite, sep='\t', float_format="%.12e")
 
 
 def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', input_dataset = [], compound_names = [],  include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):

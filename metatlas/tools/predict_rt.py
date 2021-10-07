@@ -240,13 +240,13 @@ def load_runs(files_df, qc_atlas_df, qc_atlas, cpus):
 def save_measured_rts(metatlas_dataset, file_name):
     """Save RT values in csv format file"""
     rts_df = get_rts(metatlas_dataset, include_atlas_rt_peak=False)
-    write_utils.export_dataframe_die_on_diff(rts_df, file_name, "measured RT values")
+    write_utils.export_dataframe_die_on_diff(rts_df, file_name, "measured RT values", float_format="%.6e")
 
 
 def save_rt_peak(metatlas_dataset, file_name):
     """Save peak RT values in tsv format file"""
     rts_df = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname="rt_peak", use_labels=True)
-    write_utils.export_dataframe_die_on_diff(rts_df, file_name, "peak RT values", sep="\t")
+    write_utils.export_dataframe_die_on_diff(rts_df, file_name, "peak RT values", sep="\t", float_format="%.6e")
 
 
 def get_rts(metatlas_dataset, include_atlas_rt_peak=True):
@@ -426,7 +426,7 @@ def save_model_comparison(selected_column, qc_atlas_df, rts_df, linear, poly, fi
     # qc_df["RT Polynomial Pred"] = poly.predict(qc_df["RT Reference"].to_numpy())
     qc_df["RT Diff Linear"] = qc_df["RT Measured"] - qc_df["RT Linear Pred"]
     qc_df["RT Diff Polynomial"] = qc_df["RT Measured"] - qc_df["RT Polynomial Pred"]
-    write_utils.export_dataframe_die_on_diff(qc_df, file_name, "model comparision")
+    write_utils.export_dataframe_die_on_diff(qc_df, file_name, "model comparision", float_format="%.6e")
 
 
 def write_models(file_name, linear_model, poly_model, groups, atlas):
@@ -501,7 +501,7 @@ def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="",
         prd_atlas_df["rt_min"] = prd_atlas_df["rt_peak"].apply(lambda rt: rt - 0.5)
         prd_atlas_df["rt_max"] = prd_atlas_df["rt_peak"].apply(lambda rt: rt + 0.5)
         write_utils.export_dataframe_die_on_diff(
-            prd_atlas_df, prd_atlas_file_name, "predicted atlas", index=False
+            prd_atlas_df, prd_atlas_file_name, "predicted atlas", index=False, float_format="%.6e"
         )
         if save_to_db:
             dp.make_atlas_from_spreadsheet(
