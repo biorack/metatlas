@@ -10,13 +10,11 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v2
-      - name: Cache conda environment for unit tests
+      - name: Cache nox environment for unit tests
         uses: actions/cache@v2
         with:
           path: ~/work/metatlas/metatlas/.nox
           key: ${{ runner.os }}-nox
-      - name: Install miniconda
-        uses: conda-incubator/setup-miniconda@v2
       - name: Setup nox
         uses: excitedleigh/setup-nox@v2.0.0
       - name: Run unit tests

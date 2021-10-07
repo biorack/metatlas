@@ -1,18 +1,25 @@
-from __future__ import absolute_import
-from __future__ import print_function
-import numpy as np
-import os.path
-import sys
 import copy
-import tables
-from metatlas.datastructures import metatlas_objects as metob
-import pandas as pd
+import logging
+import math
+import os.path
+import re
+import sys
+
+from collections import defaultdict
 from textwrap import wrap
+
+import dill
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import six
-from six.moves import map
-from six.moves import range
-from six.moves import zip
+import tables
+
+from metatlas.datastructures import metatlas_objects as metob
+from metatlas.io import h5_query as h5q
+from metatlas.io import write_utils
+
+logger = logging.getLogger(__name__)
 
 
 def create_msms_dataframe(df):
@@ -56,56 +63,28 @@ def compare_EIC_to_BPC_for_file(metatlas_dataset,file_index,yscale = 'linear'):
     plt.close(fig)
     return fig
 
+
 def get_data_for_atlas_df_and_file(input_tuple):
-    my_file = input_tuple[0]
-    my_group = input_tuple[1]
-    atlas_df = input_tuple[2]
-    myAtlas = input_tuple[3]
-    extra_time = 0.5
-    extra_mz = 0.0
-    if len(input_tuple) == 6:
-        extra_time = input_tuple[4]
-        extra_mz = input_tuple[5]
-    elif len(input_tuple) == 5:
-        extra_time = input_tuple[4]
-
-    df_container = df_container_from_metatlas_file(my_file)
-
-    df_container = remove_ms1_data_not_in_atlas(atlas_df,df_container)
-    dict_ms1_summary,dict_eic,dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df,df_container,extra_time, extra_mz)
+    my_file, group, atlas_df, atlas = input_tuple[:4]
+    extra_time = input_tuple[4] if len(input_tuple) >= 5 else 0.5
+    extra_mz = input_tuple[5] if len(input_tuple) == 6 else 0.0
+    df_container = remove_ms1_data_not_in_atlas(atlas_df, df_container_from_metatlas_file(my_file))
+    dict_ms1_summary, dict_eic, dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df, df_container,
+                                                                          extra_time, extra_mz)
     row = []
     for i in range(atlas_df.shape[0]):
-        result = {}
-        result['atlas_name'] = myAtlas.name
-        result['atlas_unique_id'] = myAtlas.unique_id
-        result['lcmsrun'] = my_file
-        result['group'] = my_group
-        temp_compound = copy.deepcopy(myAtlas.compound_identifications[i])
-        result['identification'] = temp_compound
-        result['data'] = {}
-        if dict_eic:
-            result['data']['eic'] = dict_eic[i]
-        else:
-            result['data']['eic'] = None
-        if dict_ms1_summary:
-            result['data']['ms1_summary'] = dict_ms1_summary[i]
-        else:
-            result['data']['ms1_summary'] = None
-
-        result['data']['msms'] = {}
+        result = {'atlas_name': atlas.name, 'atlas_unique_id': atlas.unique_id, 'lcmsrun': my_file,
+                  'group': group, 'identification': copy.deepcopy(atlas.compound_identifications[i])}
+        result['data'] = {'msms': {}, 'eic': dict_eic[i] if dict_eic else None}
+        result['data']['ms1_summary'] = dict_ms1_summary[i] if dict_ms1_summary else None
         if dict_ms2:
-            if len(dict_ms2[i])>0:#dict_ms2[i]['mz']:
-                for k in dict_ms2[0].keys():
-                    dict_ms2[i][k] = np.asarray(dict_ms2[i][k])
-        #                 if temp_compound.mz_references[0].observed_polarity == 'positive':
-        #                     dict_ms2[i]['polarity'] = dict_ms2[i]['mz'] * 0.0 + 1.0
-        #                 else:
-        #                     dict_ms2[i]['polarity'] = dict_ms2[i]['mz'] * 0.0
-                result['data']['msms']['data'] = dict_ms2[i]
+            if len(dict_ms2[i]) > 0:
+                result['data']['msms']['data'] = {key: np.asarray(val) for key, val in dict_ms2[i].items()}
         else:
             result['data']['msms']['data'] = []
         row.append(result)
-    return row
+    return tuple(row)
+
 
 def get_bpc(filename,dataset='ms1_pos',integration='bpc'):
     """
@@ -198,20 +177,20 @@ def extract(data, ids, default=None):
     as: ('attribute_name',). If you want to make it more explict to the reader, you can add a
     second member to the tuple, which will not be used, such as ('attribute_name', 'as attribute')
     """
-    current = data
+    if len(ids) == 0:
+        return data
     try:
-        for i in ids:
-            if isinstance(i, tuple):
-                current = getattr(current, i[0])
-            elif isinstance(current, list):
-                current = current[i]
-            elif isinstance(current, dict) and i in current.keys():
-                current = current[i]
-            else:
-                current = getattr(current, i)
+        if isinstance(ids[0], tuple):
+            sub_data = getattr(data, ids[0][0])
+        else:
+            try:
+                sub_data = data[ids[0]]
+            except TypeError:
+                sub_data = getattr(data, ids[0])
     except (AttributeError, IndexError, KeyError):
         return default
-    return current
+    else:
+        return extract(sub_data, ids[1:], default)
 
 
 def set_nested(data, ids, value):
@@ -295,59 +274,41 @@ def transfer_identification_data_to_atlas(data, atlas, ids_list=None):
             set_nested(aci, ids, from_data)
     return out
 
-def get_data_for_mzrt(row,data_df_pos,data_df_neg,extra_time = 0.5,use_mz = 'mz',extra_mz = 0.0):
-    min_mz = '(%s >= %5.4f & '%(use_mz,row.mz - row.mz*row.mz_tolerance / 1e6 - extra_mz)
-    rt_min = 'rt >= %5.4f & '%(row.rt_min - extra_time)
-    rt_max = 'rt <= %5.4f & '%(row.rt_max + extra_time)
-    max_mz = '%s <= %5.4f)'%(use_mz,row.mz + row.mz*row.mz_tolerance / 1e6 + extra_mz)
-    ms1_query_str = '%s%s%s%s'%(min_mz,rt_min,rt_max,max_mz)
-    if row.detected_polarity == 'positive':
-        if len(data_df_pos)>0:
-            all_df = data_df_pos.query(ms1_query_str)
-        else:
-            return pd.Series()
-    else:
-        if len(data_df_neg)>0:
-            all_df = data_df_neg.query(ms1_query_str)
-        else:
-            return pd.Series()
-    return_df = pd.Series({'padded_feature_data':all_df,'in_feature':(all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
-    return return_df
+
+def get_data_for_mzrt(row, data_df_pos, data_df_neg, extra_time=0.5, use_mz='mz', extra_mz=0.0):
+    mz_min = '%s >= %5.4f' % (use_mz, row.mz - row.mz*row.mz_tolerance / 1e6 - extra_mz)
+    rt_min = 'rt >= %5.4f' % (row.rt_min - extra_time)
+    rt_max = 'rt <= %5.4f' % (row.rt_max + extra_time)
+    mz_max = '%s <= %5.4f' % (use_mz, row.mz + row.mz*row.mz_tolerance / 1e6 + extra_mz)
+    ms1_query_str = f"({mz_min} & {rt_min} & {rt_max} & {mz_max})"
+    data_df = data_df_pos if row.detected_polarity == 'positive' else data_df_neg
+    if len(data_df) == 0:
+        return pd.Series(dtype=np.float64)
+    all_df = data_df.query(ms1_query_str)
+    return pd.Series({'padded_feature_data': all_df,
+                      'in_feature': (all_df.rt >= row.rt_min) & (all_df.rt <= row.rt_max)})
+
 
 def get_ms1_summary(row):
-    #A DataFrame of all points typically padded by "extra time"
+    # A DataFrame of all points typically padded by "extra time"
     all_df = row.padded_feature_data
-
-    #slice out ms1 data that is NOT padded by extra_time
-    ms1_df = all_df[(row.in_feature == True)]#[['i','mz','polarity','rt']]
-
+    # slice out ms1 data that is NOT padded by extra_time
+    ms1_df = all_df[(row.in_feature)]
     num_ms1_datapoints = ms1_df.shape[0]
-    if num_ms1_datapoints > 0:
-        idx = ms1_df.i.idxmax()
+    has_data = num_ms1_datapoints > 0
+    if has_data:
         ms1_peak_df = ms1_df.loc[ms1_df['i'].idxmax()]
-        mz_peak = ms1_peak_df.mz
-        rt_peak = ms1_peak_df.rt
-        mz_centroid = sum(ms1_df.mz * ms1_df.i) / sum(ms1_df.i)
-        rt_centroid = sum(ms1_df.rt * ms1_df.i) / sum(ms1_df.i)
-        peak_height = ms1_peak_df.i
         peak_area = sum(ms1_df.i)
-    else:
-        mz_peak = np.nan
-        rt_peak = np.nan
-        mz_centroid = np.nan
-        rt_centroid = np.nan
-        peak_height = np.nan
-        peak_area = np.nan
+    return pd.Series({
+        'num_ms1_datapoints': num_ms1_datapoints,
+        'mz_peak': ms1_peak_df.mz if has_data else np.nan,
+        'rt_peak': ms1_peak_df.rt if has_data else np.nan,
+        'mz_centroid': sum(ms1_df.mz * ms1_df.i) / peak_area if has_data else np.nan,
+        'rt_centroid': sum(ms1_df.rt * ms1_df.i) / peak_area if has_data else np.nan,
+        'peak_height': ms1_peak_df.i if has_data else np.nan,
+        'peak_area': peak_area if has_data else np.nan
+    })
 
-    return_df = pd.Series({ 'num_ms1_datapoints':num_ms1_datapoints,
-                            'mz_peak':mz_peak,
-                            'rt_peak':rt_peak,
-                            'mz_centroid':mz_centroid,
-                            'rt_centroid':rt_centroid,
-                            'peak_height':peak_height,
-                            'peak_area':peak_area})
-
-    return return_df
 
 def get_ms2_data(row):
     #A DataFrame of all points typically padded by "extra time"
@@ -366,13 +327,12 @@ def get_ms2_data(row):
     return return_df
 
 
-def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_max, extra_time = 0.5, extra_mz = 0.01):
-    import math
-    if (data_df.shape[0]==0) | (math.isnan(rt_max)):
+def prefilter_ms1_dataframe_with_boundaries(data_df, rt_max, rt_min, mz_min, mz_max, extra_time=0.5, extra_mz=0.01):
+    if (data_df.shape[0] == 0) | (math.isnan(rt_max)):
         return []
-    prefilter_query_str = 'rt <= %5.4f & rt >= %5.4f & mz >= %5.4f & mz <= %5.4f'%(rt_max+extra_time, rt_min-extra_time, mz_min-extra_mz, mz_max+extra_mz)
-    new_df = data_df.query(prefilter_query_str)
-    return new_df
+    return data_df.query(f"rt <= {rt_max+extra_time:5.4f} & rt >= {rt_min-extra_time:5.4f} "
+                         f"& mz >= {mz_min-extra_mz:5.4f} & mz <= {mz_max+extra_mz:5.4f}")
+
 
 def get_ms1_eic(row):
     #A DataFrame of all points typically padded by "extra time"
@@ -385,7 +345,6 @@ def get_ms1_eic(row):
 
 
 def retrieve_most_intense_msms_scan(data):
-    import numpy as np
     urt,idx = np.unique(data['rt'],return_index=True)
     sx = np.argsort(data['precursor_intensity'][idx])[::-1]
     prt = data['rt'][idx[sx]]
@@ -403,6 +362,7 @@ def retrieve_most_intense_msms_scan(data):
     msms_data['precursor_intensity'] = pintensity
     return msms_data
 
+
 def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz):
     '''
     Accepts
@@ -411,74 +371,46 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
 
     Returns python dictionaries of ms1, eic, and ms2 results for each compound in the atlas dataframe.
     '''
+    # filtered the ms2 and ms1 pos and neg frames in the container by rt and mz extreme points.
+    filtered = {}
+    for level in ['ms1', 'ms2']:
+        for polarity in ['positive', 'negative']:
+            mode = f'{level}_{polarity[:3]}'
+            pol = atlas_df[atlas_df.detected_polarity == polarity]
+            params = [pol.rt_max.max(), pol.rt_min.min(), 0, pol.mz.max()+1, extra_time, extra_mz]
+            filtered[mode] = prefilter_ms1_dataframe_with_boundaries(df_container[mode], *params)
 
-    #filtered the ms2 and ms1 pos and neg frames in the container by rt and mz extreme points.
-    filtered_ms1_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_pos'],
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
-                                                               0,
-                                                               #atlas_df[atlas_df.detected_polarity == 'positive'].mz.min()-1,
-                                                               atlas_df[atlas_df.detected_polarity == 'positive'].mz.max()+1,
-                                                               extra_time = extra_time,
-                                                               extra_mz = extra_mz)
-    filtered_ms1_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms1_neg'],
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
-                                                           0,
-                                                           #atlas_df[atlas_df.detected_polarity == 'negative'].mz.min()-1,
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max()+1,
-                                                           extra_time = extra_time,
-                                                           extra_mz = extra_mz)
-    filtered_ms2_pos = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_pos'],
-                                                           atlas_df[atlas_df.detected_polarity == 'positive'].rt_max.max(),
-                                                           atlas_df[atlas_df.detected_polarity == 'positive'].rt_min.min(),
-                                                           0,
-                                                           #atlas_df[atlas_df.detected_polarity == 'positive'].mz.min()-1,
-                                                           atlas_df[atlas_df.detected_polarity == 'positive'].mz.max()+1,
-                                                           extra_time = extra_time,
-                                                           extra_mz = extra_mz)
-
-    filtered_ms2_neg = prefilter_ms1_dataframe_with_boundaries(df_container['ms2_neg'],
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_max.max(),
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].rt_min.min(),
-                                                           0,
-                                                           #atlas_df[atlas_df.detected_polarity == 'negative'].mz.min()-1,
-                                                           atlas_df[atlas_df.detected_polarity == 'negative'].mz.max()+1,
-                                                           extra_time = extra_time,
-                                                           extra_mz = extra_mz)
+    def get_feature_data(atlas_df, pos_df, neg_df, use_mz='mz'):
+        return atlas_df.apply(
+            lambda x: get_data_for_mzrt(x, pos_df, neg_df, extra_time, use_mz, extra_mz), axis=1
+        )
+    ms1_features = get_feature_data(atlas_df, filtered['ms1_pos'], filtered['ms1_neg'])
+    if ms1_features.shape[1] == 0:
+        return None, None, None
+    ms2_features = get_feature_data(atlas_df, filtered['ms2_pos'], filtered['ms2_neg'], use_mz='precursor_MZ')
+    return get_ms1_summary_data(ms1_features), get_eic_data(ms1_features), get_ms2_dict(ms2_features)
 
 
-    ms1_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms1_pos,filtered_ms1_neg, extra_time=extra_time, extra_mz = extra_mz),axis=1)
-    ms1_summary = ms1_feature_data.apply(get_ms1_summary,axis=1)
-    #if ms1_summary.size == 0:
-    #    return [],[],[]
-    if ms1_feature_data.shape[1] == 0:
-        return None,None,None
-    else:
-        ms1_eic = ms1_feature_data.apply(get_ms1_eic,axis=1)
-    #print ms1_eic
-        ms2_feature_data = atlas_df.apply(lambda x: get_data_for_mzrt(x,filtered_ms2_pos,filtered_ms2_neg,use_mz = 'precursor_MZ', extra_mz = extra_mz, extra_time=extra_time),axis=1)
-        ms2_data = ms2_feature_data.apply(get_ms2_data,axis=1)
-        dict_ms1_summary = [dict(row) for i,row in ms1_summary.iterrows()]
-
-    dict_eic = []
-    for i,row in ms1_eic.iterrows():
-        dict_eic.append(row.eic.T.to_dict(orient='list'))
-
-    #rename the "i" to "intensity".
-    for i,d in enumerate(dict_eic):
-        dict_eic[i]['intensity'] = dict_eic[i].pop('i')
-
-    dict_ms2 = []
-    for i,row in ms2_data.iterrows():
-        if 'ms2_datapoints' in list(row.keys()):
-            dict_ms2.append(row.ms2_datapoints.T.to_dict(orient='list'))
-        else:
-            dict_ms2.append([])
-
-    return dict_ms1_summary,dict_eic,dict_ms2
+def get_ms2_dict(ms2_feature_data_df):
+    """ extract a dict of ms2 data from the ms2 dataframe """
+    ms2_data = ms2_feature_data_df.apply(get_ms2_data, axis=1)
+    return [row.ms2_datapoints.T.to_dict(orient='list') if 'ms2_datapoints' in list(row.keys()) else []
+            for _, row in ms2_data.iterrows()]
 
 
+def get_ms1_summary_data(ms1_feature_data_df):
+    """ extract a list of ms1 data from the ms1 dataframe """
+    ms1_summary = ms1_feature_data_df.apply(get_ms1_summary, axis=1)
+    return [dict(row) for _, row in ms1_summary.iterrows()]
+
+
+def get_eic_data(ms1_feature_data_df):
+    """ extract a list of eic data from the ms1 dataframe """
+    ms1_eic = ms1_feature_data_df.apply(get_ms1_eic, axis=1)
+    dict_eic = [row.eic.T.to_dict(orient='list') for _, row in ms1_eic.iterrows()]
+    for _, value in enumerate(dict_eic):
+        value['intensity'] = value.pop('i')  # rename the "i" to "intensity"
+    return dict_eic
 
 
 def get_unique_scan_data(data):
@@ -549,25 +481,6 @@ def organize_msms_scan_data(data,list_of_prt,list_of_pmz,list_of_pintensity):
         msms_data['precursor_intensity'].append(pintensity)
     return msms_data
 
-def retrieve_most_intense_msms_scan(data):
-    import numpy as np
-    urt,idx = np.unique(data['rt'],return_index=True)
-    sx = np.argsort(data['precursor_intensity'][idx])[::-1]
-    prt = data['rt'][idx[sx]]
-    pmz = data['precursor_MZ'][idx[sx]]
-    pintensity = data['precursor_intensity'][idx[sx]]
-    #setup data format for searching
-    msms_data = {}
-    msms_data['spectra'] = []
-    msms_data['precursor_mz'] = []
-    msms_data['precursor_intensity'] = []
-    idx = np.argwhere((data['precursor_MZ'] == pmz[0]) & (data['rt'] == prt[0] )).flatten()
-    arr = np.array([data['mz'][idx], data['i'][idx]]).T
-    msms_data['spectra'] = arr
-    msms_data['precursor_mz'] = pmz
-    msms_data['precursor_intensity'] = pintensity
-    return msms_data
-
 
 def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     """
@@ -591,9 +504,6 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     -------
     """
     #TODO : polarity should be handled in the experiment and not a loose parameter
-    import numpy as np
-    from metatlas.io import h5_query as h5q
-    import tables
 
     #get a pointer to the hdf5 file
     fid = tables.open_file(h5file) #TODO: should be a "with open:"
@@ -716,7 +626,6 @@ def get_data_for_a_compound(mz_ref,rt_ref,what_to_get,h5file,extra_time):
     return return_data
 
 
-
 def get_dill_data(fname):
     """
     Parameters
@@ -726,21 +635,15 @@ def get_dill_data(fname):
     Returns a list containing the data present in the dill file
     -------
     """
-    import dill
-
-    data = list()
-
     if os.path.exists(fname):
-        with open(fname,'r') as f:
+        with open(fname, 'r') as handle:
             try:
-                data = dill.load(f)
-            except IOError as e:
-                print(("I/O error({0}): {1}".format(e.errno, e.strerror)))
+                return dill.load(handle)
+            except IOError as err:
+                print(("I/O error({0}): {1}".format(err.errno, err.strerror)))
             except:  # handle other exceptions such as attribute errors
                 print(("Unexpected error:", sys.exc_info()[0]))
-
-
-    return data
+    return list()
 
 
 def get_group_names(data):
@@ -793,7 +696,6 @@ def get_file_names(data,full_path=False):
     Returns list containing the hdf file names present in the dill file
     -------
     """
-    import os.path
 
     # if data is a string then it's a file name - get its data
     if isinstance(data, six.string_types):
@@ -818,16 +720,13 @@ def get_compound_names(data,use_labels=False):
     Returns a tuple of lists containing the compound names and compound objects present in the dill file
     -------
     """
-    from collections import defaultdict
-    import re
-
     # if data is a string then it's a file name - get its data
     if isinstance(data, six.string_types):
         data = get_dill_data(data)
-
     compound_names = list()
     compound_objects = list()
-
+    if len(data) == 0:
+        return (compound_names, compound_objects)
     for i,d in enumerate(data[0]):
         compound_objects.append(d['identification'])
         if use_labels:
@@ -841,21 +740,16 @@ def get_compound_names(data,use_labels=False):
         newstr = '%s_%s_%s_%s_%.4f_%.2f'%(str(i).zfill(4),_str,d['identification'].mz_references[0].detected_polarity,
                 d['identification'].mz_references[0].adduct,d['identification'].mz_references[0].mz,
                 d['identification'].rt_references[0].rt_peak)
-        newstr = re.sub('\.', 'p', newstr) #2 or more in regexp
-
-        newstr = re.sub('[\[\]]','',newstr)
+        newstr = re.sub(r'\.', 'p', newstr)  # 2 or more in regexp
+        newstr = re.sub(r'[\[\]]', '', newstr)
         newstr = re.sub('[^A-Za-z0-9+-]+', '_', newstr)
         newstr = re.sub('i_[A-Za-z]+_i_', '', newstr)
-        if newstr[0] == '_':
-            newstr = newstr[1:]
-        if newstr[0] == '-':
+        if newstr[0] in ['_', '-']:
             newstr = newstr[1:]
         if newstr[-1] == '_':
             newstr = newstr[:-1]
-
         newstr = re.sub('[^A-Za-z0-9]{2,}', '', newstr) #2 or more in regexp
         compound_names.append(newstr)
-
     # If duplicate compound names exist, then append them with a number
     D = defaultdict(list)
     for i,item in enumerate(compound_names):
@@ -864,36 +758,38 @@ def get_compound_names(data,use_labels=False):
     for k in D.keys():
         for i,f in enumerate(D[k]):
             compound_names[f] = '%s%d'%(compound_names[f],i)
-
     return (compound_names, compound_objects)
 
-def make_data_sources_tables(groups, myatlas, output_loc, polarity=None):
+
+def make_data_sources_tables(groups, myatlas, output_loc, polarity=None, overwrite=True):
     """
     polarity must be one of None, 'POS', 'NEG' or will throw ValueError
     """
-    if polarity and not polarity in ['POS', 'NEG']:
-        raise ValueError
-    prefix = polarity + '_' if polarity else ''
-    if not os.path.exists(output_loc):
-        os.mkdir(output_loc)
-    output_dir = os.path.join(output_loc,'data_sources')
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-
-    metob.to_dataframe([myatlas]).to_csv(os.path.join(output_dir, prefix+'atlas_metadata.tab'), sep='\t')
-    metob.to_dataframe(groups).to_csv(os.path.join(output_dir, prefix+'groups_metadata.tab'), sep='\t')
+    if polarity not in [None, 'POS', 'NEG']:
+        raise ValueError("Polarity parameter must be one of None, 'POS', or 'NEG'.")
+    prefix = f"{polarity}_" if polarity else ""
+    output_dir = os.path.join(output_loc, f"{prefix}data_sources")
+    atlas_path = os.path.join(output_dir, f"{prefix}atlas_metadata.tab")
+    write_utils.export_dataframe(metob.to_dataframe([myatlas]), atlas_path, "atlas metadata",
+                                 overwrite, sep='\t', float_format="%.8e")
+    groups_path = os.path.join(output_dir, f"{prefix}groups_metadata.tab")
+    write_utils.export_dataframe(metob.to_dataframe(groups), groups_path, "groups metadata",
+                                 overwrite, sep='\t')
 
     atlas_df = make_atlas_df(myatlas)
     atlas_df['label'] = [cid.name for cid in myatlas.compound_identifications]
-    atlas_df.to_csv(os.path.join(output_dir,prefix+myatlas.name+'_originalatlas.tab'), sep='\t')
+    atlas_df_path = os.path.join(output_dir, myatlas.name+'_originalatlas.tab')
+    write_utils.export_dataframe(atlas_df, atlas_df_path, "atlas dataframe", overwrite, sep='\t', float_format="%.6e")
 
-    group_path_df = pd.DataFrame(columns=['group_name','group_path','file_name'])
+    group_path_df = pd.DataFrame(columns=['group_name', 'group_path', 'file_name'])
     loc_counter = 0
-    for g in groups:
-        for f in g.items:
-            group_path_df.loc[loc_counter, 'group_name'] = g.name
-            group_path_df.loc[loc_counter, 'group_path'] = os.path.dirname(f.mzml_file)
-            group_path_df.loc[loc_counter, 'file_name'] = f.mzml_file
+    for group in groups:
+        for run in group.items:
+            group_path_df.loc[loc_counter, 'group_name'] = group.name
+            group_path_df.loc[loc_counter, 'group_path'] = os.path.dirname(run.mzml_file)
+            group_path_df.loc[loc_counter, 'file_name'] = run.mzml_file
             loc_counter += 1
 
-    group_path_df.to_csv(os.path.join(output_dir,prefix+'groups.tab'), sep='\t', index=False)
+    group_path_path = os.path.join(output_dir, f"{prefix}groups.tab")
+    write_utils.export_dataframe(group_path_df, group_path_path, "group-file mapping",
+                                 overwrite, sep='\t', index=False)

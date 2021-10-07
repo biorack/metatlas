@@ -1,0 +1,14 @@
+{
+   "argv": [
+	"/usr/local/bin/python",
+        "-m",
+        "IPython.kernel",
+        "-f",
+        "{connection_file}"
+   ],
+   "env": {
+   	"PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+   },
+   "display_name": "Metatlas Targeted",
+   "language": "python"
+}

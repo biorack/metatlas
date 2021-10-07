@@ -1,9 +1,11 @@
 #!/bin/bash
 
+set -euf -o pipefail
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 REPO_DIR=$(dirname "$SCRIPT_DIR")
-OUT_DIR="$(pwd)/out"
-IMAGE='registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.1.0'
+OUT_DIR="${SCRIPT_DIR}/out"
+IMAGE='registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.4'
 PORT=8888
 
 while [[ "$#" -gt 0 ]]; do
@@ -22,6 +24,9 @@ while [[ "$#" -gt 0 ]]; do
   esac
   shift
 done
+
+rm -rf "$OUT_DIR"
+mkdir -p "$OUT_DIR"
 
 docker run \
    --rm \

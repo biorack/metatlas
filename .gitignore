@@ -40,6 +40,7 @@ htmlcov/
 .nox/
 .tox/
 .coverage
+.coverage.*
 .cache
 nosetests.xml
 coverage.xml
@@ -69,6 +70,7 @@ target/
 *.db
 *-shm
 *-wal
+dumps/
 
 # kbase installation directories
 bootstrap/
@@ -89,3 +91,10 @@ scratch/
 
 # editor swap files
 .*.swp
+.vscode/
+
+# pyenv
+.python-version
+
+# slurm
+slurm-*.out

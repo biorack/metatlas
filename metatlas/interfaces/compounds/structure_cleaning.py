@@ -1,10 +1,12 @@
-from __future__ import absolute_import
 import sys
-sys.path.append('/global/project/projectdirs/openmsi/jupyterhub_libs/anaconda/lib/python2.7/site-packages')
+
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import Descriptors
 from rdkit.Chem import rdMolDescriptors
+from rdkit.Chem.rdmolops import SanitizeMol
+from rdkit.Chem.inchi import MolToInchi, MolFromInchi
+
 
 """ contribution from Hans de Winter """
 def _InitialiseNeutralisationReactions():
@@ -33,9 +35,9 @@ def _InitialiseNeutralisationReactions():
 def neutralizeRadicals(mol):
     for a in mol.GetAtoms():
         if a.GetNumRadicalElectrons()==1 and a.GetFormalCharge()==1:
-            a.SetNumRadicalElectrons(0)         
+            a.SetNumRadicalElectrons(0)
             a.SetFormalCharge(0)
-            
+
 _reactions=None
 def NeutraliseCharges(mol, reactions=None):
     global _reactions
@@ -72,7 +74,7 @@ def desalt(mol):
     mol = MolFromInchi(mol)
     SanitizeMol(mol)
     d = Chem.rdmolops.GetMolFrags(mol) #these are atom indices
-    if len(d) == 1: #If there are fragments or multiple molecules this will be greater than 1 
+    if len(d) == 1: #If there are fragments or multiple molecules this will be greater than 1
         return mol,False
     my_smiles=Chem.MolToSmiles(mol,True)
     parent_atom_count=0;
@@ -101,11 +103,11 @@ def desalt_compounds_in_dataframe(x):
                 return c[0]
             else:
                 return x
-    
+
 
 def neutralize_compounds_in_dataframe(x):
     '''
-    df.ROMol = df.ROMol.apply(neutralize_compounds_in_dataframe)    
+    df.ROMol = df.ROMol.apply(neutralize_compounds_in_dataframe)
     '''
     if x:
         if x.GetNumAtoms()> 0:
@@ -117,11 +119,11 @@ def neutralize_compounds_in_dataframe(x):
                 pass
             if neutral_mol:
                 return neutral_mol
-            
+
 def calculate_num_radicals_in_dataframe(x):
     num_radicals = 0.0
     if x:
-        num_radicals = Descriptors.NumRadicalElectrons(x)        
+        num_radicals = Descriptors.NumRadicalElectrons(x)
     return num_radicals
 
 def calculate_formula_in_dataframe(x):
@@ -162,7 +164,7 @@ def calculate_inchikey_in_dataframe(x):
         try:
             ik = Chem.InchiToInchiKey(x)
         except:
-            pass#This fails when can't kekulize mol.  Carbo-cations are the culprit usually. 
+            pass#This fails when can't kekulize mol.  Carbo-cations are the culprit usually.
     return ik
 
 def calculate_charge_in_dataframe(x):

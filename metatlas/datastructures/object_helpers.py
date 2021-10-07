@@ -1,5 +1,8 @@
 from __future__ import absolute_import
 from __future__ import print_function
+
+import inspect
+import logging
 import sys
 import os
 import getpass
@@ -26,9 +29,11 @@ except ImportError:
         CFloat, CBool)
 
 
+logger = logging.getLogger(__name__)
+
 # Whether we are running from NERSC
 ON_NERSC = 'METATLAS_LOCAL' not in os.environ
-print(('NERSC=',ON_NERSC))
+logger.info('NERSC=%s', ON_NERSC)
 
 # Observable List from
 # http://stackoverflow.com/a/13259435
@@ -52,14 +57,6 @@ class NotifyList(list):
     __setitem__ = callback_method(list.__setitem__)
     __iadd__ = callback_method(list.__iadd__)
     __imul__ = callback_method(list.__imul__)
-
-    # Take care to return a new NotifyList if we slice it.
-    if sys.version_info[0] < 3:
-        __setslice__ = callback_method(list.__setslice__)
-        __delslice__ = callback_method(list.__delslice__)
-
-        def __getslice__(self, *args):
-            return self.__class__(list.__getslice__(self, *args))
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -119,17 +116,13 @@ def _get_subclasses(cls):
                                    for g in _get_subclasses(s)]
 
 class Workspace(object):
+    instance = None
 
     def __init__(self):
         # get metatlas directory since notebooks and scripts could be launched
         # from other locations
         # this directory contains the config files
         metatlas_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
-        #print("Metatlas live in ", metatlas_dir)
-
-        host_name = socket.gethostname()
-        #print("asdf you're running on %s at %s " % (host_name, socket.gethostbyname(socket.gethostname())))
-
         if ON_NERSC:
             with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
                 nersc_info = yaml.safe_load(fid)
@@ -151,7 +144,11 @@ class Workspace(object):
                         login = f"{local_info['db_username']}@"
                 self.path = f"mysql+pymysql://{login}{hostname}/{local_info['db_name']}"
             else:
-                self.path = 'sqlite:///' + getpass.getuser() + '_workspace.db'
+                filename = f"{getpass.getuser()}_workspace.db"
+                self.path = f"sqlite:///{filename}"
+                if os.path.exists(filename):
+                    os.chmod(filename, 0o775)
+        logger.debug('Using database at: %s', self.path)
 
         self.tablename_lut = dict()
         self.subclass_lut = dict()
@@ -168,34 +165,51 @@ class Workspace(object):
         # handle circular references
         self.seen = dict()
         Workspace.instance = self
+        self.db = None
+
+    @classmethod
+    def get_instance(cls):
+        """Returns a existing instance of Workspace or creates a new one"""
+        if Workspace.instance is None:
+            return Workspace()
+        return Workspace.instance
 
     def get_connection(self):
         """
         Get a re-useable connection to the database.
-
         Each activity that queries the database needs to have this function preceeding it.
-
         """
-        try:
-            if self.db.engine.name == 'mysql':
-                r = self.db.query('show tables')
-            else:
-                self.db.query('SELECT name FROM sqlite_master WHERE type = "table"')
-        except Exception:
+        if self.db is None:
             self.db = dataset.connect(self.path)
-            if 'sqlite' in self.path:
-                os.chmod(self.path[10:], 0o775)
+        else:
+            self.db.begin()
+            try:
+                self.db.query('SELECT 1')
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                self.db = dataset.connect(self.path)
+        assert self.db is not None
+
+    def close_connection(self):
+        """close database connections"""
+        if self.db is not None:
+            self.db.close()
+            self.db = None
 
     def convert_to_double(self, table, entry):
         """Convert a table column to double type."""
         self.get_connection()
+        self.db.begin()
         try:
             self.db.query('alter table `%s` modify `%s` double' % (table, entry))
-        except Exception as e:
-            print(e)
+            self.db.commit()
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
+        logger.debug('Entering Workspace.save_objects')
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
@@ -204,29 +218,41 @@ class Workspace(object):
         self._inserts = defaultdict(list)
         for obj in objects:
             self._get_save_data(obj, _override)
+        if self._inserts:
+            logger.debug('Workspace._inserts=%s', self._inserts)
+        if self._updates:
+            logger.debug('Workspace._updates=%s', self._updates)
+        if self._link_updates:
+            logger.debug('Workspace._link_updates=%s', self._link_updates)
         self.get_connection()
-        for (table_name, updates) in self._link_updates.items():
-            if table_name not in self.db:
-                continue
-            with self.db:
+        self.db.begin()
+        try:
+            for (table_name, updates) in self._link_updates.items():
+                if table_name not in self.db:
+                    continue
                 for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' % (table_name, prev_uid, uid))
-        for (table_name, updates) in self._updates.items():
-            if '_' not in table_name and table_name not in self.db:
-                self.db.create_table(table_name, primary_id='unique_id',
-                                     primary_type=self.db.types.string(32))
-                self.fix_table(table_name)
-            with self.db:
+                    self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' %
+                                  (table_name, prev_uid, uid))
+            for (table_name, updates) in self._updates.items():
+                if '_' not in table_name and table_name not in self.db:
+                    self.db.create_table(table_name, primary_id='unique_id',
+                                         primary_type=self.db.types.string(32))
+                    if 'sqlite' not in self.path:
+                        self.fix_table(table_name)
                 for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' % (table_name, prev_uid, uid))
-        for (table_name, inserts) in self._inserts.items():
-            if '_' not in table_name and table_name not in self.db:
-                self.db.create_table(table_name, primary_id='unique_id',
-                                     primary_type=self.db.types.string(32))
-                self.fix_table(table_name)
-            self.db[table_name].insert_many(inserts)
-            # print(table_name,inserts)
-        self.db = None
+                    self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' %
+                                  (table_name, prev_uid, uid))
+            for (table_name, inserts) in self._inserts.items():
+                if '_' not in table_name and table_name not in self.db:
+                    self.db.create_table(table_name, primary_id='unique_id',
+                                         primary_type=self.db.types.string(32))
+                    if 'sqlite' not in self.path:
+                        self.fix_table(table_name)
+                self.db[table_name].insert_many(inserts)
+                logger.debug('inserting %s', inserts)
+            self.db.commit()
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
     def create_link_tables(self, klass):
         """
@@ -234,17 +260,21 @@ class Workspace(object):
         """
         name = self.table_name[klass]
         self.get_connection()
-        for (tname, trait) in klass.class_traits().items():
-            if isinstance(trait, MetList):
-                table_name = '_'.join([name, tname])
-                if table_name not in self.db:
-                    self.db.create_table(table_name)
-                    link = dict(source_id=uuid.uuid4().hex,
-                                head_id=uuid.uuid4().hex,
-                                target_id=uuid.uuid4().hex,
-                                target_table=uuid.uuid4().hex)
-                    self.db[table_name].insert(link)
-        self.db = None
+        self.db.begin()
+        try:
+            for (tname, trait) in klass.class_traits().items():
+                if isinstance(trait, MetList):
+                    table_name = '_'.join([name, tname])
+                    if table_name not in self.db:
+                        self.db.create_table(table_name)
+                        link = dict(source_id=uuid.uuid4().hex,
+                                    head_id=uuid.uuid4().hex,
+                                    target_id=uuid.uuid4().hex,
+                                    target_table=uuid.uuid4().hex)
+                        self.db[table_name].insert(link)
+            self.db.commit()
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
@@ -316,91 +346,87 @@ class Workspace(object):
         """Retrieve an object from the database."""
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
-        # with dataset.connect(self.path) as db:
-        # self.db =
+        items = []
         self.get_connection()
-        if object_type not in self.db:
-            if not klass:
-                raise ValueError('Unknown object type: %s' % object_type)
-            object_type = self.tablename_lut[klass]
-        if '_' not in object_type:
-            if kwargs.get('username', '') in ['*', 'all']:
-                kwargs.pop('username')
-            else:
-                kwargs.setdefault('username', getpass.getuser())
-        # Example query if group id is given
-        # SELECT *
-        # FROM tablename
-        # WHERE (city = 'New York' AND name like 'IBM%')
-
-        # Example query where unique id and group id are not given
-        # (to avoid getting all versions of the same object)
-        # http://stackoverflow.com/a/12102288
-        # SELECT *
-        # from (SELECT * from `groups`
-        #       WHERE (name='spam') ORDER BY last_modified)
-        # x GROUP BY head_id
-        query = 'select * from `%s` where (' % object_type
-        clauses = []
-        for (key, value) in kwargs.items():
-            if type(value) is list and len(value)>0:
-                clauses.append('%s in ("%s")' % (key, '", "'.join(value)))
-            elif not isinstance(value, six.string_types):
-                clauses.append("%s = %s" % (key, value))
-            elif '%%' in value:
-                clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
-            elif '%' in value:
-                clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
-            else:
-                clauses.append('%s = "%s"' % (key, value))
-        if 'unique_id' not in kwargs and klass:
-            clauses.append('unique_id = head_id')
-        query += ' and '.join(clauses) + ')'
-        if not clauses:
-            query = query.replace(' where ()', '')
+        self.db.begin()
         try:
-            items = [i for i in self.db.query(query)]
-        except Exception as e:
-            if 'Unknown column' in str(e):
-                keys = [k for k in klass.class_traits().keys()
-                        if not k.startswith('_')]
-                raise ValueError('Invalid column name, valid columns: %s' % keys)
-            else:
-                raise(e)
-        #print(query+'\n')
-        # print('tables:')
-        # print([t for t in self.db.query('show tables')])
-        items = [klass(**i) for i in items]
-        uids = [i.unique_id for i in items]
-        if not items:
-            return []
-        # get stubs for each of the list items
-        for (tname, trait) in items[0].traits().items():
-            if isinstance(trait, List):
-                table_name = '_'.join([object_type, tname])
-                if table_name not in self.db:
-                    for i in items:
-                        setattr(i, tname, [])
-                    continue
-                querystr = 'select * from `%s` where source_id in ("' % table_name
-                querystr += '" , "'.join(uids)
-                #print(querystr+'\n')
-                result = self.db.query(querystr + '")')
-                sublist = defaultdict(list)
-                for r in result:
-                    stub = Stub(unique_id=r['target_id'],
-                                object_type=r['target_table'])
-                    sublist[r['source_id']].append(stub)
-                for i in items:
-                    setattr(i, tname, sublist[i.unique_id])
-            elif isinstance(trait, MetInstance):
-                pass
-        for i in items:
-            if not i.prev_uid:
-                i.prev_uid = 'origin'
-            i._changed = False
-        items.sort(key=lambda x: x.last_modified)
+            if object_type not in self.db:
+                if not klass:
+                    raise ValueError('Unknown object type: %s' % object_type)
+                object_type = self.tablename_lut[klass]
+            if '_' not in object_type:
+                if kwargs.get('username', '') in ['*', 'all']:
+                    kwargs.pop('username')
+                else:
+                    kwargs.setdefault('username', getpass.getuser())
+            # Example query if group id is given
+            # SELECT *
+            # FROM tablename
+            # WHERE (city = 'New York' AND name like 'IBM%')
 
+            # Example query where unique id and group id are not given
+            # (to avoid getting all versions of the same object)
+            # http://stackoverflow.com/a/12102288
+            # SELECT *
+            # from (SELECT * from `groups`
+            #       WHERE (name='spam') ORDER BY last_modified)
+            # x GROUP BY head_id
+            query = 'select * from `%s` where (' % object_type
+            clauses = []
+            for (key, value) in kwargs.items():
+                if isinstance(value, list) and len(value) > 0:
+                    clauses.append('%s in ("%s")' % (key, '", "'.join(value)))
+                elif not isinstance(value, six.string_types):
+                    clauses.append("%s = %s" % (key, value))
+                elif '%%' in value:
+                    clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
+                elif '%' in value:
+                    clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
+                else:
+                    clauses.append('%s = "%s"' % (key, value))
+            query += ' and '.join(clauses) + ')'
+            if not clauses:
+                query = query.replace(' where ()', '')
+            try:
+                items = list(self.db.query(query))
+            except Exception as err:
+                if 'Unknown column' in str(err):
+                    keys = [k for k in klass.class_traits().keys()
+                            if not k.startswith('_')]
+                    raise ValueError('Invalid column name, valid columns: %s' % keys) from err
+                raise err
+            items = [klass(**i) for i in items]
+            uids = [i.unique_id for i in items]
+            if not items:
+                return []
+            # get stubs for each of the list items
+            for (tname, trait) in items[0].traits().items():
+                if isinstance(trait, List):
+                    table_name = '_'.join([object_type, tname])
+                    if table_name not in self.db:
+                        for i in items:
+                            setattr(i, tname, [])
+                        continue
+                    querystr = 'select * from `%s` where source_id in ("' % table_name
+                    querystr += '" , "'.join(uids)
+                    result = self.db.query(querystr + '")')
+                    sublist = defaultdict(list)
+                    for r in result:
+                        stub = Stub(unique_id=r['target_id'],
+                                    object_type=r['target_table'])
+                        sublist[r['source_id']].append(stub)
+                    for i in items:
+                        setattr(i, tname, sublist[i.unique_id])
+                elif isinstance(trait, MetInstance):
+                    pass
+            for i in items:
+                if not i.prev_uid:
+                    i.prev_uid = 'origin'
+                i._changed = False
+            items.sort(key=lambda x: x.last_modified)
+            self.db.commit()
+        except Exception as err:
+            rollback_and_log(self.db, err)
         return items
 
     def remove(self, object_type, **kwargs):
@@ -408,10 +434,7 @@ class Workspace(object):
         override = kwargs.pop('_override', False)
         if not override:
             msg = 'Are you sure you want to delete the entries? (Y/N)'
-            if sys.version.startswith('2'):
-                ans = input(msg)
-            else:
-                ans = eval(input(msg))
+            ans = eval(input(msg))
             if not ans[0].lower().startswith('y'):
                 print('Aborting')
                 return
@@ -439,35 +462,39 @@ class Workspace(object):
                 clauses.append('%s = "%s"' % (key, value))
         query += ' and '.join(clauses)
         query += ')'
-        self.get_connection()
         if not clauses:
             query = query.replace(' where ()', '')
-        # check for lists items that need removal
-        if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
-            uid_query = query.replace('delete ', 'select unique_id ')
-            uids = [i['unique_id'] for i in self.db.query(uid_query)]
-            sub_query = 'delete from `%s` where source_id in ("%s")'
-            for (tname, trait) in klass.class_traits().items():
-                table_name = '%s_%s' % (object_type, tname)
-                if not uids or table_name not in self.db:
-                    continue
-                if isinstance(trait, MetList):
-                    table_query = sub_query % (table_name, '", "'.join(uids))
-                    try:
-                        self.db.query(table_query)
-                    except Exception as e:
-                        print(e)
+        self.get_connection()
+        self.db.begin()
         try:
-            self.db.query(query)
-        except Exception as e:
-            if 'Unknown column' in str(e):
-                keys = [k for k in klass.class_traits().keys()
-                        if not k.startswith('_')]
-                raise ValueError('Invalid column name, valid columns: %s' % keys)
-            else:
-                raise(e)
-        print('Removed')
-        self.db = None
+            # check for lists items that need removal
+            if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
+                uid_query = query.replace('delete ', 'select unique_id ')
+                uids = [i['unique_id'] for i in self.db.query(uid_query)]
+                sub_query = 'delete from `%s` where source_id in ("%s")'
+                for (tname, trait) in klass.class_traits().items():
+                    table_name = '%s_%s' % (object_type, tname)
+                    if not uids or table_name not in self.db:
+                        continue
+                    if isinstance(trait, MetList):
+                        table_query = sub_query % (table_name, '", "'.join(uids))
+                        try:
+                            self.db.query(table_query)
+                        except Exception as e:
+                            print(e)
+            try:
+                self.db.query(query)
+            except Exception as e:
+                if 'Unknown column' in str(e):
+                    keys = [k for k in klass.class_traits().keys()
+                            if not k.startswith('_')]
+                    raise ValueError('Invalid column name, valid columns: %s' % keys)
+                else:
+                    raise e
+            print('Removed')
+            self.db.commit()
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
         """Remove a list of objects from the database."""
@@ -480,10 +507,7 @@ class Workspace(object):
         if not override:
             msg = ('Are you sure you want to delete the %s object(s)? (Y/N)'
                    % len(objects))
-            if sys.version.startswith('2'):
-                ans = input(msg)
-            else:
-                ans = eval(input(msg))
+            ans = eval(input(msg))
             if not ans[0].lower().startswith('y'):
                 print('Aborting')
                 return
@@ -491,26 +515,30 @@ class Workspace(object):
         username = getpass.getuser()
         attr = 'head_id' if all_versions else 'unique_id'
         self.get_connection()
-        for obj in objects:
-            if not override and obj.username != username:
-                continue
-            name = self.tablename_lut[obj.__class__]
-            ids[name].append(getattr(obj, attr))
-            # remove list items as well
-            for (tname, trait) in obj.traits().items():
-                if isinstance(trait, MetList):
-                    subname = '%s_%s' % (name, tname)
-                    ids[subname].append(getattr(obj, attr))
-        for (table_name, uids) in ids.items():
-            if table_name not in self.db:
-                continue
-            query = 'delete from `%s` where %s in ("'
-            query = query % (table_name, attr)
-            query += '" , "'.join(uids)
-            query += '")'
-            self.db.query(query)
-        print(('Removed %s object(s)' % len(objects)))
-        self.db = None
+        self.db.begin()
+        try:
+            for obj in objects:
+                if not override and obj.username != username:
+                    continue
+                name = self.tablename_lut[obj.__class__]
+                ids[name].append(getattr(obj, attr))
+                # remove list items as well
+                for (tname, trait) in obj.traits().items():
+                    if isinstance(trait, MetList):
+                        subname = '%s_%s' % (name, tname)
+                        ids[subname].append(getattr(obj, attr))
+            for (table_name, uids) in ids.items():
+                if table_name not in self.db:
+                    continue
+                query = 'delete from `%s` where %s in ("'
+                query = query % (table_name, attr)
+                query += '" , "'.join(uids)
+                query += '")'
+                self.db.query(query)
+            print(('Removed %s object(s)' % len(objects)))
+            self.db.commit()
+        except Exception as err:
+            rollback_and_log(self.db, err)
 
 
 def format_timestamp(tstamp):
@@ -565,7 +593,7 @@ class Stub(HasTraits):
                           self.unique_id)
 
     def __str__(self):
-        return self.unique_id
+        return str(self.unique_id)
 
 
 class MetInstance(Instance):
@@ -609,13 +637,23 @@ def get_from_nersc(user, relative_path):
     print(cmd)
     proc = pexpect.spawn(cmd)
     proc.expect("assword:*")
-    if sys.version.startswith('3'):
-        passwd = eval(input())
-    else:
-        passwd = input()
+    passwd = eval(input())
     clear_output()
     proc.send(passwd)
     proc.send('\r')
     proc.expect('Download Complete')
     proc.close()
     return os.path.abspath(os.path.basename(relative_path))
+
+
+def rollback_and_log(db_connection, err):
+    """
+    inputs:
+        db_connection: a dataset instance in a transaction that needs to be rolled back
+        err: exception instance that ended the transaction
+    """
+    caller_name = inspect.stack()[1][3]
+    db_connection.rollback()
+    logger.error("Transaction rollback within %s()", caller_name)
+    logger.exception(err)
+    raise err

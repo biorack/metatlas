@@ -1,118 +1,61 @@
-import os
-import pytest
-import subprocess
+# pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long, duplicate-code
+
+from . import utils
 
 
-def test_targeted_by_line01(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.1.0"
+def test_targeted_by_line01_with_remove(tmp_path):
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.4"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
-    out_file = (
-        tmp_path
-        / experiment
-        / "root0/FinalEMA-HILIC/POS_data_sheets/POS_peak_height.tab"
-    )
-    expected = [
-        f"group\t{experiment}_POS_MSMS_root0_Cone-S1\t{experiment}_POS_MSMS_root0_Cone-S2\t{experiment}_POS_MSMS_root0_Cone-S3\t{experiment}_POS_MSMS_root0_Cone-S4",  # noqa: E501
-        f"file\t{experiment}_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5\t{experiment}_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5\t{experiment}_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5\t{experiment}_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5",  # noqa: E501
-        "short groupname\tPOS_Cone-S1\tPOS_Cone-S2\tPOS_Cone-S3\tPOS_Cone-S4",
-        "sample treatment\tCone-S1\tCone-S2\tCone-S3\tCone-S4",
-        "short filename\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1",  # noqa: E501
-        "short samplename\tPOS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1",  # noqa: E501
-        "0000_2deoxyadenosine_positive_M+H252p1091_2p20\t304761.90625\t416788.03125\t837662.0625\t2359861.25",
-        "0001_adenine_positive_M+H136p0618_2p52\t1645281.875\t12096485.0\t51774956.0\t91955488.0",
-        "0002_adenine_positive_M+H136p0618_2p52\t1880780.125\t12096485.0\t51774956.0\t91955488.0",
-        "0003_xanthine_positive_M+H153p0407_2p70\t72926.875\t60128.625\t231272.640625\t317968.03125",
-        "0004_4-pyridoxic_acid_positive_M+H184p0605_2p84\t44113.671875\t66073.203125\t94702.390625\t214180.296875",  # noqa: E501
-        "0005_adenosine_positive_M+H268p1041_3p02\t26611868.0\t119774184.0\t267718880.0\t473905024.0",
-        "",
-    ]
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            f"{os.getcwd()}:/src",
-            "-v",
-            f"{tmp_path}:/out",
-            image,
-            "papermill",
-            "-p",
-            "experiment",
-            experiment,
-            "-p",
-            "metatlas_repo_path",
-            "/src",
-            "-p",
-            "project_directory",
-            "/out",
-            "-p",
-            "max_cpus",
-            "2",
-            "/src/notebooks/reference/Targeted.ipynb",
-            "/out/Targeted.ipynb",
-        ],
-        check=True,
-    )
-    with open(out_file, "r") as handle:
-        for num, line in enumerate(handle.readlines()):
-            clean_line = line.rstrip("\n")
-            assert expected[num] == clean_line
-
-
-@pytest.mark.xfail
-def test_targeted_by_line02_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.1.0"
-    experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
-    out_file = (
-        tmp_path
-        / experiment
-        / "root0/FinalEMA-HILIC/POS_data_sheets/POS_peak_height.tab"
-    )
-    expected = [
-        f"group\t{experiment}_POS_MSMS_root0_Cone-S1\t{experiment}_POS_MSMS_root0_Cone-S2\t{experiment}_POS_MSMS_root0_Cone-S3\t{experiment}_POS_MSMS_root0_Cone-S4",  # noqa: E501
-        f"file\t{experiment}_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5\t{experiment}_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5\t{experiment}_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5\t{experiment}_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5",  # noqa: E501
-        "short groupname\tPOS_Cone-S1\tPOS_Cone-S2\tPOS_Cone-S3\tPOS_Cone-S4",
-        "sample treatment\tCone-S1\tCone-S2\tCone-S3\tCone-S4",
-        "short filename\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1\t20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1",  # noqa: E501
-        "short samplename\tPOS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1\tPOS_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1",  # noqa: E501
-        "0000_2deoxyadenosine_positive_M+H252p1091_2p20\t304761.90625\t416788.03125\t837662.0625\t2359861.25",
-        "0002_adenine_positive_M+H136p0618_2p52\t1880780.125\t12096485.0\t51774956.0\t91955488.0",
-        "0005_adenosine_positive_M+H268p1041_3p02\t26611868.0\t119774184.0\t267718880.0\t473905024.0",
-        "",
-    ]
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            f"{os.getcwd()}:/src",
-            "-v",
-            f"{tmp_path}:/out",
-            image,
-            "/bin/bash",
-            "-c",
-            """\
+    expected = {}
+    expected[
+        str(tmp_path / experiment / "root0/FinalEMA-HILIC/POS/POS_data_sheets/POS_peak_height.tab")
+    ] = """group	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S1	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S2	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S3	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S4
+file	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5
+short groupname	POS_Cone-S1	POS_Cone-S2	POS_Cone-S3	POS_Cone-S4
+sample treatment	Cone-S1	Cone-S2	Cone-S3	Cone-S4
+short filename	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1
+short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1
+0000_2deoxyadenosine_positive_M+H252p1091_2p20	3.047619062e+05	4.167880312e+05	8.376620625e+05	2.359861250e+06
+0001_adenine_positive_M+H136p0618_2p52	1.594753875e+06	1.209648500e+07	5.177495600e+07	9.195548800e+07
+0002_adenosine_positive_M+H268p1041_3p02	2.661186800e+07	1.197741840e+08	2.677188800e+08	4.739050240e+08"""
+    expected[
+        str(tmp_path / experiment / "root0/FinalEMA-HILIC/POS/POS_data_sheets/POS_rt_peak.tab")
+    ] = """group	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S1	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S2	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S3	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_Cone-S4
+file	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5	20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5
+short groupname	POS_Cone-S1	POS_Cone-S2	POS_Cone-S3	POS_Cone-S4
+sample treatment	Cone-S1	Cone-S2	Cone-S3	Cone-S4
+short filename	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1	20201106_PS-KM_OakGall_final_HILICZ_POS_Rg70to1050-CE102040-QlobataAkingi-S1
+short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1
+0000_2deoxyadenosine_positive_M+H252p1091_2p20	2.277504444e+00	2.280636311e+00	2.283326864e+00	2.292241573e+00
+0001_adenine_positive_M+H136p0618_2p52	2.616474867e+00	2.639369249e+00	2.618291378e+00	2.657374620e+00
+0002_adenosine_positive_M+H268p1041_3p02	3.098848820e+00	3.125092983e+00	3.117606878e+00	3.139331818e+00"""
+    command = """\
                     jq -M '(.cells[] | select(.source[] | contains("compound_idx=0")).source) \
                                += ["\\n", \
-                                    "remove_idxs = [1, 3, 4]\\n", \
-                                   "for idx in remove_idxs:\\n", \
-                                   "    a.compound_idx = idx\\n", \
-                                   "    a.set_peak_flag(\\"remove\\")" \
+                                   "agui.compound_idx = 0\\n", \
+                                   "agui.set_msms_flag(\\"1, co-isolated precursor but all reference ions are in sample spectrum\\")\\n", \
+                                   "agui.data.set_rt(0, \\"rt_min\\", 2.1245)\\n", \
+                                   "agui.data.set_rt(0, \\"rt_max\\", 2.4439)\\n", \
+                                   "agui.compound_idx = 1\\n", \
+                                   "agui.set_peak_flag(\\"remove\\")\\n", \
+                                   "agui.compound_idx = 2\\n", \
+                                   "agui.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
+                                   "agui.data.set_rt(2, \\"rt_min\\", 2.4361)\\n", \
+                                   "agui.data.set_rt(2, \\"rt_max\\", 2.8608)\\n", \
+                                   "agui.compound_idx = 3\\n", \
+                                   "agui.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
+                                   "agui.data.set_rt(3, \\"rt_min\\", 2.8428)\\n", \
+                                   "agui.data.set_rt(3, \\"rt_max\\", 3.3081)\\n" \
                                   ]' /src/notebooks/reference/Targeted.ipynb > /out/Remove.ipynb &&  \
                     papermill \
+                        -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
                         -p metatlas_repo_path /src \
                         -p project_directory /out \
                         -p max_cpus 2 \
                         /out/Remove.ipynb \
                         /out/Remove-done.ipynb
-                   """,
-        ],
-        check=True,
-    )
-    with open(out_file, "r") as handle:
-        for num, line in enumerate(handle.readlines()):
-            clean_line = line.rstrip("\n")
-            assert expected[num] == clean_line
+                   """
+    utils.exec_docker(image, command, tmp_path)
+    assert utils.num_files_in(tmp_path) == 43
+    utils.assert_files_match(expected)

@@ -6,11 +6,10 @@ Setup
 
 1. Install Python 3.8+ (`pyenv <https://github.com/pyenv/pyenv>`_ and `pyenv intstaller <https://github.com/pyenv/pyenv-installer>`_ can help here)
 2. Install `Pip <https://pip.pypa.io/en/stable/installing/>`_
-3. Install a conda environment manager. You can get miniconda `here <https://docs.conda.io/en/latest/miniconda.html>`_.
-4. Install `Docker <https://docs.docker.com/get-docker/>`_.
-5. Install Nox with :code:`pip install --user --upgrade nox`
-6. :code:`git clone https://github.com/biorack/metatlas.git`
-7. Install git pre-commit hooks with :code:`cd metatlas && nox -s install_git_hooks`
+3. Install `Docker <https://docs.docker.com/get-docker/>`_.
+4. Install Nox with :code:`pip install --user --upgrade nox`
+5. :code:`git clone https://github.com/biorack/metatlas.git`
+6. Install git pre-commit hooks with :code:`cd metatlas && nox -s install_git_hooks`
 
 Local Development
 #################

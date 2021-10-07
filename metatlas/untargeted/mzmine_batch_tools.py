@@ -14,12 +14,6 @@ import metatlas.metatlas_objects as metob
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas.helpers import dill2plots as dp
 import six
-from six.moves import map
-
-try:
-    six.string_types
-except NameError:  # python3
-    six.string_types = str
 
 BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
 BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
@@ -143,7 +137,7 @@ def make_task_and_job(params):#basedir,basename,polarity,files):
 
 def create_job_script(m):
     """
-    
+
     This is the first function that runs when a user initializes a new untargeted workflow
 
     """
@@ -268,7 +262,7 @@ def make_targeted_mzmine_job(basedir,basename,polarity,files):
     project_name = '%s_%s'%(basename,task.polarity)
     task.output_workspace = os.path.join(basedir,project_name,'%s_%s.mzmine'%(basename,task.polarity))
     task.input_xml = os.path.join(basedir,'logs','%s_%s_filtered.xml'%(basename,task.polarity))
-    
+
     task.mzmine_launcher = get_latest_mzmine_binary()
 
     # new_d = configure_crop_filter(new_d,task.polarity,files)
@@ -284,25 +278,25 @@ def make_targeted_mzmine_job(basedir,basename,polarity,files):
 def configure_targeted_peak_detection(new_d,peak_list_filename,intensity_tolerance=1e-4,noise_level=1e4,mz_tolerance=20,rt_tolerance=0.5):
     """
     Name suffix: Suffix to be added to the peak list name.
-    
-    Peak list file: Path of the csv file containing the list of peaks to be detected. The csv file should have three columns. 
+
+    Peak list file: Path of the csv file containing the list of peaks to be detected. The csv file should have three columns.
     The first column should contain the expected M/Z, the second column the expected RT and the third the peak name. Each peak should be in a different row.
-    
+
     Field separator: Character(s) used to separate fields in the peak list file.
-    
+
     Ignore first line: Check to ignore the first line of peak list file.
-    
+
     Intensity tolerance: This value sets the maximum allowed deviation from expected shape of a peak in chromatographic direction.
-    
+
     Noise level: The minimum intensity level for a data point to be considered part of a chromatogram. All data points below this intensity level are ignored.
-    
+
     MZ Tolerance: Maximum allowed m/z difference to find the peak
-    
+
     RT tolerance: Maximum allowed retention time difference to find the peak
     """
     # Set the noise floor
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'TargetedPeakDetectionModule' in d['@method']][0]
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Peak list file' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%s'%peak_list_filename
 
@@ -322,7 +316,7 @@ def configure_targeted_peak_detection(new_d,peak_list_filename,intensity_toleran
 
 def configure_crop_filter(new_d,polarity,files,min_rt=0.01,max_rt=100,fps_string='FPS'):
     """
-    
+
     """
     # identify the element for this change
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CropFilterModule' in d['@method']][0]
@@ -336,44 +330,44 @@ def configure_crop_filter(new_d,polarity,files,min_rt=0.01,max_rt=100,fps_string
     # Set the polarity
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Scans' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['polarity'] = polarity.upper()
-    
+
     #set the rt min and rt max use the same idx2 as polarity
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['retention_time'] = {'max':'%.4f'%max_rt,'min':'%.4f'%min_rt}
-    
+
     # new_d['batch']['batchstep'][idx]['parameter'][idx2]['ms_level'] = '1-2'
 
     return new_d
 
 def configure_mass_detection(new_d,ms1_noise_level=1e4,ms2_noise_level=1e2):
     """
-    
+
     """
     # Find the module
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'MassDetectionModule' in d['@method']]
     #The first idx will be for MS1 and the second will be for MS2
-    
+
     # Set the MS1 attributes
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter']) if 'Mass detector' in d['@name']][0]
     idx3 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['module']) if 'Centroid' in d['@name']][0]
     new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['module'][idx3]['parameter']['#text'] = '%.2f'%(ms1_noise_level)
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter']) if 'Scans' in d['@name']][0]
     new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['ms_level'] = '1'
-    
+
     # Set the MS2 attributes
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter']) if 'Mass detector' in d['@name']][0]
     idx3 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['module']) if 'Centroid' in d['@name']][0]
     new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['module'][idx3]['parameter']['#text'] = '%.2f'%(ms2_noise_level)
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter']) if 'Scans' in d['@name']][0]
     new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['ms_level'] = '2'
 
-    
+
     return new_d
 
 def configure_chromatogram_builder(new_d,min_peak_duration,min_peak_height,mz_tolerance):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'ChromatogramBuilderModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Min time span' in d['@name']][0]
@@ -384,13 +378,13 @@ def configure_chromatogram_builder(new_d,min_peak_duration,min_peak_height,mz_to
 
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-   
+
     return new_d
 
 
 def configure_peak_deconvolution(new_d,min_peak_height,minimum_relative_height,search_for_minimum_rt_range,chromatographic_threshold,min_sn_ratio,min_peak_duration,max_peak_duration):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DeconvolutionModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Algorithm' in d['@name']][0]
@@ -412,14 +406,14 @@ def configure_peak_deconvolution(new_d,min_peak_height,minimum_relative_height,s
 
 def configure_isotope_search(new_d,mz_tolerance,rt_tol_perfile,representative_isotope,remove_isotopes):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'Isotope' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Retention time tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(rt_tol_perfile)
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Representative isotope' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%s'%(representative_isotope)
 
@@ -429,7 +423,7 @@ def configure_isotope_search(new_d,mz_tolerance,rt_tol_perfile,representative_is
 
 def configure_join_aligner(new_d,mz_tolerance,rt_tol_multifile):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'JoinAlignerModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
@@ -440,7 +434,7 @@ def configure_join_aligner(new_d,mz_tolerance,rt_tol_multifile):
 
 def configure_rows_filter(new_d,min_peaks_in_row,peak_with_msms):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'RowsFilterModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Minimum peaks in a row' in d['@name']][0]
@@ -453,7 +447,7 @@ def configure_rows_filter(new_d,min_peaks_in_row,peak_with_msms):
 
 def configure_duplicate_filter(new_d,mz_tolerance,rt_tol_perfile):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DuplicateFilterModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
@@ -464,39 +458,39 @@ def configure_duplicate_filter(new_d,mz_tolerance,rt_tol_perfile):
 
 def configure_gap_filling(new_d,mz_tolerance,gapfill_intensity_tolerance,rt_tol_multifile):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'gapfilling.peakfinder.PeakFinderModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-    
-    
+
+
     return new_d
 
 def configure_output(new_d,output_csv_height,output_csv_area,output_workspace,output_mgf):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CSVExportModule' in d['@method']]
     #the first will be height the second will be area
 
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter']) if 'Filename' in d['@name']][0]
     new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['#text'] = output_csv_height
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter']) if 'Filename' in d['@name']][0]
     new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['#text'] = output_csv_area
-    
+
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'GNPSExportModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Filename' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = output_mgf
-    
+
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'ProjectSaveAsModule' in d['@method']][0]
     new_d['batch']['batchstep'][idx]['parameter']['#text'] = output_workspace
     return new_d
 
 def configure_csv_output(new_d,output_csv):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CSVExportModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Filename' in d['@name']][0]
@@ -555,7 +549,7 @@ def get_latest_mzmine_binary(system='Cori',version='most_recent'):
     cp ../MZmine-2.24/startMZmine_NERSC_* .
     cd /project/projectdirs/metatlas/projects/
     chgrp -R metatlas mzmine_parameters
-    chmod -R 770 mzmine_parameters 
+    chmod -R 770 mzmine_parameters
     """
     mzmine_versions = glob.glob(os.path.join(BINARY_PATH,'*' + os.path.sep))
     if version == 'most_recent':
@@ -571,11 +565,11 @@ def get_latest_mzmine_binary(system='Cori',version='most_recent'):
 def replace_files(d,file_list):
     """
     Replace files for mzmine task
-    
+
     Inputs:
     d: an xml derived dictionary of batch commands
     file_list: a list of full paths to mzML files
-    
+
     Outputs:
     d: an xml derived dict with new files in it
     """
@@ -619,16 +613,16 @@ def dict_to_etree(d):
     def _to_etree(d, root):
         if not d:
             pass
-        elif isinstance(d, six.string_types):
+        elif isinstance(d, str):
             root.text = d
         elif isinstance(d, dict):
             for k,v in d.items():
-                assert isinstance(k, six.string_types)
+                assert isinstance(k, str)
                 if k.startswith('#'):
-                    assert k == '#text' and isinstance(v, six.string_types)
+                    assert k == '#text' and isinstance(v, str)
                     root.text = v
                 elif k.startswith('@'):
-                    assert isinstance(v, six.string_types)
+                    assert isinstance(v, str)
                     root.set(k[1:], v)
                 elif isinstance(v, list):
                     for e in v:
