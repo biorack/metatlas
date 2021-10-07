@@ -147,13 +147,13 @@ def generate_outputs(ids, cpus, repo_dir, save_to_db=True, use_poly_model=True, 
     if not model_only:
         atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
         write_notebooks(ids, atlases, repo_dir, use_poly_model)
-        get_msms_hits_for_all_notebooks(ids, atlases, cpus, use_poly_model)
+        pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model)
     targeted_output.copy_outputs_to_google_drive(ids)
     targeted_output.archive_outputs(ids)
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
 
 
-def get_msms_hits_for_all_notebooks(ids, atlases, cpus, use_poly_model):
+def pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_points, peak_height):
     """
     inputs:
         ids: an AnalysisIds object matching the one used in the main notebook
@@ -162,7 +162,9 @@ def get_msms_hits_for_all_notebooks(ids, atlases, cpus, use_poly_model):
         use_poly_model: If True, use the polynomial model, else use linear model
                         Both types of models are always generated, this only determines which ones
                         are pre-populated into the generated notebooks
+        num_points: minimum number of data points in a peak
     Calls MetatlasDataset().hits, which will create a hits cache file
+    Filters compounds by signal strength to reduce atlas size
     """
     for atlas_name in atlases:
         if (use_poly_model and "linear" in atlas_name) or (not use_poly_model and "polynomial" in atlas_name):
@@ -178,7 +180,10 @@ def get_msms_hits_for_all_notebooks(ids, atlases, cpus, use_poly_model):
             project_directory=ids.project_directory,
             google_folder=ids.google_folder,
         )
-        _ = mads.MetatlasDataset(ids=current_ids, max_cpus=cpus).hits
+        metatlas_dataset = mads.MetatlasDataset(ids=current_ids, max_cpus=cpus)
+        _ = metatlas_dataset.hits
+        if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
+            metatlas_dataset.filter_compounds_by_signal(num_points=num_points, peak_height=peak_height)
 
 
 def get_groups(ids):
@@ -246,7 +251,9 @@ def save_measured_rts(metatlas_dataset, file_name):
 def save_rt_peak(metatlas_dataset, file_name):
     """Save peak RT values in tsv format file"""
     rts_df = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname="rt_peak", use_labels=True)
-    write_utils.export_dataframe_die_on_diff(rts_df, file_name, "peak RT values", sep="\t", float_format="%.6e")
+    write_utils.export_dataframe_die_on_diff(
+        rts_df, file_name, "peak RT values", sep="\t", float_format="%.6e"
+    )
 
 
 def get_rts(metatlas_dataset, include_atlas_rt_peak=True):
