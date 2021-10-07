@@ -22,6 +22,10 @@ def assert_files_match(expected):
             num = None
             for num, line in enumerate(handle.readlines()):
                 clean_line = line.rstrip("\n")
+                if expected_lines[num] != clean_line:
+                    print('Expected line differss from actual:')
+                    print('Expected: "{expected_lines[num]}"')
+                    print('Actual:   "{expected_lines[num]}"')
                 assert expected_lines[num] == clean_line
             if num is None and contents == "":
                 continue
