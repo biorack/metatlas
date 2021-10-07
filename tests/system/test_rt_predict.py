@@ -171,8 +171,8 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 0070_lysine_unlabeled_positive_M+H147p1128_17p01,17.043212890625,17.035064697265625,17.05360221862793,17.05995750427246,17.047959327697754,17.048407554626465,17.035064697265625,17.05995750427246,0.011024194876641502,0.005512097438320751,0
 0071_ornithine_unlabeled_positive_M+H133p0972_17p04,17.058874130249023,17.06319236755371,17.085508346557617,17.07795524597168,17.071382522583008,17.070573806762695,17.058874130249023,17.085508346557617,0.0124669979531353,0.00623349897656765,0"""
     command = """\
-                    jq -M '(.cells[] | select(.source[] | contains("predict_rt.generate_rt_correction_models(ids, max_cpus, metatlas_repo_path)")).source) \
-                                = ["predict_rt.generate_rt_correction_models(ids, max_cpus, metatlas_repo_path, model_only=True)"]' \
+                    jq -M '(.cells[] | select(.source[] | contains("predict_rt.generate_outputs(ids, max_cpus, metatlas_repo_path)")).source) \
+                                = ["predict_rt.generate_outputs(ids, max_cpus, metatlas_repo_path, save_to_db=False, model_only=True)"]' \
                                 /src/notebooks/reference/RT_Prediction.ipynb > /out/Remove.ipynb &&  \
                     papermill \
                         -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
@@ -184,5 +184,5 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         /out/Remove-done.ipynb
                    """
     utils.exec_docker(image, command, tmp_path)
-    assert utils.num_files_in(tmp_path) == 49
+    assert utils.num_files_in(tmp_path) == 9
     utils.assert_files_match(expected)
