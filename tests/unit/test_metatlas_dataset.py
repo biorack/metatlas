@@ -5,6 +5,7 @@ import datetime
 import glob
 import logging
 import os
+import time
 
 import pandas as pd
 import pytest
@@ -727,6 +728,17 @@ def test_cache02(metatlas_dataset):
     assert metatlas_dataset._query_cache(metadata) is None
     del metadata["foo"]
     assert metatlas_dataset._query_cache(metadata) is None
+
+
+def test_cache03(metatlas_dataset):
+    data = "first"
+    metadata = {"_variable_name": "test_var"}
+    metatlas_dataset._save_to_cache(data, metadata)
+    time.sleep(1)
+    data = "second"
+    metadata = {"_variable_name": "test_var"}
+    metatlas_dataset._save_to_cache(data, metadata)
+    assert metatlas_dataset._query_cache(metadata) == data
 
 
 def test_save_to_cache(metatlas_dataset):
