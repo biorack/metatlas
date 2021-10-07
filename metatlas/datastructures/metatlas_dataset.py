@@ -722,12 +722,12 @@ class MetatlasDataset(HasTraits):
         """
         if (keep_idxs is None) == (remove_idxs is None):
             raise ValueError("Exactly one of keep_idxs and remove_idxs should be None")
-        _error_if_bad_idxs(self.atlas_df, keep_idxs or remove_idxs)
+        _error_if_bad_idxs(self.atlas_df, remove_idxs if keep_idxs is None else keep_idxs)
         start_len = len(self.atlas_df)
-        in_idxs: List[int] = keep_idxs or self.atlas_df.index.difference(remove_idxs)
+        in_idxs: List[int] = keep_idxs if remove_idxs is None else self.atlas_df.index.difference(remove_idxs)
         if len(in_idxs) == start_len:
             return
-        out_idxs: List[int] = remove_idxs or self.atlas_df.index.difference(keep_idxs)
+        out_idxs: List[int] = remove_idxs if keep_idxs is None else self.atlas_df.index.difference(keep_idxs)
         self._atlas_df = self.atlas_df.iloc[in_idxs].copy().reset_index(drop=True)
         if self._data is not None:
             self._data = tuple(
@@ -910,11 +910,11 @@ class MetatlasDataset(HasTraits):
     @property
     def hits(self) -> pd.DataFrame:
         """get msms hits DataFrame"""
-        if self._hits:
+        if self._hits is not None:
             return self._hits
         metadata = self._get_hits_metadata()
         self._hits = self._query_cache(metadata)
-        if self._hits:
+        if self._hits is not None:
             self._hits_valid_for_rt_bounds = False  # unsure, so assume False
             return self._hits
         _ = self.atlas_df  # regenerate if needed before logging hits generation
