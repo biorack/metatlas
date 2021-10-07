@@ -10,6 +10,7 @@ import pickle
 import shutil
 import uuid
 
+from pathlib import Path
 from typing import cast, Any, Dict, List, NewType, Optional, Tuple, TypedDict, Union
 
 import humanize
@@ -568,17 +569,21 @@ class MetatlasDataset(HasTraits):
     def _query_cache(self, required_metadata: dict) -> Optional[Any]:
         assert "_variable_name" in required_metadata.keys()
         name = required_metadata["_variable_name"]
-        for metadata_file in glob.glob(os.path.join(self.ids.cache_dir, f"{name}_*.metadata")):
+        files_matching_metadata = []
+        for metadata_file in Path(self.ids.cache_dir).glob(f"{name}_*.metadata"):
             with open(metadata_file, "rb") as metadata_fh:
                 potential_metadata = pickle.load(metadata_fh)
-                pickle_file_name = os.path.join(self.ids.cache_dir, potential_metadata["_pickle_file_name"])
+                pickle_file_name = Path(self.ids.cache_dir) / potential_metadata["_pickle_file_name"]
                 # require_metadata does not have a '_pickle_file_name' key, so remove before equality test
                 del potential_metadata["_pickle_file_name"]
                 if required_metadata == potential_metadata:
-                    with open(pickle_file_name, "rb") as pickle_fh:
-                        logger.info("Loading cached %s from %s.", name, pickle_file_name)
-                        return pickle.load(pickle_fh)
-        return None
+                    files_matching_metadata.append(pickle_file_name)
+        if len(files_matching_metadata) == 0:
+            return None
+        newest_file = sorted(files_matching_metadata, key=lambda x: x.stat().st_mtime)[-1]
+        with open(newest_file, "rb") as pickle_fh:
+            logger.info("Loading cached %s from %s.", name, pickle_file_name)
+            return pickle.load(pickle_fh)
 
     def write_data_source_files(self) -> None:
         """Write the data source files if they don't already exist"""
