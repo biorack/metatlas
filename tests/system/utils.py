@@ -35,7 +35,7 @@ def assert_files_match(expected) -> None:
                 if not compare_strs(expected_lines[num], clean_line):
                     print('Expected line differss from actual:')
                     print(f'Expected: "{expected_lines[num]}"')
-                    print(f'Actual:   "{expected_lines[num]}"')
+                    print(f'Actual:   "{clean_line}"')
                 assert compare_strs(expected_lines[num], clean_line)
             if num is None and contents == "":
                 continue
