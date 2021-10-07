@@ -722,17 +722,12 @@ class MetatlasDataset(HasTraits):
         """
         if (keep_idxs is None) == (remove_idxs is None):
             raise ValueError("Exactly one of keep_idxs and remove_idxs should be None")
+        _error_if_bad_idxs(self.atlas_df, keep_idxs or remove_idxs)
         start_len = len(self.atlas_df)
-        in_idxs: List[int]
-        out_idxs: List[int]
-        if remove_idxs is not None:
-            _error_if_bad_idxs(self.atlas_df, remove_idxs)
-            out_idxs = remove_idxs
-            in_idxs = self.atlas_df.index.difference(out_idxs)
-        if keep_idxs is not None:
-            _error_if_bad_idxs(self.atlas_df, keep_idxs)
-            in_idxs = keep_idxs
-            out_idxs = [i for i, _ in enumerate(self.atlas.compound_identifications) if i not in in_idxs]
+        in_idxs: List[int] = keep_idxs or self.atlas_df.index.difference(remove_idxs)
+        if len(in_idxs) == start_len:
+            return
+        out_idxs: List[int] = remove_idxs or self.atlas_df.index.difference(keep_idxs)
         self._atlas_df = self.atlas_df.iloc[in_idxs].copy().reset_index(drop=True)
         if self._data is not None:
             self._data = tuple(
@@ -915,41 +910,45 @@ class MetatlasDataset(HasTraits):
     @property
     def hits(self) -> pd.DataFrame:
         """get msms hits DataFrame"""
+        if self._hits:
+            return self._hits
+        metadata = self._get_hits_metadata()
+        self._hits = self._query_cache(metadata)
+        if self._hits:
+            self._hits_valid_for_rt_bounds = False  # unsure, so assume False
+            return self._hits
         _ = self.atlas_df  # regenerate if needed before logging hits generation
         _ = self.data  # regenerate if needed before logging hits generation
-        if self._hits is None:
-            metadata = {
-                "_variable_name": "hits",
-                "polarity": self.ids.polarity,
-                "extra_time": self.extra_time,
-                "keep_nonmatches": self.keep_nonmatches,
-                "frag_mz_tolerance": self.frag_mz_tolerance,
-                "ref_loc": self.msms_refs_loc,
-                "extra_mz": self.extra_mz,
-                "output_type": self.ids.output_type,
-            }
-            self._hits = self._query_cache(metadata)
-            if self._hits is None:
-                logger.info(
-                    "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs_loc=%s.",
-                    self.extra_time,
-                    self.frag_mz_tolerance,
-                    self.msms_refs_loc,
-                )
-                start_time = datetime.datetime.now()
-                self._hits = dp.get_msms_hits(
-                    self.data,
-                    extra_time=self.extra_time > 0,
-                    keep_nonmatches=self.keep_nonmatches,
-                    frag_mz_tolerance=self.frag_mz_tolerance,
-                    ref_loc=self.msms_refs_loc,
-                )
-                logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
-                self._hits_valid_for_rt_bounds = True
-                self._save_to_cache(self._hits, metadata)
-            else:
-                self._hits_valid_for_rt_bounds = False  # unsure, so assume False
+        logger.info(
+            "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs_loc=%s.",
+            self.extra_time,
+            self.frag_mz_tolerance,
+            self.msms_refs_loc,
+        )
+        start_time = datetime.datetime.now()
+        self._hits = dp.get_msms_hits(
+            self.data,
+            extra_time=self.extra_time > 0,
+            keep_nonmatches=self.keep_nonmatches,
+            frag_mz_tolerance=self.frag_mz_tolerance,
+            ref_loc=self.msms_refs_loc,
+        )
+        logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
+        self._hits_valid_for_rt_bounds = True
+        self._save_to_cache(self._hits, metadata)
         return self._hits
+
+    def _get_hits_metadata(self) -> Dict[str, Any]:
+        return {
+            "_variable_name": "hits",
+            "polarity": self.ids.polarity,
+            "extra_time": self.extra_time,
+            "keep_nonmatches": self.keep_nonmatches,
+            "frag_mz_tolerance": self.frag_mz_tolerance,
+            "ref_loc": self.msms_refs_loc,
+            "extra_mz": self.extra_mz,
+            "output_type": self.ids.output_type,
+        }
 
     def __len__(self) -> int:
         """len is from data"""
