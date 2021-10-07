@@ -55,6 +55,7 @@ pytest_deps = [
     "pytest==6.2.4",
     "pytest-cov==3.0.0",
     "pytest-mock==3.6.1",
+    "pytest-xdist[psutil]==2.4.0",
     "toml==0.10.2",
 ]
 
@@ -88,6 +89,8 @@ flake8_deps = [
     "flake8-builtins==1.5.3",
     "flake8-comprehensions==3.6.1",
 ]
+
+pytest_flags = ["--numprocesses", "auto", "-vv"]
 
 nox.options.error_on_external_run = True
 REUSE_LARGE_VENV = True
@@ -175,7 +178,7 @@ def blacken_nb(session):
 def unit_tests(session):
     session.install("-r", "docker/requirements.txt", *pytest_deps)
     session.run(
-        "pytest", "-vv", *session.posargs, "--cov", "metatlas", "tests/unit/", env={"METATLAS_LOCAL": "TRUE"}
+        "pytest", *pytest_flags, *session.posargs, "--cov", "metatlas", "tests/unit/", env={"METATLAS_LOCAL": "TRUE"}
     )
 
 
@@ -197,7 +200,7 @@ def cov_report(session):
 @nox.session(python=py_versions[0])
 def system_tests(session):
     session.install(*pytest_deps)
-    session.run("pytest", "-vv", *session.posargs, "tests/system/")
+    session.run("pytest", *pytest_flags, *session.posargs, "tests/system/")
 
 
 @nox.session(python=py_versions[0])
