@@ -24,8 +24,8 @@ def assert_files_match(expected):
                 clean_line = line.rstrip("\n")
                 if expected_lines[num] != clean_line:
                     print('Expected line differss from actual:')
-                    print('Expected: "{expected_lines[num]}"')
-                    print('Actual:   "{expected_lines[num]}"')
+                    print(f'Expected: "{expected_lines[num]}"')
+                    print(f'Actual:   "{expected_lines[num]}"')
                 assert expected_lines[num] == clean_line
             if num is None and contents == "":
                 continue
