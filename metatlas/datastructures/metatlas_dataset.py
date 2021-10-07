@@ -746,6 +746,7 @@ class MetatlasDataset(HasTraits):
         )
         if self._hits is not None:
             self.filter_hits_by_atlas()
+            self._save_to_cache(self._hits, self._get_hits_metadata())
 
     def filter_hits_by_atlas(self) -> None:
         """Remove any hits that do not have a corresponding inchi_key-adduct pair in atlas_df"""
