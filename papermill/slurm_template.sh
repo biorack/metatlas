@@ -3,6 +3,7 @@
 #SBATCH -C haswell
 #SBATCH --account=gtrnd
 #SBATCH --qos=genepool
+#SBATCH --licenses=cfs
 #SBATCH --mail-type=ALL
 #SBATCH -t 12:00:00
 
@@ -11,7 +12,7 @@ export OMP_NUM_THREADS=1
 export OMP_PLACES=threads
 export OMP_PROC_BIND=spread
 
-CONDA_DIR="$(dirname "$(dirname "$(grep 'metatlas-targeted' ../notebooks/kernels/metatlas-targeted.kernel.json | cut -d\" -f 2)")")"
+CONDA_DIR="$(dirname "$(dirname "$(grep 'metatlas-targeted' "${REPO_DIR}/notebooks/kernels/metatlas-targeted.kernel.json" | cut -d\" -f 2)")")"
 date
 echo "input file: $IN_FILE"
 echo "output file: $OUT_FILE"
