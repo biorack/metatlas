@@ -6,12 +6,23 @@ if [ "$#" -ne 3 ]; then
     exit 0
 fi
 
+if [[ $(pwd) == /global/common/software/* ]]; then
+   >&2 echo ""
+   >&2 echo "ERROR: You cannot submit a SLURM job from a directory that will be"
+   >&2 echo "read only from a job execution node, such as any directory under"
+   >&2 echo "/global/common/software"
+   >&2 echo "Please change to a different directory and try again."
+   >&2 echo "No SLURM jobs have been submitted."
+   >&2 echo ""
+   exit 1
+fi
+
 EXP="$1"
 ANALYSIS_NUM="$2"
 PROJECT_DIR="$3"
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-REPO_DIR="$(dirname "$SCRIPT_DIR")"
+export REPO_DIR="$(dirname "$SCRIPT_DIR")"
 EXP_DIR="${PROJECT_DIR}/$EXP"
 ANALYSIS_DIR="${EXP_DIR}/${USER}${ANALYSIS_NUM}"
 KERNEL_SOURCE="${REPO_DIR}/notebooks/kernels/metatlas-targeted.kernel.json"
