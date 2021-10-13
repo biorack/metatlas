@@ -52,7 +52,7 @@ def validate_kernel():
     When on NERSC, this will install the correct kernel if needed
     """
     allowed_exe = [
-        "/global/common/software/m2650/metatlas-targeted-2021-07-16/bin/python",
+        "/global/common/software/m2650/metatlas-targeted-2021-10-13/bin/python",
     ]
     error_msg = "Invalid kernel setting in Jupyter Notebook."
     on_nersc = "METATLAS_LOCAL" not in os.environ
