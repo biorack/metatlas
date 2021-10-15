@@ -1,17 +1,23 @@
 """ cheminformatics related functions """
 
+import functools
 import logging
 
+from typing import List
+
+import ipywidgets as widgets
 import matchms
 import numpy as np
 
 from rdkit import Chem
 
+from metatlas.datastructures import metatlas_objects as metob
 from metatlas.interfaces.compounds import structure_cleaning as cleaning
 
 logger = logging.getLogger(__name__)
 
 
+@functools.lru_cache
 def get_parent_mass(precursor_mz: float, adduct: str) -> float:
     """Returns the mass of the input molecule that would result in the supplied precursor_mz and adduct"""
     dummy = matchms.Spectrum(
@@ -21,6 +27,7 @@ def get_parent_mass(precursor_mz: float, adduct: str) -> float:
     return updated.metadata["parent_mass"]
 
 
+@functools.lru_cache
 def get_precursor_mz(parent_mass: float, adduct: str) -> float:
     """For an input molecule with parent_mass that generates adduct, return the resutling precursor_mz"""
     adducts = matchms.importing.load_adducts_dict()
@@ -31,6 +38,7 @@ def get_precursor_mz(parent_mass: float, adduct: str) -> float:
     return (parent_mass + correction_mass) / multiplier
 
 
+@functools.lru_cache
 def is_positive_mode(adduct: str) -> bool:
     """Returns True if the MS mode for an adduct is positive"""
     adducts = matchms.importing.load_adducts_dict()
@@ -39,6 +47,7 @@ def is_positive_mode(adduct: str) -> bool:
     return adducts[adduct]["ionmode"] == "positive"
 
 
+@functools.lru_cache
 def is_valid_inchi_pair(test_inchi: str, test_inchi_key: str) -> bool:
     """True if if test_inchi has the inchi key test_inchi_key"""
     if not matchms.utils.is_valid_inchi(test_inchi):
@@ -46,6 +55,7 @@ def is_valid_inchi_pair(test_inchi: str, test_inchi_key: str) -> bool:
     return test_inchi_key == Chem.inchi.InchiToInchiKey(test_inchi)
 
 
+@functools.lru_cache
 def is_valid_inchi_smiles_pair(test_inchi: str, test_smiles: str) -> bool:
     """
     True if test_inchi and test_smiles have the same structure.
@@ -59,6 +69,7 @@ def is_valid_inchi_smiles_pair(test_inchi: str, test_smiles: str) -> bool:
     return are_equal(mol_from_inchi, mol_from_smiles)
 
 
+@functools.lru_cache
 def inchi_to_smiles(inchi: str) -> str:
     """Convert Inchi to smiles"""
     out = Chem.MolToSmiles(Chem.inchi.MolFromInchi(inchi))
@@ -67,6 +78,7 @@ def inchi_to_smiles(inchi: str) -> str:
     return out
 
 
+@functools.lru_cache
 def smiles_to_inchi(smiles: str) -> str:
     """Convert smiles to Inchi"""
     out = Chem.inchi.MolFromInchi(Chem.MolFromSmiles(smiles))
@@ -75,6 +87,7 @@ def smiles_to_inchi(smiles: str) -> str:
     return out
 
 
+@functools.lru_cache
 def inchi_or_smiles_to_molecule(molecule_id: str) -> Chem.rdchem.Mol:
     """Convert Inchi or smiles to rdkit Mol"""
     out = Chem.inchi.MolFromInchi(molecule_id) or Chem.MolFromSmiles(molecule_id)
@@ -83,6 +96,7 @@ def inchi_or_smiles_to_molecule(molecule_id: str) -> Chem.rdchem.Mol:
     return out
 
 
+@functools.lru_cache
 def inchi_or_smiles_to_inchi(molecule_id: str) -> str:
     """Inchi or smiles string to smiles string"""
     out = Chem.inchi.MolToInchi(inchi_or_smiles_to_molecule(molecule_id))
@@ -91,6 +105,7 @@ def inchi_or_smiles_to_inchi(molecule_id: str) -> str:
     return out
 
 
+@functools.lru_cache
 def inchi_or_smiles_to_smiles(molecule_id: str) -> str:
     """Inchi or smiles string to smiles string"""
     out = Chem.MolToSmiles(inchi_or_smiles_to_molecule(molecule_id))
@@ -99,17 +114,20 @@ def inchi_or_smiles_to_smiles(molecule_id: str) -> str:
     return out
 
 
+@functools.lru_cache
 def normalize_molecule(mol: Chem.rdchem.Mol) -> Chem.rdchem.Mol:
     """Removes salt and neutralizes charges"""
     desalted, _ = cleaning.desalt(mol)
     return cleaning.NeutraliseCharges(desalted)[0]
 
 
+@functools.lru_cache
 def are_equal(molecule1: Chem.rdchem.Mol, molecule2: Chem.rdchem.Mol) -> bool:
     """True if both molecules are substructures of each other"""
     return molecule1.HasSubstructMatch(molecule2) and molecule2.HasSubstructMatch(molecule1)
 
 
+@functools.lru_cache
 def is_synonym(name: str, synonym_string: str) -> bool:
     """
     Inputs:
@@ -120,6 +138,7 @@ def is_synonym(name: str, synonym_string: str) -> bool:
     return name.lower() in [x.lower() for x in synonym_string.split("///")]
 
 
+@functools.lru_cache
 def valid_adduct(value: str) -> bool:
     """
     True if the value is an adduct listed supported by the matchms package
@@ -127,3 +146,20 @@ def valid_adduct(value: str) -> bool:
     """
     adducts = matchms.importing.load_adducts_dict()
     return value in adducts
+
+
+def mol_to_image(mol: Chem.rdchem.Mol, **kwargs) -> widgets.Image:
+    """Generated a ipywidget.Image of a molecule from a rkit Mol"""
+    d2d = Chem.Draw.MolDraw2DSVG(300, 300)
+    d2d.DrawMolecule(mol)
+    d2d.FinishDrawing()
+    text = d2d.GetDrawingText()
+    return widgets.Image(value=text.encode("utf-8"), format="svg+xml", **kwargs)
+
+
+def inchi_list_to_norm_mols(inchi_list: List[str]) -> List[Chem.rdchem.Mol]:
+    """Convert a list of inchi to a list of rdkit mols"""
+    mols = [normalize_molecule(Chem.inchi.MolFromInchi(x)) for x in inchi_list]
+    norm_inchi_list = [Chem.inchi.MolToInchi(x) for x in mols]
+    norm_results = metob.retrieve("Compound", inchi=norm_inchi_list, username="*")
+    return [Chem.inchi.MolFromInchi(x.inchi) for x in norm_results]
