@@ -13,7 +13,7 @@ import pandas as pd
 from IPython.core.display import display, HTML
 
 from metatlas.io import rclone
-from metatlas.io import write_utils
+from metatlas.io.write_utils import export_dataframe_die_on_diff
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
 
@@ -26,7 +26,7 @@ def write_atlas_to_spreadsheet(metatlas_dataset, overwrite=False):
     """Save atlas as csv file. Will not overwrite existing file unless overwrite is True"""
     out_file_name = os.path.join(metatlas_dataset.ids.output_dir, f"{metatlas_dataset.atlas.name}_export.csv")
     out_df = dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas)
-    write_utils.export_dataframe_die_on_diff(out_df, out_file_name, "atlas", overwrite=overwrite, float_format="%.6e")
+    export_dataframe_die_on_diff(out_df, out_file_name, "atlas", overwrite=overwrite, float_format="%.6e")
 
 
 def write_stats_table(
@@ -75,7 +75,7 @@ def write_stats_table(
         min_num_frag_matches,
         min_relative_frag_intensity,
     )
-    write_utils.export_dataframe_die_on_diff(scores_df, scores_path, "scores", overwrite=overwrite, float_format="%.8e")
+    export_dataframe_die_on_diff(scores_df, scores_path, "scores", overwrite=overwrite, float_format="%.8e")
     fa.make_stats_table(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
@@ -204,7 +204,7 @@ def write_msms_fragment_ions(
         )
     out_df = pd.DataFrame(out)
     path = os.path.join(data.ids.output_dir, f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut.csv")
-    write_utils.export_dataframe_die_on_diff(out_df, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
+    export_dataframe_die_on_diff(out_df, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
     return out_df
 
 
