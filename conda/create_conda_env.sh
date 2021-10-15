@@ -8,16 +8,18 @@ BASE_DIR="/global/common/software/m2650"
 ENV_DIR="${BASE_DIR}/${NAME}"
 ENV_FILE="${SCRIPT_DIR}/env.yaml"
 
+module load "python/3.8-anaconda-2020.11"
+
 echo "name: $NAME
 channels:
 - conda-forge
 dependencies:
 - python=3.8
-- pip
+- pip=21.2
 - pip:" > "$ENV_FILE"
 awk '{ print  "  - " $0 }' requirements.txt >> "$ENV_FILE"
 
-conda env create \
+mamba env create \
   --prefix "$ENV_DIR" \
   --file "$ENV_FILE"
 rm "$ENV_FILE"
