@@ -129,7 +129,9 @@ def generate_rt_correction_models(ids: mads.AnalysisIdentifiers, cpus: int) -> T
     return (linear, poly)
 
 
-def generate_outputs(ids, cpus, repo_dir, save_to_db=True, use_poly_model=True, model_only=False):
+def generate_outputs(
+    ids, cpus, repo_dir, num_points=5, peak_height=5e5, save_to_db=True, use_poly_model=True, model_only=False
+):
     """
     Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
     msms hits pickles
@@ -137,6 +139,8 @@ def generate_outputs(ids, cpus, repo_dir, save_to_db=True, use_poly_model=True, 
         ids: an AnalysisIds object matching the one used in the main notebook
         cpus: max number of cpus to use
         repo_dir: location of metatlas git repo on local filesystem
+        num_points: minimum number of data points in a peak
+        peak_height: threshold intensity level for filtering
         save_to_db: If True, save the new atlases to the database
         use_poly_model: If True, use the polynomial model, else use linear model
                         Both types of models are always generated, this only determines which ones
@@ -147,7 +151,7 @@ def generate_outputs(ids, cpus, repo_dir, save_to_db=True, use_poly_model=True, 
     if not model_only:
         atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
         write_notebooks(ids, atlases, repo_dir, use_poly_model)
-        pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model)
+        pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_points, peak_height)
     targeted_output.copy_outputs_to_google_drive(ids)
     targeted_output.archive_outputs(ids)
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
@@ -163,6 +167,7 @@ def pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_p
                         Both types of models are always generated, this only determines which ones
                         are pre-populated into the generated notebooks
         num_points: minimum number of data points in a peak
+        peak_height: threshold intensity level for filtering
     Calls MetatlasDataset().hits, which will create a hits cache file
     Filters compounds by signal strength to reduce atlas size
     """

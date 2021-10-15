@@ -172,7 +172,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 0071_ornithine_unlabeled_positive_M+H133p0972_17p04,1.705887e+01,1.706319e+01,1.708551e+01,1.707796e+01,1.707138e+01,1.707057e+01,1.705887e+01,1.708551e+01,1.246700e-02,6.233499e-03,0"""
 
     command = """\
-                    jq -M '(.cells[] | select(.source[] | contains("predict_rt.generate_outputs(ids, max_cpus, metatlas_repo_path)")).source) \
+                    jq -M '(.cells[] | select(.source[] | contains("predict_rt.generate_outputs(")).source) \
                                 = ["predict_rt.generate_outputs(ids, max_cpus, metatlas_repo_path, save_to_db=False, model_only=True)"]' \
                                 /src/notebooks/reference/RT_Prediction.ipynb > /out/Remove.ipynb &&  \
                     papermill \
