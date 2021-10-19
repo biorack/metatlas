@@ -750,6 +750,7 @@ def save_msms_refs(existing_refs_df: pd.DataFrame, output_file_name: str, layout
             return
         new_df = generate_msms_refs_df(ipysheet.sheet("input"))
         if new_df.empty:
+            logger.error("No new MSMS references defined. Not writing an output file.")
             return
         out_df = pd.concat([existing_refs_df, new_df])
         out_df.to_csv(output_file_name, sep="\t", index=False)
@@ -789,12 +790,11 @@ def load_msms_refs(file_name: Optional[str], validate_existing: bool = False) ->
 
 
 def create_input_sheet(inputs, num_rows, data=None):
-    col_headers = [x.label for x in inputs]
     input_sheet = ipysheet.sheet(
         key="input",
         rows=num_rows,
-        columns=len(INPUTS),
-        column_headers=col_headers,
+        columns=len(inputs),
+        column_headers=[x.label for x in inputs],
         column_resizing=False,
         column_width=COLUMN_WIDTH,
     )
@@ -917,25 +917,25 @@ def search(name_input, layout):
             column_width=[1, 4, 2, 10],
         )
         buttons = [widgets.Button(description="use", layout=widgets.Layout(width="100%")) for x in mols]
-
-        def on_use_button_clicked(current):
-            molecule_sheet = ipysheet.sheet("compounds")
-            for i, button in enumerate(molecule_sheet.cells[0].value):
-                if button == current:
-                    blank = widgets.HTML(value="")
-                    layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, blank)
-                    add_row_with_inchi(results[i].name, results[i].inchi)
-                    return
-            row_display = widgets.HTML(value="Could not located clicked button!")
-            layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, row_display)
-
         for button in buttons:
-            button.on_click(on_use_button_clicked)
+            button.on_click(lambda current: on_use_button_clicked(current, results, layout))
         ipysheet.column(0, buttons)
         ipysheet.column(1, [x.name for x in results])
         ipysheet.column(2, [ExactMolWt(x) for x in mols])
         ipysheet.column(3, [cheminfo.mol_to_image(x) for x in mols])
         layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, sheet)
+
+
+def on_use_button_clicked(current, results, layout):
+    molecule_sheet = ipysheet.sheet("compounds")
+    for i, button in enumerate(molecule_sheet.cells[0].value):
+        if button == current:
+            blank = widgets.HTML(value="")
+            layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, blank)
+            add_row_with_inchi(results[i].name, results[i].inchi)
+            return
+    row_display = widgets.HTML(value="Could not located clicked button!")
+    layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, row_display)
 
 
 def update_all_cell_values(sheet_key: str, value_list: List[List[Union[str, float]]]) -> None:
@@ -963,7 +963,6 @@ def float_list_to_str(floats: List[float]) -> str:
 
 
 def create_refs_sheet(refs_df: pd.DataFrame, num_mzs: int = 10) -> ipysheet.sheet:
-    num_rows = len(refs_df)
     column_names = [
         "name",
         "adduct",
@@ -981,7 +980,7 @@ def create_refs_sheet(refs_df: pd.DataFrame, num_mzs: int = 10) -> ipysheet.shee
     ]
     sheet = ipysheet.sheet(
         key="output",
-        rows=num_rows,
+        rows=len(refs_df),
         columns=len(column_names),
         column_headers=column_names,
         column_resizing=False,
