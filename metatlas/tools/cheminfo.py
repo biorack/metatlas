@@ -158,8 +158,9 @@ def mol_to_image(mol: Chem.rdchem.Mol, **kwargs) -> widgets.Image:
 
 
 def inchi_list_to_norm_mols(inchi_list: List[str]) -> List[Chem.rdchem.Mol]:
-    """Convert a list of inchi to a list of rdkit mols"""
+    """Convert a list of inchi to a list of rdkit mols corresonding to molecules in the DB"""
     mols = [normalize_molecule(Chem.inchi.MolFromInchi(x)) for x in inchi_list]
     norm_inchi_list = [Chem.inchi.MolToInchi(x) for x in mols]
     norm_results = metob.retrieve("Compound", inchi=norm_inchi_list, username="*")
-    return [Chem.inchi.MolFromInchi(x.inchi) for x in norm_results]
+    norm_db_inchi_set = {x.inchi for x in norm_results}
+    return [Chem.inchi.MolFromInchi(x) for x in norm_db_inchi_set]
