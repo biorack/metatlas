@@ -1,13 +1,14 @@
 """ For minipulating msms_refs files """
 # pylint: disable=too-few-public-methods,missing-function-docstring,too-many-arguments
 
-import json
+import functools
 import logging
 import math
 import os
-import uuid
 
-from typing import Any, cast, Dict, Optional, List, Mapping, Sequence, Tuple, TypedDict, Union
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, cast, Dict, Optional, List, Tuple, TypedDict, Union
 
 import ipysheet
 import ipywidgets as widgets
@@ -19,9 +20,12 @@ import traitlets
 from pandas.api.types import CategoricalDtype
 from rdkit import Chem
 from rdkit.Chem.Descriptors import ExactMolWt
+from rdkit import RDLogger
 from traitlets import Float, HasTraits, Instance, Int, TraitError, TraitType, Unicode, validate
+from tqdm.notebook import tqdm
 
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures.spectrum import Spectrum, str_to_spectrum
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import cheminfo
@@ -30,7 +34,12 @@ logger = logging.getLogger(__name__)
 
 COLUMN_WIDTH = 5
 
-NEW_REFS_DB_NAME = "NorthernLabAddition:NoDB"
+H5_FILE_NAME_SYSTEM_POS = 6
+H5_FILE_NAME_OPTIONAL_POS = 14
+
+NEW_REFS_DB_NAME = "metatlas"
+
+DEFAULT_COLLISION_ENERGY = "CE102040"
 
 POLARITIES = ["negative", "positive"]
 
@@ -87,12 +96,28 @@ REFS_TYPES = {  # these values are pandas dtypes
     "smiles": "string",
 }
 
+OUTPUT_COLUMNS = {
+    "Name": "name",
+    "Chemical source": "id",
+    "Adduct": "adduct",
+    "Polarity": "polarity",
+    "Exact mass": "exact_mass",
+    "Precursor m/z": "precursor_mz",
+    "Spectra": "spectrum",
+    "m/z by intensity": "most_intense_mzs",
+    "Collision energy": "collision_energy",
+    "Frag. method": "fragmentation_method",
+    "Instrument": "instrument",
+    "Instrument type": "instrument_type",
+    "Formula": "formula",
+    "Inchi key": "inchi_key",
+}
+
 HELP_TEXT = (
     "Compound Name must be in the synonym list for the corresponding database entry\n"
     "Inchi or Smiles cannot be an Inchi Key\n"
     "The supported adducts can be found at "
     "https://github.com/matchms/matchms/blob/master/matchms/data/known_adducts_table.csv\n"
-    "Instrument should contain a model name\n"
     f"Allowed values for Instrument Type are {', '.join(INSTRUMENT_TYPES)}.\n"
     f"Allowed values for Frag. Method are {', '.join(FRAG_METHODS)}.\n"
     "m/z Tol. is a relative tolerance value in expressed units of parts per million\n"
@@ -108,82 +133,106 @@ class Input:
     """Properties of an input to the spectrum extraction"""
 
     def __init__(self, identifier, label, basic_type, validator):
-        self.identifier = identifier
-        self.label = label
-        self.basic_type = basic_type
-        self.validator = validator
+        self.identifier: str = identifier
+        self.label: str = label
+        self.basic_type: str = basic_type
+        self.validator: Callable = validator
 
 
 INPUTS = [
-    Input("name", "Compound Name", "text", lambda x: not is_bad_name(x["name"], x["molecule_id"])),
+    Input("name", "Compound name", "text", lambda x: not is_bad_name(x["name"], x["molecule_id"])),
     Input(
         "molecule_id",
         "Inchi or Smiles",
         "text",
         lambda x: cheminfo.inchi_or_smiles_to_molecule(x["molecule_id"]) is not None,
     ),
+    Input("chemical_source", "Chemical source", "text", lambda x: len(x["chemical_source"]) > 0),
     Input("adduct", "Adduct", "text", lambda x: cheminfo.valid_adduct(x["adduct"])),
     Input(
-        "instrument",
-        "Instrument",
-        "text",
-        lambda x: len(x["instrument"]) > 0,
-    ),
-    Input(
         "instrument_type",
-        "Instrument Type",
+        "Instrument type",
         INSTRUMENT_TYPES,
         lambda x: x["instrument_type"] in INSTRUMENT_TYPES,
     ),
     Input(
         "fragmentation_method",
-        "Frag. Method",
+        "Frag. method",
         FRAG_METHODS,
         lambda x: x["fragmentation_method"] in FRAG_METHODS,
     ),
-    Input("mz_tolerance", "m/z Tol. [ppm]", "numeric", lambda x: is_pos_number(x["mz_tolerance"])),
+    Input("mz_tolerance", "m/z tol. [ppm]", "numeric", lambda x: is_pos_number(x["mz_tolerance"])),
     Input("rt_min", "Min RT [min.]", "numeric", lambda x: is_valid_rt_min(x["rt_min"], x["rt_max"])),
     Input("rt_max", "Max RT [min.]", "numeric", lambda x: is_valid_rt_max(x["rt_min"], x["rt_max"])),
-    Input("h5_file_name", "File Name (.h5)", "text", lambda x: is_readable_file(x["h5_file_name"])),
+    Input("h5_file_name", "File name (.h5)", "text", lambda x: is_readable_file(x["h5_file_name"])),
 ]
 
 
-class InputDict(TypedDict, total=False):
+class InputRecord:
     """Type for holding one row from input sheet"""
 
-    name: str
-    molecule_id: str
-    adduct: str
-    instrument: str
-    instrument_type: str
-    fragmentation_method: str
-    h5_file_name: str
-    mz_tolerance: float
-    rt_min: float
-    rt_max: float
+    # pylint: disable=too-many-instance-attributes
+
+    def __init__(
+        self,
+        name: str,
+        chemical_source: str,
+        molecule_id: str,
+        adduct: str,
+        instrument_type: str,
+        fragmentation_method: str,
+        h5_file_name: str,
+        mz_tolerance: float,
+        rt_min: float,
+        rt_max: float,
+    ) -> None:
+        self.name = name
+        self.chemical_source = chemical_source
+        self.molecule_id = molecule_id
+        self.adduct = adduct
+        self.instrument_type = instrument_type
+        self.fragmentation_method = fragmentation_method
+        self.h5_file_name = h5_file_name
+        self.mz_tolerance = mz_tolerance
+        self.rt_min = rt_min
+        self.rt_max = rt_max
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.name};{self.chemical_source};{self.molecule_id};{self.adduct};"
+            f"{self.instrument_type};{self.fragmentation_method};{self.h5_file_name};"
+            f"{self.mz_tolerance};{self.rt_min};{self.rt_max}"
+        )
+
+    def __hash__(self) -> int:
+        return hash(repr(self))
 
 
-def to_input_dict(data: Mapping[str, Any]) -> InputDict:
-    result = InputDict()
-    for key, key_type in InputDict.__annotations__.items():  # pylint: disable=no-member
-        if key in data:
-            result[key] = key_type(data[key])  # type: ignore
-    return result
+class LayoutPosition(Enum):
+    """Define vertical ordering of element in GUI"""
+
+    NAME_INPUT = 0
+    SEARCH_OUTPUT = 1
+    SHEET_INPUT = 2
+    EXTRACT_HELP = 3
+    SHEET_OUTPUT = 4
+    SAVE = 5
+    LOG = 6
 
 
 def is_number(value: Any) -> bool:
     try:
         float(value)
         return True
-    except ValueError:
+    except (TypeError, ValueError):
         return False
 
 
-def to_float(value: str) -> Union[float, str]:
+def to_float(value: str) -> Optional[float]:
     try:
         return float(value)
-    except ValueError:
-        return value
+    except (TypeError, ValueError):
+        return None
 
 
 def is_pos_number(value: Any) -> bool:
@@ -192,7 +241,7 @@ def is_pos_number(value: Any) -> bool:
 
 def get_compound(inchi_key: str) -> Optional[metob.Compound]:
     """
-    Returns first compound from database matching inchi_key and with username pasteur
+    Returns first compound from database matching inchi_key
     or None if not found
     """
     try:
@@ -216,86 +265,27 @@ class Proposal(TypedDict):
     """for use with traitlets.validate"""
 
     owner: HasTraits
-    value: object
+    value: str
     trait: TraitType
 
 
-class Spectrum(HasTraits):
-    # pylint: disable=too-few-public-methods
-    """List of intensities with list of corresponding MZ values"""
-    intensities: List[float] = traitlets.List(trait=Float())
-    mzs: List[float] = traitlets.List(trait=Float())
-
-    def __init__(self, mzs: Sequence[float], intensities: Sequence[float], **kwargs) -> None:
-        """required fields are inputs"""
-        with self.hold_trait_notifications():
-            super().__init__(**kwargs)
-            self.intensities = list(intensities)
-            self.mzs = list(mzs)
-
-    def __repr__(self) -> str:
-        """Return representation of data"""
-        nested_list_form = [[f"{m:.5f}" for m in self.mzs], [f"{x:.3f}" for x in self.intensities]]
-        return str(nested_list_form).replace("'", "")
-
-    def __str__(self) -> str:
-        """Return string representation of data"""
-        return self.__repr__()
-
-    @validate("intensities")
-    def _valid_intensities(self, proposal: Proposal) -> List[float]:
-        """validate positive values, not empty, and same length as mzs list"""
-        value = cast(List[float], proposal["value"])
-        if len(value) != len(self.mzs):
-            raise TraitError("length of intensities and mzs must be equal")
-        if any(x <= 0 for x in value):
-            raise TraitError("intensities must be positive")
-        return value
-
-    @validate("mzs")
-    def _valid_mzs(self, proposal: Proposal) -> List[float]:
-        """validate positive values, not empty, and same length as intensities list"""
-        value = cast(List[float], proposal["value"])
-        if len(value) != len(self.intensities):
-            raise TraitError("length of intensities and mzs must be equal")
-        if value != sorted(value):
-            raise TraitError("mzs values must be monotonically increasing")
-        if any(x <= 0 for x in value):
-            raise TraitError("mzs values must be positive")
-        return value
-
-
-def str_to_spectrum(spectrum_str: str) -> Spectrum:
-    """Converts a spectrum string into a Spectrum class instance"""
-    if spectrum_str is None or spectrum_str == "":
-        return Spectrum(mzs=[], intensities=[])
-    try:
-        decoded = json.loads(spectrum_str)
-    except (TypeError, json.JSONDecodeError):
-        logger.error("Cannot convert '%s' to a Spectrum object, setting to empty spectrum", spectrum_str)
-        return Spectrum(mzs=[], intensities=[])
-    if len(decoded) != 2:
-        logger.error("Invalid specturm '%s'. Truncating elements after first two lists.", spectrum_str)
-    return Spectrum(mzs=decoded[0], intensities=decoded[1])
-
-
-def _valid_enum(proposal, name, values_list):
+def _valid_enum(proposal: Proposal, name: str, values_list: List[str]) -> Any:
     """generic validation for enumerated type"""
     if proposal["value"] not in values_list:
         raise TraitError(f"{name} must be one of {', '.join(values_list)}")
     return proposal["value"]
 
 
-def _valid_not_len_zero(proposal, name):
+def _valid_not_len_zero(proposal: Proposal, name: str) -> Any:
     """generic validation for length greater than 0"""
     if len(proposal["value"]) == 0:
         raise TraitError(f"{name} cannot have a length of zero")
     return proposal["value"]
 
 
-def _valid_positive(proposal, name):
+def _valid_positive(proposal: Proposal, name: str) -> Any:
     """generic validation for positive value"""
-    if proposal["value"] < 0:
+    if float(proposal["value"]) < 0:
         raise TraitError(f"{name} must be positive")
     return proposal["value"]
 
@@ -320,10 +310,10 @@ class MsmsRef(HasTraits):
     # pylint: disable=too-few-public-methods,too-many-instance-attributes
     """one line from msms_refs file"""
     database: str = Unicode(allow_none=True)
-    id: str = Unicode(default=uuid.uuid4(), allow_none=True)
+    id: str = Unicode(allow_none=True)
     name: str = Unicode(allow_none=True)
     spectrum: Spectrum = Instance(klass=Spectrum, allow_none=True)
-    decimal: np.ushort = Int(default_value=4, allow_none=True)
+    decimal: np.ushort = Int(default_value=5, allow_none=True)
     precursor_mz: np.float64 = Float(allow_none=True)
     polarity: str = Unicode(allow_none=True)
     adduct: str = Unicode(allow_none=True)
@@ -488,15 +478,14 @@ class MsmsRef(HasTraits):
         if not cheminfo.is_valid_inchi_smiles_pair(self.inchi, self.smiles):
             logger.error("Invalid inchi/smiles pair for %s.", self.name)
             bad = True
-        results = metob.retrieve("compounds", username="*", inchi_key=self.inchi_key)
-        if len(results) == 0:
+        ref_compound = get_compound(self.inchi_key)
+        if ref_compound is None:
             logger.warning(
                 "Could not find inchi_key=%s in database (name=%s), so skipping some tests.",
                 self.inchi_key,
                 self.name,
             )
             return bad
-        ref_compound = results[0]
         if self.formula != ref_compound.formula:
             logger.error(
                 'Formula "%s" for %s does not match value "%s" in database.',
@@ -523,7 +512,7 @@ class MsmsRef(HasTraits):
         return bad
 
 
-def read_msms_refs(file_name: str, sep="\t", **kwargs) -> pd.DataFrame:
+def read_msms_refs(file_name: str, sep: str = "\t", **kwargs) -> pd.DataFrame:
     """Read in msms refs from file with correct types"""
     file_df = pd.read_csv(file_name, sep=sep, dtype=REFS_TYPES, **kwargs)
     logger.info("Read in %d existing references from %s", len(file_df), file_name)
@@ -559,9 +548,23 @@ def get_invalid_cells(sheet: ipysheet.sheet, input_defs: List[Input]) -> List[Tu
     return bad_cells
 
 
-def row_list_to_dict(values: List[str], input_defs: List[Input]) -> InputDict:
-    return to_input_dict(
-        {x.identifier: v if x.basic_type != "numeric" else to_float(v) for x, v in zip(input_defs, values)}
+def row_list_to_dict(values: List[str], input_defs: List[Input]) -> Dict[str, Any]:
+    return {x.identifier: v for x, v in zip(input_defs, values)}
+
+
+def row_list_to_rec(values: List[str], input_defs: List[Input]) -> InputRecord:
+    parameters = {x.identifier: v for x, v in zip(input_defs, values)}
+    return InputRecord(
+        name=parameters["name"],
+        chemical_source=parameters["chemical_source"],
+        molecule_id=parameters["molecule_id"],
+        adduct=parameters["adduct"],
+        instrument_type=parameters["instrument_type"],
+        fragmentation_method=parameters["fragmentation_method"],
+        h5_file_name=parameters["h5_file_name"],
+        mz_tolerance=float(parameters["mz_tolerance"]),
+        rt_min=float(parameters["rt_min"]),
+        rt_max=float(parameters["rt_max"]),
     )
 
 
@@ -617,14 +620,15 @@ def extract_most_intense(
         most_intense["rt"],
         parent_mass,
         float(most_intense["precursor_MZ"]),
-        f"{most_intense['collision_energy']:.1f}eV",
+        get_collision_energy(h5_file_name),
     )
 
 
-def build_msms_ref(in_dict: InputDict) -> MsmsRef:
+@functools.lru_cache(maxsize=None)
+def build_msms_ref(in_rec: InputRecord) -> Optional[MsmsRef]:
     """MsmsRef factory"""
     ref_keys = MsmsRef().class_trait_names()
-    ref_dict = {k: v for k, v in in_dict.items() if k in ref_keys}
+    ref_dict = {key: getattr(in_rec, key) for key in ref_keys if hasattr(in_rec, key)}
     try:
         (
             ref_dict["spectrum"],
@@ -633,86 +637,341 @@ def build_msms_ref(in_dict: InputDict) -> MsmsRef:
             ref_dict["precursor_mz"],
             ref_dict["collision_energy"],
         ) = extract_most_intense(
-            in_dict["h5_file_name"],
-            in_dict["molecule_id"],
-            in_dict["adduct"],
-            in_dict["rt_min"],
-            in_dict["rt_max"],
-            in_dict["mz_tolerance"],
+            in_rec.h5_file_name,
+            in_rec.molecule_id,
+            in_rec.adduct,
+            in_rec.rt_min,
+            in_rec.rt_max,
+            in_rec.mz_tolerance,
         )
-    except IndexError as err:
-        logger.error("Matching spectrum not found for %s.", in_dict["name"])
-        raise err
+    except IndexError:
+        logger.error("Matching spectrum not found for %s.", in_rec.name)
+        return None
     ref_dict["polarity"] = "positive" if cheminfo.is_positive_mode(str(ref_dict["adduct"])) else "negative"
-    mol = cheminfo.normalize_molecule(cheminfo.inchi_or_smiles_to_molecule(in_dict["molecule_id"]))
+    mol = cheminfo.normalize_molecule(cheminfo.inchi_or_smiles_to_molecule(in_rec.molecule_id))
     ref_dict["inchi"] = Chem.inchi.MolToInchi(mol)
     ref_dict["smiles"] = Chem.MolToSmiles(mol)
     ref_dict["inchi_key"] = Chem.inchi.InchiToInchiKey(ref_dict["inchi"])
     ref_dict["database"] = NEW_REFS_DB_NAME
-    ref_dict["id"] = str(uuid.uuid4())
+    ref_dict["id"] = in_rec.chemical_source
+    ref_dict["instrument"] = get_instrument(in_rec.h5_file_name)
     return MsmsRef(**ref_dict)
 
 
-def generate_msms_refs(
-    existing_refs_file_name: Optional[str],
-    output_file_name: str,
-    sheet: ipysheet.sheet,
-    validate_existing: bool = False,
-) -> None:
+def save_msms_refs(existing_refs_df: pd.DataFrame, output_file_name: str, layout: widgets.Box) -> None:
     """Create CSV file containing old and new MSMS refs"""
-    refs_df = get_empty_refs() if existing_refs_file_name is None else read_msms_refs(existing_refs_file_name)
-    logger.info(
-        "Number of existing msms reference records not passing validation is %d", get_num_bad_refs(refs_df)
-    )
-    if validate_existing and get_num_bad_refs(refs_df) > 0:
-        logger.error("All existing MSMS references must pass validation before spectrum extraction")
-        return
-    new_refs = [build_msms_ref(row_list_to_dict(row, INPUTS)) for row in sheet.cells[0].value]
-    new_df = refs_list_to_df(new_refs)
-    out_df = pd.concat([refs_df, new_df])
-    out_df.to_csv(output_file_name, sep="\t", index=False)
-    logger.info("New MSMS references file with %d records written to %s.", len(out_df), output_file_name)
+    with get_new_log_box(layout):
+        if not is_valid_input_sheet():
+            return
+        new_df = generate_msms_refs_df(ipysheet.sheet("input"))
+        if new_df.empty:
+            logger.error("Incomplete new MSMS reference definitions. Not writing an output file.")
+            return
+        out_df = pd.concat([existing_refs_df, new_df])
+        out_df.to_csv(output_file_name, sep="\t", index=False)
+        logger.info("New MSMS references file with %d records written to %s.", len(out_df), output_file_name)
 
 
-def display_inputs_ui(
-    existing_refs_file_name: Optional[str], output_file_name: str, validate_existing: bool, num_rows: int
-) -> widgets.Box:
-    """Display spreadsheet for entering input values"""
-    if existing_refs_file_name is not None and not is_readable_file(existing_refs_file_name):
-        logger.error("%s does not exist or is not readable.", existing_refs_file_name)
-        return widgets.Box()
-    col_headers = [x.label for x in INPUTS]
-    sheet = ipysheet.sheet(
+def generate_msms_refs_df(sheet: ipysheet.sheet) -> pd.DataFrame:
+    """Create DataFrame containing the new MSMS refs"""
+    new_refs = [build_msms_ref(row_list_to_rec(row, INPUTS)) for row in tqdm(sheet.cells[0].value)]
+    if None in new_refs:
+        new_refs = []
+    return refs_list_to_df(cast(List[MsmsRef], new_refs))
+
+
+def load_msms_refs(file_name: Optional[str], validate_existing: bool = False) -> List[MsmsRef]:
+    """Read in existing MSMS refs file and valid if desired"""
+    if file_name is not None and not is_readable_file(file_name):
+        try:
+            raise FileNotFoundError(f"{file_name} does not exist or is not readable.")
+        except ValueError as err:
+            logger.exception(err)
+            raise err
+    if file_name is None:
+        refs_df = get_empty_refs()
+        num_bad = 0
+    else:
+        refs_df = read_msms_refs(file_name)
+        num_bad = get_num_bad_refs(refs_df)
+        logger.info("Number of existing msms reference records not passing validation is %d", num_bad)
+    if validate_existing and num_bad > 0:
+        try:
+            raise ValueError("All existing MSMS references must pass validation before spectrum extraction")
+        except ValueError as err:
+            logger.exception(err)
+            raise err
+    return refs_df
+
+
+def create_input_sheet(
+    inputs: List[Input], num_rows: int, data: Optional[List[Any]] = None
+) -> ipysheet.sheet:
+    input_sheet = ipysheet.sheet(
+        key="input",
         rows=num_rows,
-        columns=len(INPUTS),
-        column_headers=col_headers,
+        columns=len(inputs),
+        column_headers=[x.label for x in inputs],
         column_resizing=False,
         column_width=COLUMN_WIDTH,
     )
-    ipysheet.easy.cell_range([[""] * len(INPUTS)] * num_rows)
-    extract = widgets.Button(description="Execute")
-    docs = widgets.Button(description="Help")
-    log_box = widgets.Output()
+    ipysheet.easy.cell_range(data or [[""] * len(inputs)] * num_rows)
+    return input_sheet
 
-    def on_extract_clicked(_):
-        """launch msms refs extraction and export"""
-        log_box.clear_output()
-        with log_box:
-            invalid = get_invalid_cells(sheet, INPUTS)
-            for row_num, col_name in invalid:
-                logger.error("In row %d, invalid value for '%s'.", row_num + 1, col_name)
-            if len(invalid) > 0:
-                logger.error("All inputs must pass validation before spectrum extraction")
+
+def get_log_box(layout: widgets.Box) -> widgets.Text:
+    return layout.children[LayoutPosition.LOG.value]
+
+
+def get_new_log_box(layout: widgets.Box) -> widgets.Text:
+    log_box = get_log_box(layout)
+    log_box.clear_output()
+    return log_box
+
+
+def display_to_log_box(layout: widgets.Box, message: str) -> None:
+    with get_new_log_box(layout):
+        print(message)
+
+
+def is_valid_input_sheet() -> bool:
+    """Validate the input sheet, logs problems"""
+    input_sheet = ipysheet.sheet("input")
+    invalid = get_invalid_cells(input_sheet, INPUTS)
+    for row_num, col_name in invalid:
+        logger.error("In row %d, invalid value for '%s'.", row_num + 1, col_name)
+    if len(invalid) > 0:
+        logger.error("All inputs must pass validation before spectrum extraction")
+        return False
+    logger.info("All inputs fields for new references have passed validation.")
+    return True
+
+
+def extract_all(layout: widgets.Box) -> None:
+    """launch msms refs extraction and export"""
+    with get_new_log_box(layout):
+        if is_valid_input_sheet():
+            logger.info("Extracting MSMS reference spectrums....")
+            input_sheet = ipysheet.sheet("input")
+            new_refs_df = generate_msms_refs_df(input_sheet)
+            if new_refs_df.empty:
                 return
-            generate_msms_refs(existing_refs_file_name, output_file_name, sheet, validate_existing)
+            sheet = create_refs_sheet(new_refs_df)
+            layout.children = swap_layout(layout.children, LayoutPosition.SHEET_OUTPUT.value, sheet)
 
-    extract.on_click(on_extract_clicked)
 
-    def on_docs_clicked(_):
-        """show help information below the sheet widget"""
-        log_box.clear_output()
-        with log_box:
-            print(HELP_TEXT)
+def add_msms_refs(
+    existing_refs_file_name: Optional[str], output_file_name: str, validate_existing: bool, num_rows: int
+) -> widgets.Box:
+    existing_refs_df = load_msms_refs(existing_refs_file_name, validate_existing)
+    return display_ui(existing_refs_df, output_file_name, num_rows)
 
-    docs.on_click(on_docs_clicked)
-    return widgets.VBox([sheet, widgets.HBox([extract, docs]), log_box])
+
+def display_ui(existing_refs_df: pd.DataFrame, output_file_name: str, num_rows: int) -> widgets.VBox:
+    """Display spreadsheet for entering input values"""
+    # Layout:
+    #    Row 0: molecule name text sub-string search input box and submission button
+    #    Row 1: molecule name search results: sheet or status message
+    #    Row 2: main input sheet for collecting most fields
+    #    Row 3: Execute and Help buttons
+    #    Row 4: Output sheet
+    #    Row 5: Save to File button
+    #    Row 6: logging output
+    elements = {}
+    name_input = widgets.Text(description="Name")
+    min_mw = widgets.FloatText(value=0, description="Min. MW")
+    max_mw = widgets.FloatText(value=99999, description="Max. MW")
+    search_button = widgets.Button(description="Molecule Search")
+    elements[LayoutPosition.NAME_INPUT.value] = widgets.HBox([name_input, min_mw, max_mw, search_button])
+    elements[LayoutPosition.SEARCH_OUTPUT.value] = widgets.HTML(value="")
+    elements[LayoutPosition.SHEET_INPUT.value] = create_input_sheet(INPUTS, num_rows)
+    extract_button = widgets.Button(description="Extract spectrums")
+    help_button = widgets.Button(description="Help")
+    elements[LayoutPosition.EXTRACT_HELP.value] = widgets.HBox([extract_button, help_button])
+    elements[LayoutPosition.SHEET_OUTPUT.value] = widgets.HTML(value="No new MSMS refs have been added")
+    elements[LayoutPosition.SAVE.value] = widgets.Button(description="Save to file")
+    elements[LayoutPosition.LOG.value] = widgets.Output()
+    element_list = [elements[k.value] for k in LayoutPosition]
+    layout = widgets.VBox(element_list)
+    search_button.on_click(lambda _: search(name_input.value, min_mw.value, max_mw.value, layout))
+    extract_button.on_click(lambda _: extract_all(layout))
+    help_button.on_click(lambda _: display_to_log_box(layout, HELP_TEXT))
+    elements[LayoutPosition.SAVE.value].on_click(
+        lambda _: save_msms_refs(existing_refs_df, output_file_name, layout)
+    )
+    return layout
+
+
+def swap_layout(existing: List[widgets.Box], index: int, update: widgets.Box) -> List[widgets.Box]:
+    """Replace existing[index] with update"""
+    return [x if i != index else update for i, x in enumerate(existing)]
+
+
+def is_valid_num_results(num: int, input_value: str, layout: widgets.Box, max_valid: int = 100) -> bool:
+    if 0 < num <= max_valid:
+        return True
+    if num == 0:
+        message = f"<b>No molecule names containing '{input_value}' were found in the database.</b>"
+    else:
+        message = f"""<b>Too many matches (>{max_valid}).
+                      {num} matches of '{input_value}' were found in the database.</b>"""
+    message_widget = widgets.HTML(value=message)
+    layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, message_widget)
+    return False
+
+
+def get_synonym_matches(query: str) -> List[metob.Compound]:
+    """
+    Search DB for all molecules where query is a substring match within the synonym or name
+    fields and then filter out duplicates by inchi_key
+    """
+    workspace = metob.Workspace.get_instance()
+    workspace.get_connection()
+    # query based on from http://mysql.rjweb.org/doc.php/groupwise_max
+    sql = f"""\
+            SELECT
+                inchi, name -- The desired columns
+            FROM
+              ( SELECT  @prev := '' ) init
+            JOIN
+              ( SELECT  inchi_key != @prev AS first,  -- the 'GROUP BY'
+                        @prev := inchi_key,           -- the 'GROUP BY'
+                        inchi, name -- Also the desired columns
+                    FROM  compounds -- The table
+                    WHERE name LIKE '%{query}%' or synonyms LIKE '%{query}%'
+                    ORDER BY inchi_key --  need to order for similar to be together
+                    LIMIT 999999  -- kludge to keep the ORDER BY from being ignored
+              ) x
+            WHERE first;"""
+    if workspace.path.startswith("sqlite:"):
+        sql = f"SELECT inchi, name FROM compounds WHERE name LIKE '%{query}%' or synonyms LIKE '%{query}%'"
+    out = list(workspace.db.query(sql))
+    workspace.close_connection()
+    return out
+
+
+def filter_to_norm_inchi_in_db(dicts: List[metob.Compound]) -> List[Dict[str, str]]:
+    inchi_list = [x["norm_inchi"] for x in dicts]
+    results = metob.retrieve("Compound", inchi=inchi_list, username="*")
+    in_db = {x.inchi for x in results}
+    return [x for x in dicts if x["norm_inchi"] in in_db]
+
+
+def filter_by_mw(dicts: List[Dict[str, str]], min_mw, max_mw) -> List[Dict[str, str]]:
+    return [x for x in dicts if min_mw <= x["MW"] <= max_mw]
+
+
+def clear_search_output(layout: widgets.Box) -> None:
+    blank = widgets.HTML(value="")
+    layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, blank)
+
+
+def search(query: str, min_mw: float, max_mw: float, layout: widgets.Box) -> None:
+    with get_new_log_box(layout):
+        clear_search_output(layout)
+        results = get_synonym_matches(query)
+        for cur in results:
+            RDLogger.DisableLog("rdApp.*")  # hide rdkit warnings
+            cur["mol"] = cheminfo.normalize_molecule(Chem.inchi.MolFromInchi(cur["inchi"]))
+            RDLogger.EnableLog("rdApp.*")
+            cur["norm_inchi"] = Chem.inchi.MolToInchi(cur["mol"])
+            cur["MW"] = ExactMolWt(cur["mol"])
+        filtered = filter_by_mw(filter_to_norm_inchi_in_db(results), min_mw, max_mw)
+        logger.debug("Found %d matches to %s.", len(filtered), query)
+        if not is_valid_num_results(len(filtered), query, layout):
+            return
+        final = sorted(filtered, key=lambda x: x["MW"])
+        logger.debug("Num mols: %d", len(final))
+        column_names = ["", "Name", "MW", "Structure"]
+        sheet = ipysheet.sheet(
+            rows=len(final),
+            columns=len(column_names),
+            column_headers=column_names,
+            column_resizing=False,
+            column_width=[1, 4, 2, 10],
+        )
+        buttons = [widgets.Button(description="use", layout=widgets.Layout(width="100%")) for x in final]
+        for button in buttons:
+            button.on_click(lambda current: on_use_button_clicked(current, final, layout))
+        ipysheet.column(0, buttons)
+        ipysheet.column(1, [x["name"] for x in final])
+        ipysheet.column(2, [ExactMolWt(x["mol"]) for x in final])
+        ipysheet.column(3, [cheminfo.mol_to_image(x["mol"]) for x in final])
+        layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, sheet)
+
+
+def on_use_button_clicked(
+    current: widgets.Button, results: List[Dict[str, str]], layout: widgets.Box
+) -> None:
+    molecule_sheet = layout.children[LayoutPosition.SEARCH_OUTPUT.value]
+    for i, button in enumerate(molecule_sheet.cells[0].value):
+        if button == current:
+            clear_search_output(layout)
+            add_row_with_inchi(results[i]["name"], results[i]["inchi"])
+            return
+    row_display = widgets.HTML(value="Could not located clicked button!")
+    layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, row_display)
+
+
+def update_all_cell_values(sheet_key: str, value_list: List[List[Union[str, float]]]) -> None:
+    current_sheet = ipysheet.sheet(sheet_key)
+    current_sheet.rows = len(value_list)
+    ipysheet.easy.cell_range(value_list)  # this appends to cells
+    current_sheet.cells = (current_sheet.cells[-1],)  # so only keep the last one
+
+
+def add_row_with_inchi(name: str, inchi: str):
+    input_sheet = ipysheet.sheet("input")
+    value_list = input_sheet.cells[0].value
+    new_row_values = [name, inchi] + [""] * (input_sheet.columns - 2)
+    for i, row in enumerate(value_list):
+        if row == [""] * input_sheet.columns:
+            value_list[i] = new_row_values
+            break
+    else:
+        value_list.append(new_row_values)
+    update_all_cell_values("input", value_list)
+
+
+def float_list_to_str(floats: List[float]) -> str:
+    return "\n".join([f"{x:.6f}" for x in floats])
+
+
+def create_refs_sheet(refs_df: pd.DataFrame, num_mzs: int = 10) -> ipysheet.sheet:
+    sheet = ipysheet.sheet(
+        key="output",
+        rows=len(refs_df),
+        columns=len(OUTPUT_COLUMNS),
+        column_headers=list(OUTPUT_COLUMNS.keys()),
+        column_resizing=False,
+        column_width=[3 if x == "Spectra" else 1 for x in OUTPUT_COLUMNS],
+    )
+    for i, ref_key in enumerate(OUTPUT_COLUMNS.values()):
+        if ref_key == "spectrum":
+            ipysheet.column(i, [x.widget() for x in refs_df[ref_key].to_list()], read_only=True)
+        elif ref_key == "most_intense_mzs":
+            ipysheet.column(
+                i,
+                [float_list_to_str(x.mz_by_intensity()[:num_mzs]) for x in refs_df["spectrum"]],
+                read_only=True,
+            )
+        elif ref_key in ["exact_mass", "precursor_mz"]:
+            ipysheet.column(i, refs_df[ref_key].to_list(), numeric_format="0.000000", read_only=True)
+        else:
+            ipysheet.column(i, refs_df[ref_key].to_list(), read_only=True)
+    return sheet
+
+
+def get_collision_energy(file_name: str) -> str:
+    """Extract collision energy from file name or return default value"""
+    all_fields = Path(file_name).stem.split("_")
+    optional_fields = all_fields[H5_FILE_NAME_OPTIONAL_POS].split("-")
+    for field in optional_fields:
+        if field.startswith("CE"):
+            return field
+    return DEFAULT_COLLISION_ENERGY
+
+
+def get_instrument(file_name: str) -> str:
+    """Extract instrumnet from file name"""
+    return Path(file_name).stem.split("_")[H5_FILE_NAME_SYSTEM_POS]

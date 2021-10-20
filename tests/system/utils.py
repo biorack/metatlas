@@ -12,9 +12,10 @@ def num_files_in(path) -> int:
 
 def compare_strs(s_1: str, s_2: str) -> bool:
     """String comparision with unicode normalization"""
+
     def norm_str(in_str: str) -> str:
         """Unicode string normalization"""
-        return unicodedata.normalize('NFD', in_str)
+        return unicodedata.normalize("NFD", in_str)
 
     return norm_str(s_1) == norm_str(s_2)
 
@@ -33,7 +34,7 @@ def assert_files_match(expected) -> None:
             for num, line in enumerate(handle.readlines()):
                 clean_line = line.rstrip("\n")
                 if not compare_strs(expected_lines[num], clean_line):
-                    print('Expected line differss from actual:')
+                    print("Expected line differss from actual:")
                     print(f'Expected: "{expected_lines[num]}"')
                     print(f'Actual:   "{clean_line}"')
                 assert compare_strs(expected_lines[num], clean_line)
