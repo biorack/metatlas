@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import uuid
+import warnings
 
 from enum import Enum
 from typing import Any, cast, Dict, Optional, List, Tuple, TypedDict, Union
@@ -20,6 +21,7 @@ import traitlets
 from pandas.api.types import CategoricalDtype
 from rdkit import Chem
 from rdkit.Chem.Descriptors import ExactMolWt
+from rdkit import RDLogger
 from traitlets import Float, HasTraits, Instance, Int, TraitError, TraitType, Unicode, validate
 from tqdm.notebook import tqdm
 
@@ -821,6 +823,8 @@ def get_synonym_matches(query: str) -> List[metob.Compound]:
     Search DB for all molecules where query is a substring match within the synonym or name
     fields and then filter out duplicates by inchi_key
     """
+    workspace = metob.Workspace.get_instance()
+    workspace.get_connection()
     # query based on from http://mysql.rjweb.org/doc.php/groupwise_max
     sql = f"""\
             SELECT
@@ -832,16 +836,16 @@ def get_synonym_matches(query: str) -> List[metob.Compound]:
                         @prev := inchi_key,           -- the 'GROUP BY'
                         inchi, name -- Also the desired columns
                     FROM  compounds -- The table
-                    WHERE name LIKE '{query}' or synonyms LIKE '%{query}%'
+                    WHERE name LIKE '%{query}%' or synonyms LIKE '%{query}%'
                     ORDER BY inchi_key --  need to order for similar to be together
                     LIMIT 999999  -- kludge to keep the ORDER BY from being ignored
               ) x
             WHERE first;"""
-    workspace = metob.Workspace.get_instance()
-    workspace.get_connection()
-    out = workspace.db.query(sql)
+    if workspace.path.startswith('sqlite:'):
+        sql = f"SELECT inchi, name FROM compounds WHERE name LIKE '%{query}%' or synonyms LIKE '%{query}%'"
+    out = list(workspace.db.query(sql))
     workspace.close_connection()
-    return list(out)
+    return out
 
 
 def filter_to_norm_inchi_in_db(dicts: List[metob.Compound]) -> List[Dict[str, str]]:
@@ -865,7 +869,9 @@ def search(query: str, min_mw: float, max_mw: float, layout: widgets.Box) -> Non
         clear_search_output(layout)
         results = get_synonym_matches(query)
         for cur in results:
+            RDLogger.DisableLog('rdApp.*')  # hide rdkit warnings
             cur["mol"] = cheminfo.normalize_molecule(Chem.inchi.MolFromInchi(cur["inchi"]))
+            RDLogger.EnableLog('rdApp.*')
             cur["norm_inchi"] = Chem.inchi.MolToInchi(cur["mol"])
             cur["MW"] = ExactMolWt(cur["mol"])
         filtered = filter_by_mw(filter_to_norm_inchi_in_db(results), min_mw, max_mw)
