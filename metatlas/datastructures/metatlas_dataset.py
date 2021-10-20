@@ -722,12 +722,16 @@ class MetatlasDataset(HasTraits):
         """
         if (keep_idxs is None) == (remove_idxs is None):
             raise ValueError("Exactly one of keep_idxs and remove_idxs should be None")
-        _error_if_bad_idxs(self.atlas_df, remove_idxs if keep_idxs is None else keep_idxs)
+        _error_if_bad_idxs(self.atlas_df, cast(List[int], remove_idxs if keep_idxs is None else keep_idxs))
         start_len = len(self.atlas_df)
-        in_idxs: List[int] = keep_idxs if remove_idxs is None else self.atlas_df.index.difference(remove_idxs)
+        in_idxs = cast(
+            List[int], keep_idxs if remove_idxs is None else self.atlas_df.index.difference(remove_idxs)
+        )
         if len(in_idxs) == start_len:
             return
-        out_idxs: List[int] = remove_idxs if keep_idxs is None else self.atlas_df.index.difference(keep_idxs)
+        out_idxs = cast(
+            List[int], remove_idxs if keep_idxs is None else self.atlas_df.index.difference(keep_idxs)
+        )
         self._atlas_df = self.atlas_df.iloc[in_idxs].copy().reset_index(drop=True)
         if self._data is not None:
             self._data = tuple(

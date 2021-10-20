@@ -5,11 +5,10 @@ import functools
 import logging
 import math
 import os
-import uuid
-import warnings
 
 from enum import Enum
-from typing import Any, cast, Dict, Optional, List, Tuple, TypedDict, Union
+from pathlib import Path
+from typing import Any, Callable, cast, Dict, Optional, List, Tuple, TypedDict, Union
 
 import ipysheet
 import ipywidgets as widgets
@@ -35,7 +34,12 @@ logger = logging.getLogger(__name__)
 
 COLUMN_WIDTH = 5
 
-NEW_REFS_DB_NAME = "NorthernLabAddition:NoDB"
+H5_FILE_NAME_SYSTEM_POS = 6
+H5_FILE_NAME_OPTIONAL_POS = 14
+
+NEW_REFS_DB_NAME = "metatlas"
+
+DEFAULT_COLLISION_ENERGY = "CE102040"
 
 POLARITIES = ["negative", "positive"]
 
@@ -94,18 +98,19 @@ REFS_TYPES = {  # these values are pandas dtypes
 
 OUTPUT_COLUMNS = {
     "Name": "name",
+    "Chemical source": "id",
     "Adduct": "adduct",
     "Polarity": "polarity",
     "Exact mass": "exact_mass",
     "Precursor m/z": "precursor_mz",
-    "Spectrum": "spectrum",
+    "Spectra": "spectrum",
     "m/z by intensity": "most_intense_mzs",
     "Collision energy": "collision_energy",
     "Frag. method": "fragmentation_method",
     "Instrument": "instrument",
     "Instrument type": "instrument_type",
     "Formula": "formula",
-    "Inchi Key": "inchi_key",
+    "Inchi key": "inchi_key",
 }
 
 HELP_TEXT = (
@@ -113,7 +118,6 @@ HELP_TEXT = (
     "Inchi or Smiles cannot be an Inchi Key\n"
     "The supported adducts can be found at "
     "https://github.com/matchms/matchms/blob/master/matchms/data/known_adducts_table.csv\n"
-    "Instrument should contain a model name\n"
     f"Allowed values for Instrument Type are {', '.join(INSTRUMENT_TYPES)}.\n"
     f"Allowed values for Frag. Method are {', '.join(FRAG_METHODS)}.\n"
     "m/z Tol. is a relative tolerance value in expressed units of parts per million\n"
@@ -129,43 +133,38 @@ class Input:
     """Properties of an input to the spectrum extraction"""
 
     def __init__(self, identifier, label, basic_type, validator):
-        self.identifier = identifier
-        self.label = label
-        self.basic_type = basic_type
-        self.validator = validator
+        self.identifier: str = identifier
+        self.label: str = label
+        self.basic_type: str = basic_type
+        self.validator: Callable = validator
 
 
 INPUTS = [
-    Input("name", "Compound Name", "text", lambda x: not is_bad_name(x["name"], x["molecule_id"])),
+    Input("name", "Compound name", "text", lambda x: not is_bad_name(x["name"], x["molecule_id"])),
     Input(
         "molecule_id",
         "Inchi or Smiles",
         "text",
         lambda x: cheminfo.inchi_or_smiles_to_molecule(x["molecule_id"]) is not None,
     ),
+    Input("chemical_source", "Chemical source", "text", lambda x: len(x["chemical_source"]) > 0),
     Input("adduct", "Adduct", "text", lambda x: cheminfo.valid_adduct(x["adduct"])),
     Input(
-        "instrument",
-        "Instrument",
-        "text",
-        lambda x: len(x["instrument"]) > 0,
-    ),
-    Input(
         "instrument_type",
-        "Instrument Type",
+        "Instrument type",
         INSTRUMENT_TYPES,
         lambda x: x["instrument_type"] in INSTRUMENT_TYPES,
     ),
     Input(
         "fragmentation_method",
-        "Frag. Method",
+        "Frag. method",
         FRAG_METHODS,
         lambda x: x["fragmentation_method"] in FRAG_METHODS,
     ),
-    Input("mz_tolerance", "m/z Tol. [ppm]", "numeric", lambda x: is_pos_number(x["mz_tolerance"])),
+    Input("mz_tolerance", "m/z tol. [ppm]", "numeric", lambda x: is_pos_number(x["mz_tolerance"])),
     Input("rt_min", "Min RT [min.]", "numeric", lambda x: is_valid_rt_min(x["rt_min"], x["rt_max"])),
     Input("rt_max", "Max RT [min.]", "numeric", lambda x: is_valid_rt_max(x["rt_min"], x["rt_max"])),
-    Input("h5_file_name", "File Name (.h5)", "text", lambda x: is_readable_file(x["h5_file_name"])),
+    Input("h5_file_name", "File name (.h5)", "text", lambda x: is_readable_file(x["h5_file_name"])),
 ]
 
 
@@ -177,20 +176,20 @@ class InputRecord:
     def __init__(
         self,
         name: str,
+        chemical_source: str,
         molecule_id: str,
         adduct: str,
-        instrument: str,
         instrument_type: str,
         fragmentation_method: str,
         h5_file_name: str,
-        mz_tolerance: Optional[float],
-        rt_min: Optional[float],
-        rt_max: Optional[float],
+        mz_tolerance: float,
+        rt_min: float,
+        rt_max: float,
     ) -> None:
         self.name = name
+        self.chemical_source = chemical_source
         self.molecule_id = molecule_id
         self.adduct = adduct
-        self.instrument = instrument
         self.instrument_type = instrument_type
         self.fragmentation_method = fragmentation_method
         self.h5_file_name = h5_file_name
@@ -200,7 +199,7 @@ class InputRecord:
 
     def __repr__(self) -> str:
         return (
-            f"{self.name};{self.molecule_id};{self.adduct};{self.instrument};"
+            f"{self.name};{self.chemical_source};{self.molecule_id};{self.adduct};"
             f"{self.instrument_type};{self.fragmentation_method};{self.h5_file_name};"
             f"{self.mz_tolerance};{self.rt_min};{self.rt_max}"
         )
@@ -266,27 +265,27 @@ class Proposal(TypedDict):
     """for use with traitlets.validate"""
 
     owner: HasTraits
-    value: object
+    value: str
     trait: TraitType
 
 
-def _valid_enum(proposal, name, values_list):
+def _valid_enum(proposal: Proposal, name: str, values_list: List[str]) -> Any:
     """generic validation for enumerated type"""
     if proposal["value"] not in values_list:
         raise TraitError(f"{name} must be one of {', '.join(values_list)}")
     return proposal["value"]
 
 
-def _valid_not_len_zero(proposal, name):
+def _valid_not_len_zero(proposal: Proposal, name: str) -> Any:
     """generic validation for length greater than 0"""
     if len(proposal["value"]) == 0:
         raise TraitError(f"{name} cannot have a length of zero")
     return proposal["value"]
 
 
-def _valid_positive(proposal, name):
+def _valid_positive(proposal: Proposal, name: str) -> Any:
     """generic validation for positive value"""
-    if proposal["value"] < 0:
+    if float(proposal["value"]) < 0:
         raise TraitError(f"{name} must be positive")
     return proposal["value"]
 
@@ -311,10 +310,10 @@ class MsmsRef(HasTraits):
     # pylint: disable=too-few-public-methods,too-many-instance-attributes
     """one line from msms_refs file"""
     database: str = Unicode(allow_none=True)
-    id: str = Unicode(default=uuid.uuid4(), allow_none=True)
+    id: str = Unicode(allow_none=True)
     name: str = Unicode(allow_none=True)
     spectrum: Spectrum = Instance(klass=Spectrum, allow_none=True)
-    decimal: np.ushort = Int(default_value=4, allow_none=True)
+    decimal: np.ushort = Int(default_value=5, allow_none=True)
     precursor_mz: np.float64 = Float(allow_none=True)
     polarity: str = Unicode(allow_none=True)
     adduct: str = Unicode(allow_none=True)
@@ -513,7 +512,7 @@ class MsmsRef(HasTraits):
         return bad
 
 
-def read_msms_refs(file_name: str, sep="\t", **kwargs) -> pd.DataFrame:
+def read_msms_refs(file_name: str, sep: str = "\t", **kwargs) -> pd.DataFrame:
     """Read in msms refs from file with correct types"""
     file_df = pd.read_csv(file_name, sep=sep, dtype=REFS_TYPES, **kwargs)
     logger.info("Read in %d existing references from %s", len(file_df), file_name)
@@ -557,15 +556,15 @@ def row_list_to_rec(values: List[str], input_defs: List[Input]) -> InputRecord:
     parameters = {x.identifier: v for x, v in zip(input_defs, values)}
     return InputRecord(
         name=parameters["name"],
+        chemical_source=parameters["chemical_source"],
         molecule_id=parameters["molecule_id"],
         adduct=parameters["adduct"],
-        instrument=parameters["instrument"],
         instrument_type=parameters["instrument_type"],
         fragmentation_method=parameters["fragmentation_method"],
         h5_file_name=parameters["h5_file_name"],
-        mz_tolerance=to_float(parameters["mz_tolerance"]),
-        rt_min=to_float(parameters["rt_min"]),
-        rt_max=to_float(parameters["rt_max"]),
+        mz_tolerance=float(parameters["mz_tolerance"]),
+        rt_min=float(parameters["rt_min"]),
+        rt_max=float(parameters["rt_max"]),
     )
 
 
@@ -621,7 +620,7 @@ def extract_most_intense(
         most_intense["rt"],
         parent_mass,
         float(most_intense["precursor_MZ"]),
-        f"{most_intense['collision_energy']:.1f}eV",
+        get_collision_energy(h5_file_name),
     )
 
 
@@ -654,7 +653,8 @@ def build_msms_ref(in_rec: InputRecord) -> Optional[MsmsRef]:
     ref_dict["smiles"] = Chem.MolToSmiles(mol)
     ref_dict["inchi_key"] = Chem.inchi.InchiToInchiKey(ref_dict["inchi"])
     ref_dict["database"] = NEW_REFS_DB_NAME
-    ref_dict["id"] = str(uuid.uuid4())
+    ref_dict["id"] = in_rec.chemical_source
+    ref_dict["instrument"] = get_instrument(in_rec.h5_file_name)
     return MsmsRef(**ref_dict)
 
 
@@ -704,7 +704,9 @@ def load_msms_refs(file_name: Optional[str], validate_existing: bool = False) ->
     return refs_df
 
 
-def create_input_sheet(inputs, num_rows, data=None):
+def create_input_sheet(
+    inputs: List[Input], num_rows: int, data: Optional[List[Any]] = None
+) -> ipysheet.sheet:
     input_sheet = ipysheet.sheet(
         key="input",
         rows=num_rows,
@@ -717,17 +719,17 @@ def create_input_sheet(inputs, num_rows, data=None):
     return input_sheet
 
 
-def get_log_box(layout):
+def get_log_box(layout: widgets.Box) -> widgets.Text:
     return layout.children[LayoutPosition.LOG.value]
 
 
-def get_new_log_box(layout):
+def get_new_log_box(layout: widgets.Box) -> widgets.Text:
     log_box = get_log_box(layout)
     log_box.clear_output()
     return log_box
 
 
-def display_to_log_box(layout, message):
+def display_to_log_box(layout: widgets.Box, message: str) -> None:
     with get_new_log_box(layout):
         print(message)
 
@@ -745,7 +747,7 @@ def is_valid_input_sheet() -> bool:
     return True
 
 
-def extract_all(layout):
+def extract_all(layout: widgets.Box) -> None:
     """launch msms refs extraction and export"""
     with get_new_log_box(layout):
         if is_valid_input_sheet():
@@ -800,12 +802,12 @@ def display_ui(existing_refs_df: pd.DataFrame, output_file_name: str, num_rows: 
     return layout
 
 
-def swap_layout(existing: List[widgets.Box], index: int, update: widgets.Box):
+def swap_layout(existing: List[widgets.Box], index: int, update: widgets.Box) -> List[widgets.Box]:
     """Replace existing[index] with update"""
     return [x if i != index else update for i, x in enumerate(existing)]
 
 
-def is_valid_num_results(num, input_value, layout, max_valid=100):
+def is_valid_num_results(num: int, input_value: str, layout: widgets.Box, max_valid: int = 100) -> bool:
     if 0 < num <= max_valid:
         return True
     if num == 0:
@@ -942,7 +944,7 @@ def create_refs_sheet(refs_df: pd.DataFrame, num_mzs: int = 10) -> ipysheet.shee
         columns=len(OUTPUT_COLUMNS),
         column_headers=list(OUTPUT_COLUMNS.keys()),
         column_resizing=False,
-        column_width=[3 if x == "Spectrum" else 1 for x in OUTPUT_COLUMNS],
+        column_width=[3 if x == "Spectra" else 1 for x in OUTPUT_COLUMNS],
     )
     for i, ref_key in enumerate(OUTPUT_COLUMNS.values()):
         if ref_key == "spectrum":
@@ -958,3 +960,18 @@ def create_refs_sheet(refs_df: pd.DataFrame, num_mzs: int = 10) -> ipysheet.shee
         else:
             ipysheet.column(i, refs_df[ref_key].to_list(), read_only=True)
     return sheet
+
+
+def get_collision_energy(file_name: str) -> str:
+    """Extract collision energy from file name or return default value"""
+    all_fields = Path(file_name).stem.split("_")
+    optional_fields = all_fields[H5_FILE_NAME_OPTIONAL_POS].split("-")
+    for field in optional_fields:
+        if field.startswith("CE"):
+            return field
+    return DEFAULT_COLLISION_ENERGY
+
+
+def get_instrument(file_name: str) -> str:
+    """Extract instrumnet from file name"""
+    return Path(file_name).stem.split("_")[H5_FILE_NAME_SYSTEM_POS]

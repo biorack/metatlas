@@ -40,7 +40,7 @@ class Spectrum(HasTraits):
 
     def __repr__(self) -> str:
         """Return representation of data"""
-        nested_list_form = [[f"{m:.5f}" for m in self.mzs], [f"{x:.3f}" for x in self.intensities]]
+        nested_list_form = [[f"{m:.5f}" for m in self.mzs], [f"{x:.1f}" for x in self.intensities]]
         return str(nested_list_form).replace("'", "")
 
     def __str__(self) -> str:
