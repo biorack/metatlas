@@ -2,15 +2,13 @@
 # pylint: disable=too-few-public-methods,missing-function-docstring,too-many-arguments
 
 import functools
-import io
-import json
 import logging
 import math
 import os
 import uuid
 
 from enum import Enum
-from typing import Any, cast, Dict, Optional, List, Mapping, Sequence, Tuple, TypedDict, Union
+from typing import Any, cast, Dict, Optional, List, Tuple, TypedDict, Union
 
 import ipysheet
 import ipywidgets as widgets
@@ -19,8 +17,6 @@ import numpy as np
 import pandas as pd
 import traitlets
 
-from matplotlib import pyplot as plt
-from matplotlib.figure import Figure
 from pandas.api.types import CategoricalDtype
 from rdkit import Chem
 from rdkit.Chem.Descriptors import ExactMolWt
@@ -28,6 +24,7 @@ from traitlets import Float, HasTraits, Instance, Int, TraitError, TraitType, Un
 from tqdm.notebook import tqdm
 
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures.spectrum import Spectrum, str_to_spectrum
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import cheminfo
@@ -91,6 +88,22 @@ REFS_TYPES = {  # these values are pandas dtypes
     "inchi_key": "string",
     "inchi": "string",
     "smiles": "string",
+}
+
+OUTPUT_COLUMNS = {
+    "Name": "name",
+    "Adduct": "adduct",
+    "Polarity": "polarity",
+    "Exact mass": "exact_mass",
+    "Precursor m/z": "precursor_mz",
+    "Spectrum": "spectrum",
+    "m/z by intensity": "most_intense_mzs",
+    "Collision energy": "collision_energy",
+    "Frag. method": "fragmentation_method",
+    "Instrument": "instrument",
+    "Instrument type": "instrument_type",
+    "Formula": "formula",
+    "Inchi Key": "inchi_key",
 }
 
 HELP_TEXT = (
@@ -206,15 +219,6 @@ class LayoutPosition(Enum):
     LOG = 6
 
 
-def to_input_record(data: Mapping[str, str]) -> InputRecord:
-    parameters: Dict[str, Union[str, float, None]] = {
-        i.identifier: to_float(data[i.identifier]) if i.basic_type == "numeric" else data[i.identifier]
-        for i in INPUTS
-        if i.identifier in data
-    }
-    return InputRecord(**parameters)
-
-
 def is_number(value: Any) -> bool:
     try:
         float(value)
@@ -236,7 +240,7 @@ def is_pos_number(value: Any) -> bool:
 
 def get_compound(inchi_key: str) -> Optional[metob.Compound]:
     """
-    Returns first compound from database matching inchi_key and with username pasteur
+    Returns first compound from database matching inchi_key
     or None if not found
     """
     try:
@@ -262,107 +266,6 @@ class Proposal(TypedDict):
     owner: HasTraits
     value: object
     trait: TraitType
-
-
-class Spectrum(HasTraits):
-    # pylint: disable=too-few-public-methods
-    """List of intensities with list of corresponding MZ values"""
-    intensities: List[float] = traitlets.List(trait=Float())
-    mzs: List[float] = traitlets.List(trait=Float())
-
-    def __init__(self, mzs: Sequence[float], intensities: Sequence[float], **kwargs) -> None:
-        """required fields are inputs"""
-        with self.hold_trait_notifications():
-            super().__init__(**kwargs)
-            self.intensities = list(intensities)
-            self.mzs = list(mzs)
-
-    def __repr__(self) -> str:
-        """Return representation of data"""
-        nested_list_form = [[f"{m:.5f}" for m in self.mzs], [f"{x:.3f}" for x in self.intensities]]
-        return str(nested_list_form).replace("'", "")
-
-    def __str__(self) -> str:
-        """Return string representation of data"""
-        return self.__repr__()
-
-    def __len__(self) -> int:
-        return len(self.mzs)
-
-    def toJSON(self) -> str:  # pylint: disable=invalid-name
-        return json.dumps([self.mzs, self.intensities])
-
-    def plot(self) -> Figure:
-        fig, axis = plt.subplots()
-        axis.vlines(self.mzs, [0] * len(self), self.intensities, colors="b", linewidth=2)
-        return fig
-
-    def widget(self) -> widgets.Image:
-        mem_fh = io.BytesIO()
-        plt.ioff()
-        fig = self.plot()
-        fig.savefig(mem_fh, format="svg")
-        plt.close(fig)
-        return widgets.Image(value=mem_fh.getvalue(), format="svg+xml")
-
-    def mz_by_intensity(self) -> List[float]:
-        pairs = zip(self.mzs, self.intensities)
-        return [p[0] for p in sorted(pairs, key=lambda x: x[1], reverse=True)]
-
-    @validate("intensities")
-    def _valid_intensities(self, proposal: Proposal) -> List[float]:
-        """validate positive values, not empty, and same length as mzs list"""
-        value = cast(List[float], proposal["value"])
-        if len(value) != len(self.mzs):
-            raise TraitError("length of intensities and mzs must be equal")
-        if any(x <= 0 for x in value):
-            raise TraitError("intensities must be positive")
-        return value
-
-    @validate("mzs")
-    def _valid_mzs(self, proposal: Proposal) -> List[float]:
-        """validate positive values, not empty, and same length as intensities list"""
-        value = cast(List[float], proposal["value"])
-        if len(value) != len(self.intensities):
-            raise TraitError("length of intensities and mzs must be equal")
-        if not pd.Series(value).is_monotonic_increasing:
-            raise TraitError("mzs values must be monotonically increasing")
-        if any(x <= 0 for x in value):
-            raise TraitError("mzs values must be positive")
-        return value
-
-
-def str_to_spectrum(in_str: str) -> Spectrum:
-    """Converts a spectrum string into a Spectrum class instance"""
-    try:
-        decoded = json.loads(in_str)
-        mzs = decoded[0]
-        intensities = decoded[1]
-    except (TypeError, json.JSONDecodeError, IndexError):
-        logger.error("Cannot convert '%s' to a Spectrum object, setting to empty spectrum", in_str)
-        return Spectrum(mzs=[], intensities=[])
-    if len(decoded) > 2:
-        logger.error("Invalid spectrum '%s'. Truncating elements after first two lists.", in_str)
-    if len(mzs) > len(intensities):
-        logger.error("Invalid spectrum '%s'. Truncating mzs list as intensities list is shorter.", in_str)
-        mzs = mzs[: len(intensities)]
-    elif len(mzs) < len(intensities):
-        logger.error("Invalid spectrum '%s'. Truncating intensities list as mzs list is shorter.", in_str)
-        intensities = intensities[: len(mzs)]
-    if not pd.Series(mzs).is_monotonic_increasing:
-        logger.error("Invalid spectrum '%s'. mzs values must be monotonically increasing. Sorting.", in_str)
-        mzs, intensities = sort_mzs_intensities(mzs, intensities)
-    try:
-        return Spectrum(mzs=mzs, intensities=intensities)
-    except TraitError as err:
-        logger.exception(err + " Setting to empty Spectrum")
-        return Spectrum(mzs=[], intensities=[])
-
-
-def sort_mzs_intensities(mzs: List[float], intensities: List[float]) -> Tuple[List[float], List[float]]:
-    pairs = zip(mzs, intensities)
-    sort_pairs = sorted(pairs, key=lambda x: x[0])
-    return cast(Tuple[List[float], List[float]], zip(*sort_pairs))
 
 
 def _valid_enum(proposal, name, values_list):
@@ -574,15 +477,14 @@ class MsmsRef(HasTraits):
         if not cheminfo.is_valid_inchi_smiles_pair(self.inchi, self.smiles):
             logger.error("Invalid inchi/smiles pair for %s.", self.name)
             bad = True
-        results = metob.retrieve("compounds", username="*", inchi_key=self.inchi_key)
-        if len(results) == 0:
+        ref_compound = get_compound(self.inchi_key)
+        if ref_compound is None:
             logger.warning(
                 "Could not find inchi_key=%s in database (name=%s), so skipping some tests.",
                 self.inchi_key,
                 self.name,
             )
             return bad
-        ref_compound = results[0]
         if self.formula != ref_compound.formula:
             logger.error(
                 'Formula "%s" for %s does not match value "%s" in database.',
@@ -650,8 +552,19 @@ def row_list_to_dict(values: List[str], input_defs: List[Input]) -> Dict[str, An
 
 
 def row_list_to_rec(values: List[str], input_defs: List[Input]) -> InputRecord:
-    dct = {x.identifier: v if x.basic_type != "numeric" else to_float(v) for x, v in zip(input_defs, values)}
-    return to_input_record(dct)
+    parameters = {x.identifier: v for x, v in zip(input_defs, values)}
+    return InputRecord(
+        name=parameters["name"],
+        molecule_id=parameters["molecule_id"],
+        adduct=parameters["adduct"],
+        instrument=parameters["instrument"],
+        instrument_type=parameters["instrument_type"],
+        fragmentation_method=parameters["fragmentation_method"],
+        h5_file_name=parameters["h5_file_name"],
+        mz_tolerance=to_float(parameters["mz_tolerance"]),
+        rt_min=to_float(parameters["rt_min"]),
+        rt_max=to_float(parameters["rt_max"]),
+    )
 
 
 def in_rt_mz_ranges(
@@ -750,7 +663,7 @@ def save_msms_refs(existing_refs_df: pd.DataFrame, output_file_name: str, layout
             return
         new_df = generate_msms_refs_df(ipysheet.sheet("input"))
         if new_df.empty:
-            logger.error("No new MSMS references defined. Not writing an output file.")
+            logger.error("Incomplete new MSMS reference definitions. Not writing an output file.")
             return
         out_df = pd.concat([existing_refs_df, new_df])
         out_df.to_csv(output_file_name, sep="\t", index=False)
@@ -760,9 +673,9 @@ def save_msms_refs(existing_refs_df: pd.DataFrame, output_file_name: str, layout
 def generate_msms_refs_df(sheet: ipysheet.sheet) -> pd.DataFrame:
     """Create DataFrame containing the new MSMS refs"""
     new_refs = [build_msms_ref(row_list_to_rec(row, INPUTS)) for row in tqdm(sheet.cells[0].value)]
-    if any(ref is None for ref in new_refs):
+    if None in new_refs:
         new_refs = []
-    return refs_list_to_df(new_refs)
+    return refs_list_to_df(cast(List[MsmsRef], new_refs))
 
 
 def load_msms_refs(file_name: Optional[str], validate_existing: bool = False) -> List[MsmsRef]:
@@ -861,9 +774,11 @@ def display_ui(existing_refs_df: pd.DataFrame, output_file_name: str, num_rows: 
     #    Row 5: Save to File button
     #    Row 6: logging output
     elements = {}
-    name_input = widgets.Text()
-    search_button = widgets.Button(description="Name Search")
-    elements[LayoutPosition.NAME_INPUT.value] = widgets.HBox([name_input, search_button])
+    name_input = widgets.Text(description="Name")
+    min_mw = widgets.FloatText(value=0, description="Min. MW")
+    max_mw = widgets.FloatText(value=99999, description="Max. MW")
+    search_button = widgets.Button(description="Molecule Search")
+    elements[LayoutPosition.NAME_INPUT.value] = widgets.HBox([name_input, min_mw, max_mw, search_button])
     elements[LayoutPosition.SEARCH_OUTPUT.value] = widgets.HTML(value="")
     elements[LayoutPosition.SHEET_INPUT.value] = create_input_sheet(INPUTS, num_rows)
     extract_button = widgets.Button(description="Extract spectrums")
@@ -874,7 +789,7 @@ def display_ui(existing_refs_df: pd.DataFrame, output_file_name: str, num_rows: 
     elements[LayoutPosition.LOG.value] = widgets.Output()
     element_list = [elements[k.value] for k in LayoutPosition]
     layout = widgets.VBox(element_list)
-    search_button.on_click(lambda _: search(name_input, layout))
+    search_button.on_click(lambda _: search(name_input.value, min_mw.value, max_mw.value, layout))
     extract_button.on_click(lambda _: extract_all(layout))
     help_button.on_click(lambda _: display_to_log_box(layout, HELP_TEXT))
     elements[LayoutPosition.SAVE.value].on_click(
@@ -888,51 +803,101 @@ def swap_layout(existing: List[widgets.Box], index: int, update: widgets.Box):
     return [x if i != index else update for i, x in enumerate(existing)]
 
 
-def is_valid_num_results(num, input_value, layout):
-    if 0 < num <= 100:
+def is_valid_num_results(num, input_value, layout, max_valid=100):
+    if 0 < num <= max_valid:
         return True
     if num == 0:
         message = f"<b>No molecule names containing '{input_value}' were found in the database.</b>"
     else:
-        message = f"""<b>Too many matches (>100).
+        message = f"""<b>Too many matches (>{max_valid}).
                       {num} matches of '{input_value}' were found in the database.</b>"""
     message_widget = widgets.HTML(value=message)
     layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, message_widget)
     return False
 
 
-def search(name_input, layout):
+def get_synonym_matches(query: str) -> List[metob.Compound]:
+    """
+    Search DB for all molecules where query is a substring match within the synonym or name
+    fields and then filter out duplicates by inchi_key
+    """
+    # query based on from http://mysql.rjweb.org/doc.php/groupwise_max
+    sql = f"""\
+            SELECT
+                inchi, name -- The desired columns
+            FROM
+              ( SELECT  @prev := '' ) init
+            JOIN
+              ( SELECT  inchi_key != @prev AS first,  -- the 'GROUP BY'
+                        @prev := inchi_key,           -- the 'GROUP BY'
+                        inchi, name -- Also the desired columns
+                    FROM  compounds -- The table
+                    WHERE name LIKE '{query}' or synonyms LIKE '%{query}%'
+                    ORDER BY inchi_key --  need to order for similar to be together
+                    LIMIT 999999  -- kludge to keep the ORDER BY from being ignored
+              ) x
+            WHERE first;"""
+    workspace = metob.Workspace.get_instance()
+    workspace.get_connection()
+    out = workspace.db.query(sql)
+    workspace.close_connection()
+    return list(out)
+
+
+def filter_to_norm_inchi_in_db(dicts: List[metob.Compound]) -> List[Dict[str, str]]:
+    inchi_list = [x["norm_inchi"] for x in dicts]
+    results = metob.retrieve("Compound", inchi=inchi_list, username="*")
+    in_db = {x.inchi for x in results}
+    return [x for x in dicts if x["norm_inchi"] in in_db]
+
+
+def filter_by_mw(dicts: List[Dict[str, str]], min_mw, max_mw) -> List[Dict[str, str]]:
+    return [x for x in dicts if min_mw <= x["MW"] <= max_mw]
+
+
+def clear_search_output(layout: widgets.Box) -> None:
+    blank = widgets.HTML(value="")
+    layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, blank)
+
+
+def search(query: str, min_mw: float, max_mw: float, layout: widgets.Box) -> None:
     with get_new_log_box(layout):
-        results = metob.retrieve("Compound", synonyms=f"%{name_input.value}%", username="*")
-        if not is_valid_num_results(len(results), name_input.value, layout):
+        clear_search_output(layout)
+        results = get_synonym_matches(query)
+        for cur in results:
+            cur["mol"] = cheminfo.normalize_molecule(Chem.inchi.MolFromInchi(cur["inchi"]))
+            cur["norm_inchi"] = Chem.inchi.MolToInchi(cur["mol"])
+            cur["MW"] = ExactMolWt(cur["mol"])
+        filtered = filter_by_mw(filter_to_norm_inchi_in_db(results), min_mw, max_mw)
+        logger.debug("Found %d matches to %s.", len(filtered), query)
+        if not is_valid_num_results(len(filtered), query, layout):
             return
-        mols = cheminfo.inchi_list_to_norm_mols([x.inchi for x in results])
+        final = sorted(filtered, key=lambda x: x["MW"])
+        logger.debug("Num mols: %d", len(final))
         column_names = ["", "Name", "MW", "Structure"]
         sheet = ipysheet.sheet(
-            key="compounds",
-            rows=len(mols),
+            rows=len(final),
             columns=len(column_names),
             column_headers=column_names,
             column_resizing=False,
             column_width=[1, 4, 2, 10],
         )
-        buttons = [widgets.Button(description="use", layout=widgets.Layout(width="100%")) for x in mols]
+        buttons = [widgets.Button(description="use", layout=widgets.Layout(width="100%")) for x in final]
         for button in buttons:
-            button.on_click(lambda current: on_use_button_clicked(current, results, layout))
+            button.on_click(lambda current: on_use_button_clicked(current, final, layout))
         ipysheet.column(0, buttons)
-        ipysheet.column(1, [x.name for x in results])
-        ipysheet.column(2, [ExactMolWt(x) for x in mols])
-        ipysheet.column(3, [cheminfo.mol_to_image(x) for x in mols])
+        ipysheet.column(1, [x["name"] for x in final])
+        ipysheet.column(2, [ExactMolWt(x["mol"]) for x in final])
+        ipysheet.column(3, [cheminfo.mol_to_image(x["mol"]) for x in final])
         layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, sheet)
 
 
-def on_use_button_clicked(current, results, layout):
-    molecule_sheet = ipysheet.sheet("compounds")
+def on_use_button_clicked(current: widgets.Button, results: List[Dict[str, str]], layout: widgets.Box) -> None:
+    molecule_sheet = layout.children[LayoutPosition.SEARCH_OUTPUT.value]
     for i, button in enumerate(molecule_sheet.cells[0].value):
         if button == current:
-            blank = widgets.HTML(value="")
-            layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, blank)
-            add_row_with_inchi(results[i].name, results[i].inchi)
+            clear_search_output(layout)
+            add_row_with_inchi(results[i]["name"], results[i]["inchi"])
             return
     row_display = widgets.HTML(value="Could not located clicked button!")
     layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, row_display)
@@ -948,9 +913,9 @@ def update_all_cell_values(sheet_key: str, value_list: List[List[Union[str, floa
 def add_row_with_inchi(name: str, inchi: str):
     input_sheet = ipysheet.sheet("input")
     value_list = input_sheet.cells[0].value
-    new_row_values = [name, inchi, "", "", "", "", "", "", "", ""]
+    new_row_values = [name, inchi] + [""]*(input_sheet.columns-2)
     for i, row in enumerate(value_list):
-        if row == ["", "", "", "", "", "", "", "", "", ""]:
+        if row == [""] * input_sheet.columns:
             value_list[i] = new_row_values
             break
     else:
@@ -963,40 +928,25 @@ def float_list_to_str(floats: List[float]) -> str:
 
 
 def create_refs_sheet(refs_df: pd.DataFrame, num_mzs: int = 10) -> ipysheet.sheet:
-    column_names = [
-        "name",
-        "adduct",
-        "polarity",
-        "exact_mass",
-        "precursor_mz",
-        "spectrum",
-        "most_intense_mzs",
-        "collision_energy",
-        "fragmentation_method",
-        "instrument",
-        "instrument_type",
-        "formula",
-        "inchi_key",
-    ]
     sheet = ipysheet.sheet(
         key="output",
         rows=len(refs_df),
-        columns=len(column_names),
-        column_headers=column_names,
+        columns=len(OUTPUT_COLUMNS),
+        column_headers=list(OUTPUT_COLUMNS.keys()),
         column_resizing=False,
-        column_width=[3 if x == "spectrum" else 1 for x in column_names],
+        column_width=[3 if x == "Spectrum" else 1 for x in OUTPUT_COLUMNS],
     )
-    for i, column in enumerate(column_names):
-        if column == "spectrum":
-            ipysheet.column(i, [x.widget() for x in refs_df[column].to_list()], read_only=True)
-        elif column == "most_intense_mzs":
+    for i, ref_key in enumerate(OUTPUT_COLUMNS.values()):
+        if ref_key == "spectrum":
+            ipysheet.column(i, [x.widget() for x in refs_df[ref_key].to_list()], read_only=True)
+        elif ref_key == "most_intense_mzs":
             ipysheet.column(
                 i,
                 [float_list_to_str(x.mz_by_intensity()[:num_mzs]) for x in refs_df["spectrum"]],
                 read_only=True,
             )
-        elif column in ["exact_mass", "precursor_mz"]:
-            ipysheet.column(i, refs_df[column].to_list(), numeric_format="0.000000", read_only=True)
+        elif ref_key in ["exact_mass", "precursor_mz"]:
+            ipysheet.column(i, refs_df[ref_key].to_list(), numeric_format="0.000000", read_only=True)
         else:
-            ipysheet.column(i, refs_df[column].to_list(), read_only=True)
+            ipysheet.column(i, refs_df[ref_key].to_list(), read_only=True)
     return sheet

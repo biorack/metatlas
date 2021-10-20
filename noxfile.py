@@ -1,6 +1,7 @@
 # pylint: disable=missing-function-docstring
 
 import nox
+import os
 
 py_versions = ["3.8", "3.9"]
 
@@ -25,6 +26,7 @@ more_checks = [
     "metatlas/io/rclone.py",
     "metatlas/io/write_utils.py",
     "metatlas/datastructures/metatlas_dataset.py",
+    "metatlas/datastructures/spectrum.py",
     "metatlas/tools/add_msms_ref.py",
     "metatlas/tools/cheminfo.py",
     "metatlas/tools/environment.py",
@@ -55,7 +57,6 @@ pytest_deps = [
     "pytest==6.2.4",
     "pytest-cov==3.0.0",
     "pytest-mock==3.6.1",
-    "pytest-xdist[psutil]==2.4.0",
     "toml==0.10.2",
 ]
 
@@ -90,11 +91,16 @@ flake8_deps = [
     "flake8-comprehensions==3.6.1",
 ]
 
-pytest_flags = ["--numprocesses", "auto", "-vv"]
+pytest_flags = ["-vv"]
 
 nox.options.error_on_external_run = True
 REUSE_LARGE_VENV = True
 NB_LINE_LEN = 140
+
+# parallel testings doesn't work well on NERSC login nodes
+if "NERSC_HOST" not in os.environ:
+    pytest_deps.append("pytest-xdist[psutil]==2.4.0")
+    pytest_flags.extend(["--numprocesses", "auto"])
 
 
 @nox.session(python=py_versions[0])

@@ -3,15 +3,12 @@
 import functools
 import logging
 
-from typing import List
-
 import ipywidgets as widgets
 import matchms
 import numpy as np
 
 from rdkit import Chem
 
-from metatlas.datastructures import metatlas_objects as metob
 from metatlas.interfaces.compounds import structure_cleaning as cleaning
 
 logger = logging.getLogger(__name__)
@@ -155,12 +152,3 @@ def mol_to_image(mol: Chem.rdchem.Mol, **kwargs) -> widgets.Image:
     d2d.FinishDrawing()
     text = d2d.GetDrawingText()
     return widgets.Image(value=text.encode("utf-8"), format="svg+xml", **kwargs)
-
-
-def inchi_list_to_norm_mols(inchi_list: List[str]) -> List[Chem.rdchem.Mol]:
-    """Convert a list of inchi to a list of rdkit mols corresonding to molecules in the DB"""
-    mols = [normalize_molecule(Chem.inchi.MolFromInchi(x)) for x in inchi_list]
-    norm_inchi_list = [Chem.inchi.MolToInchi(x) for x in mols]
-    norm_results = metob.retrieve("Compound", inchi=norm_inchi_list, username="*")
-    norm_db_inchi_set = {x.inchi for x in norm_results}
-    return [Chem.inchi.MolFromInchi(x) for x in norm_db_inchi_set]
