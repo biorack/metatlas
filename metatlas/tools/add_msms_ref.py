@@ -841,7 +841,7 @@ def get_synonym_matches(query: str) -> List[metob.Compound]:
                     LIMIT 999999  -- kludge to keep the ORDER BY from being ignored
               ) x
             WHERE first;"""
-    if workspace.path.startswith('sqlite:'):
+    if workspace.path.startswith("sqlite:"):
         sql = f"SELECT inchi, name FROM compounds WHERE name LIKE '%{query}%' or synonyms LIKE '%{query}%'"
     out = list(workspace.db.query(sql))
     workspace.close_connection()
@@ -869,9 +869,9 @@ def search(query: str, min_mw: float, max_mw: float, layout: widgets.Box) -> Non
         clear_search_output(layout)
         results = get_synonym_matches(query)
         for cur in results:
-            RDLogger.DisableLog('rdApp.*')  # hide rdkit warnings
+            RDLogger.DisableLog("rdApp.*")  # hide rdkit warnings
             cur["mol"] = cheminfo.normalize_molecule(Chem.inchi.MolFromInchi(cur["inchi"]))
-            RDLogger.EnableLog('rdApp.*')
+            RDLogger.EnableLog("rdApp.*")
             cur["norm_inchi"] = Chem.inchi.MolToInchi(cur["mol"])
             cur["MW"] = ExactMolWt(cur["mol"])
         filtered = filter_by_mw(filter_to_norm_inchi_in_db(results), min_mw, max_mw)
@@ -898,7 +898,9 @@ def search(query: str, min_mw: float, max_mw: float, layout: widgets.Box) -> Non
         layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, sheet)
 
 
-def on_use_button_clicked(current: widgets.Button, results: List[Dict[str, str]], layout: widgets.Box) -> None:
+def on_use_button_clicked(
+    current: widgets.Button, results: List[Dict[str, str]], layout: widgets.Box
+) -> None:
     molecule_sheet = layout.children[LayoutPosition.SEARCH_OUTPUT.value]
     for i, button in enumerate(molecule_sheet.cells[0].value):
         if button == current:
@@ -919,7 +921,7 @@ def update_all_cell_values(sheet_key: str, value_list: List[List[Union[str, floa
 def add_row_with_inchi(name: str, inchi: str):
     input_sheet = ipysheet.sheet("input")
     value_list = input_sheet.cells[0].value
-    new_row_values = [name, inchi] + [""]*(input_sheet.columns-2)
+    new_row_values = [name, inchi] + [""] * (input_sheet.columns - 2)
     for i, row in enumerate(value_list):
         if row == [""] * input_sheet.columns:
             value_list[i] = new_row_values
