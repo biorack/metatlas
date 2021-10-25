@@ -27,6 +27,7 @@ more_checks = [
     "metatlas/io/write_utils.py",
     "metatlas/datastructures/metatlas_dataset.py",
     "metatlas/datastructures/spectrum.py",
+    "metatlas/plots/compound_eic.py",
     "metatlas/tools/add_msms_ref.py",
     "metatlas/tools/cheminfo.py",
     "metatlas/tools/environment.py",
