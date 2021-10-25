@@ -105,13 +105,14 @@ class CompoundEic:
     def _draw_curve(self, ax: matplotlib.axes.Axes, rt_buffer: float) -> None:
         """Draw the EIC data and fill under the curve betweeen RT min and RT max"""
         eic = self.compound["data"]["eic"]
-        # fill_between requires a data point at each end of range, so add points via interpolation
-        x, y = add_interp_at(eic["rt"], eic["intensity"], self.rt_range)
-        ax.plot(x, y)
+        if len(eic["rt"]) > 0:
+            # fill_between requires a data point at each end of range, so add points via interpolation
+            x, y = add_interp_at(eic["rt"], eic["intensity"], self.rt_range)
+            ax.plot(x, y)
+            fill_under(ax, x, y, between=self.rt_range, color="c", alpha=0.3)
         x_min = min(self.rt_range[0], self.rt_peak) - rt_buffer
         x_max = max(self.rt_range[1], self.rt_peak) + rt_buffer
         ax.set_xlim(x_min, x_max)
-        fill_under(ax, x, y, between=self.rt_range, color="c", alpha=0.3)
 
     def _draw_title(self, ax: matplotlib.axes.Axes) -> None:
         """Add title to plot"""
