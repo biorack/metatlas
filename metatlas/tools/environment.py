@@ -32,49 +32,6 @@ SOURCE_ATLAS_PREFIX = {
 }
 
 
-def install_kernel():
-    """
-    Copies kernel.json from repo to active location under home directory.
-    Only for use on NERC!
-    """
-    logger.info('Installing kernel.json for "Metatlas Targeted".')
-    repo_path = Path(__file__).resolve().parent.parent.parent
-    source = repo_path / "notebooks" / "kernels" / "metatlas-targeted.kernel.json"
-    dest_dir = Path.home() / ".local" / "share" / "jupyter" / "kernels" / "metatlas-targeted"
-    os.makedirs(dest_dir, exist_ok=True)
-    shutil.copyfile(source, dest_dir / "kernel.json")
-    logger.info('Kernel installation complete. Reload Jupyter notebook page to see new kernel". ')
-
-
-def validate_kernel():
-    """
-    Raise error if problem with kernel
-    When on NERSC, this will install the correct kernel if needed
-    """
-    allowed_exe = [
-        "/global/common/software/m2650/metatlas-targeted-2021-10-13/bin/python",
-    ]
-    error_msg = "Invalid kernel setting in Jupyter Notebook."
-    on_nersc = "METATLAS_LOCAL" not in os.environ
-    if on_nersc and sys.executable not in allowed_exe:
-        install_kernel()
-        if "/global/common/software/m2650/metatlas-targeted" in sys.executable:
-            logger.critical('Upgraded "Metatlas Targeted" kernel.')
-            logger.critical('Please reselect "Metatlas Targeted" kernel for upgrade to become active.')
-        else:
-            logger.critical('Please check that the kernel is set to "Metatlas Targeted".')
-        raise ValueError(error_msg)
-    try:
-        # pylint: disable=import-outside-toplevel,unused-import
-        import dataset  # noqa: F401
-    except ModuleNotFoundError as module_error:
-        logger.critical(
-            'Could not find dataset module. Please check that the kernel is set to "Metatlas Targeted".'
-        )
-        raise ModuleNotFoundError from module_error
-    logger.debug("Kernel validation passed. Using python from %s.", sys.executable)
-
-
 def repo_dir():
     """Returns a string with the path to the root of the Metatlas git repo"""
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -175,3 +132,6 @@ def get_repo_hash():
     except FileNotFoundError:
         return "git not found, hash unknown"
     return result.stdout.strip()
+
+def set_git_head(source_code_version_id: str) -> None:
+    subprocess.run(["git", "checkout", source_code_version_id], cwd=repo_dir(), check=True)

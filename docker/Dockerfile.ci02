@@ -10,8 +10,10 @@ ENV METATLAS_LOCAL=True
 
 EXPOSE 8888
 
-RUN apt-get update && apt-get install -y libxrender1 && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+          libxrender1 \
+          git \
+    && rm -rf /var/lib/apt/lists/*
 
 ADD https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 /usr/local/bin/jq
 RUN chmod +x /usr/local/bin/jq
@@ -43,4 +45,7 @@ COPY kernel.json /root/.local/share/jupyter/kernels/metatlas-targeted/kernel.jso
 
 WORKDIR /work
 
-CMD ["/usr/local/bin/jupyter", "nbclassic", "--ip=0.0.0.0", "--allow-root", "--ServerApp.token=''", "--ServerApp.root_dir=/"]
+ENV METATLAS_TEST=True
+ENV PYTHONPATH=/src
+
+CMD ["/usr/local/bin/jupyter", "lab", "--ip=0.0.0.0", "--allow-root", "--ServerApp.token=''", "--ServerApp.root_dir=/"]
