@@ -811,10 +811,11 @@ def is_valid_num_results(num: int, input_value: str, layout: widgets.Box, max_va
     if 0 < num <= max_valid:
         return True
     if num == 0:
-        message = f"<b>No molecule names containing '{input_value}' were found in the database.</b>"
+        message = f"""<b>No molecule names containing '{input_value}' and with a MW within
+                      the search range were found in the database.</b>"""
     else:
         message = f"""<b>Too many matches (>{max_valid}).
-                      {num} matches of '{input_value}' were found in the database.</b>"""
+                      {num} matches of '{input_value}' within the MW range were found in the database.</b>"""
     message_widget = widgets.HTML(value=message)
     layout.children = swap_layout(layout.children, LayoutPosition.SEARCH_OUTPUT.value, message_widget)
     return False
@@ -873,8 +874,8 @@ def search(query: str, min_mw: float, max_mw: float, layout: widgets.Box) -> Non
         for cur in results:
             RDLogger.DisableLog("rdApp.*")  # hide rdkit warnings
             cur["mol"] = cheminfo.normalize_molecule(Chem.inchi.MolFromInchi(cur["inchi"]))
-            RDLogger.EnableLog("rdApp.*")
             cur["norm_inchi"] = Chem.inchi.MolToInchi(cur["mol"])
+            RDLogger.EnableLog("rdApp.*")
             cur["MW"] = ExactMolWt(cur["mol"])
         filtered = filter_by_mw(filter_to_norm_inchi_in_db(results), min_mw, max_mw)
         logger.debug("Found %d matches to %s.", len(filtered), query)
