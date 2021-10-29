@@ -758,7 +758,7 @@ class MetatlasDataset(HasTraits):
         keep_adducts = self.atlas_df.loc[:, ["inchi_key", "adduct"]].drop_duplicates()
         logger.info("Number of inchi_key-adduct pairs is %d.", len(keep_adducts))
         hits_plus = self.hits.copy()
-        hits_plus["copy_index"] = hits_plus.index
+        hits_plus["copy_index"] = hits_plus.index.to_numpy()
         new_hits = hits_plus.merge(keep_adducts, on=["inchi_key", "adduct"], how="inner")
         logger.info("Number rows in new_hits is %d.", len(new_hits))
         new_hits.index = pd.MultiIndex.from_tuples(new_hits["copy_index"], names=self.hits.index.names)

@@ -130,7 +130,7 @@ def generate_rt_correction_models(ids: mads.AnalysisIdentifiers, cpus: int) -> T
 
 
 def generate_outputs(
-    ids, cpus, repo_dir, num_points=5, peak_height=5e5, save_to_db=True, use_poly_model=True, model_only=False
+    ids, cpus, num_points=5, peak_height=5e5, save_to_db=True, use_poly_model=True, model_only=False
 ):
     """
     Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
@@ -138,7 +138,6 @@ def generate_outputs(
     inputs:
         ids: an AnalysisIds object matching the one used in the main notebook
         cpus: max number of cpus to use
-        repo_dir: location of metatlas git repo on local filesystem
         num_points: minimum number of data points in a peak
         peak_height: threshold intensity level for filtering
         save_to_db: If True, save the new atlases to the database
@@ -150,7 +149,7 @@ def generate_outputs(
     linear, poly = generate_rt_correction_models(ids, cpus)
     if not model_only:
         atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
-        write_notebooks(ids, atlases, repo_dir, use_poly_model)
+        write_notebooks(ids, atlases, use_poly_model)
         pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_points, peak_height)
     targeted_output.copy_outputs_to_google_drive(ids)
     targeted_output.archive_outputs(ids)
@@ -528,13 +527,12 @@ def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="",
     return out
 
 
-def write_notebooks(ids, atlases, repo_dir, use_poly_model):
+def write_notebooks(ids, atlases, use_poly_model):
     """
     Creates Targeted analysis jupyter notebooks with pre-populated parameter sets
     Inputs:
         ids: an AnalysisIds object matching the one used in the main notebook
         atlases: list of atlas names to use as source atlases
-        repo_dir: location of metatlas git repo on local filesystem
         use_poly_model: if True use polynomial RT prediction model, else use linear model
                         this value is used to filter atlases from the input atlases list
     """
@@ -552,7 +550,6 @@ def write_notebooks(ids, atlases, repo_dir, use_poly_model):
             "output_type": output_type,
             "polarity": polarity,
             "analysis_number": 0,
-            "metatlas_repo_path": repo_dir,
             "project_directory": ids.project_directory,
             "source_atlas": atlas_name,
         }
