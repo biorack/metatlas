@@ -8,6 +8,7 @@ import warnings
 # curr_ld_lib_path = ''
 
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.tools.logging import log_errors
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import write_utils
 from metatlas.io.metatlas_get_data_helper_fun import extract
@@ -154,6 +155,7 @@ ADDUCT_INFO = {'[2M+H]': {'charge': '1',
 
 GUI_FIG_LABEL = 'Annotation GUI'
 
+LOGGING_WIDGET = widgets.Output()
 
 def get_google_sheet(notebook_name = "Sheet name",
                      token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
@@ -286,6 +288,7 @@ class adjust_rt_for_selected_compound(object):
         self.enable_edit = getpass.getuser() == self.data.atlas.username
         self.hit_ctr = 0
         self.msms_zoom_factor = 1
+        self.match_idx = None
         # native matplotlib key bindings that we want to override
         disable_keyboard_shortcuts({'keymap.yscale': ['l'],
                                     'keymap.xscale': ['k'],
@@ -583,6 +586,7 @@ class adjust_rt_for_selected_compound(object):
     def set_msms_flag(self, label):
         self.set_flag('ms2_notes', label)
 
+    @log_errors(output_context=LOGGING_WIDGET)
     def on_pick(self, event):
         thisline = event.artist
         thisline.set_color('cyan')
@@ -590,6 +594,7 @@ class adjust_rt_for_selected_compound(object):
         self.ax.set_title(label, fontsize=7)
         logger.debug("Sample %s selected on EIC plot via mouse click event.", label)
 
+    @log_errors(output_context=LOGGING_WIDGET)
     def on_motion(self, event):
         if event.inaxes == self.ax2:  # in msms mirror plot
             for collection in self.mz_lines:
@@ -617,6 +622,7 @@ class adjust_rt_for_selected_compound(object):
         self.y_scale_ax.cla()
         self.set_plot_data()
 
+    @log_errors(output_context=LOGGING_WIDGET)
     def press(self, event):
         if event.key in ['right', 'l']:
             if self.compound_idx + 1 < len(self.data[0]):
@@ -677,6 +683,8 @@ class adjust_rt_for_selected_compound(object):
     def match_rts(self):
         """Sets RT min and max to match similar compound referenced by match_idx"""
         source = self.similar_compounds[self.match_idx]['rt']
+        logger.debug("Matching RT bounds to index %s with min %d, max %d.",
+                     self.match_idx, source.rt_min, source.rt_max)
         self.update_rt('rt_min', source.rt_min)
         self.rt_min_slider.set_val(source.rt_min)
         self.update_rt('rt_max', source.rt_max)
@@ -759,6 +767,8 @@ class adjust_rt_for_selected_compound(object):
                             'rt': self.data.rts[compound_iter_idx],
                             'overlaps': rt_range_overlaps(self.data.rts[self.compound_idx],
                                                           self.data.rts[compound_iter_idx])})
+                logger.debug("Adding similar compound with index %d and min %d, max %d.",
+                             out[-1]["index"], out[-1]["rt"].rt_min, out[-1]["rt"].rt_max)
         return out
 
     @staticmethod
