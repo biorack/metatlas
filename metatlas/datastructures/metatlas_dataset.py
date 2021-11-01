@@ -17,6 +17,7 @@ import humanize
 import pandas as pd
 import traitlets
 
+from IPython.display import display
 from traitlets import TraitError, default, observe, validate
 from traitlets import Bool, Float, HasTraits, Instance, Int, TraitType, Unicode
 from traitlets.traitlets import ObserveHandler
@@ -1067,6 +1068,7 @@ class MetatlasDataset(HasTraits):
             colors: list (color_id, search_string) for coloring lines on EIC plot
                     based on search_string occuring in LCMS run filename
         """
+        display(dp.LOGGING_WIDGET)  # surface event handler error messages in UI
         return dp.adjust_rt_for_selected_compound(
             self,
             msms_hits=self.hits,

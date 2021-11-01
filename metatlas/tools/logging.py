@@ -15,9 +15,14 @@ import getpass
 import os
 import sys
 import logging
+import traceback
+
+from functools import wraps, partial
 from typing import Optional, Dict
 
 from colorama import Fore, Back, Style
+
+logger = logging.getLogger(__name__)
 
 levels = {
     "DEBUG": logging.DEBUG,
@@ -143,3 +148,23 @@ def activate_logging(console_level="INFO", console_format=None, file_level="DEBU
     """
     disable_jupyter_default_logging()
     activate_module_logging("metatlas", console_level, console_format, file_level, filename)
+
+
+def log_errors(func=None, *, output_context=None):
+    """Define function decorator to log and re-raise all exceptions"""
+    if func is None:
+        return partial(log_errors, output_context=output_context)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as err:
+            if output_context:
+                with output_context:
+                    logger.exception(err)
+                    raise Exception from err
+            else:
+                logger.exception(err)
+                raise Exception from err
+    return wrapper
