@@ -3206,6 +3206,8 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, similar_compounds):
         mz_precursor = hits['measured_precursor_mz'].iloc[hit_ctr]
 
     file_idx = file_with_max_ms1_intensity(data, compound_idx, limit_to_rt_range=True)[0]
+    if file_idx is None:
+        return ('', '', '')
     rt_theoretical = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
     mz_theoretical = data[file_idx][compound_idx]['identification'].mz_references[0].mz
     ms1_df = get_ms1_df(data[file_idx][compound_idx])
