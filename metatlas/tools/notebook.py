@@ -45,7 +45,7 @@ def configure_notebook_display() -> None:
     display(HTML("<style>.container { width:100% !important; }</style>"))
 
 
-def setup(log_level: str, source_code_version_id: Optional[str]) -> None:
+def setup(log_level: str, source_code_version_id: Optional[str] = None) -> None:
     """High level function to prepare the metatlas notebook"""
     configure_environment(log_level)
     configure_notebook_display()
