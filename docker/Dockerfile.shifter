@@ -9,6 +9,8 @@ COPY requirements.txt /requirements.txt
 
 RUN pip install --quiet -r /requirements.txt
 
+COPY papermill.kernel.json /usr/local/share/jupyter/kernels/papermill/kernel.json
+
 # Prevent incorrect caching of git clone
 ADD https://api.github.com/repos/biorack/metatlas/git/refs/heads/main version.json
 RUN git clone https://github.com/biorack/metatlas /src && \
