@@ -18,6 +18,4 @@ Features
 Documentation
 -------------
 
-Targeted_ analysis workflow
-
-.. _Targeted https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md
+`Targeted analysis workflow <https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md>`_
