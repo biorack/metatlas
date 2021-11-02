@@ -374,7 +374,9 @@ class Workspace(object):
             query = 'select * from `%s` where (' % object_type
             clauses = []
             for (key, value) in kwargs.items():
-                if isinstance(value, list) and len(value) > 0:
+                if isinstance(value, list):
+                    if len(value) == 0:
+                        return []
                     clauses.append('%s in ("%s")' % (key, '", "'.join(value)))
                 elif not isinstance(value, six.string_types):
                     clauses.append("%s = %s" % (key, value))
