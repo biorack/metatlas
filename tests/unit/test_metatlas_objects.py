@@ -8,6 +8,8 @@ import dill
 from metatlas.datastructures import metatlas_objects as mo
 from metatlas.datastructures import object_helpers as metoh
 
+ADENOSINE_INCHI = 'InChI=1S/C10H13N5O4/c11-8-5-9(13-2-12-8)15(3-14-5)10-7(18)6(17)4(1-16)19-10/h2-4,6-7,10,16-18H,1H2,(H2,11,12,13)/t4-,6-,7-,10-/m1/s1'
+
 
 def test_clone01():
     test = mo.Group(items=[mo.Group(items=[mo.LcmsRun()]), mo.LcmsRun()])
@@ -232,3 +234,10 @@ def test_dill():
     blob = dill.dumps(test)
     new = dill.loads(blob)
     assert new.items[0].description == "hello"  # pylint: disable=no-member
+
+
+def test_retrieve01(sqlite):
+    compound = mo.Compound(name="foo", inchi=ADENOSINE_INCHI, inchi_key='foobar')
+    mo.store(compound)
+    assert mo.retrieve('Compounds', inchi_key=[], username="*") == []
+    assert mo.retrieve('Compounds', inchi=[ADENOSINE_INCHI], username="*")[0].inchi == ADENOSINE_INCHI
