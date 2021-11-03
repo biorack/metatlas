@@ -10,6 +10,7 @@ import pandas as pd
 from IPython.core.display import display, HTML
 from metatlas.tools.logging import activate_logging
 from metatlas.tools.logging import activate_module_logging
+from metatlas.tools.environment import get_commit_date
 from metatlas.tools.environment import get_repo_hash
 from metatlas.tools.environment import set_git_head
 
@@ -28,7 +29,6 @@ def configure_environment(log_level: str) -> None:
     logger.debug("Configuring notebook environment with console log level of %s.", log_level)
     os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    logger.info("Running on git commit: %s", get_repo_hash())
 
 
 def configure_pandas_display(max_rows: int = 5000, max_columns: int = 500, max_colwidth: int = 100) -> None:
@@ -48,10 +48,11 @@ def configure_notebook_display() -> None:
 def setup(log_level: str, source_code_version_id: Optional[str] = None) -> None:
     """High level function to prepare the metatlas notebook"""
     configure_environment(log_level)
-    configure_notebook_display()
-    configure_pandas_display()
     if source_code_version_id is not None:
         set_git_head(source_code_version_id)
+    logger.info("Running on git commit: %s from %s", get_repo_hash(), get_commit_date())
+    configure_notebook_display()
+    configure_pandas_display()
 
 
 def activate_sql_logging(console_level="INFO", console_format=None, file_level="DEBUG", filename=None):
