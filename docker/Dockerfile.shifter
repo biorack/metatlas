@@ -1,0 +1,25 @@
+FROM python:3.8-slim-bullseye
+
+RUN apt-get update && apt-get install -y \
+        libxrender1 \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt /requirements.txt
+
+RUN pip install --quiet -r /requirements.txt
+
+COPY papermill.kernel.json /usr/local/share/jupyter/kernels/papermill/kernel.json
+
+# Prevent incorrect caching of git clone
+ADD https://api.github.com/repos/biorack/metatlas/git/refs/heads/main version.json
+RUN git clone https://github.com/biorack/metatlas /src && \
+	chmod -R a+rwX /src
+
+ENV PYTHONPATH="/tmp/metatlas-repo:${PYTHONPATH}"
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh", "/src", "/tmp/metatlas-repo"]
+
+CMD ["/usr/local/bin/python"]

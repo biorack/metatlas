@@ -131,3 +131,7 @@ def test_has_missing_fields02(caplog):
     )
     assert ref.has_missing_fields()
     assert "No 'id' field in" in caplog.text
+
+
+def test_filter_to_norm_inchi_in_db(sqlite_with_atlas):
+    assert add_msms_ref.filter_to_norm_inchi_in_db([]) == []

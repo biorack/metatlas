@@ -17,6 +17,7 @@ import humanize
 import pandas as pd
 import traitlets
 
+from IPython.display import display
 from traitlets import TraitError, default, observe, validate
 from traitlets import Bool, Float, HasTraits, Instance, Int, TraitType, Unicode
 from traitlets.traitlets import ObserveHandler
@@ -758,7 +759,7 @@ class MetatlasDataset(HasTraits):
         keep_adducts = self.atlas_df.loc[:, ["inchi_key", "adduct"]].drop_duplicates()
         logger.info("Number of inchi_key-adduct pairs is %d.", len(keep_adducts))
         hits_plus = self.hits.copy()
-        hits_plus["copy_index"] = hits_plus.index
+        hits_plus["copy_index"] = hits_plus.index.to_numpy()
         new_hits = hits_plus.merge(keep_adducts, on=["inchi_key", "adduct"], how="inner")
         logger.info("Number rows in new_hits is %d.", len(new_hits))
         new_hits.index = pd.MultiIndex.from_tuples(new_hits["copy_index"], names=self.hits.index.names)
@@ -1067,6 +1068,7 @@ class MetatlasDataset(HasTraits):
             colors: list (color_id, search_string) for coloring lines on EIC plot
                     based on search_string occuring in LCMS run filename
         """
+        display(dp.LOGGING_WIDGET)  # surface event handler error messages in UI
         return dp.adjust_rt_for_selected_compound(
             self,
             msms_hits=self.hits,
