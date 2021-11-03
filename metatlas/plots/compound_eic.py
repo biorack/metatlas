@@ -160,7 +160,7 @@ def wrap_subplots(num: int, **kwargs) -> Tuple[matplotlib.figure.Figure, List[ma
     """Gets a figure with a grid of subplots, but internally deals with the grid dimensions"""
     nrows, ncols = subplot_dimensions(num)
     fig, axs = plt.subplots(nrows, ncols, squeeze=False, **kwargs)
-    return (fig, axs.flatten())
+    return (fig, axs.flatten()[:num])  # if nrows * ncols != num, then we don't want all the axes
 
 
 def is_in_range(a: List[float], start: float, stop: float) -> List[bool]:
