@@ -136,7 +136,8 @@ def get_repo_hash():
 
 def set_git_head(source_code_version_id: str) -> None:
     """Performs a git checkout"""
-    subprocess.run(["git", "checkout", source_code_version_id], cwd=repo_dir(), check=True)
+    cmd = ["git", "checkout", source_code_version_id]
+    subprocess.run(cmd, cwd=repo_dir(), check=True, capture_output=True)
 
 
 def get_commit_date() -> str:
