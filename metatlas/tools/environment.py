@@ -133,5 +133,13 @@ def get_repo_hash():
         return "git not found, hash unknown"
     return result.stdout.strip()
 
+
 def set_git_head(source_code_version_id: str) -> None:
+    """Performs a git checkout"""
     subprocess.run(["git", "checkout", source_code_version_id], cwd=repo_dir(), check=True)
+
+
+def get_commit_date() -> str:
+    """Returns a string describing when the HEAD commit was created"""
+    cmd = ["git", "show", "-s", "--format=%ci -- %cr", "HEAD"]
+    return subprocess.run(cmd, cwd=repo_dir(), check=True, capture_output=True, text=True).stdout.rstrip()
