@@ -16,10 +16,8 @@ ADD https://api.github.com/repos/biorack/metatlas/git/refs/heads/main version.js
 RUN git clone https://github.com/biorack/metatlas /src && \
 	chmod -R a+rwX /src
 
-ENV PYTHONPATH="/tmp/metatlas-repo:${PYTHONPATH}"
-
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh", "/src", "/tmp/metatlas-repo"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh", "/src"]
 
 CMD ["/usr/local/bin/python"]
