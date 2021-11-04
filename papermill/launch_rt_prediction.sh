@@ -32,8 +32,9 @@ export IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
 export OUT_FILE="${ANALYSIS_DIR}/${PROPOSAL}_RT_Prediction_papermill.ipynb"
 export PARAMETERS="-p experiment $EXP -p project_directory $PROJECT_DIR -p max_cpus 32 -p analysis_number $ANALYSIS_NUM"
 
-KERNEL_PATH="${HOME}/.local/share/jupyter/kernels/metatlas-targeted/kernel.json"
-cp "${SCRIPT_DIR}/kernel.json" "$KERNEL_PATH"
+KERNEL_PATH="${HOME}/.local/share/jupyter/kernels/metatlas-targeted"
+mkdir -p "$KERNEL_PATH"
+cp "${SCRIPT_DIR}/kernel.json" "${KERNEL_PATH}/kernel.json"
 
 mkdir -p "$ANALYSIS_DIR"
 sbatch -J "${PROPOSAL}_RT_Pred" "${SCRIPT_DIR}/slurm_template.sh"
