@@ -47,6 +47,7 @@ class CompoundEicPlotSet:
         max_plots_per_fig: int = 30,
         sharey: bool = True,
         rt_buffer: float = 0.5,
+        font_scale: 2,
     ):
         file_order_eics = [CompoundEic(sample[compound_idx]) for sample in data]
         self.eics = sorted(file_order_eics, key=lambda x: (x.short_group_name, x.short_run_id))
@@ -57,7 +58,7 @@ class CompoundEicPlotSet:
         color_generator = colors()
         current_group = ""
         eic_idx = y_max = 0
-        scale_factor = 1/num_plots**0.5
+        scale_factor = font_scale/num_plots**0.5
         matplotlib.rcParams.update({'font.size': 10*scale_factor})
         for _ in range(num_pages):
             plots_remaining = num_plots - eic_idx
