@@ -1,0 +1,2 @@
+{"argv":["shifter","--entrypoint","--image=wjhjgi/metatlas_shifter:latest","/usr/local/bin/python","-m",
+                 "ipykernel_launcher","-f","{connection_file}"],"display_name": "Metatlas Targeted","language": "python"}
