@@ -122,7 +122,7 @@ class CompoundEic:
     def _draw_title(self, ax: matplotlib.axes.Axes) -> None:
         """Add title to plot"""
         title = f"{self.short_run_id}\n{self.short_group_name}"
-        ax.set_title(title, fontdict={"fontsize": "x-small"})
+        ax.set_title(title)
 
     @property
     def short_run_id(self) -> str:
