@@ -1,3 +1,4 @@
+import functools
 import logging
 import sys
 import os
@@ -13,6 +14,8 @@ from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import write_utils
 from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.plots import chromplotplus as cpp
+from metatlas.plots.compound_eic import save_compound_eic_pdf
+
 from metatlas.tools import parallel
 from metatlas.tools import spectralprocessing as sp
 
@@ -2174,38 +2177,22 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
     return msms_hits
 
 
-def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, group='index', share_y=True, save=True, output_loc=None, short_names_df=None, short_names_header=None, polarity='', overwrite=False, max_cpus=1):
+def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, group='index', share_y=True, save=True, output_loc=None, short_names_df=None, short_names_header=None, polarity='', overwrite=False, max_cpus=1, suffix='', max_plots_per_page=30):
+    bad_parameters = {"group": group != "index", "save": not save,
+                      "short_names_df": short_names_df is not None}
+    if any(bad_parameters.values()):
+        warnings.warn((f"Parameters {', '.join([k for k, v in bad_parameters.items() if v])} of "
+                       "make_chromatograms() are no longer utilized and will be removed in an "
+                       "up coming release"), FutureWarning, stacklevel=2)
     data = filter_runs(input_dataset, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
-    file_names = ma_data.get_file_names(data)
-    if short_names_df is None:
-        if short_names_header is not None:
-            logger.info('short_names_df not provided. Using full_filename for the plots!')
-            short_names_df = pd.DataFrame()
-    elif short_names_header is None:
-        logger.info('short_names_header not provided. Using full_filename for the plots!')
-        short_names_df = pd.DataFrame()
-    elif short_names_header not in short_names_df.columns:
-        logger.info('short_names_header not found in short_names_df. Using full_filename for the plots!')
-    else:
-        short_names_df = short_names_df[[short_names_header]]
-        short_names_df.columns = ['shortname']
-    os.makedirs(output_loc, exist_ok=True)
-    compound_names = ma_data.get_compound_names(data, use_labels=True)[0]
     prefix = f"{polarity}_" if polarity != '' else ''
-    chromatogram_dir = os.path.join(output_loc, f"{prefix}compound_EIC_chromatograms")
-    args_list = []
+    out_dir = os.path.join(output_loc, f"{prefix}compound_EIC_chromatograms{suffix}")
+    os.makedirs(out_dir, exist_ok=True)
     disable_interactive_plots()
-    for compound_idx, my_compound in enumerate(compound_names):
-        my_data = [data[file_idx][compound_idx] for file_idx, _ in enumerate(file_names)]
-        args_list.append({'data': my_data,
-                          'shortname': short_names_df,
-                          'group': group,
-                          'file_name': os.path.join(chromatogram_dir, my_compound+'.pdf'),
-                          'save': save,
-                          'share_y': share_y,
-                          'names': file_names,
-                          'overwrite': overwrite})
-    parallel.parallel_process(cpp.chromplotplus, args_list, max_cpus, unit='plot', spread_args=False)
+    compound_names = ma_data.get_compound_names(data, use_labels=True)[0]
+    args = [(data, i, os.path.join(out_dir, f"{name}.pdf"), overwrite, share_y, max_plots_per_page)
+            for i, name in enumerate(compound_names)]
+    parallel.parallel_process(save_compound_eic_pdf, args, max_cpus, unit='plot', spread_args=True)
 
 
 def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],

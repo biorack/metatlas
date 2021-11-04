@@ -45,7 +45,7 @@ class ChromPlotPlus:
                  x_scale = .8, y_scale = .75,
                  x_ratio = 13.0, y_ratio=11.0,
                  num_x_hashes=4, num_y_hashes=4,
-                 overwrite=False,
+                 overwrite=False, share_y=False,
                  **kwargs):
 
         assert len(data) > 0
@@ -89,7 +89,7 @@ class ChromPlotPlus:
 
         plt.ioff()
 
-        self.fig, self.ax = plt.subplots()
+        self.fig, self.ax = plt.subplots(sharey=share_y)
         plt.setp(self.ax, 'frame_on', False)
         self.ax.set_xticks([])
         self.ax.set_yticks([])

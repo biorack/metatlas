@@ -92,30 +92,30 @@ def write_stats_table(
     )
 
 
-def write_chromatograms(metatlas_dataset, group_by="index", share_y=True, overwrite=False, max_cpus=1):
+def write_chromatograms(metatlas_dataset, overwrite=False, max_cpus=1):
     """
     inputs:
         metatlas_dataset: a MetatlasDataset instance
         group_by: 'index', 'page', or None for grouping of plots
-        share_y: use a common y-axis scaling
         overwrite: if False raise error if file already exists
     """
     # overwrite checks done within dp.make_chromatograms
     logger.info("Exporting chromotograms to %s", metatlas_dataset.ids.output_dir)
-    dp.make_chromatograms(
-        input_dataset=metatlas_dataset,
-        include_lcmsruns=[],
-        exclude_lcmsruns=["InjBl", "QC", "Blank", "blank"],
-        group=group_by,
-        share_y=share_y,
-        save=True,
-        output_loc=metatlas_dataset.ids.output_dir,
-        short_names_df=metatlas_dataset.ids.lcmsruns_short_names,
-        short_names_header="short_samplename",
-        polarity=metatlas_dataset.ids.short_polarity,
-        overwrite=overwrite,
-        max_cpus=max_cpus,
-    )
+    params = {
+        "input_dataset": metatlas_dataset,
+        "include_lcmsruns": [],
+        "exclude_lcmsruns": ["InjBl", "QC", "Blank", "blank"],
+        "share_y": True,
+        "output_loc": metatlas_dataset.ids.output_dir,
+        "polarity": metatlas_dataset.ids.short_polarity,
+        "overwrite": overwrite,
+        "max_cpus": max_cpus,
+        "suffix": "_sharedY",
+    }
+    dp.make_chromatograms(**params)
+    params["share_y"] = False
+    params["suffix"] = "_independentY"
+    dp.make_chromatograms(**params)
 
 
 def write_identification_figure(metatlas_dataset, overwrite=False):
