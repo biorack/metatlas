@@ -2180,7 +2180,6 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
 def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, group='index', share_y=True, save=True, output_loc=None, short_names_df=None, short_names_header=None, polarity='', overwrite=False, max_cpus=1, suffix='', max_plots_per_page=30):
     bad_parameters = {"group": group != "index", "save": not save,
                       "short_names_df": short_names_df is not None}
-    print(bad_parameters)
     if any(bad_parameters.values()):
         warnings.warn((f"Parameters {', '.join([k for k, v in bad_parameters.items() if v])} of "
                        "make_chromatograms() are no longer utilized and will be removed in an "

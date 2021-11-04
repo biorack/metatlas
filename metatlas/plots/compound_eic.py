@@ -57,10 +57,13 @@ class CompoundEicPlotSet:
         color_generator = colors()
         current_group = ""
         eic_idx = y_max = 0
+        scale_factor = 1/num_plots**0.5
+        matplotlib.rcParams.update({'font.size': 10*scale_factor})
         for _ in range(num_pages):
             plots_remaining = num_plots - eic_idx
             num_plots_this_page = min(self.plots_per_page, plots_remaining)
-            cur_fig, axs = wrap_subplots(num_plots_this_page, sharey=sharey, sharex=True)
+            cur_fig, axs = wrap_subplots(num_plots_this_page, sharey=sharey, sharex=True,
+                                         constrained_layout=True)
             self.figures.append(cur_fig)
             for ax in axs:
                 eic = self.eics[eic_idx]
@@ -73,6 +76,7 @@ class CompoundEicPlotSet:
         for fig in self.figures:
             for ax in fig.axes:
                 ax.set_ylim(bottom=0, top=y_max if sharey else None)
+        matplotlib.rcParams.update({'font.size': 10})
 
 
 class CompoundEic:
@@ -160,7 +164,11 @@ def wrap_subplots(num: int, **kwargs) -> Tuple[matplotlib.figure.Figure, List[ma
     """Gets a figure with a grid of subplots, but internally deals with the grid dimensions"""
     nrows, ncols = subplot_dimensions(num)
     fig, axs = plt.subplots(nrows, ncols, squeeze=False, **kwargs)
-    return (fig, axs.flatten()[:num])  # if nrows * ncols != num, then we don't want all the axes
+    needed_axs = axs.flatten()[:num]
+    blank_axs = axs.flatten()[num:]
+    for ax in blank_axs:
+        ax.set_axis_off()
+    return (fig, needed_axs)
 
 
 def is_in_range(a: List[float], start: float, stop: float) -> List[bool]:
