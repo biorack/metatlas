@@ -47,7 +47,7 @@ class CompoundEicPlotSet:
         max_plots_per_fig: int = 30,
         sharey: bool = True,
         rt_buffer: float = 0.5,
-        font_scale: 2,
+        font_scale: float = 2,
     ):
         file_order_eics = [CompoundEic(sample[compound_idx]) for sample in data]
         self.eics = sorted(file_order_eics, key=lambda x: (x.short_group_name, x.short_run_id))
