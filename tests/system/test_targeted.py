@@ -47,7 +47,7 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                                    "agui.data.set_rt(3, \\"rt_min\\", 2.8428)\\n", \
                                    "agui.data.set_rt(3, \\"rt_max\\", 3.3081)\\n" \
                                   ]' /src/notebooks/reference/Targeted.ipynb > /out/Remove.ipynb &&  \
-                    papermill \
+                    papermill -k papermill \
                         -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
                         -p metatlas_repo_path /src \
