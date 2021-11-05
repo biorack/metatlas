@@ -34,7 +34,7 @@ export PARAMETERS="-p experiment $EXP -p project_directory $PROJECT_DIR -p max_c
 
 KERNEL_PATH="${HOME}/.local/share/jupyter/kernels/metatlas-targeted"
 mkdir -p "$KERNEL_PATH"
-cp "${SCRIPT_DIR}/kernel.json" "${KERNEL_PATH}/kernel.json"
+cp "${SCRIPT_DIR}/../docker/shifter.kernel.json" "${KERNEL_PATH}/kernel.json"
 
 mkdir -p "$ANALYSIS_DIR"
 sbatch -J "${PROPOSAL}_RT_Pred" "${SCRIPT_DIR}/slurm_template.sh"

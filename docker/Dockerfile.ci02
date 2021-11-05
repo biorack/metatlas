@@ -40,8 +40,10 @@ RUN pip install --quiet -r requirements.txt
 
 ADD $BASE_DATA_URL/meta_atlas_rt_predict.sqlite3 /work/root_workspace.db
 
-RUN mkdir -p /root/.local/share/jupyter/kernels/metatlas-targeted
-COPY kernel.json /root/.local/share/jupyter/kernels/metatlas-targeted/kernel.json
+RUN mkdir -p /root/.local/share/jupyter/kernels/papermill
+COPY papermill.kernel.json /root/.local/share/jupyter/kernels/papermill/kernel.json
+
+RUN echo "1" > /metatlas_image_version
 
 WORKDIR /work
 
