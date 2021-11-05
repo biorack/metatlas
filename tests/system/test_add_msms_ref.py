@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_add_msms_ref_by_line01(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.11"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.13"
     expected = {}
     expected[
         str(tmp_path / "updated_refs.tab")
@@ -24,7 +24,7 @@ metatlas	sigma-lot123	adenosine	[[55.01269, 57.02821, 66.78931, 69.02660, 71.005
                                     "out_df = pd.concat([existing_refs_df, new_df])\\n", \
                                     "out_df.to_csv(output_file_name, sep=\\"\t\\", index=False)\\n" \
                                    ]' /src/notebooks/reference/Add_MSMS_Reference.ipynb > /out/Remove.ipynb &&  \
-                    papermill \
+                    papermill -k papermill \
                         -p metatlas_repo_path /src \
                         -p input_file_name /out/short_refs.tab \
                         -p output_file_name /out/updated_refs.tab \

@@ -16,4 +16,4 @@ date
 echo "input file: $IN_FILE"
 echo "output file: $OUT_FILE"
 
-shifter /usr/local/bin/papermill -k papermill "$IN_FILE" "$OUT_FILE" $PARAMETERS
+shifter /usr/local/bin/papermill -k "papermill" "$IN_FILE" "$OUT_FILE" $PARAMETERS

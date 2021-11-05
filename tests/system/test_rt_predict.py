@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_rt_predict_by_line01(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci02:v1.4.11"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci02:v1.4.13"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
@@ -175,7 +175,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                     jq -M '(.cells[] | select(.source[] | contains("predict_rt.generate_outputs(")).source) \
                                 = ["predict_rt.generate_outputs(ids, max_cpus, metatlas_repo_path, save_to_db=False, model_only=True)"]' \
                                 /src/notebooks/reference/RT_Prediction.ipynb > /out/Remove.ipynb &&  \
-                    papermill \
+                    papermill -k papermill \
                         -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
                         -p metatlas_repo_path /src \
