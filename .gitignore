@@ -98,5 +98,3 @@ scratch/
 
 # slurm
 slurm-*.out
-
-*.json
