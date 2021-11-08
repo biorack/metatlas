@@ -164,7 +164,7 @@ def write_metrics_and_boxplots(metatlas_dataset, overwrite=False, max_cpus=1):
             for logy in [False, True]:
                 plot_dir = os.path.join(
                     metatlas_dataset.ids.output_dir,
-                    f"{prefix}boxplot_{fields['name']}" + '_log' if logy else '',
+                    f"{prefix}boxplot_{fields['name']}{'_log' if logy else ''}",
                 )
                 dp.make_boxplot_plots(
                     dataframe,
