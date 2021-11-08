@@ -8,4 +8,5 @@ if [ "$BRANCH" != "main" ]; then
 fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+"${SCRIPT_DIR}/most_recent_commits.py" > "${SCRIPT_DIR}/.version_info"
 "${SCRIPT_DIR}/build_x.sh" --registry docker.io --project wjhjgi --id shifter --tag latest --user wjhjgi
