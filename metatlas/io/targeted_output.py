@@ -173,7 +173,7 @@ def write_metrics_and_boxplots(metatlas_dataset, overwrite=False, max_cpus=1):
                     ylabel=fields["label"],
                     overwrite=overwrite,
                     max_cpus=max_cpus,
-                    logy=logy
+                    logy=logy,
                 )
 
 

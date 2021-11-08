@@ -15,7 +15,6 @@ import getpass
 import os
 import sys
 import logging
-import traceback
 
 from functools import wraps, partial
 from typing import Optional, Dict
@@ -69,14 +68,14 @@ def activate_module_logging(
     console_handler = get_console_handler(console_level, console_format)
     file_handler = get_file_handler(file_level, filename)
 
-    logger = logging.getLogger(module)
-    logger.handlers[:] = []
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-    logger.setLevel(
+    new_logger = logging.getLogger(module)
+    new_logger.handlers[:] = []
+    new_logger.addHandler(console_handler)
+    new_logger.addHandler(file_handler)
+    new_logger.setLevel(
         levels[file_level] if levels[file_level] < levels[console_level] else levels[console_level]
     )
-    return logger
+    return new_logger
 
 
 def disable_jupyter_default_logging():
@@ -157,6 +156,7 @@ def log_errors(func=None, *, output_context=None):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
+        # pylint: disable=broad-except
         try:
             return func(*args, **kwargs)
         except Exception as err:
@@ -167,4 +167,5 @@ def log_errors(func=None, *, output_context=None):
             else:
                 logger.exception(err)
                 raise Exception from err
+
     return wrapper

@@ -7,6 +7,7 @@ import logging
 from typing import cast, List, Sequence, Tuple, TypedDict
 
 import ipywidgets as widgets
+import numpy as np
 import pandas as pd
 import traitlets
 
@@ -90,7 +91,7 @@ class Spectrum(HasTraits):
         value = cast(List[float], proposal["value"])
         if len(value) != len(self.intensities):
             raise TraitError("length of intensities and mzs must be equal")
-        if not pd.Series(value).is_monotonic_increasing:
+        if not pd.Series(value, dtype=np.float64).is_monotonic_increasing:
             raise TraitError("mzs values must be monotonically increasing")
         if any(x <= 0 for x in value):
             raise TraitError("mzs values must be positive")
@@ -114,7 +115,7 @@ def str_to_spectrum(in_str: str) -> Spectrum:
     elif len(mzs) < len(intensities):
         logger.error("Invalid spectrum '%s'. Truncating intensities list as mzs list is shorter.", in_str)
         intensities = intensities[: len(mzs)]
-    if not pd.Series(mzs).is_monotonic_increasing:
+    if not pd.Series(mzs, dtype=np.float64).is_monotonic_increasing:
         logger.error("Invalid spectrum '%s'. mzs values must be monotonically increasing. Sorting.", in_str)
         mzs, intensities = sort_mzs_intensities(mzs, intensities)
     try:
