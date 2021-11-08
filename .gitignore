@@ -98,3 +98,6 @@ scratch/
 
 # slurm
 slurm-*.out
+
+# used in Docker.shifter build
+.version_info
