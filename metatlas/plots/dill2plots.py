@@ -1601,7 +1601,7 @@ def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="",
 
 def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
     f, ax = plt.subplots(1, 1,figsize=(12,12))
-    level = 'short_groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
+    level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     g = df.loc[compound].groupby(level=level)
     g.apply(pd.DataFrame).plot(kind='box', ax=ax)
     for i, (n, grp) in enumerate(g):
