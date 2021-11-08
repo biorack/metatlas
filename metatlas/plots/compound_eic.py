@@ -6,7 +6,7 @@ import logging
 import math
 
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence, Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -16,23 +16,11 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from metatlas.io import write_utils
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.plots import utils
 
 logger = logging.getLogger(__name__)
 
-BACKGROUND_COLORS = ["white", "lightyellow", "whitesmoke", "lavenderblush"]
-
-Color = Union[str, Tuple[float, float, float, float]]
-
 MetatlasDataset = List[List[Any]]  # avoiding a circular import
-
-
-def colors() -> Generator:
-    """Infinite generator that outputs a color string from BACKGROUND_COLORS"""
-    num = 0
-    num_colors = len(BACKGROUND_COLORS)
-    while True:
-        yield BACKGROUND_COLORS[num % num_colors]
-        num += 1
 
 
 class CompoundEicPlotSet:
@@ -55,7 +43,7 @@ class CompoundEicPlotSet:
         num_pages = math.ceil(num_plots / max_plots_per_fig)
         self.plots_per_page = math.ceil(num_plots / num_pages)
         self.figures = []
-        color_generator = colors()
+        color_generator = utils.colors()
         current_group = ""
         eic_idx = y_max = 0
         scale_factor = font_scale/num_plots**0.5
@@ -63,8 +51,8 @@ class CompoundEicPlotSet:
         for _ in range(num_pages):
             plots_remaining = num_plots - eic_idx
             num_plots_this_page = min(self.plots_per_page, plots_remaining)
-            cur_fig, axs = wrap_subplots(num_plots_this_page, sharey=sharey, sharex=True,
-                                         constrained_layout=True)
+            cur_fig, axs = utils.wrap_subplots(num_plots_this_page, sharey=sharey, sharex=True,
+                                               constrained_layout=True)
             self.figures.append(cur_fig)
             for ax in axs:
                 eic = self.eics[eic_idx]
@@ -89,7 +77,7 @@ class CompoundEic:
         self.rt_range: Tuple[float, float] = (rt_ref.rt_min, rt_ref.rt_max)
         self.rt_peak: float = rt_ref.rt_peak
 
-    def plot(self, ax: matplotlib.axes.Axes, back_color: Color = "white", rt_buffer=0.5) -> None:
+    def plot(self, ax: matplotlib.axes.Axes, back_color: utils.Color = "white", rt_buffer=0.5) -> None:
         """
         Draw plot of EIC on ax
         back_color: background color for plot
@@ -114,7 +102,7 @@ class CompoundEic:
             # fill_between requires a data point at each end of range, so add points via interpolation
             x, y = add_interp_at(eic["rt"], eic["intensity"], self.rt_range)
             ax.plot(x, y)
-            fill_under(ax, x, y, between=self.rt_range, color="c", alpha=0.3)
+            utils.fill_under(ax, x, y, between=self.rt_range, color="c", alpha=0.3)
         x_min = min(self.rt_range[0], self.rt_peak) - rt_buffer
         x_max = max(self.rt_range[1], self.rt_peak) + rt_buffer
         ax.set_xlim(x_min, x_max)
@@ -150,43 +138,6 @@ def insert_in_sorted_array(a1: np.ndarray, a2: np.ndarray) -> np.ndarray:
     """Combine two sorted arrays into one sorrted array"""
     insert_indices = np.searchsorted(a1, a2)
     return np.insert(a1, insert_indices, a2)
-
-
-def subplot_dimensions(num: int) -> Tuple[int, int]:
-    """Returns (num_rows, num_columns)"""
-    if num < 4:
-        return (num, 1)
-    num_cols = math.ceil(math.sqrt(num))
-    num_rows = math.ceil(num / num_cols)
-    return (num_rows, num_cols)
-
-
-def wrap_subplots(num: int, **kwargs) -> Tuple[matplotlib.figure.Figure, List[matplotlib.axes.Axes]]:
-    """Gets a figure with a grid of subplots, but internally deals with the grid dimensions"""
-    nrows, ncols = subplot_dimensions(num)
-    fig, axs = plt.subplots(nrows, ncols, squeeze=False, **kwargs)
-    needed_axs = axs.flatten()[:num]
-    blank_axs = axs.flatten()[num:]
-    for ax in blank_axs:
-        ax.set_axis_off()
-    return (fig, needed_axs)
-
-
-def is_in_range(a: List[float], start: float, stop: float) -> List[bool]:
-    """Determine which members of a list fall between two values (inclusive)"""
-    return [start <= x <= stop for x in a]
-
-
-def fill_under(
-    ax: matplotlib.axes.Axes,
-    x: List[float],
-    y: List[float],
-    between: Optional[Tuple[float, float]] = None,
-    **kwargs,
-) -> None:
-    """Fill under a curve with fill limited by x-range in between"""
-    where = None if between is None else is_in_range(x, between[0], between[1])
-    ax.fill_between(x, y, [0] * len(x), where=where, **kwargs)
 
 
 def save_compound_eic_pdf(
