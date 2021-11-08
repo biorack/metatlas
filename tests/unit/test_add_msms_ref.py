@@ -1,5 +1,5 @@
 """ unit tests for add_msms_refs module """
-# pylint: disable=missing-function-docstring,line-too-long
+# pylint: disable=missing-function-docstring,line-too-long,unused-argument
 
 import pytest
 import traitlets

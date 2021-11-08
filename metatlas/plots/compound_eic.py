@@ -46,13 +46,14 @@ class CompoundEicPlotSet:
         color_generator = utils.colors()
         current_group = ""
         eic_idx = y_max = 0
-        scale_factor = font_scale/num_plots**0.5
-        matplotlib.rcParams.update({'font.size': 10*scale_factor})
+        scale_factor = font_scale / num_plots ** 0.5
+        matplotlib.rcParams.update({"font.size": 10 * scale_factor})
         for _ in range(num_pages):
             plots_remaining = num_plots - eic_idx
             num_plots_this_page = min(self.plots_per_page, plots_remaining)
-            cur_fig, axs = utils.wrap_subplots(num_plots_this_page, sharey=sharey, sharex=True,
-                                               constrained_layout=True)
+            cur_fig, axs = utils.wrap_subplots(
+                num_plots_this_page, sharey=sharey, sharex=True, constrained_layout=True
+            )
             self.figures.append(cur_fig)
             for ax in axs:
                 eic = self.eics[eic_idx]
@@ -65,7 +66,7 @@ class CompoundEicPlotSet:
         for fig in self.figures:
             for ax in fig.axes:
                 ax.set_ylim(bottom=0, top=y_max if sharey else None)
-        matplotlib.rcParams.update({'font.size': 10})
+        matplotlib.rcParams.update({"font.size": 10})
 
 
 class CompoundEic:

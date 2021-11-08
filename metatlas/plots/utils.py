@@ -1,21 +1,13 @@
 """Utility functions used to create plots"""
 # pylint: disable=invalid-name,too-many-arguments
 
-import datetime
 import logging
 import math
 
-from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Generator, List, Optional, Tuple, Union
 
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
-
-from matplotlib.backends.backend_pdf import PdfPages
-
-from metatlas.io import write_utils
-from metatlas.datastructures import metatlas_objects as metob
 
 logger = logging.getLogger(__name__)
 
