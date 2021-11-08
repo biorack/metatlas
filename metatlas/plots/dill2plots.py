@@ -1590,32 +1590,32 @@ def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
         plt.close(f)#f.clear()
 
 
-def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="", overwrite=True, max_cpus=1):
+def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="",
+                       overwrite=True, max_cpus=1, logy=False):
     output_loc = os.path.expandvars(output_loc)
     logger.info('Exporting box plots of %s to %s.', ylabel, output_loc)
     disable_interactive_plots()
-    args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite) for compound in df.index]
+    args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy) for compound in df.index]
     parallel.parallel_process(make_boxplot, args, max_cpus, unit='plot')
 
 
-def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite):
+def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
     f, ax = plt.subplots(1, 1,figsize=(12,12))
-    if use_shortnames and 'short groupname' in df.columns.names:
-        g = df.loc[compound].groupby(level='short groupname')
-        g.apply(pd.DataFrame).plot(kind='box',ax=ax)
-    else:
-        g = df.loc[compound].groupby(level='group')
-        g.apply(pd.DataFrame).plot(kind='box',ax=ax)
+    level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
+    g = df.loc[compound].groupby(level=level)
+    g.apply(pd.DataFrame).plot(kind='box', ax=ax)
     for i, (n, grp) in enumerate(g):
         x = [i+1] *len(grp)
         x = np.random.normal(x, 0.04, size=len(x))
         plt.scatter(x, grp)
     ax.set_title(compound,fontsize=12,weight='bold')
     plt.xticks(rotation=90)
+    if logy:
+        plt.yscale('log')
     if ylabel != "":
         plt.ylabel(ylabel)
     plt.tight_layout()
-    fig_path = os.path.join(output_loc, compound + '_boxplot.pdf')
+    fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
     write_utils.check_existing_file(fig_path, overwrite)
     f.savefig(fig_path)
     plt.close(f)
