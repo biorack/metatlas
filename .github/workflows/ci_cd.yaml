@@ -4,8 +4,8 @@ on:
     branches:
       - main
 jobs:
-  test:
-    name: Run test suite
+  unit_tests:
+    name: Run unit tests suite
     runs-on: ubuntu-latest
     steps:
     - name: Checkout source
@@ -19,29 +19,20 @@ jobs:
       uses: excitedleigh/setup-nox@v2.0.0
     - name: Run unit tests
       run: nox -s unit_tests-3.8
-    - name: Run system tests
-      run: nox -s system_tests-3.8
-  build_docker_image:
-    name: Build metatlas_shifter docker image
-    if: github.repository == 'biorack/metatlas'
+  system_tests:
+    name: Run system tests suite
     runs-on: ubuntu-latest
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
-    - name: generate dummy version_info file
-      run: touch docker/.version_info
-    - name: Build Docker images
-      id: build
-      uses: docker/build-push-action@v2.7.0
-      with:
-        context: ./docker
-        file: ./docker/Dockerfile.shifter
-        platforms: linux/amd64
-        tags: wjhjgi/metatlas_shifter:latest
-  push_docker_image:
-    name: Push metatlas_shifter docker image
-    needs: test
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@v2.0.0
+    - name: Run system tests
+      run: nox -s system_tests-3.8
+  build_push_docker_image:
+    name: Build and push metatlas_shifter docker image
     if: github.repository == 'biorack/metatlas'
+    needs: [unit_tests, system_tests]
     runs-on: ubuntu-latest
     steps:
     - name: Checkout source
@@ -53,14 +44,14 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: generate dummy version_info file
       run: touch docker/.version_info
-    - name: Build and push Docker images
-      id: push
+    - name: Build Docker images
+      id: build
       uses: docker/build-push-action@v2.7.0
       with:
         context: ./docker
         file: ./docker/Dockerfile.shifter
         platforms: linux/amd64
-        push: true
         tags: wjhjgi/metatlas_shifter:latest
+        push: true
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}
