@@ -28,6 +28,8 @@ jobs:
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
+    - name: generate dummy version_info file
+      run: touch docker/.version_info
     - name: Build Docker images
       id: build
       uses: docker/build-push-action@v2.7.0
@@ -49,6 +51,8 @@ jobs:
       with:
         username: wjhjgi
         password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: generate dummy version_info file
+      run: touch docker/.version_info
     - name: Build and push Docker images
       id: push
       uses: docker/build-push-action@v2.7.0
