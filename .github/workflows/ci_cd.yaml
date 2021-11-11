@@ -38,8 +38,10 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Build and push Docker images
       id: docker_build
-      uses: docker/build-push-action@v2.2.2
+      uses: docker/build-push-action@v2.7.0
       with:
+        context: ./docker
+        file: Dockerfile.shifter
         platforms: linux/amd64
         push: true
         tags: |
