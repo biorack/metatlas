@@ -19,8 +19,8 @@ jobs:
       uses: excitedleigh/setup-nox@v2.0.0
     - name: Run unit tests
       run: nox -s unit_tests-3.8
-  system_tests:
-    name: Run system tests suite
+  system_test1:
+    name: Run system test 1 - targeted
     runs-on: ubuntu-latest
     steps:
     - name: Checkout source
@@ -28,11 +28,31 @@ jobs:
     - name: Setup nox
       uses: excitedleigh/setup-nox@v2.0.0
     - name: Run system tests
-      run: nox -s system_tests-3.8
+      run: nox -s system_tests-3.8 -- -k test_targeted
+  system_test2:
+    name: Run system test 2 - RT prediction
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@v2.0.0
+    - name: Run system tests
+      run: nox -s system_tests-3.8 -- -k test_rt_predict
+  system_test3:
+    name: Run system test 3 - add MSMS references
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@v2.0.0
+    - name: Run system tests
+      run: nox -s system_tests-3.8 -- -k test_add_msms_ref
   build_push_docker_image:
     name: Build and push metatlas_shifter docker image
     if: github.repository == 'biorack/metatlas'
-    needs: [unit_tests, system_tests]
+    needs: [unit_tests, system_test1, system_test2, system_test3]
     runs-on: ubuntu-latest
     steps:
     - name: Checkout source
