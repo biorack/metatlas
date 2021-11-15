@@ -31,7 +31,6 @@ you'll want to put the following:
 
 .. code-block:: python
 
-  metatlas_repo_path = '/src'
   project_directory = '/out'
   experiment = '20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583'
 
@@ -59,6 +58,8 @@ More high-quality unit tests are needed and the system_tests need to be expanded
 Merging into Main
 #################
 
-The default nox test suite must be passing before code can be merged into the main branch on GitHub.
+The unit and systems tests must be passing before code can be merged into the main branch on GitHub.
 This is enforced by Github. This means you cannot commit directly to main. You'll need to make a
 branch, commit to the branch, and then create a pull request.
+
+Sucessuful pull requests to the main branch will build a new shifter image and push it to dockerhub. A cronjob runs on cori10 under user wjholtz every 5 minutes which run shifterimg to import the image.
