@@ -162,6 +162,9 @@ def _autoscale(ax: matplotlib.axes.Axes, axis: str = "y", sides: str = "both", m
             dependent, fixed = _get_xy(artist)
         low, high = _update_limts(low, high, fixed, dependent, cur_fixed_limit)
     margin = margin * (high - low)
+    if low == np.inf and high == -np.inf:
+        return
+    assert low != np.inf and high != -np.inf
     new_min = (low - margin) if sides in ["both", "min"] else get_lim()[0]
     new_max = (high + margin) if sides in ["both", "max"] else get_lim()[1]
     set_lim(new_min, new_max)
