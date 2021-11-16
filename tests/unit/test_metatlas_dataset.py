@@ -500,7 +500,8 @@ def test_analysis_identifiers06(username, sqlite_with_atlas):
 
 def test_analysis_identifiers07(username, sqlite_with_atlas):
     with pytest.raises(
-        traitlets.traitlets.TraitError, match='Parameter experiment does contain 9 fields when split on "_".'
+            traitlets.traitlets.TraitError,
+            match="Parameter 'experiment' should contains 9 fields when split on '_', but has"
     ):
         mads.AnalysisIdentifiers(
             source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
@@ -510,6 +511,19 @@ def test_analysis_identifiers07(username, sqlite_with_atlas):
             analysis_number=0,
             project_directory="/foo/bar",
         )
+
+
+def test_analysis_identifiers08(username, sqlite_with_atlas, caplog, mocker, lcmsrun):
+    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
+    mads.AnalysisIdentifiers(
+        source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+        experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_EXTRA-FIELD",
+        output_type="FinalEMA-HILIC",
+        polarity="positive",
+        analysis_number=0,
+        project_directory=str(os.getcwd()),
+    )
+    assert "Parameter 'experiment' should contains 9 fields when split on '_', but has 10." in caplog.text
 
 
 def test_analysis_identifiers_atlas01(analysis_ids, username):

@@ -213,8 +213,12 @@ class AnalysisIdentifiers(HasTraits):
     @validate("experiment")
     def _valid_experiment(self, proposal: Proposal) -> Experiment:
         value = cast(str, proposal["value"])
-        if len(value.split("_")) != 9:
-            raise TraitError('Parameter experiment does contain 9 fields when split on "_".')
+        num_fields = len(value.split("_"))
+        error_msg = "Parameter 'experiment' should contains 9 fields when split on '_', but has %d."
+        if num_fields > 9:
+            logger.warning(error_msg, num_fields)
+        if num_fields < 9:
+            raise TraitError(error_msg, num_fields)
         return cast(Experiment, value)
 
     @property

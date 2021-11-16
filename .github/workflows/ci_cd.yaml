@@ -1,0 +1,77 @@
+name: ci_cd
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  unit_tests:
+    name: Run unit tests suite
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+    - name: Cache nox environment for unit tests
+      uses: actions/cache@v2
+      with:
+        path: ~/work/metatlas/metatlas/.nox
+        key: ${{ runner.os }}-nox
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@v2.0.0
+    - name: Run unit tests
+      run: nox -s unit_tests-3.8
+  system_test1:
+    name: Run system test 1 - targeted
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@v2.0.0
+    - name: Run system tests
+      run: nox -s system_tests-3.8 -- -k test_targeted
+  system_test2:
+    name: Run system test 2 - RT prediction
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@v2.0.0
+    - name: Run system tests
+      run: nox -s system_tests-3.8 -- -k test_rt_predict
+  system_test3:
+    name: Run system test 3 - add MSMS references
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@v2.0.0
+    - name: Run system tests
+      run: nox -s system_tests-3.8 -- -k test_add_msms_ref
+  build_push_docker_image:
+    name: Build and push metatlas_shifter docker image
+    if: github.repository == 'biorack/metatlas'
+    needs: [unit_tests, system_test1, system_test2, system_test3]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: wjhjgi
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: generate dummy version_info file
+      run: touch docker/.version_info
+    - name: Build Docker images
+      id: build
+      uses: docker/build-push-action@v2.7.0
+      with:
+        context: ./docker
+        file: ./docker/Dockerfile.shifter
+        platforms: linux/amd64
+        tags: wjhjgi/metatlas_shifter:latest
+        push: true
+    - name: Image digest
+      run: echo ${{ steps.docker_build.outputs.digest }}
