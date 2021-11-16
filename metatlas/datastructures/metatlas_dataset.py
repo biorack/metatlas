@@ -1103,6 +1103,7 @@ class MetatlasDataset(HasTraits):
         targeted_output.write_chromatograms(self, overwrite=overwrite, max_cpus=self.max_cpus)
         targeted_output.write_identification_figure(self, overwrite=overwrite)
         targeted_output.write_metrics_and_boxplots(self, overwrite=overwrite, max_cpus=self.max_cpus)
+        targeted_output.write_tics(self, overwrite=overwrite, x_min=1.5)
         if msms_fragment_ions:
             targeted_output.write_msms_fragment_ions(self, overwrite=overwrite)
         logger.info("Generation of output files completed sucessfully.")

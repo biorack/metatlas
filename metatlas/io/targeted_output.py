@@ -16,6 +16,7 @@ from metatlas.io import rclone
 from metatlas.io.write_utils import export_dataframe_die_on_diff
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
+from metatlas.plots.tic import save_sample_tic_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,19 @@ def write_chromatograms(metatlas_dataset, overwrite=False, max_cpus=1):
     params["share_y"] = False
     params["suffix"] = "_independentY"
     dp.make_chromatograms(**params)
+
+
+def write_tics(metatlas_dataset, x_min=None, x_max=None, y_min=0, overwrite=False):
+    """
+    Create PDF files with TIC plot for each sample
+    One file with shared Y-axes, one file with independent Y-axes
+    """
+    prefix = f"{metatlas_dataset.ids.short_polarity}_"
+    for suffix, sharey in [("_independentY", False), ("_sharedY", True)]:
+        file_name = os.path.join(metatlas_dataset.ids.output_dir, f"{prefix}TICs{suffix}.pdf")
+        save_sample_tic_pdf(
+            metatlas_dataset, file_name, overwrite, x_min=x_min, x_max=x_max, y_min=y_min, sharey=sharey
+        )
 
 
 def write_identification_figure(metatlas_dataset, overwrite=False):

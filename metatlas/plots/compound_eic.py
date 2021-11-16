@@ -1,21 +1,16 @@
 """Plot set of EIC plots for a compound. One sample per sub-plot"""
-# pylint: disable=invalid-name,too-many-arguments
+# pylint: disable=invalid-name,too-many-arguments,too-few-public-methods
 
-import datetime
 import logging
-import math
 
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Tuple
 
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 
-from matplotlib.backends.backend_pdf import PdfPages
-
-from metatlas.io import write_utils
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.plots import plot_set
 from metatlas.plots import utils
 
 logger = logging.getLogger(__name__)
@@ -23,72 +18,26 @@ logger = logging.getLogger(__name__)
 MetatlasDataset = List[List[Any]]  # avoiding a circular import
 
 
-class CompoundEicPlotSet:
-    """All the EIC plots for one compound"""
-
-    # pylint: disable=too-few-public-methods,too-many-locals,too-many-arguments
-
-    def __init__(
-        self,
-        data: MetatlasDataset,
-        compound_idx: int,
-        max_plots_per_fig: int = 30,
-        sharey: bool = True,
-        rt_buffer: float = 0.5,
-        font_scale: float = 2,
-    ):
-        file_order_eics = [CompoundEic(sample[compound_idx]) for sample in data]
-        self.eics = sorted(file_order_eics, key=lambda x: (x.short_group_name, x.short_run_id))
-        num_plots = len(self.eics)
-        num_pages = math.ceil(num_plots / max_plots_per_fig)
-        self.plots_per_page = math.ceil(num_plots / num_pages)
-        self.figures = []
-        color_generator = utils.colors()
-        current_group = ""
-        eic_idx = y_max = 0
-        scale_factor = font_scale / num_plots ** 0.5
-        matplotlib.rcParams.update({"font.size": 10 * scale_factor})
-        for _ in range(num_pages):
-            plots_remaining = num_plots - eic_idx
-            num_plots_this_page = min(self.plots_per_page, plots_remaining)
-            cur_fig, axs = utils.wrap_subplots(
-                num_plots_this_page, sharey=sharey, sharex=True, constrained_layout=True
-            )
-            self.figures.append(cur_fig)
-            for ax in axs:
-                eic = self.eics[eic_idx]
-                if eic.short_group_name != current_group:
-                    current_color = next(color_generator)
-                    current_group = eic.short_group_name
-                eic.plot(ax, back_color=current_color, rt_buffer=rt_buffer)
-                y_max = max(y_max, ax.get_ylim()[1])
-                eic_idx += 1
-        for fig in self.figures:
-            for ax in fig.axes:
-                ax.set_ylim(bottom=0, top=y_max if sharey else None)
-        matplotlib.rcParams.update({"font.size": 10})
-
-
-class CompoundEic:
+class CompoundEic(plot_set.Plot):
     """EIC for one compound within a single sample"""
 
-    def __init__(self, compound: Dict[str, Any]):
+    def __init__(self, title: str, group_name: str, compound: Dict[str, Any], rt_buffer: float = 0.5):
+        """
+        compound: Compound instance
+        rt_buffer: amount of time in minutes to show to each side of rt_min/rt_max/rt_peak
+        """
+        super().__init__(title, group_name)
         self.compound = compound
         rt_ref: metob.RtReference = compound["identification"].rt_references[0]
         self.rt_range: Tuple[float, float] = (rt_ref.rt_min, rt_ref.rt_max)
         self.rt_peak: float = rt_ref.rt_peak
+        self.rt_buffer = rt_buffer
 
-    def plot(self, ax: matplotlib.axes.Axes, back_color: utils.Color = "white", rt_buffer=0.5) -> None:
-        """
-        Draw plot of EIC on ax
-        back_color: background color for plot
-        rt_buffer: amount of time in minutes to show to each side of rt_min/rt_max/rt_peak
-        """
-        ax.ticklabel_format(axis="y", scilimits=[0, 0])
-        ax.set_facecolor(back_color)
-        self._draw_curve(ax, rt_buffer)
+    def plot(self, ax: matplotlib.axes.Axes, back_color: utils.Color = "white") -> None:
+        """Draw plot of EIC on ax"""
+        super().plot(ax, back_color)
+        self._draw_curve(ax, self.rt_buffer)
         self._draw_rt_ref_lines(ax)
-        self._draw_title(ax)
 
     def _draw_rt_ref_lines(self, ax: matplotlib.axes.Axes) -> None:
         """Draw vertical lines for RT min, RT max, and RT peak"""
@@ -107,22 +56,6 @@ class CompoundEic:
         x_min = min(self.rt_range[0], self.rt_peak) - rt_buffer
         x_max = max(self.rt_range[1], self.rt_peak) + rt_buffer
         ax.set_xlim(x_min, x_max)
-
-    def _draw_title(self, ax: matplotlib.axes.Axes) -> None:
-        """Add title to plot"""
-        title = f"{self.short_run_id}\n{self.short_group_name}"
-        ax.set_title(title)
-
-    @property
-    def short_run_id(self) -> str:
-        """Output is RunDate_NorthenLabSampleNum_ReplicateNum_SequenceInjectionNum"""
-        fields = Path(self.compound["lcmsrun"].name).stem.split("_")
-        return f"{fields[0]}_{fields[11]}_{fields[13]}_{fields[15]}"
-
-    @property
-    def short_group_name(self) -> str:
-        """Short name for a related group of samples"""
-        return self.compound["group"].short_name
 
 
 def add_interp_at(
@@ -149,15 +82,15 @@ def save_compound_eic_pdf(
     sharey: bool = True,
     max_plots_per_page: int = 30,
 ) -> None:
-    """Create a PDF file containing the set of EIC plots for a single compound"""
-    write_utils.check_existing_file(file_name, overwrite)
+    """Generate a PDF of EIC plots for compound_idx within data"""
+    file_order_eics = []
+    for sample in data:
+        compound = sample[compound_idx]
+        fields = Path(compound["lcmsrun"].name).stem.split("_")
+        title = f"{fields[0]}_{fields[11]}_{fields[13]}_{fields[15]}"
+        group_name = compound["group"].short_name
+        file_order_eics.append(CompoundEic(title, group_name, compound))
+    eics = sorted(file_order_eics, key=lambda x: (x.group_name, x.title))
     compound_name = data[0][compound_idx]["identification"].compound[0].name
-    plt.ioff()  # don't display the plots
-    with PdfPages(file_name) as pdf:
-        for fig in CompoundEicPlotSet(data, compound_idx, max_plots_per_page, sharey).figures:
-            pdf.savefig(fig)
-        metadata = pdf.infodict()
-        metadata["Title"] = f"EICs for {compound_name}"
-        metadata["Author"] = "Joint Genome Institute"
-        metadata["CreationDate"] = datetime.datetime.today()
-    logger.debug("Exported EIC chromatograms for %s to %s.", compound_name, file_name)
+    pdf_title = f"EICs for {compound_name}"
+    plot_set.PlotSet(eics, max_plots_per_page, sharey).save_pdf(file_name, pdf_title, overwrite)
