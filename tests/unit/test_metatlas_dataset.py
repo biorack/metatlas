@@ -632,7 +632,7 @@ def test_annotation_gui01(metatlas_dataset, hits, mocker):
 def test_generate_all_outputs01(metatlas_dataset, hits, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     metatlas_dataset.generate_all_outputs()
-    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 16
+    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 14
     assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 23
 
 
