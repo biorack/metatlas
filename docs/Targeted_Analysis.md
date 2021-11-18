@@ -4,52 +4,35 @@
 
 ### RClone configuration
 
-#### For MacOS/Linux
+1. Go to [jupyter.nersc.gov](https://jupyter.nersc.gov/) and login using your NERSC account.
+2. Click the 'start' button for a Cori 'Shared CPU Node' and wait for the JupyterLab interface to load.
+3. From the menu bar, select 'File' -> 'New' -> 'Terminal'.
+4. Copy and paste the following command into the terminal:
+   ```
+   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0dms config_is_local false
+   ```
+5. The output from step 4 will include a URL that you should copy into and open with a web browser that is logged into your LBL Google account.
+6. You will be prompted to authorize RClone to have edit access to Google Drive. Select your lbl.gov Google Account and then click the 'Allow' button.
+7. Click the clipboard icon to copy the authorization code.
+8. Go back to the JupyterLab page and paste the authorization code into the terminal and hit 'Enter'.
+9. Copy and paste the following command into the terminal:
+   ```
+   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd metabolomics:Analysis_uploads
+   ```
+   to verify your setup. Which should yield a listing of metabolomics experiment names similar to:
+   ```
+             -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
+             -1 2021-08-30 12:32:39        -1 20210518_JGI-AK_IG-SS_503256_BETO_Pceleri_QE-HF_HILICZ_USHXG01602
+             -1 2021-09-13 16:39:15        -1 20210721_JGI-AK_JB_504782_PseudoOphi_final_QE-139_HILICZ_USHXG01490
+             -1 2021-09-13 17:40:55        -1 20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494
+             -1 2021-09-13 16:39:15        -1 20210728_JGI-AK_MD_507130_Bioscales_pilot2_QE-139_HILICZ_USHXG01490
+             -1 2021-09-10 16:05:18        -1 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490
+             -1 2021-09-13 16:34:45        -1 20210819_JGI-AK_MK_506588_SoilWaterRep_final_QE-139_HILICZ_USHXG01490
+   ```
 
-Open a terminal on Cori and run:
-```
-mkdir -p ~/.config/rclone
-```
+### Make a directory to store work in progress
 
-Open a terminal on your local machine and run:
-```
-curl --silent --show-error https://rclone.org/install.sh | sudo bash > /dev/null
-# You will be prompted to enter your password, this allows the installation of rclone
-rclone config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
-# You will be prompted in your web browser to grant rclone access to Google Drive
-scp $(rclone config file | tail -1) dtn01.nersc.gov:~/.config/rclone/rclone.conf
-```
-
-#### For Windows
-
-1. Download and unzip [rclone-current-windows-amd64.zip](https://downloads.rclone.org/rclone-current-windows-amd64.zip).
-2. Open a powershell window
-3. Run `rclone.exe config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0dms`
-4. Find your RClone configuration file location by running `rclone config file`
-5. Transfer the RClone configuration file to `~/.config/rclone/rclone.conf` on cori
-
-#### Test RClone configuration
-
-Now you can verify that rclone is working correctly by running this on Cori:
-```
-/global/cfs/cdirs/m342/USA/shared-repos/rclone/bin/rclone lsd metabolomics:Analysis_uploads
-```
-
-which should yield a listing of metabolomics experiment names similar to:
-
-```
-          -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
-          -1 2021-08-30 12:32:39        -1 20210518_JGI-AK_IG-SS_503256_BETO_Pceleri_QE-HF_HILICZ_USHXG01602
-          -1 2021-09-13 16:39:15        -1 20210721_JGI-AK_JB_504782_PseudoOphi_final_QE-139_HILICZ_USHXG01490
-          -1 2021-09-13 17:40:55        -1 20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494
-          -1 2021-09-13 16:39:15        -1 20210728_JGI-AK_MD_507130_Bioscales_pilot2_QE-139_HILICZ_USHXG01490
-          -1 2021-09-10 16:05:18        -1 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490
-          -1 2021-09-13 16:34:45        -1 20210819_JGI-AK_MK_506588_SoilWaterRep_final_QE-139_HILICZ_USHXG01490
-```
-
-### Make directory to store work in progress
-
-On Cori run
+Still within the terminal in JupyterLab, run:
 ```
 mkdir -p ~/metabolomics_data
 ```
@@ -59,7 +42,7 @@ mkdir -p ~/metabolomics_data
 ### Perform RT correction
 
 #### Parameters
-The `experiment_name` parameter can retrieved from the [Sample Tracking and QC Checkpoints - Northen Lab](https://docs.google.com/spreadsheets/d/126t1OeXQnCCgP6e-6Pac_Ku_A1R7MQLm_tl_Dkqsv_w/edit#gid=1548851545) Google Sheet. The experiment names can be found on the 'New Extraction' sheet in either column 'M' or 'N' depending on the type of chromatography that was performed. This value will be something like `20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494`.
+The `experiment_name` parameter can retrieved from the [Sample Tracking and QC Checkpoints - Northen Lab](https://docs.google.com/spreadsheets/d/126t1OeXQnCCgP6e-6Pac_Ku_A1R7MQLm_tl_Dkqsv_w/edit#gid=1548851545) Google Sheet. The experiment names can be found on the 'New Extraction' sheet in either column 'N' or 'O' depending on the type of chromatography that was performed. This value will be something like `20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494`.
 
 The `analysis_number` parameter is an integer that you'll need to increment if you redo an analysis. It should be set to 0 initially.
 
@@ -67,9 +50,14 @@ The `project_directory` is where you want to store the analysis while working on
 
 #### Execution
 
-On Cori run (where you substitute the 3 parameters described above):
+In your JupyterLab terminal, run the following command (where you substitute the 3 parameters described above):
 ```
 /global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh experiment_name analysis_number project_directory
+```
+
+For example, your command with the parameters substituted in will be something like:
+```
+/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 ~/metabolomics_data
 ```
 
 This will submit a slurm job. You will receive an email when the job starts executing and when it has completed. Typical jobs take 2 to 5 hours to complete.
