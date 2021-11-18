@@ -128,7 +128,14 @@ def write_tics(metatlas_dataset, x_min=None, x_max=None, y_min=0, overwrite=Fals
     for suffix, sharey in [("_independentY", False), ("_sharedY", True)]:
         file_name = os.path.join(metatlas_dataset.ids.output_dir, f"{prefix}TICs{suffix}.pdf")
         save_sample_tic_pdf(
-            metatlas_dataset, file_name, overwrite, x_min=x_min, x_max=x_max, y_min=y_min, sharey=sharey
+            metatlas_dataset,
+            metatlas_dataset.ids.polarity,
+            file_name,
+            overwrite,
+            x_min=x_min,
+            x_max=x_max,
+            y_min=y_min,
+            sharey=sharey,
         )
 
 

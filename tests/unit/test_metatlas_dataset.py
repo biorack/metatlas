@@ -500,8 +500,8 @@ def test_analysis_identifiers06(username, sqlite_with_atlas):
 
 def test_analysis_identifiers07(username, sqlite_with_atlas):
     with pytest.raises(
-            traitlets.traitlets.TraitError,
-            match="Parameter 'experiment' should contains 9 fields when split on '_', but has"
+        traitlets.traitlets.TraitError,
+        match="Parameter 'experiment' should contains 9 fields when split on '_', but has",
     ):
         mads.AnalysisIdentifiers(
             source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
