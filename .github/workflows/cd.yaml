@@ -1,12 +1,16 @@
 name: cd
 on:
-  branch_protection_rule:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["ci"]
+    branches: [main]
+    types:
+      - completed
+
 jobs:
   build_push_docker_image:
     name: Build and push metatlas_shifter docker image
     if: github.repository == 'biorack/metatlas'
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - name: Checkout source
