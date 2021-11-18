@@ -7,13 +7,19 @@
 1. Go to [jupyter.nersc.gov](https://jupyter.nersc.gov/) and login using your NERSC account.
 2. Click the 'start' button for a Cori 'Shared CPU Node' and wait for the JupyterLab interface to load.
 3. From the menu bar, select 'File' -> 'New' -> 'Terminal'.
-4. Run `/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0dms config_is_local false`
+4. Copy and paste the following command into the terminal:
+```
+/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0dms config_is_local false
+```
 5. The output from step 4 will include a URL that you should copy into and open with a web browser that is logged into your LBL Google account.
 6. You will be prompted to authorize RClone to have edit access to Google Drive. Select your lbl.gov Google Account and then click the 'Allow' button.
 7. Click the clipboard icon to copy the authorization code.
 8. Go back to the JupyterLab page and paste the authorization code into the terminal and hit 'Enter'.
-9. Run `/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd metabolomics:Analysis_uploads` to verify your setup. Which should yield a listing of metabolomics experiment names similar to:
-
+9. Copy and paste the following command into the terminal:
+```
+/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd metabolomics:Analysis_uploads
+```
+to verify your setup. Which should yield a listing of metabolomics experiment names similar to:
 ```
           -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
           -1 2021-08-30 12:32:39        -1 20210518_JGI-AK_IG-SS_503256_BETO_Pceleri_QE-HF_HILICZ_USHXG01602
@@ -26,7 +32,10 @@
 
 ### Make a directory to store work in progress
 
-Still within the terminal in JupyterLab, run `mkdir -p ~/metabolomics_data`
+Still within the terminal in JupyterLab, run:
+```
+mkdir -p ~/metabolomics_data
+```
 
 ## Per-project workflow
 
