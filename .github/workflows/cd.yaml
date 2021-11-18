@@ -1,6 +1,6 @@
 name: cd
 on:
-  push:
+  branch_protection_rule:
     branches:
       - main
 jobs:
