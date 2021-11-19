@@ -20,7 +20,7 @@ from metatlas.plots.tic import save_sample_tic_pdf
 
 logger = logging.getLogger(__name__)
 
-RCLONE_PATH = "/global/cfs/cdirs/m342/USA/shared-repos/rclone/bin/rclone"
+RCLONE_PATH = "/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone"
 
 
 def write_atlas_to_spreadsheet(metatlas_dataset, overwrite=False):
