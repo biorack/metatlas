@@ -8,7 +8,8 @@
 
 set -euf -o pipefail
 
-NO_TAG="wjhjgi/metatlas_shifter"
+SHORT="metatlas_shifter"
+LONG="wjhjgi/$SHORT"
 TAG=""
 
 while [[ "$#" -gt 0 ]]; do
@@ -31,8 +32,8 @@ if [ -z "$TAG" ]; then
   exit 1
 fi
 
-FULL_ID="${NO_TAG}:${TAG}"
-LATEST_ID="${NO_TAG}:${TAG}"
+FULL_ID="${LONG}:${TAG}"
+LATEST_ID="${LONG}:latest"
 
 docker pull "$FULL_ID"
 docker tag "$FULL_ID" "$LATEST_ID"
