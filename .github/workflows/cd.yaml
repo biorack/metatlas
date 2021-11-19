@@ -21,7 +21,6 @@ jobs:
       run: touch docker/.version_info
     - name: generate time based tag
       id: timestamp
-      run: date -u +"%Y%m%d_%H%M%S"
       run: |
         DATE_TIME=$(date -u +"%Y%m%d_%H%M%S")
         echo "::set-output name=date_time::${DATE_TIME}"
