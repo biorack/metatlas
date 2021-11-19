@@ -9,7 +9,7 @@
 3. From the menu bar, select 'File' -> 'New' -> 'Terminal'.
 4. Copy and paste the following command into the terminal:
    ```
-   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone config create metabolomics drive root_folder_id 0B-ZDcHbPi-aqZzE5V3hOZFc0dms config_is_local false
+   /global/common/software/m2650/metatlas-repo/utils/rclone_auth.sh
    ```
 5. The output from step 4 will include a URL that you should copy into and open with a web browser that is logged into your LBL Google account.
 6. You will be prompted to authorize RClone to have edit access to Google Drive. Select your lbl.gov Google Account and then click the 'Allow' button.
