@@ -20,11 +20,11 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
 6. You will be prompted to authorize RClone to have edit access to Google Drive. Select your lbl.gov Google Account and then click the 'Allow' button.
 7. Click the clipboard icon to copy the authorization code.
 8. Go back to the JupyterLab page and paste the authorization code into the terminal and hit 'Enter'.
-9. Copy and paste the following command into the terminal:
+9. To verify you RClone configuration was successful, copy and paste the following command into the terminal:
    ```
    /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd metabolomics:Analysis_uploads
    ```
-   to verify your setup. Which should yield a listing of metabolomics experiment names similar to:
+   Which should yield a listing of metabolomics experiment names similar to:
    ```
              -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
              -1 2021-08-30 12:32:39        -1 20210518_JGI-AK_IG-SS_503256_BETO_Pceleri_QE-HF_HILICZ_USHXG01602
