@@ -2,6 +2,11 @@
 
 ## One-time setup
 
+### Metatlas group
+
+Analysts need to be in the metatlas group at NERSC. You can check if you are in this group via [Iris](https://iris.nersc.gov/) -- see the 'groups' tab. If you are not currently in the metatlas group, find the interface on the right hand side of the groups web page where you can request to be added to a group and enter a request to be added the the metatlas group. You will not be able to proceed until you have been added to the metatlas group.
+
+
 ### RClone configuration
 
 1. Go to [jupyter.nersc.gov](https://jupyter.nersc.gov/) and login using your NERSC account.
