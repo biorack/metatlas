@@ -45,6 +45,7 @@ def save_sample_tic_pdf(
     x_min: Optional[float] = None,
     x_max: Optional[float] = None,
     y_min: Optional[float] = None,
+    y_max: Optional[float] = None,
     max_plots_per_page: int = 30,
 ) -> None:
     """Generate a PDF of TIC plots for samples within data"""
@@ -58,5 +59,7 @@ def save_sample_tic_pdf(
         file_order_tics.append(Tic(title, group_name, h5_file_name, polarity))
     tics = sorted(file_order_tics, key=lambda x: (x.group_name, x.title))
     pdf_title = "TICs"
-    plots = plot_set.PlotSet(tics, max_plots_per_page, x_min=x_min, x_max=x_max, y_min=y_min, sharey=sharey)
+    plots = plot_set.PlotSet(
+        tics, max_plots_per_page, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, sharey=sharey
+    )
     plots.save_pdf(file_name, pdf_title, overwrite)
