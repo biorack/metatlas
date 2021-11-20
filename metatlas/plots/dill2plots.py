@@ -15,7 +15,7 @@ from metatlas.io import write_utils
 from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.plots import chromplotplus as cpp
 from metatlas.plots.compound_eic import save_compound_eic_pdf
-
+from metatlas.plots.tic import save_sample_tic_pdf
 from metatlas.tools import parallel
 from metatlas.tools import spectralprocessing as sp
 
@@ -3312,3 +3312,10 @@ def disable_interactive_plots():
     """Close interactive figures and turn off interactive plotting"""
     adjust_rt_for_selected_compound.disable()
     plt.ioff()
+
+
+def tic_pdf(data, polarity, file_name, overwrite=False, sharey=True,
+            x_min=1.5, x_max=None, y_min=0, y_max=None, max_plots_per_page=30):
+    save_sample_tic_pdf(
+        data, polarity, file_name, overwrite, sharey, x_min, x_max, y_min, y_max, max_plots_per_page
+    )
