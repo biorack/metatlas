@@ -668,12 +668,8 @@ class MetatlasDataset(HasTraits):
             for group in self.ids.groups
             for h5_file in group.items
         ]
-        try:
-            if len(files) == 0:
-                raise ValueError("No matching h5 files were found")
-        except ValueError as err:
-            logger.exception(err)
-            raise err
+        if len(files) == 0:
+            logger.warning("No matching h5 files were found!")
         logger.info("Generating MetatlasDataset by reading MSMS data from h5 files")
         samples = parallel.parallel_process(
             ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample", spread_args=False
