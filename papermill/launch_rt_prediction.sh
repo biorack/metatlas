@@ -39,7 +39,7 @@ else
     echo "WARNING: ${USER} is not a member of gtrnd or m2650. Attempting to use ${USER}'s default account."
     FLAGS="--qos=shared"
 fi
-FLAGS = "--cpus-per-task=${MAX_CPUS} ${FLAGS}"
+FLAGS="--cpus-per-task=${MAX_CPUS} ${FLAGS}"
 
 export IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
 export OUT_FILE="${ANALYSIS_DIR}/${PROPOSAL}_RT_Prediction_papermill.ipynb"
