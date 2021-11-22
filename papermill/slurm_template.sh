@@ -1,8 +1,7 @@
 #!/bin/bash
 #SBATCH --image=docker:wjhjgi/metatlas_shifter:latest
 #SBATCH --constraint=haswell
-#SBATCH --account=gtrnd
-#SBATCH --qos=genepool
+#SBATCH --nodes=1
 #SBATCH --licenses=cfs
 #SBATCH --mail-type=ALL
 #SBATCH --time=12:00:00
