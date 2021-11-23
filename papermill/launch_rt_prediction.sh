@@ -28,7 +28,13 @@ EXP_DIR="${PROJECT_DIR}/$EXP"
 ANALYSIS_DIR="${EXP_DIR}/${USER}${ANALYSIS_NUM}"
 
 IFS='_' read -ra TOKENS <<< "$EXP"
-PROPOSAL="${TOKENS[3]}"
+PROPOSAL="${TOKENS[3]:-}"
+EXP_CHECK_LEN="${TOKENS[8]:-}"
+
+if [[ $EXP_CHECK_LEN == "" ]]; then
+  >&2 echo "ERROR: experiment_name parameter is invalid. Must have 9 fields when split on '_'."
+  exit 2
+fi
 
 if id -nG "$USER" | grep -qw "gtrnd"; then
     FLAGS="--account=gtrnd --qos=genepool"
