@@ -194,7 +194,10 @@ class Workspace(object):
     def close_connection(self):
         """close database connections"""
         if self.db is not None:
-            self.db.close()
+            try:
+                self.db.close()
+            except AttributeError:
+                logger.debug('Could not close DB. Database object contains %s', dir(self.db))
             self.db = None
 
     def convert_to_double(self, table, entry):
