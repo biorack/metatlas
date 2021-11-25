@@ -197,7 +197,7 @@ class Workspace(object):
             try:
                 self.db.close()
             except AttributeError:
-                logger.debug('Could not close DB. Database object contains %s', dir(self.db))
+                logger.debug('Could not close DB. %s object contains %s', self.db.__class__, dir(self.db))
             self.db = None
 
     def convert_to_double(self, table, entry):
