@@ -8,6 +8,8 @@ import warnings
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
 
+from enum import Enum
+
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.tools.logging import log_errors
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
@@ -160,6 +162,8 @@ GUI_FIG_LABEL = 'Annotation GUI'
 
 LOGGING_WIDGET = widgets.Output()
 
+INSTRUCTIONS_PATH = '/global
+
 def get_google_sheet(notebook_name = "Sheet name",
                      token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
                      sheet_name = 'Sheet1',
@@ -206,6 +210,12 @@ def get_google_sheet(notebook_name = "Sheet name",
 
     return df2
 
+class LayoutPosition(Enum):
+    """Define vertical ordering of element in GUI"""
+
+    GUI = 0
+    ID_NOTE = 1
+    INFO = 2
 
 class adjust_rt_for_selected_compound(object):
     def __init__(self,
@@ -292,6 +302,11 @@ class adjust_rt_for_selected_compound(object):
         self.hit_ctr = 0
         self.msms_zoom_factor = 1
         self.match_idx = None
+        self.plot_output = widgets.Output()
+        self.id_note = widgets.Textarea(
+            description="ID Notes", value="", placeholder="No note entered", continuous_update=False
+        )
+        self.instructions = widgets.HTML(value="Compound Info will go here")
         # native matplotlib key bindings that we want to override
         disable_keyboard_shortcuts({'keymap.yscale': ['l'],
                                     'keymap.xscale': ['k'],
@@ -306,7 +321,9 @@ class adjust_rt_for_selected_compound(object):
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
         self.fig.canvas.mpl_connect('key_press_event', self.press)
         self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
+        self.id_note.observe(self.on_id_note_change, names='value')
         self.set_plot_data()
+        self.display_ui()
 
     def set_plot_data(self):
         logger.debug('Starting replot')
@@ -315,8 +332,27 @@ class adjust_rt_for_selected_compound(object):
         self.filter_hits()
         self.msms_plot()
         self.flag_radio_buttons()
-        plt.show()
+        with self.plot_output:
+            plt.show()
         logger.debug('Finished replot')
+
+    def display_ui(self) -> widgets.VBox:
+        """Display spreadsheet for entering input values"""
+        # Layout:
+        #   Row 0: RT adjuster GUI
+        #   Row 1: Identification note - user editable information
+        #   Row 2: Info - read only notes about the current compound-polarity pair
+        elements = {}
+        elements[LayoutPosition.GUI.value] = self.plot_output
+        elements[LayoutPosition.ID_NOTE.value] = self.id_note
+        elements[LayoutPosition.INFO.value] = self.instructions
+        element_list = [elements[k.value] for k in LayoutPosition]
+        layout = widgets.VBox(element_list)
+        display(layout)
+
+    def on_id_note_change(self, change):
+        self.instructions.value = change['new']
+        logger.debug('ID_NOTE change handler got value: %s', change['new'])
 
     def eic_plot(self):
         logger.debug('Starting eic_plot')
