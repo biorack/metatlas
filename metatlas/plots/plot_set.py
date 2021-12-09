@@ -129,6 +129,11 @@ class PlotSet(ABC):
             metadata["CreationDate"] = datetime.datetime.today()
         logger.debug("Exported PDF containing %s to %s.", title, file_name)
 
+    def close(self):
+        """Close all plots and free their memory"""
+        for fig in self.figures:
+            plt.close(fig)
+
 
 # adapted from https://stackoverflow.com/questions/51323505/how-to-make-relim-and-autoscale-in-a-scatter-plot
 def _get_xy(artist: matplotlib.artist.Artist) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
