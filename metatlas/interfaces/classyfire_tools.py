@@ -6,17 +6,18 @@ import os
 import pandas as pd
 import time
 
-def write_classyfire_info_to_file(input_tuple,wait=True):
-    outdir = input_tuple[0]
-    inchi_key = input_tuple[1]
+def write_classyfire_info_to_file(inchi_key,wait=True,outdir='/global/projectb/sandbox/metatlas/projects/classyfire_annotations'):
     suffix = '.json'
     fname = os.path.join(outdir, inchi_key + suffix)
     if not os.path.isfile(fname):
         txt = get_classyfire_from_inchikey(inchi_key)
-        with open(fname, 'w') as fid:
-            json.dump(txt, fid)
+        if '"status":"404"' in txt:
+            print('%s not there'%inchi_key)
+        else:
+            with open(fname, 'w') as fid:
+                json.dump(txt, fid)
         if wait==True:
-            time.sleep(2)
+            time.sleep(1)
 
 def get_classyfire_from_inchikey(inchi_key):    
     """
@@ -58,7 +59,7 @@ def get_classyfire_classes(inchi_keys,basepath='/global/projectb/sandbox/metatla
     cf.reset_index(inplace=True,drop=True)
     return cf
 
-def make_new_classyfire_entries(not_found):
+def make_new_classyfire_entries(not_found,script_filename):
     ### submit new molecules to classyfire
     dummy_script = """curl -is http://classyfire.wishartlab.com/queries.json -X POST -d '{"label":"asdf","query_input":"query_str", "query_type":"STRUCTURE"}' -H "Content-Type: application/json"
     """
@@ -77,7 +78,7 @@ def make_new_classyfire_entries(not_found):
             cf_str = []
     all_scripts.append(dummy_script.replace('query_str','\\n'.join(cf_str)))
 
-    with open('classyfire_remaining_smiles_397.sh','w') as fid:
+    with open(script_filename,'w') as fid:
         for script in all_scripts:
             fid.write('%s\n'%script)
             fid.write('sleep 10s\n')
@@ -87,6 +88,7 @@ def make_classyfire_table(classyfire_path='/global/projectb/sandbox/metatlas/pro
                           output_filename='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',
                          compression=True,
                          iks=None):
+    import glob as glob
     files = glob.glob(os.path.join(classyfire_path,'*.json'))
     if iks is None:
         iks = [os.path.basename(f).split('.')[0] for f in files]
@@ -158,7 +160,7 @@ def make_classyfire_network(classyfire_obo_filename='ChemOnt_2_1.obo',
         nx.write_graphml_lxml(G,network_filename)
     return G
 
-def make_ontology_gmt_file(classyfire_file,classyfire_file='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',gmt_file = '/Users/bpb/Downloads/classyfire_gmt_file.gmt'):
+def make_ontology_gmt_file(classyfire_file='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',gmt_file = '/Users/bpb/Downloads/classyfire_gmt_file.gmt'):
     cf = pd.read_csv(classyfire_file)#,usecols=['inchi_key','class_name'])
 
     cf_cols = [c for c in cf.columns if '_id' in c] + ['inchi_key']

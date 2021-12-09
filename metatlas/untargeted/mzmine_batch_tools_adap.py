@@ -54,7 +54,7 @@ DATA_PATH = '/global/cscratch1/sd/bpb/raw_data'
 
 # /////////////////////////////////////////////////////////////////////
 # /////////////////// REALTIME QUEUE SBATCH PARAMS ////////////////////
-# /////////////////////////////////////////////////////////////////////
+# # /////////////////////////////////////////////////////////////////////
 SLURM_HEADER = """#!/bin/bash
 #SBATCH -t 04:00:00
 #SBATCH -C haswell
@@ -105,18 +105,18 @@ module load java
 # /////////////////////////////////////////////////////////////////////
 # /////////////////// SKYLAKE 1.5TB QUEUE SBATCH PARAMS ///////////////
 # /////////////////////////////////////////////////////////////////////
-# SLURM_HEADER = """#!/bin/bash
-# #SBATCH -N 1
-# #SBATCH --exclusive
-# #SBATCH --error="slurm.err"
-# #SBATCH --output="slurm.out"
-# #SBATCH --qos=jgi_shared
-# #SBATCH -A pkscell
-# #SBATCH -C skylake
-# #SBATCH -t 48:00:00
-# #SBATCH -L project
+SLURM_BIGMEM_HEADER = """#!/bin/bash
+#SBATCH -N 1
+#SBATCH --exclusive
+#SBATCH --error="slurm.err"
+#SBATCH --output="slurm.out"
+#SBATCH --qos=jgi_shared
+#SBATCH -A pkscell
+#SBATCH -C skylake
+#SBATCH -t 8:00:00
+#SBATCH -L project
 
-# """
+"""
 
 
 def calc_hit_vector(n,df):
