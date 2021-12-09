@@ -1,10 +1,14 @@
 from __future__ import absolute_import
 from __future__ import print_function
 import getpass
-import uuid
-import time
+import logging
 import os
 import pprint
+import time
+import uuid
+
+from typing import Dict
+
 from pwd import getpwuid
 from tabulate import tabulate
 import pandas as pd
@@ -15,6 +19,8 @@ from .object_helpers import (
     Stub
 )
 from six.moves import zip
+
+logger = logging.getLogger(__name__)
 
 #Making a new table means adding a new class to metatlas_objects.py.
 #Floats are set as single precision by default, unfortunately, so here is the best way to create a table containing floats:
@@ -36,6 +42,7 @@ FETCH_STUBS = True
 ADDUCTS = ('','[M]+','[M+H]+','[M+H]2+','[M+2H]2+','[M+H-H2O]2+','[M+K]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-H+Cl]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M+formate]-','[M-H+Cl]2-','[M-H+2Na]+')
 POLARITY = ('positive', 'negative', 'alternating')
 FRAGMENTATION_TECHNIQUE = ('hcd','cid','etd','ecd','irmpd')
+
 
 def retrieve(object_type, **kwargs):
     """Get objects from the Metatlas object database.
@@ -59,7 +66,10 @@ def retrieve(object_type, **kwargs):
       List of Metatlas Objects meeting the criteria.  Will return the
       latest version of each object.
     """
-    return workspace.retrieve(object_type, **kwargs)
+    workspace = Workspace.get_instance()
+    out = workspace.retrieve(object_type, **kwargs)
+    workspace.close_connection()
+    return out
 
 
 def remove(object_type, **kwargs):
@@ -77,7 +87,9 @@ def remove(object_type, **kwargs):
     if not isinstance(object_type, str):
         print('remove() expects a string argument, use remove_objects() to'
               'delete actual objects.')
-    return workspace.remove(object_type, **kwargs)
+    workspace = Workspace.get_instance()
+    workspace.remove(object_type, **kwargs)
+    workspace.close_connection()
 
 
 def remove_objects(objects, all_versions=True, **kwargs):
@@ -92,7 +104,9 @@ def remove_objects(objects, all_versions=True, **kwargs):
     if isinstance(objects, str):
         print('remove_objects() expects actual objects, use remove() to'
               'remove objects by type.')
-    return workspace.remove_objects(objects, all_versions, **kwargs)
+    workspace = Workspace.get_instance()
+    workspace.remove_objects(objects, all_versions, **kwargs)
+    workspace.close_connection()
 
 
 def store(objects, **kwargs):
@@ -103,30 +117,28 @@ def store(objects, **kwargs):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
+    workspace = Workspace.get_instance()
     workspace.save_objects(objects, **kwargs)
+    workspace.close_connection()
 
 
 @set_docstring
 class MetatlasObject(HasTraits):
 
     name = MetUnicode('Untitled', help='Name of the object')
-    description = MetUnicode('No description',
-                             help='Description of the object')
-    unique_id = MetUnicode(help='Unique identifier for the object',
-                           readonly=True)
-    creation_time = MetInt(help='Unix timestamp at object creation',
-                           readonly=True)
-    username = MetUnicode(help='Username who created the object',
-                          readonly=True)
-    last_modified = MetInt(help='Unix timestamp at last object update',
-                           readonly=True)
-    prev_uid = MetUnicode(help='Unique id of previous version', readonly=True)
-    head_id = MetUnicode(help='Unique id of most recent version of this object', readonly=True)
-    _loopback_guard = MetBool(False, readonly=True)
-    _changed = MetBool(False, readonly=True)
+    description = MetUnicode('No description', help='Description of the object')
+    unique_id = MetUnicode(help='Unique identifier for the object').tag(readonly=True)
+    creation_time = MetInt(help='Unix timestamp at object creation').tag(readonly=True)
+    username = MetUnicode(help='Username who created the object').tag(readonly=True)
+    last_modified = MetInt(help='Unix timestamp at last object update').tag(readonly=True)
+    prev_uid = MetUnicode(help='Unique id of previous version').tag(readonly=True)
+    head_id = MetUnicode(help='Unique id of most recent version of this object').tag(readonly=True)
+    _loopback_guard = MetBool(False).tag(readonly=True)
+    _changed = MetBool(False).tag(readonly=True)
 
     def __init__(self, **kwargs):
         """Set the default attributes."""
+        logger.debug('Creating new instance of %s with parameters %s', self.__class__.__name__, kwargs)
         kwargs.setdefault('unique_id', uuid.uuid4().hex)
         kwargs.setdefault('head_id', kwargs['unique_id'])
         kwargs.setdefault('username', getpass.getuser())
@@ -134,7 +146,7 @@ class MetatlasObject(HasTraits):
         kwargs.setdefault('last_modified', int(time.time()))
         super(MetatlasObject, self).__init__(**kwargs)
         self._changed = True
-        self.on_trait_change(self._on_update)
+        self.observe(self._on_update, type='change')
 
     def _update(self, override_user=False):
         """Store the object in the workspace, including child objects.
@@ -174,9 +186,10 @@ class MetatlasObject(HasTraits):
         obj: MetatlasObject
             Cloned object.
         """
+        logger.debug('Cloning instance of %s with recursive=%s', self.__class__.__name__, recursive)
         obj = self.__class__()
         for (tname, trait) in self.traits().items():
-            if tname.startswith('_') or trait.get_metadata('readonly'):
+            if tname.startswith('_') or trait.metadata.get('readonly', False):
                 continue
             val = getattr(self, tname)
             if recursive and isinstance(trait, MetList):
@@ -206,7 +219,7 @@ class MetatlasObject(HasTraits):
         obj = obj[0]
         msg = []
         for (tname, trait) in self.traits().items():
-            if tname.startswith('_') or trait.get_metadata('readonly'):
+            if tname.startswith('_') or trait.metadata['readonly']:
                 continue
             val = getattr(self, tname)
             other = getattr(obj, tname)
@@ -226,10 +239,10 @@ class MetatlasObject(HasTraits):
                 msg.append((tname, str(other), str(val)))
         print((tabulate(msg)))
 
-    def _on_update(self, name):
+    def _on_update(self, change):
         """When the model changes, set the update fields.
         """
-        if self._loopback_guard or name.startswith('_'):
+        if self._loopback_guard or change['name'].startswith('_'):
             return
         self._changed = True
 
@@ -468,7 +481,7 @@ class IdentificationGrade(MetatlasObject):
     pass
 
 
-ID_GRADES = dict()
+ID_GRADES: Dict[str, IdentificationGrade] = dict()
 
 
 class _IdGradeTrait(MetInstance):
@@ -484,7 +497,7 @@ class _IdGradeTrait(MetInstance):
         elif isinstance(value, str):
             if value.upper() in ID_GRADES:
                 return ID_GRADES[value.upper()]
-            objects = workspace.retrieve('identificationgrade', name=value.upper())
+            objects = Workspace.get_instance().retrieve('identificationgrade', name=value.upper())
             if objects:
                 ID_GRADES[value.upper()] = objects[-1]
                 return objects[-1]
@@ -660,7 +673,7 @@ def find_invalid_runs(**kwargs):
 # Singleton Workspace object
 # Must be instantiated after all of the Metatlas Objects
 # are defined so we can get all of the subclasses.
-workspace = Workspace()
+# workspace = Workspace()
 
 
 def to_dataframe(objects):
@@ -695,18 +708,10 @@ def to_dataframe(objects):
             for obj_id,o in enumerate(objs):
                 if tname not in o:
                     o[tname] = 'None'
-                
+
     dataframe = pd.DataFrame(objs)[sorted(cols)]
 #     for col in enums:
 #         dataframe[col] = dataframe[col].astype('category')
     for col in ['last_modified', 'creation_time']:
         dataframe[col] = pd.to_datetime(dataframe[col], unit='s')
     return dataframe
-
-
-if __name__ == '__main__':
-    m1 = Group(name='spam')
-    store(m1)
-    m1.description = 'baz'
-    store(m1)
-    print((retrieve('group', name='spam')))

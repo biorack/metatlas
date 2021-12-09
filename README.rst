@@ -15,39 +15,7 @@ Features
 - Custom plotters for XIC, Chromatogram, and Heatmap
 
 
-Local Installation
-------------------
-
-.. code-block:: bash
-
-    $ git clone https://github.com/biorack/metatlas.git
-    $ cd metatlas
-    $ pip install .
-
-
-Installation at NERSC
----------------------
-
-Run the following at the top of a notebook or add to your IPython startup file (normally ~/.ipython/profile_default/startup/ipython_startup.py):
-
-.. code-block:: python
-
-    import sys
-    sys.path.insert(0, '/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages')
-
-
 Documentation
 -------------
 
-Documentation is available online_.
-
-See example notebook_.
-
-For version information, see the Revision History_.
-
-
-.. _online: http://biorack.github.io/metatlas/
-
-.. _notebook: https://github.com/metabolite-atlas/metatlas/blob/master/docs/example_notebooks/data_access_examples_Methionine_QExactive.ipynb
-
-.. _History: https://github.com/metabolite-atlas/metatlas/blob/master/HISTORY.rst
+`Targeted analysis workflow <https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md>`_

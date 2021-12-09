@@ -16,7 +16,8 @@ from subprocess import check_output
 from datetime import datetime, time as dtime
 
 from metatlas.mzml_loader import VERSION_TIMESTAMP
-from metatlas import LcmsRun, mzml_to_hdf, store, retrieve
+from metatlas.datastructures.metatlas_objects import LcmsRun, retrieve, store
+from metatlas.io.mzml_loader import mzml_to_hdf
 
 ADMIN = 'bpb'
 
@@ -142,7 +143,7 @@ def update_metatlas(directory):
         # Convert to HDF and store the entry in the database.
         try:
             hdf5_file = fname.replace('mzML', 'h5')
-            
+
             #Get Acquisition Time Here
             acquisition_time = get_acqtime_from_mzml(fname)
             mzml_to_hdf(fname, hdf5_file, True)

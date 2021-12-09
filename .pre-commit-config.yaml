@@ -1,0 +1,20 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.0.1
+  hooks:
+  - id: check-added-large-files
+  - id: check-ast
+  - id: check-merge-conflict
+  - id: check-symlinks
+  - id: check-yaml
+  - id: debug-statements
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+  - id: mixed-line-ending
+- repo: local
+  hooks:
+  - id: flake8_diff
+    name: flake8 only on lines modified by the commit
+    entry: sh -c 'git diff -U0 -w --staged HEAD | flake8 --diff'
+    language: system
+    types: [python]

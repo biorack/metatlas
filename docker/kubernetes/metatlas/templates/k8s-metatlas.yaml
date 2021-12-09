@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metatlas
+  labels:
+    app: metatlas
+spec:
+  selector:
+    matchLabels:
+      app: metatlas
+      tier: frontend
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: metatlas
+        tier: frontend
+    spec:
+      containers:
+      - name: metatlas
+        image: "{{ .Values.metatlasImage }}"
+        imagePullPolicy: "{{ .Values.imageConfig.pullPolicy }}"
+        ports:
+          - name: http
+            containerPort: 8888
+            protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /tree
+            port: http
+        readinessProbe:
+          httpGet:
+            path: /tree
+            port: http
+        env:
+        - name: METATLAS_DB_HOST
+          value: metatlas-mysql
+        - name: METATLAS_DB_PASSWORD
+          value: mypw
+        volumeMounts:
+        - name: source-volume
+          mountPath: /src
+      volumes:
+      - name: source-volume
+        hostPath:
+          path: "{{ .Values.hostSourcePath }}"
+          type: Directory

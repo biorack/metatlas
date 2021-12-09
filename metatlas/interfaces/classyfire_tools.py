@@ -19,9 +19,10 @@ def write_classyfire_info_to_file(inchi_key,wait=True,outdir='/global/projectb/s
         if wait==True:
             time.sleep(1)
 
-def get_classyfire_from_inchikey(inchi_key):    
+
+def get_classyfire_from_inchikey(inchi_key):
     """
-    example: 
+    example:
     http://classyfire.wishartlab.com/entities/ZCPXJLJVCGFYTC-UHFFFAOYSA-N.json
     """
     url = 'http://classyfire.wishartlab.com/entities/%s.json'%inchi_key
@@ -83,7 +84,7 @@ def make_new_classyfire_entries(not_found,script_filename):
             fid.write('%s\n'%script)
             fid.write('sleep 10s\n')
 
-            
+
 def make_classyfire_table(classyfire_path='/global/projectb/sandbox/metatlas/projects/classyfire_annotations/',
                           output_filename='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',
                          compression=True,
@@ -141,7 +142,7 @@ def make_classyfire_network(classyfire_obo_filename='ChemOnt_2_1.obo',
                 chemont_df[-1][attr] = value.strip()
 
     chemont_df = pd.DataFrame(chemont_df)
-    
+
     if save is True:
         chemont_df[['id','is_a']].to_csv(parentchild_filename,index=None,sep='\t')
 
@@ -160,14 +161,16 @@ def make_classyfire_network(classyfire_obo_filename='ChemOnt_2_1.obo',
         nx.write_graphml_lxml(G,network_filename)
     return G
 
-def make_ontology_gmt_file(classyfire_file='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',gmt_file = '/Users/bpb/Downloads/classyfire_gmt_file.gmt'):
+
+def make_ontology_gmt_file(classyfire_file='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',
+                           gmt_file='/Users/bpb/Downloads/classyfire_gmt_file.gmt'):
     cf = pd.read_csv(classyfire_file)#,usecols=['inchi_key','class_name'])
 
     cf_cols = [c for c in cf.columns if '_id' in c] + ['inchi_key']
     cf = cf[cf_cols]
     cf.fillna('',inplace=True)
 
-    
+
     gmt = pd.concat([cf.melt(id_vars=[col],value_vars=['inchi_key']).rename(columns={col:'term'}) for col in cf_cols[:-1]],axis=0)
     gmt.drop(columns=['variable'],inplace=True)
     gmt.dropna(subset=['term'],inplace=True)
