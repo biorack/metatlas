@@ -54,7 +54,7 @@ GETTER_SPEC = {'raw':{'extension':'.raw',
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
     api_key = fid.read().strip()
-labkey_server='metatlas-dev.nersc.gov'
+labkey_server='metatlas.nersc.gov'
 project_name='LIMS/'
 api = APIWrapper(labkey_server, project_name, use_ssl=True,api_key=api_key)
 
