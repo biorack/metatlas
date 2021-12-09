@@ -63,3 +63,4 @@ def save_sample_tic_pdf(
         tics, max_plots_per_page, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, sharey=sharey
     )
     plots.save_pdf(file_name, pdf_title, overwrite)
+    plots.close()
