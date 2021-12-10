@@ -58,9 +58,5 @@ def save_sample_tic_pdf(
         h5_file_name = sample[0]["lcmsrun"].hdf5_file
         file_order_tics.append(Tic(title, group_name, h5_file_name, polarity))
     tics = sorted(file_order_tics, key=lambda x: (x.group_name, x.title))
-    pdf_title = "TICs"
-    plots = plot_set.PlotSet(
-        tics, max_plots_per_page, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, sharey=sharey
-    )
-    plots.save_pdf(file_name, pdf_title, overwrite)
-    plots.close()
+    with plot_set.PlotSet(tics, max_plots_per_page, x_min, x_max, y_min, y_max, sharey) as plots:
+        plots.save_pdf(file_name, title="TICs", overwrite=overwrite)
