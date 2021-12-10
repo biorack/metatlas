@@ -37,6 +37,7 @@ from itertools import cycle
 from ipywidgets import interact, interactive
 import ipywidgets as widgets
 from IPython.display import display
+from IPython import get_ipython
 
 import getpass
 
@@ -300,6 +301,9 @@ class adjust_rt_for_selected_compound(object):
 
         adjust_rt_for_selected_compound.disable()
         # Turn On interactive plot
+        ipy = get_ipython()
+        if ipy:  # test suite does not run ipython, so need to bypass
+            ipy.magic('matplotlib widget')
         plt.ion()
         self.layout_figure()
         # create all event handlers

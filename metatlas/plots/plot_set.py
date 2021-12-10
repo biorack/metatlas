@@ -120,6 +120,7 @@ class PlotSet(ABC):
         """Create a PDF file containing one figure per page"""
         write_utils.check_existing_file(file_name, overwrite)
         plt.ioff()  # don't display the plots
+        matplotlib.use('agg')  # mitigates a memory leak to not use backend_nbagg
         with PdfPages(file_name) as pdf:
             for fig in self.figures:
                 pdf.savefig(fig)
@@ -128,6 +129,11 @@ class PlotSet(ABC):
             metadata["Author"] = "Joint Genome Institute"
             metadata["CreationDate"] = datetime.datetime.today()
         logger.debug("Exported PDF containing %s to %s.", title, file_name)
+
+    def close(self):
+        """Close all plots and free their memory"""
+        for fig in self.figures:
+            plt.close(fig)
 
 
 # adapted from https://stackoverflow.com/questions/51323505/how-to-make-relim-and-autoscale-in-a-scatter-plot
