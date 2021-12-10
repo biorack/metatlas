@@ -10,7 +10,7 @@ def send_mail(subject, username, body, force=False):
     now = datetime.now()
     if force or dtime(00, 00) <= now.time() <= dtime(00, 10):
         sender = 'pasteur@nersc.gov'
-        receivers = ['%s@nersc.gov' % username, '%s@nersc.gov' % 'bpb']
+        receivers = [f"{username}@lbl.gov", "bpbowen@lbl.gov"]
         message = """\
 From: %s
 To: %s
@@ -19,7 +19,7 @@ Subject: %s
 %s
         """ % (sender, ", ".join(receivers), subject, body)
         try:
-            smtpObj = smtplib.SMTP('localhost')
+            smtpObj = smtplib.SMTP('smtp.lbl.gov')
             smtpObj.sendmail(sender, receivers, message)
             sys.stdout.write("Successfully sent email to %s\n" % username)
             sys.stdout.flush()
