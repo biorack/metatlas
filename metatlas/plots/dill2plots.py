@@ -301,7 +301,9 @@ class adjust_rt_for_selected_compound(object):
 
         adjust_rt_for_selected_compound.disable()
         # Turn On interactive plot
-        get_ipython().magic('matplotlib widget')
+        ipy = get_ipython()
+        if ipy:  # test suite does not run ipython, so need to bypass
+            ipy.magic('matplotlib widget')
         plt.ion()
         self.layout_figure()
         # create all event handlers
