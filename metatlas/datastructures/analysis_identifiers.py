@@ -82,9 +82,23 @@ class AnalysisIdentifiers(HasTraits):
     _groups: GroupList = traitlets.List(allow_none=True, default_value=None)
 
     # pylint: disable=no-self-use
-    def __init__(self, **kwargs) -> None:
+    def __init__(
+        self,
+        project_directory,
+        experiment,
+        output_type,
+        polarity,
+        analysis_number,
+        google_folder,
+        **kwargs
+    ) -> None:
         super().__init__(**kwargs)
-        self.exclude_groups = append_inverse(self.exclude_groups, self.polarity)
+        self.set_trait("project_directory", project_directory)
+        self.set_trait("experiment", experiment)
+        self.set_trait("output_type", output_type)
+        self.set_trait("polarity", polarity)
+        self.set_trait("analysis_number", analysis_number)
+        self.set_trait("google_folder", google_folder)
         logger.info(
             "IDs: source_atlas=%s, atlas=%s, short_experiment_analysis=%s, output_dir=%s",
             self.source_atlas,
@@ -93,6 +107,7 @@ class AnalysisIdentifiers(HasTraits):
             self.output_dir,
         )
         self.store_all_groups(exist_ok=True)
+        self.exclude_groups = append_inverse(self.exclude_groups, self.polarity)
 
     @default("include_groups")
     def _default_include_groups(self) -> List[OutputType]:

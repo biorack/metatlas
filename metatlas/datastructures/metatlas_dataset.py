@@ -726,7 +726,7 @@ class MetatlasDataset(HasTraits):
         self.extra_time = 0.5
         logger.info("extra_time set to 0.5 minutes for output generation.")
         logger.info("Removing InjBl from exclude_groups.")
-        self.ids.exclude_groups = remove_items(self.ids.exclude_groups, ["InjBl"])
+        self.ids.set_trait('exclude_groups', remove_items(self.ids.exclude_groups, ["InjBl"]))
         targeted_output.write_atlas_to_spreadsheet(self, overwrite=overwrite)
         targeted_output.write_stats_table(self, overwrite=overwrite)
         targeted_output.write_chromatograms(self, overwrite=overwrite, max_cpus=self.max_cpus)
