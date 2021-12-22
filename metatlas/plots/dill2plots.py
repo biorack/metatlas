@@ -1510,7 +1510,7 @@ def file_with_max_precursor_intensity(data,compound_idx):
                         my_max = m
                         idx = i
     return idx, my_max
- 
+
 def file_with_max_ms1_intensity(data, compound_idx, limit_to_rt_range=False):
     file_idx_max = None
     value_max = 0
@@ -1606,19 +1606,22 @@ def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="",
 def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
     f, ax = plt.subplots(1, 1,figsize=(12,12))
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
+    num_points = 0
     g = df.loc[compound].groupby(level=level)
     g.apply(pd.DataFrame).plot(kind='box', ax=ax)
     for i, (n, grp) in enumerate(g):
         x = [i+1] *len(grp)
         x = np.random.normal(x, 0.04, size=len(x))
         plt.scatter(x, grp)
+        num_points += len(grp)
     ax.set_title(compound,fontsize=12,weight='bold')
     plt.xticks(rotation=90)
     if logy:
         plt.yscale('log')
     if ylabel != "":
         plt.ylabel(ylabel)
-    plt.tight_layout()
+    if num_points > 0:
+        plt.tight_layout()
     fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
     write_utils.check_existing_file(fig_path, overwrite)
     f.savefig(fig_path)
