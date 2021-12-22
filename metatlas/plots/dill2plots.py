@@ -1613,7 +1613,7 @@ def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, lo
         x = [i+1] *len(grp)
         x = np.random.normal(x, 0.04, size=len(x))
         plt.scatter(x, grp)
-        num_points += len(grp)
+        num_points += np.sum(~np.isnan(grp))
     ax.set_title(compound,fontsize=12,weight='bold')
     plt.xticks(rotation=90)
     if logy:
