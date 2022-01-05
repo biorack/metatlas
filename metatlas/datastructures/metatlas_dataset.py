@@ -726,7 +726,7 @@ class MetatlasDataset(HasTraits):
         self.extra_time = 0.5
         logger.info("extra_time set to 0.5 minutes for output generation.")
         logger.info("Removing InjBl from exclude_groups.")
-        self.ids.set_trait('exclude_groups', remove_items(self.ids.exclude_groups, ["InjBl"]))
+        self.ids.remove_from_exclude_groups(["InjBl"])
         targeted_output.write_atlas_to_spreadsheet(self, overwrite=overwrite)
         targeted_output.write_stats_table(self, overwrite=overwrite)
         targeted_output.write_chromatograms(self, overwrite=overwrite, max_cpus=self.max_cpus)
@@ -815,14 +815,6 @@ def quoted_string_list(strings: List[str]) -> str:
     return ", ".join([f'"{x}"' for x in strings])
 
 
-def remove_items(edit_list: List[str], remove_list: List[str], ignore_case: bool = True) -> List[str]:
-    """Returns list of items in edit_list but not in remove_list"""
-    if ignore_case:
-        lower_remove_list = [x.lower() for x in remove_list]
-        return [x for x in edit_list if x.lower() not in lower_remove_list]
-    return [x for x in edit_list if x not in remove_list]
-
-
 # pylint: disable=too-many-arguments
 def pre_annotation(
     source_atlas: AtlasName,
@@ -858,10 +850,11 @@ def pre_annotation(
     return metatlas_dataset
 
 
-def post_annotation(metatlas_dataset: MetatlasDataset) -> None:
+def post_annotation(metatlas_dataset: MetatlasDataset, require_all_evaluated=True) -> None:
     """All data processing that needs to occur after the annotation GUI in Targeted notebook"""
     if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
-        metatlas_dataset.error_if_not_all_evaluated()
+        if require_all_evaluated:
+            metatlas_dataset.error_if_not_all_evaluated()
         metatlas_dataset.filter_compounds_ms1_notes_remove()
     metatlas_dataset.generate_all_outputs()
     logger.info("DONE - execution of notebook is complete.")

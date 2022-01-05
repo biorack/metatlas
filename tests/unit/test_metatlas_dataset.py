@@ -545,7 +545,7 @@ def test_load_atlas03(sqlite_with_atlas, atlas, username):
 def test_invalidation01(analysis_ids):
     _ = analysis_ids.groups
     assert analysis_ids._groups is not None
-    analysis_ids.exclude_files = ["Cone-S1"]
+    analysis_ids.set_trait("exclude_files", ["Cone-S1"])
     assert analysis_ids._groups is None
 
 
@@ -582,7 +582,7 @@ def test_project01(analysis_ids):
 
 
 def test_exclude_files01(analysis_ids):
-    analysis_ids.exclude_files = ["POS"]
+    analysis_ids.set_trait("exclude_files", ["POS"])
     assert len(analysis_ids.lcmsruns) == 0
     assert analysis_ids.lcmsruns_short_names.empty
 
@@ -590,7 +590,7 @@ def test_exclude_files01(analysis_ids):
 def test_invlidate_groups_controlled_vocab01(analysis_ids):
     _ = analysis_ids.lcmsruns
     assert analysis_ids._lcmsruns is not None
-    analysis_ids.groups_controlled_vocab = ["FOOBAR"]
+    analysis_ids.set_trait("groups_controlled_vocab", ["FOOBAR"])
     assert analysis_ids._lcmsruns is None
 
 

@@ -204,6 +204,8 @@ def _calculate_new_limit(
     if len(fixed) > 2:
         mask = (fixed > fixed_limits[0]) & (fixed < fixed_limits[1])
         window = dependent[mask]
+        if len(window) == 0:
+            return np.inf, -np.inf
         return window.min(), window.max()
     low = dependent[0]
     high = dependent[-1]

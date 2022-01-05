@@ -10,7 +10,7 @@ from typing import cast, Dict, List, NewType, Optional, TypedDict
 import pandas as pd
 import traitlets
 
-from traitlets import TraitError, default, observe, validate
+from traitlets import Bool, TraitError, observe, validate
 from traitlets import HasTraits, Int, TraitType, Unicode
 from traitlets.traitlets import ObserveHandler
 
@@ -63,25 +63,28 @@ class _LcmsRunDict(TypedDict):
 class AnalysisIdentifiers(HasTraits):
     """Names used in generating an analysis"""
 
-    source_atlas: Optional[AtlasName] = Unicode(allow_none=True, default_value=None)
-    experiment: Experiment = Unicode()
-    output_type: OutputType = Unicode()
-    polarity: Polarity = Unicode(default_value="positive")
-    analysis_number: AnalysisNumber = Int(default_value=0)
-    username: Username = Unicode(default_value=getpass.getuser())
-    project_directory: PathString = Unicode()
-    google_folder: str = Unicode()
-    exclude_files: FileMatchList = traitlets.List(trait=Unicode(), default_value=[])
-    include_groups: GroupMatchList = traitlets.List()
-    exclude_groups: GroupMatchList = traitlets.List()
-    groups_controlled_vocab: GroupMatchList = traitlets.List(
-        trait=Unicode(), default_value=DEFAULT_GROUPS_CONTROLLED_VOCAB
-    )
-    _lcmsruns: LcmsRunsList = traitlets.List(allow_none=True, default_value=None)
-    _all_groups: GroupList = traitlets.List(allow_none=True, default_value=None)
-    _groups: GroupList = traitlets.List(allow_none=True, default_value=None)
+    project_directory: PathString = Unicode(read_only=True)
+    experiment: Experiment = Unicode(read_only=True)
+    output_type: OutputType = Unicode(read_only=True)
+    polarity: Polarity = Unicode(default_value="positive", read_only=True)
+    analysis_number: AnalysisNumber = Int(default_value=0, read_only=True)
+    google_folder: str = Unicode(read_only=True)
 
-    # pylint: disable=no-self-use
+    source_atlas: Optional[AtlasName] = Unicode(allow_none=True, default_value=None, read_only=True)
+    copy_atlas: bool = Bool(default_value=True, read_only=True)
+    username: Username = Unicode(default_value=getpass.getuser(), read_only=True)
+    exclude_files: FileMatchList = traitlets.List(trait=Unicode(), default_value=[], read_only=True)
+    include_groups: GroupMatchList = traitlets.List(read_only=True)
+    exclude_groups: GroupMatchList = traitlets.List(read_only=True)
+    groups_controlled_vocab: GroupMatchList = traitlets.List(
+        trait=Unicode(), default_value=DEFAULT_GROUPS_CONTROLLED_VOCAB, read_only=True
+    )
+
+    _lcmsruns: LcmsRunsList = traitlets.List(allow_none=True, default_value=None, read_only=True)
+    _all_groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
+    _groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
+
+    # pylint: disable=no-self-use,too-many-arguments
     def __init__(
         self,
         project_directory,
@@ -90,15 +93,30 @@ class AnalysisIdentifiers(HasTraits):
         polarity,
         analysis_number,
         google_folder,
-        **kwargs
+        source_atlas=None,
+        copy_atlas=True,
+        username=None,
+        exclude_files=None,
+        include_groups=None,
+        exclude_groups=None,
+        groups_controlled_vocab=None,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__()
         self.set_trait("project_directory", project_directory)
         self.set_trait("experiment", experiment)
         self.set_trait("output_type", output_type)
         self.set_trait("polarity", polarity)
         self.set_trait("analysis_number", analysis_number)
         self.set_trait("google_folder", google_folder)
+        self.set_trait("source_atlas", source_atlas)
+        self.set_trait("copy_atlas", copy_atlas)
+        self.set_trait("username", or_default(username, getpass.getuser()))
+        self.set_trait("exclude_files", or_default(exclude_files, []))
+        self.set_trait("include_groups", or_default(include_groups, self._default_include_groups))
+        self.set_trait("exclude_groups", or_default(exclude_groups, self._default_exclude_groups))
+        self.set_trait(
+            "groups_controlled_vocab", or_default(groups_controlled_vocab, DEFAULT_GROUPS_CONTROLLED_VOCAB)
+        )
         logger.info(
             "IDs: source_atlas=%s, atlas=%s, short_experiment_analysis=%s, output_dir=%s",
             self.source_atlas,
@@ -107,15 +125,15 @@ class AnalysisIdentifiers(HasTraits):
             self.output_dir,
         )
         self.store_all_groups(exist_ok=True)
-        self.exclude_groups = append_inverse(self.exclude_groups, self.polarity)
+        self.set_trait("exclude_groups", append_inverse(self.exclude_groups, self.polarity))
 
-    @default("include_groups")
+    @property
     def _default_include_groups(self) -> List[OutputType]:
         if self.output_type == "data_QC":
             return [OutputType("QC")]
         return []
 
-    @default("exclude_groups")
+    @property
     def _default_exclude_groups(self) -> GroupMatchList:
         out: GroupMatchList = ["InjBl", "InjBL"]
         if self.output_type != "data_QC":
@@ -176,9 +194,11 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def atlas(self) -> AtlasName:
         """Atlas identifier (name)"""
-        return AtlasName(
-            f"{'_'.join(self._exp_tokens[3:6])}_{self.output_type}_{self.short_polarity}_{self.analysis}"
-        )
+        if self.source_atlas is None or (self.copy_atlas and self.source_atlas is not None):
+            return AtlasName(
+                f"{'_'.join(self._exp_tokens[3:6])}_{self.output_type}_{self.short_polarity}_{self.analysis}"
+            )
+        return self.source_atlas
 
     @property
     def analysis(self) -> str:
@@ -224,22 +244,29 @@ class AnalysisIdentifiers(HasTraits):
             return self._lcmsruns
         all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
         if self.exclude_files is not None and len(self.exclude_files) > 0:
-            self._lcmsruns = [
-                r
-                for r in all_lcmsruns
-                if not any(map(r.name.__contains__, or_default(self.exclude_files, [])))
-            ]
-            logger.info(
-                "Excluding %d LCMS runs containing any of: %s",
-                len(all_lcmsruns) - len(self._lcmsruns),
-                self.exclude_files,
+            self.set_trait(
+                "_lcmsruns",
+                [
+                    r
+                    for r in all_lcmsruns
+                    if not any(map(r.name.__contains__, or_default(self.exclude_files, [])))
+                ],
             )
+            if self._lcmsruns:
+                logger.info(
+                    "Excluding %d LCMS runs containing any of: %s",
+                    len(all_lcmsruns) - len(self._lcmsruns),
+                    self.exclude_files,
+                )
         else:
-            self._lcmsruns = all_lcmsruns
-        for run in self._lcmsruns:
-            logger.info("Run: %s", run.name)
-        logger.info("Number of LCMS output files matching '%s' is: %d.", self.experiment, len(self._lcmsruns))
-        return self._lcmsruns
+            self.set_trait("_lcmsruns", all_lcmsruns)
+        if self._lcmsruns:
+            for run in self._lcmsruns:
+                logger.info("Run: %s", run.name)
+        logger.info(
+            "Number of LCMS output files matching '%s' is: %d.", self.experiment, len(self._lcmsruns or [])
+        )
+        return self._lcmsruns or []
 
     @property
     def lcmsruns_dataframe(self) -> pd.DataFrame:
@@ -311,49 +338,49 @@ class AnalysisIdentifiers(HasTraits):
             out = dp.filter_metatlas_objects_by_list(out, "name", self.include_groups)
         if self.exclude_groups is not None and len(self.exclude_groups) > 0:
             out = dp.remove_metatlas_objects_by_list(out, "name", self.exclude_groups)
-        self._groups = dp.filter_empty_metatlas_objects(out, "items")
-        return self._groups
+        self.set_trait("_groups", dp.filter_empty_metatlas_objects(out, "items"))
+        return self._groups or []
 
     @observe("polarity")
     def _observe_polarity(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self.exclude_groups = append_inverse(self.exclude_groups, signal.new)
+            self.set_trait("exclude_groups", append_inverse(self.exclude_groups, signal.new))
             logger.debug("Change to polarity invalidates exclude_groups")
 
     @observe("_all_groups")
     def _observe_all_groups(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self._groups = None
+            self.set_trait("_groups", None)
             logger.debug("Change to all_groups invalidates groups")
 
     @observe("groups_controlled_vocab")
     def _observe_groups_controlled_vocab(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self._lcmsruns = None
+            self.set_trait("_lcmsruns", None)
             logger.debug("Change to groups_controlled_vocab invalidates lcmsruns")
 
     @observe("include_groups")
     def _observe_include_groups(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self._groups = None
+            self.set_trait("_groups", None)
             logger.debug("Change to include_groups invalidates groups")
 
     @observe("exclude_groups")
     def _observe_exclude_groups(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self._groups = None
+            self.set_trait("_groups", None)
             logger.debug("Change to exclude_groups invalidates groups")
 
     @observe("exclude_files")
     def _observe_exclude_files(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self._lcmsruns = None
+            self.set_trait("_lcmsruns", None)
             logger.debug("Change to exclude_files invalidates lcmsruns")
 
     @observe("_lcmsruns")
     def _observe_lcmsruns(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self._all_groups = None
+            self.set_trait("_all_groups", None)
             logger.debug("Change to lcmsruns invalidates all_groups")
 
     @property
@@ -391,20 +418,21 @@ class AnalysisIdentifiers(HasTraits):
         if self._all_groups is not None:
             return self._all_groups
         unique_groups = self.all_groups_dataframe[["group", "short_name"]].drop_duplicates()
-        self._all_groups = []
+        self.set_trait("_all_groups", [])
         for values in unique_groups.to_dict("index").values():
-            self._all_groups.append(
-                metob.Group(
-                    name=values["group"],
-                    short_name=values["short_name"],
-                    items=[
-                        file_value["object"]
-                        for file_value in self._files_dict.values()
-                        if file_value["group"] == values["group"]
-                    ],
+            if self._all_groups is not None:  # needed for mypy
+                self._all_groups.append(
+                    metob.Group(
+                        name=values["group"],
+                        short_name=values["short_name"],
+                        items=[
+                            file_value["object"]
+                            for file_value in self._files_dict.values()
+                            if file_value["group"] == values["group"]
+                        ],
+                    )
                 )
-            )
-        return self._all_groups
+        return self._all_groups or []
 
     def store_all_groups(self, exist_ok: bool = False) -> None:
         """
@@ -429,8 +457,20 @@ class AnalysisIdentifiers(HasTraits):
         logger.debug("Storing %d groups in the database", len(self.all_groups))
         metob.store(self.all_groups)
 
+    def remove_from_exclude_groups(self, remove_groups: List[str]) -> None:
+        """Remove items in remove_groups from exclude_groups"""
+        self.set_trait("exclude_groups", remove_items(self.exclude_groups, remove_groups))
+
 
 def append_inverse(in_list: List[str], polarity: Polarity) -> List[str]:
     """appends short version of inverse of polarity to and retuns the list"""
     inverse = {"positive": "NEG", "negative": "POS"}
     return in_list + [inverse[polarity]] if polarity in inverse else in_list
+
+
+def remove_items(edit_list: List[str], remove_list: List[str], ignore_case: bool = True) -> List[str]:
+    """Returns list of items in edit_list but not in remove_list"""
+    if ignore_case:
+        lower_remove_list = [x.lower() for x in remove_list]
+        return [x for x in edit_list if x.lower() not in lower_remove_list]
+    return [x for x in edit_list if x not in remove_list]

@@ -1,11 +1,12 @@
+""" tests for AnalysisIds """
+# pylint: disable=missing-function-docstring,unused-argument
+
 import os
 import pytest
 import traitlets
 
 from metatlas.datastructures.analysis_identifiers import AnalysisIdentifiers
-from metatlas.datastructures import metatlas_dataset as mads
-from metatlas.datastructures import metatlas_objects as metob
-from metatlas.datastructures import object_helpers as metoh
+
 
 def test_analysis_identifiers01(sqlite):
     with pytest.raises(traitlets.traitlets.TraitError, match=r"Database does not contain an atlas.*"):
@@ -127,17 +128,7 @@ def test_analysis_identifiers08(username, sqlite_with_atlas, caplog, mocker, lcm
     assert "Parameter 'experiment' should contains 9 fields when split on '_', but has 10." in caplog.text
 
 
-def test_analysis_identifiers_atlas01(analysis_ids, username):
-    assert analysis_ids.atlas == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
-
-
-def test_analysis_identifiers_atlas02(analysis_ids, username):
-    # call .atlas twice to get cached value
-    analysis_ids.atlas  # pylint: disable=pointless-statement
-    assert analysis_ids.atlas == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
-
-
-def test_analysis_identifiers99(sqlite_with_atlas, username, mocker, lcmsrun, groups_controlled_vocab):
+def test_analysis_identifiers09(sqlite_with_atlas, username, mocker, lcmsrun, groups_controlled_vocab):
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     output_type = "FinalEMA-HILIC"
@@ -153,5 +144,14 @@ def test_analysis_identifiers99(sqlite_with_atlas, username, mocker, lcmsrun, gr
         google_folder,
         source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
         groups_controlled_vocab=groups_controlled_vocab,
-        lcmsruns=[],
     )
+
+
+def test_analysis_identifiers_atlas01(analysis_ids, username):
+    assert analysis_ids.atlas == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
+
+
+def test_analysis_identifiers_atlas02(analysis_ids, username):
+    # call .atlas twice to get cached value
+    analysis_ids.atlas  # pylint: disable=pointless-statement
+    assert analysis_ids.atlas == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
