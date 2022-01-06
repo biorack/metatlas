@@ -27,7 +27,6 @@ from metatlas.datastructures.analysis_identifiers import (
     FileMatchList,
     GroupMatchList,
     Polarity,
-    ShortPolarity,
     Experiment,
     OutputType,
     AnalysisNumber,
@@ -44,14 +43,6 @@ from metatlas.tools import parallel
 MSMS_REFS_PATH = PathString(
     "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
 )
-DEFAULT_GROUPS_CONTROLLED_VOCAB = cast(GroupMatchList, ["QC", "InjBl", "ISTD"])
-OUTPUT_TYPES = [OutputType("ISTDsEtc"), OutputType("FinalEMA-HILIC"), OutputType("data_QC")]
-POLARITIES = [Polarity("positive"), Polarity("negative"), Polarity("fast-polarity-switching")]
-SHORT_POLARITIES = {
-    Polarity("positive"): ShortPolarity("POS"),
-    Polarity("negative"): ShortPolarity("NEG"),
-    Polarity("fast-polarity-switching"): ShortPolarity("FPS"),
-}
 
 logger = logging.getLogger(__name__)
 

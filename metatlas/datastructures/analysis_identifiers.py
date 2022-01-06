@@ -33,7 +33,12 @@ AnalysisNumber = NewType("AnalysisNumber", int)
 PathString = NewType("PathString", str)
 
 DEFAULT_GROUPS_CONTROLLED_VOCAB = cast(GroupMatchList, ["QC", "InjBl", "ISTD"])
-OUTPUT_TYPES = [OutputType("ISTDsEtc"), OutputType("FinalEMA-HILIC"), OutputType("data_QC")]
+OUTPUT_TYPES = [
+    OutputType("ISTDsEtc"),
+    OutputType("FinalEMA-HILIC"),
+    OutputType("data_QC"),
+    OutputType("other"),
+]
 POLARITIES = [Polarity("positive"), Polarity("negative"), Polarity("fast-polarity-switching")]
 SHORT_POLARITIES = {
     Polarity("positive"): ShortPolarity("POS"),
@@ -84,7 +89,7 @@ class AnalysisIdentifiers(HasTraits):
     _all_groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
 
-    # pylint: disable=no-self-use,too-many-arguments
+    # pylint: disable=no-self-use,too-many-arguments,too-many-locals
     def __init__(
         self,
         project_directory,
@@ -100,6 +105,8 @@ class AnalysisIdentifiers(HasTraits):
         include_groups=None,
         exclude_groups=None,
         groups_controlled_vocab=None,
+        lcmsruns=None,
+        all_groups=None,
     ) -> None:
         super().__init__()
         self.set_trait("project_directory", project_directory)
@@ -117,6 +124,8 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait(
             "groups_controlled_vocab", or_default(groups_controlled_vocab, DEFAULT_GROUPS_CONTROLLED_VOCAB)
         )
+        self.set_trait("_lcmsruns", lcmsruns)
+        self.set_trait("_all_groups", all_groups)
         logger.info(
             "IDs: source_atlas=%s, atlas=%s, short_experiment_analysis=%s, output_dir=%s",
             self.source_atlas,
@@ -136,7 +145,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def _default_exclude_groups(self) -> GroupMatchList:
         out: GroupMatchList = ["InjBl", "InjBL"]
-        if self.output_type != "data_QC":
+        if self.output_type in ["ISTDsEtc", "FinalEMA-HILIC"]:
             out.append("QC")
         return append_inverse(out, self.polarity)
 
@@ -224,7 +233,7 @@ class AnalysisIdentifiers(HasTraits):
     def output_dir(self) -> PathString:
         """Creates the output directory and returns the path as a string"""
         sub_dirs = [self.experiment, self.analysis, self.output_type]
-        if self.output_type != "data_QC":
+        if self.output_type in ["ISTDsEtc", "FinalEMA-HILIC"]:
             sub_dirs.append(self.short_polarity)
         out = os.path.join(self.project_directory, *sub_dirs)
         os.makedirs(out, exist_ok=True)
