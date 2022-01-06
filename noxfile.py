@@ -1,7 +1,9 @@
+"""Defines top-level execution of test suite"""
 # pylint: disable=missing-function-docstring
 
-import nox
 import os
+
+import nox
 
 py_versions = ["3.8", "3.9"]
 
@@ -26,8 +28,10 @@ more_checks = [
     "metatlas/io/rclone.py",
     "metatlas/io/write_utils.py",
     "metatlas/io/targeted_output.py",
+    "metatlas/datastructures/analysis_identifiers.py",
     "metatlas/datastructures/metatlas_dataset.py",
     "metatlas/datastructures/spectrum.py",
+    "metatlas/datastructures/utils.py",
     "metatlas/plots/compound_eic.py",
     "metatlas/plots/plot_set.py",
     "metatlas/plots/tic.py",

@@ -91,6 +91,12 @@ class PlotSet(ABC):
                 plot_idx += 1
         self.limit_axes(x_min, x_max, y_min, y_max)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        self.close()
+
     def limit_axes(
         self,
         x_min: Optional[float],
@@ -120,7 +126,7 @@ class PlotSet(ABC):
         """Create a PDF file containing one figure per page"""
         write_utils.check_existing_file(file_name, overwrite)
         plt.ioff()  # don't display the plots
-        matplotlib.use('agg')  # mitigates a memory leak to not use backend_nbagg
+        matplotlib.use("agg")  # mitigates a memory leak to not use backend_nbagg
         with PdfPages(file_name) as pdf:
             for fig in self.figures:
                 pdf.savefig(fig)

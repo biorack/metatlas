@@ -1623,7 +1623,8 @@ def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, lo
         plt.yscale('log')
     if ylabel != "":
         plt.ylabel(ylabel)
-    plt.tight_layout()
+    if num_points > 0:
+        plt.tight_layout()
     fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
     write_utils.check_existing_file(fig_path, overwrite)
     f.savefig(fig_path)
