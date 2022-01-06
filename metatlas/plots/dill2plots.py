@@ -1510,7 +1510,7 @@ def file_with_max_precursor_intensity(data,compound_idx):
                         my_max = m
                         idx = i
     return idx, my_max
- 
+
 def file_with_max_ms1_intensity(data, compound_idx, limit_to_rt_range=False):
     file_idx_max = None
     value_max = 0
@@ -1613,7 +1613,10 @@ def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, lo
         x = [i+1] *len(grp)
         x = np.random.normal(x, 0.04, size=len(x))
         plt.scatter(x, grp)
-        num_points += len(grp)
+        num_points += np.sum(~np.isnan(grp))
+    if num_points == 0:
+        logger.warning('Skipping export box plot of %s for %s as it contains zero data points.', ylabel, compound)
+        return
     ax.set_title(compound,fontsize=12,weight='bold')
     plt.xticks(rotation=90)
     if logy:
