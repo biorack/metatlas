@@ -63,8 +63,8 @@ class RClone:
                     with Popen(cmd, stdout=PIPE, bufsize=1, universal_newlines=True) as proc:
                         for line in proc.stdout or []:
                             line = line.strip()
-                            if line.startswith('Transferred:') and line.endswith('%'):
-                                percent = float(line.split(',')[1].split('%')[0])
+                            if line.startswith("Transferred:") and line.endswith("%"):
+                                percent = float(line.split(",")[1].split("%")[0])
                                 pbar.n = percent
                                 pbar.refresh()
             else:
