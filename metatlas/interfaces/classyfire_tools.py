@@ -161,9 +161,7 @@ def make_classyfire_network(classyfire_obo_filename='ChemOnt_2_1.obo',
         nx.write_graphml_lxml(G,network_filename)
     return G
 
-
-def make_ontology_gmt_file(classyfire_file='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',
-                           gmt_file='/Users/bpb/Downloads/classyfire_gmt_file.gmt'):
+def make_ontology_gmt_file(classyfire_file='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',gmt_file = '/Users/bpb/Downloads/classyfire_gmt_file.gmt'):
     cf = pd.read_csv(classyfire_file)#,usecols=['inchi_key','class_name'])
 
     cf_cols = [c for c in cf.columns if '_id' in c] + ['inchi_key']
