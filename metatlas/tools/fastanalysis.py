@@ -1,19 +1,21 @@
 from __future__ import absolute_import
 from __future__ import print_function
-import sys
+import logging
 import os
 import multiprocessing as mp
 import pprint
+import statistics
+
+import numpy as np
+import pandas as pd
 
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
-from metatlas.datastructures import metatlas_objects as metob
+from metatlas.io import write_utils
 from metatlas.plots import dill2plots as dp
 from metatlas.plots import chromplotplus as cpp
 from metatlas.tools import spectralprocessing as sp
 
-import numpy as np
-import pandas as pd
-from six.moves import range
+logger = logging.getLogger(__name__)
 
 loose_param = {'min_intensity': 1e3,
                'rt_tolerance': .25,
@@ -30,7 +32,8 @@ strict_param = {'min_intensity': 1e5,
 def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
                      output_loc = None,
-                     output_sheetname = 'Draft_Final_Idenfications.xlsx',
+                     polarity = '',
+                     output_sheetname = 'Draft_Final_Identifications.xlsx',
                      msms_hits = None,
                      min_peak_height=0, min_num_data_points=0, rt_tolerance=np.inf, ppm_tolerance=np.inf,
 
@@ -46,7 +49,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                                      'mz_centroid': ['peak_height', 'mz_ppm'],
                                      'mz_ppm': ['peak_height'],
                                      'msms_score': ['peak_height', 'num_frag_matches'],
-                                     'num_frag_matches': ['peak_height', 'msms_score']}):
+                                     'num_frag_matches': ['peak_height', 'msms_score']},
+                     overwrite=False):
 
     assert output_loc is not None or return_all
 
@@ -54,43 +58,27 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         metatlas_dataset = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
         metatlas_dataset = input_dataset
-
-    if output_loc is not None and not os.path.exists(output_loc):
-        os.mkdir(output_loc)
-    if output_loc is not None and not os.path.exists(os.path.join(output_loc,'data_sheets')):
-        os.mkdir(os.path.join(output_loc,'data_sheets'))
-    if output_loc is not None and not os.path.exists(os.path.join(output_loc,'stats_tables')):
-        os.mkdir(os.path.join(output_loc,'stats_tables'))
-
-    # filter runs from the metatlas dataset
-    if include_lcmsruns:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,'lcmsrun',include_lcmsruns)
-    if include_groups:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_include_list(metatlas_dataset,'group',include_groups)
-
-    if exclude_lcmsruns:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset,'lcmsrun',exclude_lcmsruns)
-    if exclude_groups:
-        metatlas_dataset = dp.filter_lcmsruns_in_dataset_by_exclude_list(metatlas_dataset,'group',exclude_groups)
-
-    final_df = pd.DataFrame(columns=['index'])
-    file_names = ma_data.get_file_names(metatlas_dataset)
-    compound_names = ma_data.get_compound_names(metatlas_dataset,use_labels=use_labels)[0]
-
-    metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta', 'peak_height', 'peak_area', 'num_data_points']
-
-    dfs = {m:None for m in metrics}
-    passing = {m:np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
-
+    dataset = dp.filter_runs(metatlas_dataset, include_lcmsruns, include_groups,
+                             exclude_lcmsruns, exclude_groups)
+    metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta',
+               'peak_height', 'peak_area', 'num_data_points']
+    dfs = {m: None for m in metrics}
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
-        dfs[metric] = dp.make_output_dataframe(input_dataset=metatlas_dataset, fieldname=metric, use_labels=use_labels,output_loc=output_loc)
+        dfs[metric] = dp.make_output_dataframe(input_dataset=dataset,
+                                               fieldname=metric,
+                                               use_labels=use_labels,
+                                               output_loc=os.path.join(output_loc, 'data_sheets'),
+                                               polarity=polarity)
+    final_df = pd.DataFrame(columns=['index'])
+    file_names = ma_data.get_file_names(dataset)
+    compound_names = ma_data.get_compound_names(dataset, use_labels=use_labels)[0]
+    passing = {m: np.ones((len(compound_names), len(file_names))).astype(float) for m in metrics}
 
     dfs['mz_ppm'] = dfs['peak_height'].copy()
     dfs['mz_ppm'] *= np.nan
-
-    dfs['num_data_points'] = pd.DataFrame([[len(metatlas_dataset[i][j]['data']['eic']['intensity'])
-                                           for i in range(len(metatlas_dataset))]
-                                          for j in range(len(metatlas_dataset[0]))])
+    dfs['num_data_points'] = pd.DataFrame([[len(ma_data.extract(dataset, [i, j, 'data', 'eic', 'intensity'], default=[]))
+                                           for i in range(len(dataset))]
+                                          for j in range(len(dataset[0]))])
     dfs['num_data_points'].index = dfs['mz_ppm'].index
     dfs['msms_score'] = dfs['mz_ppm'].copy()
     dfs['num_frag_matches'] = dfs['mz_ppm'].copy()
@@ -106,9 +94,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     msms_hits_df.reset_index(inplace=True)
 
     for compound_idx, compound_name in enumerate(compound_names):
-
-        ref_rt_peak = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
-        ref_mz = metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz
+        ref_rt_peak = dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
+        ref_mz = dataset[0][compound_idx]['identification'].mz_references[0].mz
 
         dfs['rt_delta'].iloc[compound_idx] = abs(ref_rt_peak - dfs['rt_peak'].iloc[compound_idx])
         passing['rt_delta'][compound_idx] = (abs(ref_rt_peak - np.nan_to_num(dfs['rt_peak'].iloc[compound_idx].values)) <= rt_tolerance).astype(float)
@@ -117,16 +104,13 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         passing['mz_ppm'][compound_idx] = (dfs['mz_ppm'].iloc[compound_idx].values <= ppm_tolerance).astype(float)
 
         try:
-            inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
+            inchi_key = dataset[0][compound_idx]['identification'].compound[0].inchi_key
         except:
             inchi_key = ''
-        compound_ref_rt_min = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_min
-        compound_ref_rt_max = metatlas_dataset[0][compound_idx]['identification'].rt_references[0].rt_max
-        cid = metatlas_dataset[0][compound_idx]['identification']
+        compound_ref_rt_min = dataset[0][compound_idx]['identification'].rt_references[0].rt_min
+        compound_ref_rt_max = dataset[0][compound_idx]['identification'].rt_references[0].rt_max
+        cid = dataset[0][compound_idx]['identification']
         mz_theoretical = cid.mz_references[0].mz
-        mz_measured = metatlas_dataset[0][compound_idx]['data']['ms1_summary']['mz_centroid']
-        delta_mz = abs(mz_theoretical - mz_measured)
-        delta_ppm = delta_mz / mz_theoretical * 1e6
 
         comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) \
                                     & (msms_hits_df['msms_scan'] >= compound_ref_rt_min) \
@@ -137,7 +121,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         comp_msms_hits = comp_msms_hits.sort_values('score', ascending=False)
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
         if len(comp_msms_hits) > 0 and not np.isnan(np.concatenate(comp_msms_hits['msv_ref_aligned'].values, axis=1)).all():
-            file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
+            file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name'] if f in file_names]
             scores = comp_msms_hits['score'].values.tolist()
             msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
             msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
@@ -148,16 +132,20 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         avg_rt_measured = []
         intensities = pd.DataFrame()
         for file_idx, file_name in enumerate(file_names):
-            if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']):
-                avg_mz_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid'])
-            if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']):
-                avg_rt_measured.append(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak'])
-            if not np.isnan(metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']):
-                intensities.loc[file_idx, 'file_id'] = file_idx
-                intensities.loc[file_idx, 'intensity'] = metatlas_dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
+            if dataset[file_idx][compound_idx]['data']['ms1_summary']:
+                if not np.isnan(dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid']):
+                    avg_mz_measured.append(dataset[file_idx][compound_idx]['data']['ms1_summary']['mz_centroid'])
+                if not np.isnan(dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak']):
+                    avg_rt_measured.append(dataset[file_idx][compound_idx]['data']['ms1_summary']['rt_peak'])
+                if not np.isnan(dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']):
+                    intensities.loc[file_idx, 'file_id'] = file_idx
+                    intensities.loc[file_idx, 'intensity'] = dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
 
         avg_mz_measured = np.mean(avg_mz_measured)
         avg_rt_measured = np.mean(avg_rt_measured)
+
+        delta_mz = abs(mz_theoretical - avg_mz_measured)
+        delta_ppm = delta_mz / mz_theoretical * 1e6
 
         final_df = final_df.append({'index':compound_idx}, ignore_index=True)
         final_df.loc[compound_idx, 'identified_metabolite'] = ""
@@ -167,20 +155,26 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         else:
             cid_label = cid.compound[0].name
             final_df.loc[compound_idx, 'label'] = cid_label
-        
+
         overlapping_compounds = []
+        cpd_labels = []
         inchi_key_map = {}
+        for compound_iterator in range(len(compound_names)):
+            if use_labels:
+                cpd_labels.append(dataset[0][compound_iterator]['identification'].name)
+            else:
+                cpd_labels.append(dataset[0][compound_iterator]['identification'].compound[0].name)
 
         if(len(cid.compound) != 0):
             #Loop through compounds to identify overlapping compounds
             for compound_iterator in range(len(compound_names)):
-                if len(metatlas_dataset[0][compound_iterator]['identification'].compound) == 0:
+                if len(dataset[0][compound_iterator]['identification'].compound) == 0:
                     continue
                 if use_labels:
-                    cpd_iter_label = metatlas_dataset[0][compound_iterator]['identification'].name
+                    cpd_iter_label = dataset[0][compound_iterator]['identification'].name
                 else:
-                    cpd_iter_label = metatlas_dataset[0][compound_iterator]['identification'].compound[0].name
-                cpd_iter_id = metatlas_dataset[0][compound_iterator]['identification']
+                    cpd_iter_label = dataset[0][compound_iterator]['identification'].compound[0].name
+                cpd_iter_id = dataset[0][compound_iterator]['identification']
                 cpd_iter_mz = cpd_iter_id.mz_references[0].mz
                 cid_mass = cid.compound[0].mono_isotopic_molecular_weight
                 cpd_iter_mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
@@ -192,13 +186,23 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                     if ((cpd_iter_mz-0.005 <= mz_theoretical <= cpd_iter_mz+0.005) or (cpd_iter_mass-0.005 <= cid_mass <= cpd_iter_mass+0.005)) and \
                             ((cpd_iter_rt_min <= cid_rt_min <=cpd_iter_rt_max) or (cpd_iter_rt_min <= cid_rt_max <= cpd_iter_rt_max) or \
                             (cid_rt_min <= cpd_iter_rt_min <= cid_rt_max) or (cid_rt_min <= cpd_iter_rt_max <= cid_rt_max)):
-                        overlapping_compounds.append(cpd_iter_label)
-                        inchi_key_map[cpd_iter_label] = cpd_iter_id.compound[0].inchi_key
+                        if cpd_labels.count(cpd_iter_label)>1:
+                            overlapping_compounds.append(cpd_iter_label +" "+ cpd_iter_id.mz_references[0].adduct)
+                            inchi_key_map[cpd_iter_label+" "+ cpd_iter_id.mz_references[0].adduct] = cpd_iter_id.compound[0].inchi_key
+                        else:
+                            overlapping_compounds.append(cpd_iter_label)
+                            inchi_key_map[cpd_iter_label] = cpd_iter_id.compound[0].inchi_key
 
         if len(overlapping_compounds) > 0:
-            overlapping_compounds.append(cid_label)
+            if cpd_labels.count(cid_label)>1:
+                overlapping_compounds.append(cid_label+" "+cid.mz_references[0].adduct)
+            else:
+                overlapping_compounds.append(cid_label)
             if len(cid.compound) > 0:
-                inchi_key_map[cid_label] = cid.compound[0].inchi_key
+                if cpd_labels.count(cid_label)>1:
+                    inchi_key_map[cid_label+" "+cid.mz_references[0].adduct] = cid.compound[0].inchi_key
+                else:
+                    inchi_key_map[cid_label] = cid.compound[0].inchi_key
             else:
                 inchi_key_map[cid_label] = ""
             final_df.loc[compound_idx, 'overlapping_compound'] = "//".join(cpd for cpd in sorted(overlapping_compounds, key=str))
@@ -216,20 +220,57 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'polarity'] = cid.mz_references[0].detected_polarity
             final_df.loc[compound_idx, 'exact_mass'] = cid.compound[0].mono_isotopic_molecular_weight
             final_df.loc[compound_idx, 'inchi_key'] = cid.compound[0].inchi_key
-        final_df.loc[compound_idx, 'msms_quality'] = ""
-        final_df.loc[compound_idx, 'mz_quality'] = ""
-        final_df.loc[compound_idx, 'rt_quality'] = ""
-        final_df.loc[compound_idx, 'total_score'] = ""
-        final_df.loc[compound_idx, 'msi_level'] = ""
+
+        final_df.loc[compound_idx, 'identified_metabolite'] = final_df.loc[compound_idx, 'overlapping_compound'] or final_df.loc[compound_idx, 'label']
+        final_df.loc[compound_idx, 'msms_quality'] = ""  # this gets updated after ms2_notes column is added
+
+        if delta_ppm <= 5 or delta_mz <= 0.001:
+            final_df.loc[compound_idx, 'mz_quality'] = 1
+        elif delta_ppm >= 5 and delta_ppm <= 10 and delta_mz > 0.001:
+            final_df.loc[compound_idx, 'mz_quality'] = 0.5
+        elif delta_ppm > 10:
+            final_df.loc[compound_idx, 'mz_quality'] = 0
+        else:
+            final_df.loc[compound_idx, 'mz_quality'] = ""
+
+        rt_error = abs(cid.rt_references[0].rt_peak - avg_rt_measured)
+        if rt_error <= 0.5:
+            final_df.loc[compound_idx, 'rt_quality'] = 1
+        elif rt_error <= 2:
+            final_df.loc[compound_idx, 'rt_quality'] = 0.5
+        elif rt_error > 2:
+            final_df.loc[compound_idx, 'rt_quality'] = 0
+        else:
+            final_df.loc[compound_idx, 'rt_quality'] = ""
+        final_df.loc[compound_idx, 'total_score'] = ""  # this gets updated after ms2_notes column is added
+        final_df.loc[compound_idx, 'msi_level'] = ""    # this gets updated after ms2_notes column is added
         final_df.loc[compound_idx, 'isomer_details'] = ""
         final_df.loc[compound_idx, 'identification_notes'] = cid.identification_notes
         final_df.loc[compound_idx, 'ms1_notes'] = cid.ms1_notes
         final_df.loc[compound_idx, 'ms2_notes'] = cid.ms2_notes
+        try:
+            final_df.loc[compound_idx, 'msms_quality'] = float(final_df.loc[compound_idx, 'ms2_notes'].split(',')[0])
+        except ValueError:
+            final_df.loc[compound_idx, 'msms_quality'] = ''
+        quality_scores = [final_df.loc[compound_idx, x] for x in ['msms_quality', 'mz_quality', 'rt_quality']]
+        if all(isinstance(x, (int, float)) for x in quality_scores):
+            final_df.loc[compound_idx, 'total_score'] = sum(quality_scores)
+            if final_df.loc[compound_idx, 'msms_quality'] == -1:
+                final_df.loc[compound_idx, 'msi_level'] = "REMOVE, INVALIDATED BY BAD MSMS MATCH"
+            elif statistics.median(quality_scores) < 1:
+                final_df.loc[compound_idx, 'msi_level'] = "putative"
+            elif sum(quality_scores) == 3:
+                final_df.loc[compound_idx, 'msi_level'] = "Exceeds Level 1"
+            else:
+                final_df.loc[compound_idx, 'msi_level'] = "Level 1"
+        else:
+            final_df.loc[compound_idx, 'total_score'] = ""
+            final_df.loc[compound_idx, 'msi_level'] = ""
         if len(intensities) > 0:
             final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].idxmax()]['intensity']
             max_intensity_file_id = int(intensities.loc[intensities['intensity'].idxmax()]['file_id'])
             final_df.loc[compound_idx, 'max_intensity_file'] = file_names[max_intensity_file_id]
-            final_df.loc[compound_idx, 'ms1_rt_peak'] = metatlas_dataset[max_intensity_file_id][compound_idx]['identification'].rt_references[0].rt_peak
+            final_df.loc[compound_idx, 'ms1_rt_peak'] = dataset[max_intensity_file_id][compound_idx]['data']['ms1_summary']['rt_peak']
         else:
             final_df.loc[compound_idx, 'max_intensity'] = ""
             final_df.loc[compound_idx, 'max_intensity_file'] = ""
@@ -253,24 +294,25 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         final_df.loc[compound_idx, 'mz_adduct'] = cid.mz_references[0].adduct
         final_df.loc[compound_idx, 'mz_theoretical'] = float("%.4f" % mz_theoretical)
         final_df.loc[compound_idx, 'mz_measured'] = float("%.4f" % avg_mz_measured)
-        final_df.loc[compound_idx, 'mz_error'] = float("%.4f" % abs(mz_theoretical - avg_mz_measured))
-        final_df.loc[compound_idx, 'mz_ppmerror'] = float("%.4f" % (abs(mz_theoretical - avg_mz_measured) / mz_theoretical * 1e6))
+        final_df.loc[compound_idx, 'mz_error'] = float("%.4f" % delta_mz)
+        final_df.loc[compound_idx, 'mz_ppmerror'] = float("%.4f" % delta_ppm)
         final_df.loc[compound_idx, 'rt_min'] = float("%.2f" % compound_ref_rt_min)
         final_df.loc[compound_idx, 'rt_max'] = float("%.2f" % compound_ref_rt_max)
         final_df.loc[compound_idx, 'rt_theoretical'] = float("%.2f" % cid.rt_references[0].rt_peak)
         final_df.loc[compound_idx, 'rt_measured'] = float("%.2f" % avg_rt_measured)
         final_df.loc[compound_idx, 'rt_error'] = float("%.2f" % abs(cid.rt_references[0].rt_peak - avg_rt_measured))
 
-
         for file_idx, file_name in enumerate(file_names):
             if len(msms_hits_df) == 0:
                 rows = []
             else:
-                rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) & \
-                                (msms_hits_df['file_name'] == file_name) & \
-                                (msms_hits_df['msms_scan'] >= compound_ref_rt_min) & (msms_hits_df['msms_scan'] <= compound_ref_rt_max) & \
-                                ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float) - metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz)/metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz) \
-                                   <= metatlas_dataset[0][compound_idx]['identification'].mz_references[0].mz_tolerance*1e-6)]
+                mz_ref = dataset[0][compound_idx]['identification'].mz_references[0]
+                rows = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key) &
+                                    (msms_hits_df['file_name'] == file_name) &
+                                    (msms_hits_df['msms_scan'] >= compound_ref_rt_min) &
+                                    (msms_hits_df['msms_scan'] <= compound_ref_rt_max) &
+                                    ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float)
+                                      - mz_ref.mz)/mz_ref.mz) <= mz_ref.mz_tolerance*1e-6)]
 
             if len(rows) == 0:
                 dfs['msms_score'].iat[compound_idx, file_idx] = np.nan
@@ -283,11 +325,15 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
+    prefix = f"{polarity}_" if polarity != '' else ''
+    output_sheetname = f"{prefix}{output_sheetname}"
     if not output_sheetname.endswith('.xlsx'):
         output_sheetname = output_sheetname + '.xlsx'
-    writer = pd.ExcelWriter(os.path.join(output_loc,output_sheetname), engine='xlsxwriter')
+    excel_path = os.path.join(output_loc, output_sheetname)
+    write_utils.check_existing_file(excel_path, overwrite)
+    writer = pd.ExcelWriter(excel_path, engine='xlsxwriter')
     final_df.to_excel(writer, sheet_name='Final_Identifications', index=False, startrow=3)
-    
+
     #set format
     workbook = writer.book
     f_blue = workbook.add_format({'bg_color': '#DCFFFF'})
@@ -316,8 +362,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     for i, header in enumerate(HEADER2):
         worksheet.write(1,i, header, cell_format)
 
-    HEADER3 = ['Unique for study','Some isomers are not chromatographically or spectrally resolvable.','Name of standard reference compound in library match.','compound with similar mz (abs difference <= 0.005) or monoisotopic molecular weight (abs difference <= 0.005) and RT (min or max within the RT-min-max-range of similar compound)','List of inchi keys that correspond to the compounds listed in the previous column','','','monoisotopic mass (neutral except for permanently charged molecules)','neutralized version','1 (MSMS matches ref. std.), 0.5 (possible match), 0 (no MSMS collected or no appropriate ref available), -1 (bad match)','POS MODE: 1 (delta ppm </= 5 or delta Da </= 0.001), 0.5 (delta ppm 5-10 and delta Da > 0.001), 0 (delta ppm > 10) NEG MODE: 1 (delta ppm </= 15 or delta Da </= 0.005), 0.5 (delta ppm 15-20 and delta Da > 0.001), 0 (delta ppm > 20) (NOTE: neg mass accuracy is not as good as pos) mz_quality','1 (delta RT </= 0.5), 0.5 (delta RT > 0.5 & </= 2), 0 (delta RT > 2 min)','sum of m/z, RT and MSMS score','Level 1 = Two independent and orthogonal properties match authentic standard; else = putative [Metabolomics. 2007 Sep; 3(3): 211-221. doi: 10.1007/s11306-007-0082-2]','Isomers have same formula (and m/z) and similar RT - MSMS spectra may be used to differentiate (exceptions) or RT elution order','','','','','','','','','mean # of fragment ions matching between compound in sample and reference compound / standard; may include parent and isotope ions and very low intensity background ions (these do not contribute to score)','','MSMS score (highest across all samples), scale of 0 to 1 based on an algorithm. 0 = no match, 1 = perfect match. If no score, then no MSMS was acquired for that compound (@ m/z & RT window).','More than one may be detectable; the one evaluated is listed','theoretical m/z for a given compound / adduct pair','average m/z within 20ppm of theoretical detected across all samples @ RT peak','absolute difference between theoretical and detected m/z','ppm difference between theoretical and detected m/z','','','theoretical retention time for a compound based upon reference standard at highest intensity point of peak','average retention time for a detected compound at highest intensity point of peak across all samples','absolute difference between theoretical and detected RT peak']
-    
+    HEADER3 = ['Unique for study','Some isomers are not chromatographically or spectrally resolvable.  Some compounds detected w/ >1 adduct (increases identification confidence but only use 1 for analysis).','Name of standard reference compound in library match.','compound with similar mz (abs difference <= 0.005) or monoisotopic molecular weight (abs difference <= 0.005) and RT (min or max within the RT-min-max-range of similar compound)','List of inchi keys that correspond to the compounds listed in the previous column','','','monoisotopic mass (neutral except for permanently charged molecules)','neutralized version','1 (MSMS matches ref. std.), 0.5 (possible match), 0 (no MSMS collected or no appropriate ref available), -1 (bad match)','1 (delta ppm </= 5 or delta Da </= 0.001), 0.5 (delta ppm 5-10 and delta Da > 0.001), 0 (delta ppm > 10) mz_quality','1 (delta RT </= 0.5), 0.5 (delta RT > 0.5 & </= 2), 0 (delta RT > 2 min)','sum of m/z, RT and MSMS score','Level 1 = Two independent and orthogonal properties match authentic standard; else = putative [Metabolomics. 2007 Sep; 3(3): 211-221. doi: 10.1007/s11306-007-0082-2]','Isomers have same formula (and m/z) and similar RT - MSMS spectra may be used to differentiate (exceptions) or RT elution order','','','','','','','','','mean # of fragment ions matching between compound in sample and reference compound / standard; may include parent and isotope ions and very low intensity background ions (these do not contribute to score)','','MSMS score (highest across all samples), scale of 0 to 1 based on an algorithm. 0 = no match, 1 = perfect match. If no score, then no MSMS was acquired for that compound (@ m/z & RT window).','More than one may be detectable; the one evaluated is listed','theoretical m/z for a given compound / adduct pair','average m/z within 20ppm of theoretical detected across all samples @ RT peak','absolute difference between theoretical and detected m/z','ppm difference between theoretical and detected m/z','','','theoretical retention time for a compound based upon reference standard at highest intensity point of peak','average retention time for a detected compound at highest intensity point of peak across all samples','absolute difference between theoretical and detected RT peak']
+
     for i, header in enumerate(HEADER3):
         worksheet.write(2,i, header, cell_format)
 
@@ -330,7 +376,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     worksheet.conditional_format('AF1:AI'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_yellow})
     worksheet.conditional_format('AJ1:AJ'+str(len(final_df)+4),{ 'type':'no_errors', 'format':f_rose})
     writer.save()
-    
+    logger.info('Exported Draft Identifications spreadsheet to %s.', excel_path)
+
 
     #final_df.to_csv(os.path.join(output_loc, 'Draft_Final_Idenfications.tab'), sep='\t')
     for metric in metrics:
@@ -360,9 +407,12 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     stats_table = pd.concat(stats_table, axis=1)
 
     if output_loc is not None:
-        stats_table.to_csv(os.path.join(output_loc, 'stats_tables', 'stats_table.tab'), sep='\t')
-
-        with open(os.path.join(output_loc, 'stats_tables/', 'stats_table.readme'), 'w') as readme:
+        stats_tables_dir = os.path.join(output_loc, f"{prefix}stats_tables")
+        stats_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.tab")
+        write_utils.export_dataframe_die_on_diff(stats_table, stats_path, 'stats table', overwrite, sep='\t', float_format="%.8e")
+        readme_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.readme")
+        write_utils.check_existing_file(readme_path, overwrite)
+        with open(readme_path, 'w') as readme:
             for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'ppm_tolerance', 'min_msms_score', 'min_num_frag_matches']:
                 readme.write('%s\n'%var)
                 try:
@@ -373,7 +423,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                 except TypeError:
                     pprint.pprint(eval(var), readme)
                 readme.write('\n')
-
+        logger.info('Exported stats table readme to %s.', readme_path)
     if return_all:
         return stats_table, dfs, passing
 
@@ -423,7 +473,7 @@ def make_scores_df(metatlas_dataset, msms_hits):
         try:
             inchi_key = metatlas_dataset[0][compound_idx]['identification'].compound[0].inchi_key
         except:
-            inchi_key = ""
+            inchi_key = 'None'
 
         if len(msms_hits_df) == 0:
             comp_msms_hits = msms_hits_df
@@ -570,7 +620,7 @@ def filter_atlas_and_dataset(scores_df, atlas_df, metatlas_dataset,
     try:
         assert(scores_df.inchi_key.tolist()
                == atlas_df.inchi_key.tolist()
-               == [metatlas_dataset[0][i]['identification'].compound[0].inchi_key if len(metatlas_dataset[0][i]['identification'].compound) > 0 else ''
+               == [metatlas_dataset[0][i]['identification'].compound[0].inchi_key if len(metatlas_dataset[0][i]['identification'].compound) > 0 else 'None'
                                    for i in range(len(metatlas_dataset[0]))])
     except AssertionError:
         print('Error: scores_df, atlas_df, and metatlas_dataset must have the same compounds in the same order.')

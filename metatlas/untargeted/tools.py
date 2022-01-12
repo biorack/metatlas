@@ -1,5 +1,3 @@
-from __future__ import print_function
-from __future__ import absolute_import
 import numpy as np
 import sys
 import json
@@ -18,12 +16,8 @@ from metatlas.plots import dill2plots as dp
 from collections import Mapping
 import six
 from pathlib2 import PurePath
-from six.moves import map
 
-try:
-    six.string_types
-except NameError:  # python3
-    six.string_types = str
+import time
 
 BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
 BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
@@ -620,7 +614,6 @@ def write_new_mzmine_params(gsheet_params,my_polarity,files,basepath,parent_dir)
         fid.write('%s'%xml_string)
     return batch_filename
 
-import time
 
 def submit_fbmn_jobs(polarity='positive',polarity_short='pos',N=15):
     """
@@ -1026,9 +1019,9 @@ def get_gnps_zipfile(parent_dir,output_dir,polarity,status,override=False):
 
 
 
-    
 
-    
+
+
 #copy files here to keep I/O off low-performance filesystems
 DATA_PATH = '/global/cscratch1/sd/bpb/raw_data'
 
@@ -1085,7 +1078,7 @@ module load java
 
 #Alicia Clum: The best nodes we have right now are ExVivo, they are 1.5 Tb nodes and very fast you can submit there by changing to --qos=jgi_shared and adding -C skylake. Prior to submitting you must type "module load esslurm" since these nodes are controlled by a different scheduler.
 # Set the python to this one:
-#/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-2.39/startMZmine_NERSC_Headless_Cori_exvivo.sh 
+#/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-2.39/startMZmine_NERSC_Headless_Cori_exvivo.sh
 # /////////////////////////////////////////////////////////////////////
 # /////////////////// SKYLAKE 1.5TB QUEUE SBATCH PARAMS ///////////////
 # /////////////////////////////////////////////////////////////////////
@@ -1117,7 +1110,7 @@ def calc_hit_vector(n,df):
         if (i>(len(m)-1)) & (len(m) >1):
             m_idx = len(m)-1
         else:
-            m_idx = nf[i] 
+            m_idx = nf[i]
         m[m_idx] = m[m_idx] + s[i]
     return m
 
@@ -1223,7 +1216,7 @@ def mzmine_xml_to_csv(xml_file,csv_file=None,pop_input_files=True,return_df=True
 #     t = dict_to_etree(d)
 #     indent_tree(t)
 #     s1 = tree_to_xml(t)
-    
+
     # pop out the files
     if pop_input_files==True:
         raw_data_import = d['batch']['batchstep'].pop(0)
@@ -1236,7 +1229,7 @@ def mzmine_xml_to_csv(xml_file,csv_file=None,pop_input_files=True,return_df=True
     df = pd.DataFrame([(k,v) for (k,v) in dflat.items()],columns=['parameter','value']).sort_values('parameter').set_index('parameter',drop=True)
     if csv_file is not None:
         df.to_csv(csv_file)
-    
+
     if return_df==True:
         return df #return the dataframe of the steps
     else:
@@ -1291,7 +1284,7 @@ def make_task_and_job(params):#basedir,basename,polarity,files):
     new_d = configure_mass_detection(new_d,task.ms1_noise_level,task.ms2_noise_level)
 
     new_d = configure_chromatogram_builder(new_d,task.min_num_scans,task.group_intensity_threshold,task.min_peak_height,task.mz_tolerance)
-    
+
     new_d = configure_smoothing(new_d,task.smoothing_scans)
 
     new_d = configure_peak_deconvolution(new_d,
@@ -1332,7 +1325,7 @@ def make_task_and_job(params):#basedir,basename,polarity,files):
 
 def create_job_script(m):
     """
-    
+
     This is the first function that runs when a user initializes a new untargeted workflow
 
     """
@@ -1430,7 +1423,7 @@ def get_files(groups,filename_substring,file_filters,keep_strings,is_group=False
             all_files.extend(new_files)
         if len(new_files) == 0:
             print('##### %s has ZERO files!'%g)
-            
+
     # only keep files that don't have substrings in list
     if len(file_filters) > 0:
         for i,ff in enumerate(file_filters):
@@ -1440,7 +1433,7 @@ def get_files(groups,filename_substring,file_filters,keep_strings,is_group=False
                 files = [f for f in files if not ff in f.name]
     else:
         files = all_files
-        
+
     # kick out any files that don't match atleast one of the keep_strings
     keep_this = []
     filter_used = [] #good to keep track if a filter isn't used.  likely a typo
@@ -1453,9 +1446,9 @@ def get_files(groups,filename_substring,file_filters,keep_strings,is_group=False
             for i,f in enumerate(filter_used):
                 if f==False:
                     print('%s keep string is not used'%keep_strings[i])
-                    
+
         files = [files[i] for i,j in enumerate(keep_this) if j==True]
-    
+
     files = remove_duplicate_files(files)
     return files
 
@@ -1475,7 +1468,7 @@ def make_targeted_mzmine_job(basedir,basename,polarity,files):
     project_name = '%s_%s'%(basename,task.polarity)
     task.output_workspace = os.path.join(basedir,project_name,'%s_%s.mzmine'%(basename,task.polarity))
     task.input_xml = os.path.join(basedir,'logs','%s_%s_filtered.xml'%(basename,task.polarity))
-    
+
     task.mzmine_launcher = get_latest_mzmine_binary()
 
     # new_d = configure_crop_filter(new_d,task.polarity,files)
@@ -1491,25 +1484,25 @@ def make_targeted_mzmine_job(basedir,basename,polarity,files):
 def configure_targeted_peak_detection(new_d,peak_list_filename,intensity_tolerance=1e-4,noise_level=1e4,mz_tolerance=20,rt_tolerance=0.5):
     """
     Name suffix: Suffix to be added to the peak list name.
-    
-    Peak list file: Path of the csv file containing the list of peaks to be detected. The csv file should have three columns. 
+
+    Peak list file: Path of the csv file containing the list of peaks to be detected. The csv file should have three columns.
     The first column should contain the expected M/Z, the second column the expected RT and the third the peak name. Each peak should be in a different row.
-    
+
     Field separator: Character(s) used to separate fields in the peak list file.
-    
+
     Ignore first line: Check to ignore the first line of peak list file.
-    
+
     Intensity tolerance: This value sets the maximum allowed deviation from expected shape of a peak in chromatographic direction.
-    
+
     Noise level: The minimum intensity level for a data point to be considered part of a chromatogram. All data points below this intensity level are ignored.
-    
+
     MZ Tolerance: Maximum allowed m/z difference to find the peak
-    
+
     RT tolerance: Maximum allowed retention time difference to find the peak
     """
     # Set the noise floor
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'TargetedPeakDetectionModule' in d['@method']][0]
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Peak list file' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%s'%peak_list_filename
 
@@ -1529,7 +1522,7 @@ def configure_targeted_peak_detection(new_d,peak_list_filename,intensity_toleran
 
 def configure_crop_filter(new_d,polarity,files,min_rt=0.01,max_rt=100,fps_string='FPS'):
     """
-    
+
     """
     # identify the element for this change
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CropFilterModule' in d['@method']][0]
@@ -1543,39 +1536,39 @@ def configure_crop_filter(new_d,polarity,files,min_rt=0.01,max_rt=100,fps_string
     # Set the polarity
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Scans' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['polarity'] = polarity.upper()
-    
+
     #set the rt min and rt max use the same idx2 as polarity
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['retention_time'] = {'max':'%.4f'%max_rt,'min':'%.4f'%min_rt}
-    
+
     # new_d['batch']['batchstep'][idx]['parameter'][idx2]['ms_level'] = '1-2'
 
     return new_d
 
 def configure_mass_detection(new_d,ms1_noise_level=1e4,ms2_noise_level=1e2):
     """
-    
+
     """
     # Find the module
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'MassDetectionModule' in d['@method']]
     #The first idx will be for MS1 and the second will be for MS2
-    
+
     # Set the MS1 attributes
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter']) if 'Mass detector' in d['@name']][0]
     idx3 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['module']) if 'Centroid' in d['@name']][0]
     new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['module'][idx3]['parameter']['#text'] = '%.2f'%(ms1_noise_level)
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter']) if 'Scans' in d['@name']][0]
     new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['ms_level'] = '1'
-    
+
     # Set the MS2 attributes
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter']) if 'Mass detector' in d['@name']][0]
     idx3 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['module']) if 'Centroid' in d['@name']][0]
     new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['module'][idx3]['parameter']['#text'] = '%.2f'%(ms2_noise_level)
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter']) if 'Scans' in d['@name']][0]
     new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['ms_level'] = '2'
 
-    
+
     return new_d
 
 def configure_smoothing(new_d,smoothing_scans):
@@ -1628,13 +1621,13 @@ def configure_chromatogram_builder(new_d,min_num_scans,group_intensity_threshold
 
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-   
+
     return new_d
 
 def configure_adap_peak_deconvolution(new_d,min_peak_height,minimum_relative_height,search_for_minimum_rt_range,chromatographic_threshold,min_sn_ratio,min_peak_duration,max_peak_duration):
     """
     <parameter name="Algorithm" selected="Wavelets (ADAP)">
-    
+
     <module name="Wavelets (ADAP)">
                 <parameter name="S/N threshold">3.0</parameter>
                 <parameter name="S/N estimator" selected="Intensity window SN">
@@ -1655,7 +1648,7 @@ def configure_adap_peak_deconvolution(new_d,min_peak_height,minimum_relative_hei
                     <max>0.1</max>
                 </parameter>
             </module>
-            
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DeconvolutionModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Algorithm' in d['@name']][0]
@@ -1689,7 +1682,7 @@ def configure_lms_peak_deconvolution(new_d,min_peak_height,minimum_relative_heig
                     <max>1.0</max>
                 </parameter>
             </module>
-            
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DeconvolutionModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Algorithm' in d['@name']][0]
@@ -1711,20 +1704,20 @@ def configure_lms_peak_deconvolution(new_d,min_peak_height,minimum_relative_heig
 
 def configure_isotope_search(new_d,mz_tolerance,rt_tol_perfile,representative_isotope,remove_isotopes,polarity):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'Isotope' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Retention time tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(rt_tol_perfile)
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Representative isotope' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%s'%(representative_isotope)
 
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Remove original peaklist' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%s'%(str(remove_isotopes).lower())
-    
+
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'Adduct' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
@@ -1739,7 +1732,7 @@ def configure_isotope_search(new_d,mz_tolerance,rt_tol_perfile,representative_is
                 new_d['batch']['batchstep'][idx]['parameter'][idx2]['adduct'][i]['@selected'] = 'false'
             else:
                 new_d['batch']['batchstep'][idx]['parameter'][idx2]['adduct'][i]['@selected'] = 'true'
-    
+
     return new_d
 
 def configure_join_aligner(new_d,mz_tolerance,rt_tol_multifile):
@@ -1747,26 +1740,26 @@ def configure_join_aligner(new_d,mz_tolerance,rt_tol_multifile):
     # Join aligner has these scores:
 #             <parameter name="Minimum absolute intensity">3000.0</parameter>
 #             <parameter name="Minimum score">0.6</parameter>
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'JoinAlignerModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Retention time tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(rt_tol_multifile)
-    
+
 #     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Minimum absolute intensity' in d['@name']][0]
 #     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = 3000#'%.3f'%(mz_tolerance)
-    
+
 #     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Minimum score' in d['@name']][0]
 #     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = 0.6#'%.3f'%(rt_tol_multifile)
-    
+
     return new_d
 
 def configure_rows_filter(new_d,min_peaks_in_row,peak_with_msms):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'RowsFilterModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Minimum peaks in a row' in d['@name']][0]
@@ -1779,7 +1772,7 @@ def configure_rows_filter(new_d,min_peaks_in_row,peak_with_msms):
 
 def configure_duplicate_filter(new_d,mz_tolerance,rt_tol_perfile):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DuplicateFilterModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
@@ -1801,46 +1794,46 @@ def configure_gap_filling(new_d,mz_tolerance,gapfill_intensity_tolerance,rt_tol_
 #         <parameter name="Retention time tolerance" type="absolute">0.03</parameter>
 #         <parameter name="Remove original peak list">false</parameter>
 #     </batchstep>
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'gapfilling.peakfinder' in d['@method']][0]
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Intensity tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(gapfill_intensity_tolerance)
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Retention time tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(rt_tol_multifile)
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-    
-    
+
+
     return new_d
 
 def configure_output(new_d,output_csv_height,output_csv_area,output_workspace,output_mgf):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CSVExportModule' in d['@method']]
     #the first will be height the second will be area
 
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter']) if 'Filename' in d['@name']][0]
     new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['#text'] = output_csv_height
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter']) if 'Filename' in d['@name']][0]
     new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['#text'] = output_csv_area
-    
+
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'GNPSExportModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Filename' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = output_mgf
-    
+
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'ProjectSaveAsModule' in d['@method']][0]
     new_d['batch']['batchstep'][idx]['parameter']['#text'] = output_workspace
     return new_d
 
 def configure_csv_output(new_d,output_csv):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CSVExportModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Filename' in d['@name']][0]
@@ -1899,7 +1892,7 @@ def get_latest_mzmine_binary(system='Cori',version='most_recent'):
     cp ../MZmine-2.24/startMZmine_NERSC_* .
     cd /project/projectdirs/metatlas/projects/
     chgrp -R metatlas mzmine_parameters
-    chmod -R 770 mzmine_parameters 
+    chmod -R 770 mzmine_parameters
     """
     mzmine_versions = glob.glob(os.path.join(BINARY_PATH,'*' + os.path.sep))
     if version == 'most_recent':
@@ -1915,11 +1908,11 @@ def get_latest_mzmine_binary(system='Cori',version='most_recent'):
 def replace_files(d,file_list):
     """
     Replace files for mzmine task
-    
+
     Inputs:
     d: an xml derived dictionary of batch commands
     file_list: a list of full paths to mzML files
-    
+
     Outputs:
     d: an xml derived dict with new files in it
     """
@@ -1970,17 +1963,17 @@ def dict_to_etree(d):
 
         if type(d) is {}.values().__class__:
             d = list(d.values)
-        
-        if isinstance(d, six.string_types):
+
+        if isinstance(d, str):
             root.text = d
         elif isinstance(d, dict):
             for k,v in d.items():
-                assert isinstance(k, six.string_types)
+                assert isinstance(k, str)
                 if k.startswith('#'):
-                    assert k == '#text' and isinstance(v, six.string_types)
+                    assert k == '#text' and isinstance(v, str)
                     root.text = v
                 elif k.startswith('@'):
-                    assert isinstance(v, six.string_types)
+                    assert isinstance(v, str)
                     root.set(k[1:], v)
                 elif isinstance(v, list):
                     for e in v:
@@ -2063,7 +2056,7 @@ def path_reducer(k1, k2):
         return k2
     else:
         return os.path.join(k1, k2)
-    
+
 
 
 def tuple_splitter(flat_key):
@@ -2153,8 +2146,8 @@ def flatten(d, reducer='tuple', inverse=False, enumerate_types=()):
 #         return
 #     d = d.setdefault(key, {})
 #     nested_set_dict(d, keys[1:], value)
-    
-    
+
+
 def nested_set_dict(d, keys, value):
     """Set a value to a sequence of nested keys
 
@@ -2210,7 +2203,7 @@ def unflatten(d, splitter='tuple', inverse=False):
                                       {'e4':'so_nested4b!!!'},
                                       {'e4':'so_nested4c!!!'},
                                       {'e4':'so_nested4d!!!'},
-                                      {'e4':'so_nested4e!!!'}]}]}}    
+                                      {'e4':'so_nested4e!!!'}]}]}}
 
     Returns
     -------
@@ -2218,7 +2211,7 @@ def unflatten(d, splitter='tuple', inverse=False):
     """
     if isinstance(splitter, str):
         splitter = SPLITTER_DICT[splitter]
-    
+
     kv = sorted([(k,v) for (k,v) in d.items()])
     unflattened_dict = {}
     for kkvv in kv:
@@ -2227,4 +2220,3 @@ def unflatten(d, splitter='tuple', inverse=False):
         nested_set_dict(unflattened_dict, key_tuple, value)
 
     return unflattened_dict
-

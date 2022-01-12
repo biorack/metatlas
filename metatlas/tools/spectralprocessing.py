@@ -1212,12 +1212,12 @@ def search_ms_refs(msv_query, **kwargs):
     ref_index = kwargs.pop('ref_index', ['database', 'id'])
     query = kwargs.pop('query', 'index == index or index == @pd.NaT')
     post_query = kwargs.pop('post_query', 'index == index or index == @pd.NaT')
-    
+
     if 'do_gdp' in kwargs:
         do_gdp = kwargs.pop('do_gdp')
     else:
         do_gdp = False
-        
+
     if 'ref_df' in kwargs:
         ref_df = kwargs.pop('ref_df')
     else:
@@ -1229,9 +1229,9 @@ def search_ms_refs(msv_query, **kwargs):
     ref_df = ref_df.query(query, local_dict=dict(locals(), **kwargs))
 
     if ref_df['spectrum'].apply(type).eq(str).all():
-        ref_df['spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s)).apply(np.array)
+        ref_df.loc[:, 'spectrum'] = ref_df['spectrum'].apply(lambda s: eval(s)).apply(np.array)
         for _, row in ref_df.iterrows():
-            row['spectrum'] = row['spectrum'][:, row['spectrum'][0] < row['precursor_mz'] + 2.5]
+            row.loc[:, 'spectrum'] = row['spectrum'][:, row['spectrum'][0] < row['precursor_mz'] + 2.5]
 
     # Define function to score msv_qury against msv's in reference dataframe
     def score_and_num_matches(msv_ref):
@@ -1317,7 +1317,7 @@ def make_isotope_matrix(elements,
     :return isotope_matrix: numpy 3d matrix of shape (max_elements, max_isotopes, 2),
     :return mass_removed_vec: list of ints,
     """
-    
+
     import json
 
     with open(isotope_file) as json_file:
@@ -1361,12 +1361,12 @@ def add_synthetic_element(synthetic,
 
     :return new_isotope_dict: dictionary with elements as keys and isotope information as values,
     """
-    
+
     import json
 
     with open(isotope_file) as json_file:
         isotope_dict = json.load(json_file)
-        
+
     # Make a deep copy of isotope_dict to modify
     new_isotope_dict = deepcopy(isotope_dict)
 

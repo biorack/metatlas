@@ -1,0 +1,7 @@
+[flake8]
+max-line-length = 110
+max-complexity = 9
+exclude = .nox
+# for compatibility with black
+select = C,E,F,W,B,B950
+extend-ignore = E203, E501

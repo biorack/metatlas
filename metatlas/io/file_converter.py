@@ -24,7 +24,7 @@ from metatlas.io.system_utils import send_mail
 NPROC = 8
 
 manager = mp.Manager()
-readonly_files = manager.dict() # username | a set of files associated with them
+readonly_files = manager.dict() # username (or uid) | a set of files associated with them
 other_errors = manager.dict() # info with user | list of error messages
 patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
@@ -61,10 +61,18 @@ def convert(file):
         return
     dirname = os.path.dirname(fname)
     try:
-        username = pwd.getpwuid(os.stat(fname).st_uid).pw_name
+        uid = os.stat(fname).st_uid
+        try:
+            username = pwd.getpwuid(uid).pw_name
+        except KeyError:
+            username = uid
     except OSError:
         try:
-            username = pwd.getpwuid(os.stat(dirname).st_uid).pw_name
+            uid = os.stat(dirname).st_uid
+            try:
+                username = pwd.getpwuid(uid).pw_name
+            except KeyError:
+                username = uid
         except Exception:
             username = info['username']
 

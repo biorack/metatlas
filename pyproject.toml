@@ -1,0 +1,65 @@
+[tool.black]
+line-length = 110
+
+[[tool.mypy.overrides]]
+module = [
+    "colorama.*",
+    "dataset.*",
+    "dill.*",
+    "gspread.*",
+    "humanize.*",
+    "h5py.*",
+    "ijson.*",
+    "ipysheet.*",
+    "IPython.*",
+    "ipywidgets.*",
+    "labkey.*",
+    "matchms.*",
+    "matplotlib.*",
+    "metatlas.h5_query.*",
+    "metatlas.helpers.*",
+    "metatlas.kbase.*",
+    "metatlas.metatlas_objects.*",
+    "metatlas.mzml_loader.*",
+    "metatlas.plotting.*",
+    "metatlas.object_helpers.*",
+    "networkx.*",
+    "numpy.fft.fftpack",
+    "numpy.testing.decorators",
+    "oauth2client.*",
+    "pandas.*",
+    "pathlib2.*",
+    "pexpect.*",
+    "PIL.*",
+    "pubchempy.*",
+    "pymzml.*",
+    "pyteomics.*",
+    "qgrid.*",
+    "rdkit.*",
+    "scipy.*",
+    "sklearn.*",
+    "tables.*",
+    "tqdm.*",
+    "traitlets.*"
+]
+ignore_missing_imports = true
+
+[tool.pylint.MASTER]
+extension-pkg-allow-list = [
+    "rdkit"
+]
+
+[tool.pylint.messages_control]
+# first two are for black compatibility
+# duplicate-code cannot be disabled on per file/block/line
+#                https://github.com/PyCQA/pylint/issues/214
+disable = "bad-continuation, bad-whitespace, duplicate-code"
+
+[tool.pylint.format]
+max-line-length = "110"
+
+[tool.pylint.TYPECHECK]
+generated-members = "pandas.*"
+
+[tool.pytest.ini_options]
+filterwarnings = "ignore::DeprecationWarning:dataset.*:"

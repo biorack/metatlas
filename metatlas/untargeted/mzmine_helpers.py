@@ -1,5 +1,3 @@
-from __future__ import print_function
-from __future__ import absolute_import
 import numpy as np
 import sys
 import json
@@ -17,13 +15,6 @@ import metatlas.metatlas_objects as metob
 from metatlas.helpers import metatlas_get_data_helper_fun as ma_data
 from metatlas.helpers import dill2plots as dp
 import six
-from six.moves import map
-from six.moves import range
-
-try:
-    six.string_types
-except NameError:  # python3
-    six.string_types = str
 
 # setting this very high easily causes out of memory
 NUM_THREADS = 12
@@ -128,7 +119,7 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=3000,do_test=False
         A simplified logic is: is max intensity near the rt_peak? if yes, is it decaying by 10x +/- 0.5 minutes. Obviously, peaks that are +/- 0.5 minutes appart will get removed. Thus, find local minimum +/- 0.5 minutes from rt_peak. Set those as rt_min and rt_max.
     Third remove no MS/MS
         exclude if no feature in non-blank samples has msms
-        
+
     Last: only keep n_peaks by max intensity in any sample.
 
     """
@@ -136,7 +127,7 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=3000,do_test=False
 
     if not json_filename:
         json_filename = sys.argv[1]
-    with open(json_filename) as data_file:    
+    with open(json_filename) as data_file:
         params = json.load(data_file)
     file_to_convert = os.path.join(params['basedir'],'intermediate_results','%s_%s.csv'%(params['basename'],params['polarity']))
     print('# Working on %s %s'%(params['basename'],params['polarity']))
@@ -150,9 +141,9 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=3000,do_test=False
         if do_test == True:
             #if only a test, just do a couple of features
             df = df.head(10)
-            
+
         df.to_csv(file_to_convert.replace('.csv','') + '_formatted.csv',index=True) #save a simplified mzmine-like csv as a backup of all features found.
-        
+
         #Filter features found in the blank
         df = clean_up_mzmine_dataframe(df)
         df_blank_compare = df.transpose().groupby(['b' if any([s in g.lower() for s in params['blank_str']]) else 's' for g in df.columns]).max().transpose()
@@ -165,8 +156,8 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=3000,do_test=False
             df_features_not_in_blank = df_blank_compare
         df_features_not_in_blank.reset_index(inplace=True)
         print('#There are now %d features not in blank'%df_features_not_in_blank.shape[0])
-        
-        
+
+
         #Make an Atlas
         print('making new atlas')
         cids = []
@@ -180,11 +171,11 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=3000,do_test=False
             cids.append(my_id)
         my_atlas = metob.Atlas(name='untargeted atlas',compound_identifications=cids)
         atlas_df = ma_data.make_atlas_df(my_atlas)
-        
+
         #Make Groups
         print('making groups')
         all_files = [f.replace('Peak height','').replace('filtered','').strip() for f in df.columns if '.mzML' in f]
-        metatlas_files = []      
+        metatlas_files = []
         for f in all_files:
             f = metob.retrieve('Lcmsruns',name=f,username='*')[-1]
             if isinstance(f,type(metob.LcmsRun())):
@@ -193,7 +184,7 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=3000,do_test=False
                 print('%s NOT FOUND'%f)
                 break
         groups = metob.Group(name='untargeted group',items=metatlas_files)
-        
+
         #Get Data
         print('getting data')
         print('using',NUM_THREADS,'cores')
@@ -247,7 +238,7 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=3000,do_test=False
         atlas_df = atlas_df[~atlas_df.index.isin(bads)]
         my_atlas.compound_identifications = [my_atlas.compound_identifications[idx] for idx in atlas_df.index[~atlas_df.index.isin(bads)].tolist()]
 
-        #Get Data 
+        #Get Data
         print('getting data after duplicate peak removal')
         print('using',NUM_THREADS,'cores')
         all_files = []
@@ -294,17 +285,17 @@ def clean_and_filter_mzmine_output(json_filename=None,n_peaks=3000,do_test=False
         print('# Getting data 1')
         make_figures_from_filtered_data(params,all_files,my_atlas)
 
-        
+
 def peak_height_df(metatlas_dataset,attribute='peak_height',zero_nans=True):
     """
-    Turn a list of lists in a metatlas dataset into a 
+    Turn a list of lists in a metatlas dataset into a
     peak height dataframe where rows are features
     and columns are samples
-    
+
     Valid attributes are:'mz_centroid','mz_peak',
     'num_ms1_datapoints','peak_area','peak_height',
     'rt_centroid','rt_peak'
-    
+
     infs, nans, and nulls are converted to zero by default.
     """
     d = []
@@ -323,7 +314,7 @@ def peak_height_df(metatlas_dataset,attribute='peak_height',zero_nans=True):
 
 def peak_in_top_n(metatlas_dataset,n_peaks=1000,prior_boolean=None):
     """
-    
+
     """
     df = peak_height_df(metatlas_dataset)
     if prior_boolean is not None: #make dataframe
@@ -340,22 +331,22 @@ def peak_in_top_n(metatlas_dataset,n_peaks=1000,prior_boolean=None):
 def metatlas_formatted_atlas_from_mzmine_output(filename,polarity,make_atlas=True,atlas_name=None,
     do_store=False,min_rt=None,max_rt=None,min_mz=None,mz_tolerance=8,
     max_mz=None,remove_adducts=False,remove_fragments=False,remove_clusters=False,max_duration=1.0):
-    # 
+    #
     '''
     Turn mzmine output into conforming metatlas_atlas input
-    
+
     Input:
     filename: csv file from mzmine output
     polarity: (positive,negative)
     atlas_name: string describing the atlas. useful incase you want to save it later.
-    
+
     Output:
     atlas_df: dataframe of atlas content
     myAtlas: metatlas atlas object (if make_atlas=True)
     mzmine_df: dataframe of all mzmine info (if make_atlas=False)
 
     '''
-    
+
     mzmine_df = pd.read_csv(filename)
     if min_rt:
         mzmine_df = mzmine_df[mzmine_df['row retention time']>min_rt]
@@ -378,7 +369,7 @@ def metatlas_formatted_atlas_from_mzmine_output(filename,polarity,make_atlas=Tru
         new_x = ';'.join(
             [s.strip() for s in pd.unique(x.split(';'))]
             )
-        return x 
+        return x
 
     metatlas_atlas = pd.DataFrame()
     metatlas_atlas['label'] = mzmine_df.apply(lambda x: '%.4f@%.2f'%(x['row m/z'],x['row retention time']),axis=1)
@@ -393,8 +384,8 @@ def metatlas_formatted_atlas_from_mzmine_output(filename,polarity,make_atlas=Tru
     metatlas_atlas['rt_max'] = mzmine_df[rt_min_cols].apply(lambda x: x.max(),axis=1)
     metatlas_atlas['inchi_key'] = None
     metatlas_atlas['detected_polarity'] = polarity
-    
-    #tuplize the 'Identification method' and 'Name' from adducts and fragments 
+
+    #tuplize the 'Identification method' and 'Name' from adducts and fragments
 
     # stick on the peak height columns
     pk_height = [col for col in list(mzmine_df) if 'Peak height' in col]
@@ -465,7 +456,7 @@ def make_task_and_job(params):#basedir,basename,polarity,files):
 
 def create_job_script(m):
     """
-    
+
     This is the first function that runs when a user initializes a new untargeted workflow
 
     """
@@ -514,7 +505,7 @@ def create_job_script(m):
         if not m['small_mzmine_done']:
             fid.write('%s\n'%job_cmd_filtered)
         # fid.write('%s\n'%second_python_string)
-        
+
 
     bad_words = ['qos', '-p','-C','-L','-t','-N']
     bad_time = '#SBATCH -t 24:00:00'
@@ -594,12 +585,12 @@ def get_files(groups,filename_substring,file_filters,is_group=False):
     return files
 
 
-    
+
 
 def clean_up_mzmine_dataframe(df):
     """
     remove a few stray columns and set index to metatlas like attributes.
-    
+
     this leaves a metatlas-like index and peak-height columns as the only thing remaining.
     """
     #df['rt_min'] = df['rt_peak'] - 0.2
@@ -608,7 +599,7 @@ def clean_up_mzmine_dataframe(df):
     index_columns = ['mz','rt_peak','label','mz_tolerance','rt_min','rt_max','inchi_key','detected_polarity','adduct_assignments']
     df.set_index(index_columns,inplace=True)
     df = df[sorted(df.columns)]
-    
+
     return df
 
 def rt_checker(met_data,atlas_df,compound_idx,params):
@@ -623,7 +614,7 @@ def rt_checker(met_data,atlas_df,compound_idx,params):
 
 def min_checker(met_data,atlas_df,compound_idx,params):
     """
-    looks forward and backward by rt_timespan and requires that the measured peak height be 
+    looks forward and backward by rt_timespan and requires that the measured peak height be
     greater than minima.
     """
     try:
@@ -711,7 +702,7 @@ def make_targeted_mzmine_job(basedir,basename,polarity,files):
     # task.output_csv = os.path.join(basedir,'intermediate_results','%s_%s_filtered.csv'%(basename,task.polarity))
     task.output_workspace = os.path.join(basedir,project_name,'%s_%s.mzmine'%(basename,task.polarity))
     task.input_xml = os.path.join(basedir,'logs','%s_%s_filtered.xml'%(basename,task.polarity))
-    
+
     # peak_list_filename = os.path.join(basedir,'intermediate_results','%s_%s_formatted_peakfiltered.csv'%(basename,polarity))
     task.mzmine_launcher = get_latest_mzmine_binary()
 
@@ -728,25 +719,25 @@ def make_targeted_mzmine_job(basedir,basename,polarity,files):
 def configure_targeted_peak_detection(new_d,peak_list_filename,intensity_tolerance=1e-4,noise_level=1e4,mz_tolerance=20,rt_tolerance=0.5):
     """
     Name suffix: Suffix to be added to the peak list name.
-    
-    Peak list file: Path of the csv file containing the list of peaks to be detected. The csv file should have three columns. 
+
+    Peak list file: Path of the csv file containing the list of peaks to be detected. The csv file should have three columns.
     The first column should contain the expected M/Z, the second column the expected RT and the third the peak name. Each peak should be in a different row.
-    
+
     Field separator: Character(s) used to separate fields in the peak list file.
-    
+
     Ignore first line: Check to ignore the first line of peak list file.
-    
+
     Intensity tolerance: This value sets the maximum allowed deviation from expected shape of a peak in chromatographic direction.
-    
+
     Noise level: The minimum intensity level for a data point to be considered part of a chromatogram. All data points below this intensity level are ignored.
-    
+
     MZ Tolerance: Maximum allowed m/z difference to find the peak
-    
+
     RT tolerance: Maximum allowed retention time difference to find the peak
     """
     # Set the noise floor
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'TargetedPeakDetectionModule' in d['@method']][0]
-    
+
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Peak list file' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%s'%peak_list_filename
 
@@ -766,11 +757,11 @@ def configure_targeted_peak_detection(new_d,peak_list_filename,intensity_toleran
 
 def configure_crop_filter(new_d,polarity,files):
     """
-    
+
     """
     # Set the noise floor
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CropFilterModule' in d['@method']][0]
-    
+
     # Set the filter string
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Raw data files' in d['@name']][0]
     if any(['FPS' in f for f in files]):
@@ -788,25 +779,25 @@ def configure_crop_filter(new_d,polarity,files):
 
 def configure_mass_detection(new_d,noise_floor,polarity):
     """
-    
+
     """
     # Set the noise floor
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'MassDetectionModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Mass detector' in d['@name']][0]
     idx3 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module']) if 'Centroid' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']['#text'] = '%.2f'%(noise_floor)
-    
+
     # Set the polarity
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Scans' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['polarity'] = polarity.upper()
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ms_level'] = '1'
 
-    
+
     return new_d
 
 def configure_chromatogram_builder(new_d,min_peak_duration,min_peak_height,mz_tolerance,polarity,min_rt,max_rt):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'ChromatogramBuilderModule' in d['@method']][0]
     new_d['batch']['batchstep'][idx]['parameter']
@@ -819,12 +810,12 @@ def configure_chromatogram_builder(new_d,min_peak_duration,min_peak_height,mz_to
 
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-    
-   
+
+
     # Set the polarity
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Scans' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['polarity'] = polarity.upper()
-    
+
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['retention_time']['min'] = '%.3f'%min_rt
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['retention_time']['max'] = '%.3f'%max_rt
 
@@ -833,7 +824,7 @@ def configure_chromatogram_builder(new_d,min_peak_duration,min_peak_height,mz_to
 
 def configure_peak_deconvolution(new_d,min_peak_height,min_sn_ratio,min_peak_duration,max_peak_duration):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DeconvolutionModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Algorithm' in d['@name']][0]
@@ -851,17 +842,17 @@ def configure_peak_deconvolution(new_d,min_peak_height,min_sn_ratio,min_peak_dur
     idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Peak duration range (min)' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['min'] = '%.3f'%min_peak_duration
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['max'] = '%.3f'%max_peak_duration
-    
+
     #following deconvolution, many small peaks are created.  Filter them out here
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'PeakFilterModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Height' in d['@name']][0]
     new_d['batch']['batchstep'][idx]['parameter'][idx2]['min'] = '%.3f'%(min_peak_height)
-    
+
     return new_d
 
 def configure_isotope_adduct_fragment_search(new_d,mz_tolerance,rt_tol_perfile,polarity,min_peak_height):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'Isotope' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
@@ -906,7 +897,7 @@ def configure_isotope_adduct_fragment_search(new_d,mz_tolerance,rt_tol_perfile,p
 
 def configure_join_aligner(new_d,mz_tolerance,rt_tol_multifile):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'JoinAlignerModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
@@ -917,7 +908,7 @@ def configure_join_aligner(new_d,mz_tolerance,rt_tol_multifile):
 
 def configure_duplicate_filter(new_d,mz_tolerance,rt_tol_perfile):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DuplicateFilterModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
@@ -928,7 +919,7 @@ def configure_duplicate_filter(new_d,mz_tolerance,rt_tol_perfile):
 
 def configure_gap_filling(new_d,mz_tolerance):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'SameRangeGapFillerModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
@@ -937,7 +928,7 @@ def configure_gap_filling(new_d,mz_tolerance):
 
 def configure_workspace_output(new_d,output_workspace):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'ProjectSaveModule' in d['@method']][0]
     new_d['batch']['batchstep'][idx]['parameter']['#text'] = output_workspace
@@ -945,7 +936,7 @@ def configure_workspace_output(new_d,output_workspace):
 
 def configure_csv_output(new_d,output_csv):
     """
-    
+
     """
     idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CSVExportModule' in d['@method']][0]
     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Filename' in d['@name']][0]
@@ -1001,7 +992,7 @@ def get_latest_mzmine_binary(system='Cori',version='most_recent'):
     cp ../MZmine-2.24/startMZmine_NERSC_* .
     cd /project/projectdirs/metatlas/projects/
     chgrp -R metatlas mzmine_parameters
-    chmod -R 770 mzmine_parameters 
+    chmod -R 770 mzmine_parameters
     """
     mzmine_versions = glob.glob(os.path.join(BINARY_PATH,'*'))
     if version == 'most_recent':
@@ -1017,11 +1008,11 @@ def get_latest_mzmine_binary(system='Cori',version='most_recent'):
 def replace_files(d,file_list):
     """
     Replace files for mzmine task
-    
+
     Inputs:
     d: an xml derived dictionary of batch commands
     file_list: a list of full paths to mzML files
-    
+
     Outputs:
     d: an xml derived dict with new files in it
     """
@@ -1065,23 +1056,24 @@ def dict_to_etree(d):
     def _to_etree(d, root):
         if not d:
             pass
-        elif isinstance(d, six.string_types):
+        elif isinstance(d, str):
             root.text = d
         elif isinstance(d, dict):
             for k,v in d.items():
-                assert isinstance(k, six.string_types)
+                assert isinstance(k, str)
                 if k.startswith('#'):
-                    assert k == '#text' and isinstance(v, six.string_types)
+                    assert k == '#text' and isinstance(v, str)
                     root.text = v
                 elif k.startswith('@'):
-                    assert isinstance(v, six.string_types)
+                    assert isinstance(v, str)
                     root.set(k[1:], v)
                 elif isinstance(v, list):
                     for e in v:
                         _to_etree(e, ET.SubElement(root, k))
                 else:
                     _to_etree(v, ET.SubElement(root, k))
-        else: assert d == 'invalid type', (type(d), d)
+        else:
+            assert d == 'invalid type', (type(d), d)
     assert isinstance(d, dict) and len(d) == 1
     tag, body = next(iter(d.items()))
     node = ET.Element(tag)
