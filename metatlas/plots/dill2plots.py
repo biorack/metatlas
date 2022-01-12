@@ -2748,11 +2748,14 @@ def check_compound_names(atlas_df):
         atlas_df: pandas dataframe representation of an atlas
     throws ValueError if some compounds are not found in the database
     """
-    bad_names = []
-    for _, row in atlas_df.iterrows():
-        if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key) > 0) and row.inchi_key != 'None':
-            if not metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*'):
-                bad_names.append(row.inchi_key)
+    inchi_keys = {
+        row.inchi_key
+        for _, row in atlas_df.iterrows()
+        if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key) > 0) and row.inchi_key != 'None'
+    }
+    found_keys = {result.inchi_key for result in
+                  metob.retrieve('Compounds', inchi_key=list(inchi_keys), username='*')}
+    bad_names = inchi_keys.difference(found_keys)
     if bad_names:
         raise ValueError(f"Compound not found in database: {', '.join(bad_names)}.")
 
@@ -2764,12 +2767,13 @@ def check_filenames(atlas_df, field):
         field: column name in atlas_df to test for valid lcmsruns
     throws ValueError if values in atlas_df[field] are not in database as lcmsruns
     """
-    bad_files = []
-    for _, row in atlas_df.iterrows():
-        if field in row:
-            name = row[field].replace('.mzmL', '')
-            if not metob.retrieve('Lcmsruns', name=f"%{name}%", username='*'):
-                bad_files.append(row[field])
+    try:
+        to_test = set(atlas_df[field].to_list())
+    except KeyError:
+        return  # nothing to check against
+    found = {row['name'] for row in metob.retrieve('Lcmsruns', name=list(to_test), username='*')
+             if 'name' in row}
+    bad_files = set(to_test).difference(found)
     if bad_files:
         raise ValueError(f"LCMS runs not found in database: {', '.join(bad_files)}.")
 
