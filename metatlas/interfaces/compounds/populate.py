@@ -24,9 +24,9 @@ def generate_template_atlas(
     atlas = dp.make_atlas_from_spreadsheet(
         by_polarity, name, filetype="dataframe", polarity=polarity, store=False, mz_tolerance=mz_tolerance
     )
-    inchi_keys = [cid.compound[0].inchi_key for cid in atlas]
+    inchi_keys = [cid.compound[0].inchi_key for cid in atlas.compound_identifications]
     pubchem_results = query_pubchem(inchi_keys)
-    for cid in atlas:
+    for cid in atlas.compound_identifications:
         cid.compound[0] = fill_fields(cid.compound[0], pubchem_results)
     return atlas
 
@@ -134,7 +134,7 @@ def fill_fields(c: metob.Compound, pubchem_results: List[pcp.Compound]) -> metob
     c.formula = c.formula or Chem.rdMolDescriptors.CalcMolFormula(mol)
     c.mono_isotopic_molecular_weight = c.mono_isotopic_molecular_weight or ExactMolWt(mol)
     c.permanent_charge = c.permanent_charge or Chem.GetFormalCharge(mol)
-    c.number_components = c.number_components or metob.MetInt(1)
+    c.number_components = c.number_components or 1  # type: ignore
     c.num_free_radicals = c.num_free_radicals or Chem.Descriptors.NumRadicalElectrons(mol)
     c.inchi_key = c.inchi_key or Chem.inchi.InchiToInchiKey(c.inchi)
     if not c.neutralized_inchi:
