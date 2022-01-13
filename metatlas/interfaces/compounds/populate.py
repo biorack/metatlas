@@ -27,7 +27,7 @@ def generate_template_atlas(
     inchi_keys = [cid.compound[0].inchi_key for cid in atlas.compound_identifications]
     pubchem_results = query_pubchem(inchi_keys)
     for cid in atlas.compound_identifications:
-        fill_fields(cid.compound[0], pubchem_results)
+        fill_fields(cid.compound[0], pubchem_results, skip_some=True)
     return atlas
 
 
@@ -142,15 +142,16 @@ def fill_calculated_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
     fill_neutralized_fields(comp, mol)
 
 
-def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
+def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound], skip_some=False):
     """
     Populate blank fields that can be infered from other fields.
     Does not overwrite any existing values that are not None, '', or 'Untitled' """
     mol = Chem.inchi.MolFromInchi(comp.inchi)
     if mol is None:
         return
-    fill_calculated_fields(comp, mol)
-    set_all_ids(comp)
+    if skip_some:
+        fill_calculated_fields(comp, mol)
+        set_all_ids(comp)
     pubchem = get_pubchem_compound(comp.inchi_key, pubchem_results)
     if pubchem is not None:
         if not comp.pubchem_compound_id:
@@ -163,6 +164,8 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
             comp.iupac_name = pubchem.iupac_name
     if comp.name in ["", "Untitled"]:
         comp.name = comp.synonyms.split("///")[0] or comp.iupac_name
+    if comp.name.startswith('\\x'):
+        raise ValueError(f"Invalid compound name: {comp.name} with inchi_key {comp.inchi_key}.")
 
 
 def create_c18_template_atlases() -> None:
