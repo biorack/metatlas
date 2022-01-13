@@ -27,7 +27,7 @@ def generate_template_atlas(
     inchi_keys = [cid.compound[0].inchi_key for cid in atlas.compound_identifications]
     pubchem_results = query_pubchem(inchi_keys)
     for cid in atlas.compound_identifications:
-        cid.compound[0] = fill_fields(cid.compound[0], pubchem_results)
+        fill_fields(cid.compound[0], pubchem_results)
     return atlas
 
 
@@ -91,7 +91,7 @@ def set_id(rec: metob.Compound, metatlas_name: str, cts_name: str, base_url: str
         pass
 
 
-def set_all_ids(compound: metob.Compound, inchi_key: str) -> metob.Compound:
+def set_all_ids(comp: metob.Compound):
     ids = [
         {
             "metatlas_name": "hmdb",
@@ -115,55 +115,59 @@ def set_all_ids(compound: metob.Compound, inchi_key: str) -> metob.Compound:
         },
     ]
     for id_type in ids:
-        set_id(compound, id_type['metatlas_name'], id_type['cts_name'], id_type['base_url'], inchi_key)
-    return compound
+        set_id(comp, id_type['metatlas_name'], id_type['cts_name'], id_type['base_url'], comp.inchi_key)
 
 
-# pylint: disable=invalid-name
-def fill_fields(c: metob.Compound, pubchem_results: List[pcp.Compound]) -> metob.Compound:
+def fill_neutralized_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
+    norm_mol = cheminfo.normalize_molecule(mol)
+    assert norm_mol is not None
+    if not comp.neutralized_inchi:
+        comp.neutralized_inchi = Chem.inchi.MolToInchi(norm_mol)
+    if not comp.neutralized_inchi_key:
+        comp.neutralized_inchi_key = Chem.inchi.InchiToInchiKey(comp.neutralized_inchi)
+    if not comp.neutralized_2d_inchi:
+        comp.neutralized_2d_inchi = flatten_inchi(norm_mol)  # type: ignore
+    if not comp.neutralized_2d_inchi_key:
+        comp.neutralized_2d_inchi_key = Chem.inchi.InchiToInchiKey(comp.neutralized_2d_inchi)
+
+
+def fill_calculated_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
+    assert mol is not None
+    comp.inchi_key = comp.inchi_key or Chem.inchi.InchiToInchiKey(comp.inchi)
+    comp.formula = comp.formula or Chem.rdMolDescriptors.CalcMolFormula(mol)
+    comp.mono_isotopic_molecular_weight = comp.mono_isotopic_molecular_weight or ExactMolWt(mol)
+    comp.permanent_charge = comp.permanent_charge or Chem.GetFormalCharge(mol)
+    comp.number_components = comp.number_components or 1  # type: ignore
+    comp.num_free_radicals = comp.num_free_radicals or Chem.Descriptors.NumRadicalElectrons(mol)
+    fill_neutralized_fields(comp, mol)
+
+
+def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
     """
-    Populate bank fields that can be infered from other fields.
-    Does not overwrite any existing values that are not None or ''"""
-    mol = Chem.inchi.MolFromInchi(c.inchi)
+    Populate blank fields that can be infered from other fields.
+    Does not overwrite any existing values that are not None, '', or 'Untitled' """
+    mol = Chem.inchi.MolFromInchi(comp.inchi)
     if mol is None:
-        return c
-    if c.neutralized_inchi:
-        norm_mol = Chem.inchi.MolFromInchi(c.neutralized_inchi)
-    else:
-        norm_mol = cheminfo.normalize_molecule(mol)
-    c.formula = c.formula or Chem.rdMolDescriptors.CalcMolFormula(mol)
-    c.mono_isotopic_molecular_weight = c.mono_isotopic_molecular_weight or ExactMolWt(mol)
-    c.permanent_charge = c.permanent_charge or Chem.GetFormalCharge(mol)
-    c.number_components = c.number_components or 1  # type: ignore
-    c.num_free_radicals = c.num_free_radicals or Chem.Descriptors.NumRadicalElectrons(mol)
-    c.inchi_key = c.inchi_key or Chem.inchi.InchiToInchiKey(c.inchi)
-    if not c.neutralized_inchi:
-        norm_mol = cheminfo.normalize_molecule(mol)
-        c.neutralized_inchi = Chem.inchi.MolToInchi(norm_mol)
-    c.neutralized_inchi_key = c.neutralized_inchi_key or Chem.inchi.InchiToInchiKey(c.neutralized_inchi)
-    if not c.neutralized_2d_inchi:
-        if not norm_mol:
-            norm_mol = Chem.inchi.MolFromInchi(c.neutralized_inchi)
-        c.neutralized_2d_inchi = metob.MetUnicode(flatten_inchi(norm_mol))
-    c.neutralized_2d_inchi_key = c.neutralized_2d_inchi_key or Chem.inchi.InchiToInchiKey(
-        c.neutralized_2d_inchi
-    )
-    pubchem = get_pubchem_compound(c.inchi_key, pubchem_results)
+        return
+    fill_calculated_fields(comp, mol)
+    set_all_ids(comp)
+    pubchem = get_pubchem_compound(comp.inchi_key, pubchem_results)
     if pubchem is not None:
-        c.pubchem_compound_id = c.pubchem_compound_id or pubchem.cid
-        c.pubchem_url = c.pubchem_url or metob.MetUnicode(
-            f"https://pubchem.ncbi.nlm.nih.gov/compound/{c.pubchem_compound_id}"
-        )
-        c.synonyms = c.synonyms or metob.MetUnicode("///".join(pubchem.synonyms))
-        c.iupac_name = c.iupac_name or pubchem.iupac_name
-    if c.name in ["", "Untitled"]:
-        c.name = c.synonyms.split("///")[0] or c.iupac_name
-    return set_all_ids(c, c.inchi_key)
+        if not comp.pubchem_compound_id:
+            comp.pubchem_compound_id = pubchem.cid
+        if not comp.pubchem_url:
+            comp.pubchem_url = f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}"
+        if not comp.synonyms:
+            comp.synonyms = "///".join(pubchem.synonyms)
+        if not comp.iupac_name:
+            comp.iupac_name = pubchem.iupac_name
+    if comp.name in ["", "Untitled"]:
+        comp.name = comp.synonyms.split("///")[0] or comp.iupac_name
 
 
 def create_c18_template_atlases() -> None:
     c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
-    for polarity in ["positive", "negative"]:
+    for polarity in ["negative", "positive"]:
         name = f"C18_20220111_TPL_{polarity[:3].upper()}"
         new_atlas = generate_template_atlas(c18_data, ["Gold", "Platinum"], polarity, name)
         metob.store(new_atlas)
