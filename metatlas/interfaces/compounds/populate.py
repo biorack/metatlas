@@ -149,7 +149,7 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound], skip_
     mol = Chem.inchi.MolFromInchi(comp.inchi)
     if mol is None:
         return
-    if skip_some:
+    if not skip_some:
         fill_calculated_fields(comp, mol)
         set_all_ids(comp)
     pubchem = get_pubchem_compound(comp.inchi_key, pubchem_results)
