@@ -9,6 +9,8 @@ from typing import Any, Generator, List, Optional, Tuple, Union
 import matplotlib
 import matplotlib.pyplot as plt
 
+from matplotlib.backends.backend_pdf import PdfPages
+
 logger = logging.getLogger(__name__)
 
 BACKGROUND_COLORS = ["white", "lightyellow", "whitesmoke", "lavenderblush"]
@@ -62,3 +64,13 @@ def fill_under(
     """Fill under a curve with fill limited by x-range in between"""
     where = None if between is None else is_in_range(x, between[0], between[1])
     ax.fill_between(x, y, [0] * len(x), where=where, **kwargs)
+
+
+def pdf_with_text(text: str, file_name: str, size: int = 24):
+    """saves a pdf file with a text message"""
+    with PdfPages(file_name) as pdf:
+        firstPage = plt.figure(figsize=(11.0, 8.5))
+        firstPage.clf()
+        firstPage.text(0.5, 0.5, text, transform=firstPage.transFigure, size=size, ha="center")
+        pdf.savefig()
+        plt.close()
