@@ -28,7 +28,7 @@ def generate_template_atlas(
     inchi_keys = [cid.compound[0].inchi_key for cid in atlas.compound_identifications]
     pubchem_results = query_pubchem(inchi_keys)
     for cid in atlas.compound_identifications:
-        fill_fields(cid.compound[0], pubchem_results, skip_some=True)
+        fill_fields(cid.compound[0], pubchem_results)
         cid.name = cid.compound[0].name
     return atlas
 
@@ -144,16 +144,26 @@ def fill_calculated_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
     fill_neutralized_fields(comp, mol)
 
 
-def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound], skip_some=False):
+def first_all_ascii(list_of_strings: List[str]) -> str:
+    for s in list_of_strings:
+        if s.isascii():
+            return s
+    raise ValueError('No strings found with only ASCII characters')
+
+
+def filter_out_strings_with_non_ascii(list_of_strings: List[str]) -> List[str]:
+    return [s for s in list_of_strings if s.isascii()]
+
+
+def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
     """
     Populate blank fields that can be infered from other fields.
     Does not overwrite any existing values that are not None, '', or 'Untitled' """
     mol = Chem.inchi.MolFromInchi(comp.inchi)
     if mol is None:
         return
-    if not skip_some:
-        fill_calculated_fields(comp, mol)
-        set_all_ids(comp)
+    fill_calculated_fields(comp, mol)
+    set_all_ids(comp)
     pubchem = get_pubchem_compound(comp.inchi_key, pubchem_results)
     if pubchem is not None:
         if not comp.pubchem_compound_id:
@@ -161,21 +171,16 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound], skip_
         if not comp.pubchem_url:
             comp.pubchem_url = f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}"
         if not comp.synonyms:
-            comp.synonyms = "///".join(pubchem.synonyms)
+            comp.synonyms = "///".join(filter_out_strings_with_non_ascii(pubchem.synonyms))
         if not comp.iupac_name:
             comp.iupac_name = pubchem.iupac_name
     if comp.name in ["", "Untitled"]:
-        comp.name = comp.synonyms.split("///")[0] or comp.iupac_name
-    if comp.name.startswith('\\x'):
-        raise ValueError(f"Invalid compound name: {comp.name} with inchi_key {comp.inchi_key}.")
+        comp.name = first_all_ascii(comp.synonyms.split("///") + [comp.iupac_name])
 
 
 def create_c18_template_atlases():
     c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
     for polarity in ["negative", "positive"]:
-        name = f"C18_20220111_TPL_{polarity[:3].upper()}"
+        name = f"C18_20220114_TPL_{polarity[:3].upper()}"
         new_atlas = generate_template_atlas(c18_data, ["Gold", "Platinum"], polarity, name)
-        try:
-            metob.store(new_atlas)
-        except Exception:
-            return new_atlas
+        metob.store(new_atlas)
