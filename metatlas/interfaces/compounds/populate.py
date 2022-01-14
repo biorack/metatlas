@@ -1,5 +1,6 @@
 """Populate compound fields"""
 
+import logging
 import time
 from typing import List, Optional
 from urllib.parse import quote
@@ -13,6 +14,8 @@ from rdkit.Chem.Descriptors import ExactMolWt
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import cheminfo
+
+logger = logging.getLogger(__name__)
 
 
 def generate_template_atlas(
@@ -43,6 +46,7 @@ def flatten_inchi(mol: Chem.rdchem.Mol) -> str:
     try:
         return Chem.MolToInchi(flattened_rdkit_mol)
     except Exception:  # This fails when can't kekulize mol
+        logger.warning('failed to flatten a molecule')
         return ""
 
 
@@ -121,7 +125,11 @@ def set_all_ids(comp: metob.Compound):
 
 
 def fill_neutralized_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
-    norm_mol = cheminfo.normalize_molecule(mol)
+    try:
+        norm_mol = cheminfo.normalize_molecule(mol)
+    except Exception:
+        logger.warning('failed to normalized %s', comp.name)
+        return
     assert norm_mol is not None
     if not comp.neutralized_inchi:
         comp.neutralized_inchi = Chem.inchi.MolToInchi(norm_mol)
