@@ -21,6 +21,7 @@ def generate_template_atlas(
     data = pd.read_csv(raw_file_name, sep="\t")
     acceptable = data[data["confidence_category"].isin(confidence_levels)]
     by_polarity = acceptable[acceptable["polarity"] == polarity]
+    by_polarity['label'] = None
     atlas = dp.make_atlas_from_spreadsheet(
         by_polarity, name, filetype="dataframe", polarity=polarity, store=False, mz_tolerance=mz_tolerance
     )
@@ -28,6 +29,7 @@ def generate_template_atlas(
     pubchem_results = query_pubchem(inchi_keys)
     for cid in atlas.compound_identifications:
         fill_fields(cid.compound[0], pubchem_results, skip_some=True)
+        cid.name = cid.compound[0].name
     return atlas
 
 
