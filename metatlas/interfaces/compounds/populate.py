@@ -168,9 +168,12 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound], skip_
         raise ValueError(f"Invalid compound name: {comp.name} with inchi_key {comp.inchi_key}.")
 
 
-def create_c18_template_atlases() -> None:
+def create_c18_template_atlases():
     c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
     for polarity in ["negative", "positive"]:
         name = f"C18_20220111_TPL_{polarity[:3].upper()}"
         new_atlas = generate_template_atlas(c18_data, ["Gold", "Platinum"], polarity, name)
-        metob.store(new_atlas)
+        try:
+            metob.store(new_atlas)
+        except Exception:
+            return new_atlas
