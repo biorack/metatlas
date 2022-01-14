@@ -21,7 +21,7 @@ def generate_template_atlas(
     data = pd.read_csv(raw_file_name, sep="\t")
     acceptable = data[data["confidence_category"].isin(confidence_levels)]
     by_polarity = acceptable[acceptable["polarity"] == polarity]
-    by_polarity['label'] = None
+    by_polarity = by_polarity.assign(label=None)
     atlas = dp.make_atlas_from_spreadsheet(
         by_polarity, name, filetype="dataframe", polarity=polarity, store=False, mz_tolerance=mz_tolerance
     )
