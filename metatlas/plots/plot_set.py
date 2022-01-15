@@ -91,6 +91,12 @@ class PlotSet(ABC):
                 plot_idx += 1
         self.limit_axes(x_min, x_max, y_min, y_max)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        self.close()
+
     def limit_axes(
         self,
         x_min: Optional[float],
@@ -120,6 +126,7 @@ class PlotSet(ABC):
         """Create a PDF file containing one figure per page"""
         write_utils.check_existing_file(file_name, overwrite)
         plt.ioff()  # don't display the plots
+        matplotlib.use("agg")  # mitigates a memory leak to not use backend_nbagg
         with PdfPages(file_name) as pdf:
             for fig in self.figures:
                 pdf.savefig(fig)
@@ -128,6 +135,11 @@ class PlotSet(ABC):
             metadata["Author"] = "Joint Genome Institute"
             metadata["CreationDate"] = datetime.datetime.today()
         logger.debug("Exported PDF containing %s to %s.", title, file_name)
+
+    def close(self):
+        """Close all plots and free their memory"""
+        for fig in self.figures:
+            plt.close(fig)
 
 
 # adapted from https://stackoverflow.com/questions/51323505/how-to-make-relim-and-autoscale-in-a-scatter-plot
@@ -192,6 +204,8 @@ def _calculate_new_limit(
     if len(fixed) > 2:
         mask = (fixed > fixed_limits[0]) & (fixed < fixed_limits[1])
         window = dependent[mask]
+        if len(window) == 0:
+            return np.inf, -np.inf
         return window.min(), window.max()
     low = dependent[0]
     high = dependent[-1]

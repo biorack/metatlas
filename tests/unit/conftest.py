@@ -16,6 +16,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
+from metatlas.datastructures import analysis_identifiers as ids
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
@@ -36,14 +37,20 @@ def fixture_username():
 @pytest.fixture(name="analysis_ids")
 def fixture_analysis_ids(sqlite_with_atlas, username, lcmsrun, mocker, groups_controlled_vocab):
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    return mads.AnalysisIdentifiers(
+    project_directory = str(os.getcwd())
+    experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
+    output_type = "FinalEMA-HILIC"
+    polarity = "positive"
+    analysis_number = 0
+    google_folder = "0B-ZDcHbPi-aqZzE5V3hOZFc0dms"
+    return ids.AnalysisIdentifiers(
+        project_directory,
+        experiment,
+        output_type,
+        polarity,
+        analysis_number,
+        google_folder,
         source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
-        experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
-        output_type="FinalEMA-HILIC",
-        polarity="positive",
-        analysis_number=0,
-        project_directory=str(os.getcwd()),
-        groups_controlled_vocab=groups_controlled_vocab,
     )
 
 
@@ -52,14 +59,20 @@ def fixture_analysis_ids_with_2_cids(
     sqlite_with_atlas_with_2_cids, username, lcmsrun, mocker, groups_controlled_vocab
 ):
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    return mads.AnalysisIdentifiers(
-        source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}1",
-        experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
-        output_type="FinalEMA-HILIC",
-        polarity="positive",
-        analysis_number=0,
-        project_directory=str(os.getcwd()),
-        groups_controlled_vocab=groups_controlled_vocab,
+    project_directory = str(os.getcwd())
+    experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
+    output_type = "FinalEMA-HILIC"
+    polarity = "positive"
+    analysis_number = 0
+    google_folder = "0B-ZDcHbPi-aqZzE5V3hOZFc0dms"
+    return ids.AnalysisIdentifiers(
+        project_directory,
+        experiment,
+        output_type,
+        polarity,
+        analysis_number,
+        google_folder,
+        source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
     )
 
 
@@ -91,7 +104,7 @@ def fixture_sqlite_with_atlas(sqlite, atlas, username):
 
 @pytest.fixture(name="sqlite_with_atlas_with_2_cids")
 def fixture_sqlite_with_atlas_with_2_cids(sqlite, atlas_with_2_cids, username):
-    atlas_with_2_cids.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}1"
+    atlas_with_2_cids.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0"
     logger.debug("Saving atlas %s", atlas_with_2_cids.name)
     metob.store(atlas_with_2_cids)
 

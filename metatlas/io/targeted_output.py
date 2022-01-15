@@ -346,7 +346,7 @@ def copy_outputs_to_google_drive(ids):
     if ids.output_type != "data_QC":
         folders.append(ids.short_polarity)
     sub_folders_string = os.path.join("Analysis_uploads", *folders)
-    rci.copy_to_drive(ids.output_dir, drive, sub_folders_string)
+    rci.copy_to_drive(ids.output_dir, drive, sub_folders_string, progress=True)
     logger.info("Done copying output files to Google Drive")
     path_string = f"{drive}:{sub_folders_string}"
     display(

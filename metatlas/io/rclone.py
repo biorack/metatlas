@@ -5,7 +5,10 @@ import json
 import logging
 import subprocess
 
+from subprocess import Popen, PIPE
 from typing import List, Optional, Tuple
+
+from tqdm.notebook import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -43,16 +46,29 @@ class RClone:
                     return name
         return None
 
-    def copy_to_drive(self, source: str, drive: str, dest_path: str = None) -> None:
+    def copy_to_drive(self, source: str, drive: str, dest_path: str = None, progress: bool = False) -> None:
         """
         Inputs:
             source: file or directory to copy to drive
             drive: name in the RClone configuration for a location in Google Drive
             dest_path: location under drive to copy to, will create folders if needed
+            progress: display a tqdm progress bar
         """
         dest = f"{drive}:" if dest_path is None else f"{drive}:{dest_path}"
+        cmd = [self.rclone_path, "copy", source, dest]
         try:
-            subprocess.check_output([self.rclone_path, "copy", source, dest], text=True)
+            if progress:
+                cmd.append("--progress")
+                with tqdm(total=100, desc="Percentage of total number of files", unit="%") as pbar:
+                    with Popen(cmd, stdout=PIPE, bufsize=1, universal_newlines=True) as proc:
+                        for line in proc.stdout or []:
+                            line = line.strip()
+                            if line.startswith("Transferred:") and line.endswith("%"):
+                                percent = float(line.split(",")[1].split("%")[0])
+                                pbar.n = percent
+                                pbar.refresh()
+            else:
+                subprocess.check_output(cmd, text=True)
         except subprocess.CalledProcessError as err:
             logger.exception(err)
             raise err

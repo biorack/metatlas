@@ -18,6 +18,7 @@ from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.plots import chromplotplus as cpp
 from metatlas.plots.compound_eic import save_compound_eic_pdf
 from metatlas.plots.tic import save_sample_tic_pdf
+from metatlas.plots.utils import pdf_with_text
 from metatlas.tools import parallel
 from metatlas.tools import spectralprocessing as sp
 
@@ -39,6 +40,7 @@ from itertools import cycle
 from ipywidgets import interact, interactive
 import ipywidgets as widgets
 from IPython.display import display, clear_output
+from IPython import get_ipython
 
 import getpass
 
@@ -328,6 +330,10 @@ class adjust_rt_for_selected_compound(object):
                                     'keymap.home': ['h']})
         adjust_rt_for_selected_compound.disable()
         self.create_notes_widgets()
+        # Turn On interactive plot
+        ipy = get_ipython()
+        if ipy:  # test suite does not run ipython, so need to bypass
+            ipy.magic('matplotlib widget')
         self.layout_figure()
         # create all event handlers
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
@@ -1556,7 +1562,7 @@ def file_with_max_precursor_intensity(data,compound_idx):
                         my_max = m
                         idx = i
     return idx, my_max
- 
+
 def file_with_max_ms1_intensity(data, compound_idx, limit_to_rt_range=False):
     file_idx_max = None
     value_max = 0
@@ -1650,14 +1656,22 @@ def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="",
 
 
 def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
+    fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
+    write_utils.check_existing_file(fig_path, overwrite)
     f, ax = plt.subplots(1, 1,figsize=(12,12))
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
+    num_points = 0
     g = df.loc[compound].groupby(level=level)
     g.apply(pd.DataFrame).plot(kind='box', ax=ax)
     for i, (n, grp) in enumerate(g):
         x = [i+1] *len(grp)
         x = np.random.normal(x, 0.04, size=len(x))
         plt.scatter(x, grp)
+        num_points += np.sum(~np.isnan(grp))
+    if num_points == 0:
+        logger.warning('Zero data points in box plot of %s for %s.', ylabel, compound)
+        pdf_with_text("Molecule not detected", fig_path)
+        return
     ax.set_title(compound,fontsize=12,weight='bold')
     plt.xticks(rotation=90)
     if logy:
@@ -1665,8 +1679,6 @@ def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, lo
     if ylabel != "":
         plt.ylabel(ylabel)
     plt.tight_layout()
-    fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
-    write_utils.check_existing_file(fig_path, overwrite)
     f.savefig(fig_path)
     plt.close(f)
     logger.debug('Exported box plot of %s for %s at %s.', ylabel, compound, fig_path)
@@ -2788,11 +2800,14 @@ def check_compound_names(atlas_df):
         atlas_df: pandas dataframe representation of an atlas
     throws ValueError if some compounds are not found in the database
     """
-    bad_names = []
-    for _, row in atlas_df.iterrows():
-        if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key) > 0) and row.inchi_key != 'None':
-            if not metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*'):
-                bad_names.append(row.inchi_key)
+    inchi_keys = {
+        row.inchi_key
+        for _, row in atlas_df.iterrows()
+        if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key) > 0) and row.inchi_key != 'None'
+    }
+    found_keys = {result.inchi_key for result in
+                  metob.retrieve('Compounds', inchi_key=list(inchi_keys), username='*')}
+    bad_names = inchi_keys.difference(found_keys)
     if bad_names:
         raise ValueError(f"Compound not found in database: {', '.join(bad_names)}.")
 
@@ -2804,12 +2819,13 @@ def check_filenames(atlas_df, field):
         field: column name in atlas_df to test for valid lcmsruns
     throws ValueError if values in atlas_df[field] are not in database as lcmsruns
     """
-    bad_files = []
-    for _, row in atlas_df.iterrows():
-        if field in row:
-            name = row[field].replace('.mzmL', '')
-            if not metob.retrieve('Lcmsruns', name=f"%{name}%", username='*'):
-                bad_files.append(row[field])
+    try:
+        to_test = set(atlas_df[field].to_list())
+    except KeyError:
+        return  # nothing to check against
+    found = {row['name'] for row in metob.retrieve('Lcmsruns', name=list(to_test), username='*')
+             if 'name' in row}
+    bad_files = set(to_test).difference(found)
     if bad_files:
         raise ValueError(f"LCMS runs not found in database: {', '.join(bad_files)}.")
 

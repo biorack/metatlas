@@ -3,11 +3,12 @@ on:
   pull_request:
     branches: [main]
     types: [closed]
+  workflow_dispatch:
 
 jobs:
   build_push_docker_image:
     name: Build and push metatlas_shifter docker image
-    if: github.repository == 'biorack/metatlas' && github.event.pull_request.merged == true
+    if: github.repository == 'biorack/metatlas' && (github.event.pull_request.merged || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
     - name: Checkout source
