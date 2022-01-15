@@ -2227,3 +2227,28 @@ def fixture_msms_refs():
         .rename_axis(index=["database", "id"])
         .iloc[0:1]
     )
+
+
+@pytest.fixture(name="instructions")
+def fixture_instructions():
+    return pd.DataFrame(
+        {
+            "inchi_key": [
+                "GFFGJBXGBJISGV-UHFFFAOYSA-N",
+                "HXACOUQIXZGNBF-UHFFFAOYSA-N",
+                "LRFVTYWOQMYALW-UHFFFAOYSA-N",
+                "OIRDTQYFTABQOQ-KQYNXXCUSA-N",
+                "OLXZPDWKRNYJJZ-RRKCRQDMSA-N",
+            ],
+            "adduct": ["", "[M+H]+", "", "", ""],
+            "chromotography": ["HILICZ", "HILICZ", "HILICZ", "", "NOT_REAL"],
+            "polarity": ["positive", "positive", "", "", ""],
+            "note": [
+                "This is note number 1",
+                "Note 2 contain a comma, right?",
+                "Note 3 is polarity independent",
+                "Note 4 is column and polarity independent",
+                "Note 5 has a fake column and should not match",
+            ],
+        }
+    )

@@ -38,7 +38,7 @@ from itertools import cycle
 
 from ipywidgets import interact, interactive
 import ipywidgets as widgets
-from IPython.display import display
+from IPython.display import display, clear_output
 
 import getpass
 
@@ -162,7 +162,24 @@ GUI_FIG_LABEL = 'Annotation GUI'
 
 LOGGING_WIDGET = widgets.Output()
 
-INSTRUCTIONS_PATH = '/global
+# INSTRUCTIONS_PATH should have a header row and the following columns:
+# inchi_key, adduct, chromatography, polarity, note
+# any field can be left blank. The notes fields will be concatonated togther
+# for all rows where the non-note, non-blank fields match the current context.
+
+INSTRUCTIONS_PATH = '/global/cfs/cdirs/m2650/targeted_analysis/notes_for_analysts.csv'
+
+class InstructionSet(object):
+    def __init__(self, instructions_path):
+        self.data = pd.read_csv(instructions_path)
+
+    def query(self, inchi_key, adduct, chromatography, polarity):
+        inputs = {"inchi_key": inchi_key, "adduct": adduct, "chromatography": chromatography, "polarity": polarity}
+        assert any(v is not None for v in inputs.values())
+        conditions = [f"({key}.str.startswith('{value}').values | {key}=='')"
+                      for key, value in inputs.items() if value != '']
+        return self.data.query(' & '.join(conditions))['note'].tolist()
+
 
 def get_google_sheet(notebook_name = "Sheet name",
                      token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
@@ -302,20 +319,15 @@ class adjust_rt_for_selected_compound(object):
         self.hit_ctr = 0
         self.msms_zoom_factor = 1
         self.match_idx = None
-        self.plot_output = widgets.Output()
-        self.id_note = widgets.Textarea(
-            description="ID Notes", value="", placeholder="No note entered", continuous_update=False
-        )
-        self.instructions = widgets.HTML(value="Compound Info will go here")
+        self.instruction_set = InstructionSet(INSTRUCTIONS_PATH)
+        self.create_notes_fields()
         # native matplotlib key bindings that we want to override
         disable_keyboard_shortcuts({'keymap.yscale': ['l'],
                                     'keymap.xscale': ['k'],
                                     'keymap.save': ['s'],
                                     'keymap.home': ['h']})
-
         adjust_rt_for_selected_compound.disable()
-        # Turn On interactive plot
-        plt.ion()
+        self.create_notes_widgets()
         self.layout_figure()
         # create all event handlers
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
@@ -323,7 +335,8 @@ class adjust_rt_for_selected_compound(object):
         self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
         self.id_note.observe(self.on_id_note_change, names='value')
         self.set_plot_data()
-        self.display_ui()
+        # Turn On interactive plot
+        plt.ion()
 
     def set_plot_data(self):
         logger.debug('Starting replot')
@@ -332,23 +345,16 @@ class adjust_rt_for_selected_compound(object):
         self.filter_hits()
         self.msms_plot()
         self.flag_radio_buttons()
-        with self.plot_output:
-            plt.show()
+        self.notes()
         logger.debug('Finished replot')
 
-    def display_ui(self) -> widgets.VBox:
-        """Display spreadsheet for entering input values"""
-        # Layout:
-        #   Row 0: RT adjuster GUI
-        #   Row 1: Identification note - user editable information
-        #   Row 2: Info - read only notes about the current compound-polarity pair
-        elements = {}
-        elements[LayoutPosition.GUI.value] = self.plot_output
-        elements[LayoutPosition.ID_NOTE.value] = self.id_note
-        elements[LayoutPosition.INFO.value] = self.instructions
-        element_list = [elements[k.value] for k in LayoutPosition]
-        layout = widgets.VBox(element_list)
-        display(layout)
+    def notes(self):
+        cid = self.data[0][self.compound_idx]['identification'].compound[0].inchi_key,
+        inchi_key = cid.compound[0].inchi_key
+        adduct = cid.mz_references[0].adduct
+        polarity = self.data.ids.polarity
+        notes_list = self.instruction_set.query(inchi_key, adduct, chromatography, polarity)
+        self.instructions.value = ';'.join(notes_list)
 
     def on_id_note_change(self, change):
         self.instructions.value = change['new']
@@ -531,6 +537,14 @@ class adjust_rt_for_selected_compound(object):
         min_x = self.ax2.get_xlim()[0]  # fails if original location is not within plot
         self.mz_annot = self.ax2.annotate('', xy=(min_x, 0), visible=False)
         logger.debug('Finished msms_plot')
+
+    def create_notes_widgets(self):
+        self.instructions = widgets.HTML(value="Compound Info will go here")
+        display(self.instructions)
+        self.id_note = widgets.Textarea(
+            description="ID Notes", value="", placeholder="No note entered", continuous_update=False
+        )
+        display(self.id_note)
 
     def layout_figure(self):
         self.gui_scale_factor = self.height/3.25 if self.height < 3.25 else 1
@@ -3355,3 +3369,6 @@ def tic_pdf(data, polarity, file_name, overwrite=False, sharey=True,
     save_sample_tic_pdf(
         data, polarity, file_name, overwrite, sharey, x_min, x_max, y_min, y_max, max_plots_per_page
     )
+
+def extract_chromatography(lcms_file_name: str) -> str:
+    pass
