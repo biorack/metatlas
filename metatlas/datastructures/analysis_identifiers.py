@@ -443,6 +443,10 @@ class AnalysisIdentifiers(HasTraits):
                 )
         return self._all_groups or []
 
+    @property
+    def chromatography(self) -> str:
+        return self.lcmsruns[0].name.split("_")[7]
+
     def store_all_groups(self, exist_ok: bool = False) -> None:
         """
         Save self.object_list to DB

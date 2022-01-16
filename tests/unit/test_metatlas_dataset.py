@@ -648,3 +648,6 @@ def test_query_cache01(metatlas_dataset):
 
 def test_query_cache02(metatlas_dataset):
     assert metatlas_dataset._query_cache({"_variable_name": "foobar"}) is None
+
+def test_chromatography01(metatlas_dataset):
+    assert metatlas_dataset.ids.chromatography == 'HILICZ'

@@ -173,14 +173,15 @@ INSTRUCTIONS_PATH = '/global/cfs/cdirs/m2650/targeted_analysis/notes_for_analyst
 
 class InstructionSet(object):
     def __init__(self, instructions_path):
-        self.data = pd.read_csv(instructions_path)
+        self.data = pd.read_csv(instructions_path, dtype=str, na_values=[], keep_default_na=False)
 
     def query(self, inchi_key, adduct, chromatography, polarity):
         inputs = {"inchi_key": inchi_key, "adduct": adduct, "chromatography": chromatography, "polarity": polarity}
         assert any(v is not None for v in inputs.values())
         conditions = [f"({key}.str.startswith('{value}').values | {key}=='')"
                       for key, value in inputs.items() if value != '']
-        return self.data.query(' & '.join(conditions))['note'].tolist()
+        out = self.data.query(' & '.join(conditions))['note'].tolist()
+        return out if out else ['No instructions for this data']
 
 
 def get_google_sheet(notebook_name = "Sheet name",
@@ -321,8 +322,8 @@ class adjust_rt_for_selected_compound(object):
         self.hit_ctr = 0
         self.msms_zoom_factor = 1
         self.match_idx = None
+        self.in_switch_event = True
         self.instruction_set = InstructionSet(INSTRUCTIONS_PATH)
-        self.create_notes_fields()
         # native matplotlib key bindings that we want to override
         disable_keyboard_shortcuts({'keymap.yscale': ['l'],
                                     'keymap.xscale': ['k'],
@@ -352,19 +353,23 @@ class adjust_rt_for_selected_compound(object):
         self.msms_plot()
         self.flag_radio_buttons()
         self.notes()
+        self.in_switch_event = False
         logger.debug('Finished replot')
 
     def notes(self):
-        cid = self.data[0][self.compound_idx]['identification'].compound[0].inchi_key,
+        cid = self.data[0][self.compound_idx]['identification']
         inchi_key = cid.compound[0].inchi_key
         adduct = cid.mz_references[0].adduct
         polarity = self.data.ids.polarity
+        chromatography = self.data.ids.chromatography
         notes_list = self.instruction_set.query(inchi_key, adduct, chromatography, polarity)
-        self.instructions.value = ';'.join(notes_list)
+        self.instructions.value = '; '.join(notes_list)
+        self.id_note.value = cid.identification_notes or ''
 
     def on_id_note_change(self, change):
-        self.instructions.value = change['new']
-        logger.debug('ID_NOTE change handler got value: %s', change['new'])
+        if not self.in_switch_event:
+            logger.debug('ID_NOTE change handler got value: %s', change['new'])
+            self.data.set_note(self.compound_idx, "identification_notes", change["new"])
 
     def eic_plot(self):
         logger.debug('Starting eic_plot')
@@ -685,6 +690,7 @@ class adjust_rt_for_selected_compound(object):
     def press(self, event):
         if event.key in ['right', 'l']:
             if self.compound_idx + 1 < len(self.data[0]):
+                self.in_switch_event = True
                 self.compound_idx += 1
                 logger.debug("Increasing compound_idx to %d (inchi_key:%s adduct:%s).",
                              self.compound_idx,
@@ -694,8 +700,10 @@ class adjust_rt_for_selected_compound(object):
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
+                self.in_switch_event = False
         elif event.key in ['left', 'h']:
             if self.compound_idx > 0:
+                self.in_switch_event = True
                 self.compound_idx -= 1
                 logger.debug("Decreasing compound_idx to %d (inchi_key:%s adduct:%s).",
                              self.compound_idx,
@@ -705,6 +713,7 @@ class adjust_rt_for_selected_compound(object):
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
+                self.in_switch_event = False
         elif event.key in ['up', 'k']:
             if self.hit_ctr > 0:
                 self.hit_ctr -= 1
