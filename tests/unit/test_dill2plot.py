@@ -167,3 +167,19 @@ def test_get_msms_hits07(metatlas_dataset, msms_refs, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_refs", return_value=msms_refs.iloc[0:0])
     hits = dill2plots.get_msms_hits(metatlas_dataset)
     assert len(hits) == 0
+
+
+def test_instructions01(instructions, mocker):
+    mocker.patch("pandas.read_csv", return_value=instructions)
+    inst = dill2plots.InstructionSet("fake_path")
+    assert inst.query("FAKE_INCHI_KEY", "", "", "") == ["No instructions for this data"]
+    out1 = inst.query("OIRDTQYFTABQOQ-KQYNXXCUSA-N", "", "", "")
+    assert len(out1) == 1
+    assert out1 == ["Note 4 is column and polarity independent"]
+    assert inst.query("OLXZPDWKRNYJJZ-RRKCRQDMSA-N", "", "HILICZ", "") == ["No instructions for this data"]
+    out2 = inst.query("OLXZPDWKRNYJJZ-RRKCRQDMSA-N", "", "", "")
+    assert out2 == ["Note 5 has a fake column and should not match"]
+    out3 = inst.query("HXACOUQIXZGNBF-UHFFFAOYSA-N", "[M+H]+", "HILICZ", "positive")
+    assert out3 == ["Note 2 contain a comma, right?"]
+    out4 = inst.query("OIRDTQYFTABQOQ-KQYNXXCUSA-N", "", "C18", "negative")
+    assert out4 == ["Note 4 is column and polarity independent"]

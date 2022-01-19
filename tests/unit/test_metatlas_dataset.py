@@ -491,8 +491,9 @@ def test_store_groups02(metatlas_dataset, mocker, username):
         metatlas_dataset.ids.store_all_groups()
 
 
-def test_annotation_gui01(metatlas_dataset, hits, mocker):
+def test_annotation_gui01(metatlas_dataset, hits, mocker, instructions):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
+    mocker.patch("pandas.read_csv", return_value=instructions)
     agui = metatlas_dataset.annotation_gui()
     agui.compound_idx = 0
     agui.set_msms_flag("1, co-isolated precursor but all reference ions are in sample spectrum")
@@ -648,3 +649,6 @@ def test_query_cache01(metatlas_dataset):
 
 def test_query_cache02(metatlas_dataset):
     assert metatlas_dataset._query_cache({"_variable_name": "foobar"}) is None
+
+def test_chromatography01(metatlas_dataset):
+    assert metatlas_dataset.ids.chromatography == 'HILICZ'

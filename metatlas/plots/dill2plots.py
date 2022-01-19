@@ -1,19 +1,17 @@
-import functools
 import logging
-import sys
 import os
 import os.path
-import multiprocessing as mp
 import warnings
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
+
+from enum import Enum
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.tools.logging import log_errors
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import write_utils
 from metatlas.io.metatlas_get_data_helper_fun import extract
-from metatlas.plots import chromplotplus as cpp
 from metatlas.plots.compound_eic import save_compound_eic_pdf
 from metatlas.plots.tic import save_sample_tic_pdf
 from metatlas.plots.utils import pdf_with_text
@@ -35,9 +33,9 @@ from rdkit.Chem.Draw import rdMolDraw2D
 from itertools import cycle
 
 
-from ipywidgets import interact, interactive
+from ipywidgets import interact
 import ipywidgets as widgets
-from IPython.display import display
+from IPython.display import display, HTML
 from IPython import get_ipython
 
 import getpass
@@ -47,7 +45,6 @@ from datetime import datetime
 
 from matplotlib.widgets import Slider, RadioButtons
 
-from matplotlib.widgets import AxesWidget
 import matplotlib.patches
 
 import gspread
@@ -56,7 +53,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 from metatlas.tools.util import or_default
 
-import six
 from functools import reduce
 from io import StringIO
 
@@ -162,6 +158,26 @@ GUI_FIG_LABEL = 'Annotation GUI'
 
 LOGGING_WIDGET = widgets.Output()
 
+# INSTRUCTIONS_PATH should have a header row and the following columns:
+# inchi_key, adduct, chromatography, polarity, note
+# any field can be left blank. The notes fields will be concatonated togther
+# for all rows where the non-note, non-blank fields match the current context.
+
+INSTRUCTIONS_PATH = '/global/cfs/cdirs/m2650/targeted_analysis/instructions_for_analysts.csv'
+
+class InstructionSet(object):
+    def __init__(self, instructions_path):
+        self.data = pd.read_csv(instructions_path, dtype=str, na_values=[], keep_default_na=False)
+
+    def query(self, inchi_key, adduct, chromatography, polarity):
+        inputs = {"inchi_key": inchi_key, "adduct": adduct, "chromatography": chromatography, "polarity": polarity}
+        assert any(v is not None for v in inputs.values())
+        conditions = [f"({key}.str.startswith('{value}').values | {key}=='')"
+                      for key, value in inputs.items() if value != '']
+        out = self.data.query(' & '.join(conditions))['note'].tolist()
+        return out if out else ['No instructions for this data']
+
+
 def get_google_sheet(notebook_name = "Sheet name",
                      token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
                      sheet_name = 'Sheet1',
@@ -208,6 +224,12 @@ def get_google_sheet(notebook_name = "Sheet name",
 
     return df2
 
+class LayoutPosition(Enum):
+    """Define vertical ordering of element in GUI"""
+
+    GUI = 0
+    ID_NOTE = 1
+    INFO = 2
 
 class adjust_rt_for_selected_compound(object):
     def __init__(self,
@@ -294,24 +316,28 @@ class adjust_rt_for_selected_compound(object):
         self.hit_ctr = 0
         self.msms_zoom_factor = 1
         self.match_idx = None
+        self.in_switch_event = True
+        self.instruction_set = InstructionSet(INSTRUCTIONS_PATH)
         # native matplotlib key bindings that we want to override
         disable_keyboard_shortcuts({'keymap.yscale': ['l'],
                                     'keymap.xscale': ['k'],
                                     'keymap.save': ['s'],
                                     'keymap.home': ['h']})
-
         adjust_rt_for_selected_compound.disable()
+        self.create_notes_widgets()
         # Turn On interactive plot
         ipy = get_ipython()
         if ipy:  # test suite does not run ipython, so need to bypass
             ipy.magic('matplotlib widget')
-        plt.ion()
         self.layout_figure()
         # create all event handlers
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
         self.fig.canvas.mpl_connect('key_press_event', self.press)
         self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
+        self.id_note.observe(self.on_id_note_change, names='value')
         self.set_plot_data()
+        # Turn On interactive plot
+        plt.ion()
 
     def set_plot_data(self):
         logger.debug('Starting replot')
@@ -320,8 +346,27 @@ class adjust_rt_for_selected_compound(object):
         self.filter_hits()
         self.msms_plot()
         self.flag_radio_buttons()
-        plt.show()
+        self.notes()
+        self.in_switch_event = False
         logger.debug('Finished replot')
+
+    def notes(self):
+        inchi_key = self.current_inchi_key
+        adduct = self.current_adduct
+        polarity = self.data.ids.polarity
+        chromatography = self.data.ids.chromatography
+        notes_list = self.instruction_set.query(inchi_key, adduct, chromatography, polarity)
+        self.instructions.value = '; '.join(notes_list)
+        self.id_note.value = self.current_id.identification_notes or ''
+        self.copy_button_area.clear_output()
+        clipboard_text = f"{inchi_key},{adduct},{chromatography},{polarity}"
+        with self.copy_button_area:
+            make_copy_to_clipboard_button(clipboard_text, 'Copy Index')
+
+    def on_id_note_change(self, change):
+        if not self.in_switch_event:
+            logger.debug('ID_NOTE change handler got value: %s', change['new'])
+            self.data.set_note(self.compound_idx, "identification_notes", change["new"])
 
     def eic_plot(self):
         logger.debug('Starting eic_plot')
@@ -344,9 +389,8 @@ class adjust_rt_for_selected_compound(object):
         logger.debug('Finished eic_plot')
 
     def flag_radio_buttons(self):
-        my_id = self.data[0][self.compound_idx]['identification']
-        if my_id.ms1_notes in self.peak_flags:
-            peak_flag_index = self.peak_flags.index(my_id.ms1_notes)
+        if self.current_id.ms1_notes in self.peak_flags:
+            peak_flag_index = self.peak_flags.index(self.current_id.ms1_notes)
         else:
             peak_flag_index = 0
         logger.debug('Setting peak flag radio button with index %d', peak_flag_index)
@@ -354,8 +398,8 @@ class adjust_rt_for_selected_compound(object):
                                                          self.set_peak_flag,
                                                          active_idx=peak_flag_index)
         self.peak_flag_radio.active = self.enable_edit
-        if my_id.ms2_notes in self.msms_flags:
-            msms_flag_index = self.msms_flags.index(my_id.ms2_notes)
+        if self.current_id.ms2_notes in self.msms_flags:
+            msms_flag_index = self.msms_flags.index(self.current_id.ms2_notes)
         else:
             msms_flag_index = 0
         logger.debug('Setting msms flag radio button with index %d', msms_flag_index)
@@ -455,24 +499,22 @@ class adjust_rt_for_selected_compound(object):
             self.msms_flags = default_msms
 
     def get_ms1_y_axis_label(self):
-        ident = self.data[0][self.compound_idx]['identification']
-        if ident.name:
-            compound_name = ident.name.split('///')[0]
-        elif ident.compound[-1].name:
-            compound_name = ident.compound[-1].name
+        if self.current_id.name:
+            compound_name = self.current_id.name.split('///')[0]
+        elif self.current_id.compound[-1].name:
+            compound_name = self.current_id.compound[-1].name
         else:
             compound_name = 'nameless compound'
         try:
-            adduct = ident.mz_references[0].adduct
+            adduct = self.current_adduct
         except (KeyError, AttributeError):
             return '%d, %s' % (self.compound_idx, compound_name)
         return '%d, %s\n%s' % (self.compound_idx, compound_name, adduct)
 
     def filter_hits(self):
-        ident = self.data[0][self.compound_idx]['identification']
-        inchi_key = extract(ident, ['compound', -1, 'inchi_key'], None)
-        hits_mz_tolerance = ident.mz_references[-1].mz_tolerance*1e-6
-        mz_theoretical = ident.mz_references[0].mz
+        inchi_key = extract(self.current_id, ['compound', -1, 'inchi_key'], None)
+        hits_mz_tolerance = self.current_id.mz_references[-1].mz_tolerance*1e-6
+        mz_theoretical = self.current_id.mz_references[0].mz
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
         filtered = self.msms_hits[(my_scan_rt >= float(self.data.rts[self.compound_idx].rt_min)) &
                                   (my_scan_rt <= float(self.data.rts[self.compound_idx].rt_max)) &
@@ -500,6 +542,18 @@ class adjust_rt_for_selected_compound(object):
         min_x = self.ax2.get_xlim()[0]  # fails if original location is not within plot
         self.mz_annot = self.ax2.annotate('', xy=(min_x, 0), visible=False)
         logger.debug('Finished msms_plot')
+
+    def create_notes_widgets(self):
+        wide_layout = widgets.Layout(width="85%")
+        self.instructions = widgets.HTML(value="Compound Info will go here", layout=wide_layout)
+        self.copy_button_area = widgets.Output()
+        self.id_note = widgets.Textarea(
+            description="ID Notes", value="", placeholder="No note entered", continuous_update=False,
+            layout=wide_layout
+        )
+        display(widgets.HBox([self.instructions, self.copy_button_area],
+                layout=widgets.Layout(justify_content='space-between')))
+        display(self.id_note)
 
     def layout_figure(self):
         self.gui_scale_factor = self.height/3.25 if self.height < 3.25 else 1
@@ -634,26 +688,30 @@ class adjust_rt_for_selected_compound(object):
     def press(self, event):
         if event.key in ['right', 'l']:
             if self.compound_idx + 1 < len(self.data[0]):
+                self.in_switch_event = True
                 self.compound_idx += 1
                 logger.debug("Increasing compound_idx to %d (inchi_key:%s adduct:%s).",
                              self.compound_idx,
-                             self.data[0][self.compound_idx]['identification'].compound[0].inchi_key,
-                             self.data[0][self.compound_idx]['identification'].mz_references[0].adduct
+                             self.current_inchi_key,
+                             self.current_adduct
                              )
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
+                self.in_switch_event = False
         elif event.key in ['left', 'h']:
             if self.compound_idx > 0:
+                self.in_switch_event = True
                 self.compound_idx -= 1
                 logger.debug("Decreasing compound_idx to %d (inchi_key:%s adduct:%s).",
                              self.compound_idx,
-                             self.data[0][self.compound_idx]['identification'].compound[0].inchi_key,
-                             self.data[0][self.compound_idx]['identification'].mz_references[0].adduct
+                             self.current_inchi_key,
+                             self.current_adduct
                              )
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
+                self.in_switch_event = False
         elif event.key in ['up', 'k']:
             if self.hit_ctr > 0:
                 self.hit_ctr -= 1
@@ -757,7 +815,7 @@ class adjust_rt_for_selected_compound(object):
                 rt: a metatlas.datastructures.metatlas_objects.RtReference
                 overlaps: True if compound has RT bounds overlapping with those of self.compound_idx
         """
-        cid = self.data[0][self.compound_idx]['identification']
+        cid = self.current_id
         if len(cid.compound) == 0:
             return []
         out = []
@@ -778,6 +836,18 @@ class adjust_rt_for_selected_compound(object):
                 logger.debug("Adding similar compound with index %d and min %d, max %d.",
                              out[-1]["index"], out[-1]["rt"].rt_min, out[-1]["rt"].rt_max)
         return out
+
+    @property
+    def current_id(self):
+        return self.data[0][self.compound_idx]['identification']
+
+    @property
+    def current_inchi_key(self):
+        return self.current_id.compound[0].inchi_key
+
+    @property
+    def current_adduct(self):
+        return self.current_id.mz_references[0].adduct
 
     @staticmethod
     def disable():
@@ -3197,7 +3267,7 @@ def get_msms_plot_headers(data, hits, hit_ctr, compound_idx, similar_compounds):
         data: metatlas_dataset-like object
         hits: dataframe
         hit_ctr: the index in hits of the current hit
-        compound_idx: index of curent compound in 2nd dim of data
+        compound_idx: index of current compound in 2nd dim of data
         compound: object for current compound
     returns:
         tuple of strings
@@ -3334,3 +3404,17 @@ def tic_pdf(data, polarity, file_name, overwrite=False, sharey=True,
     save_sample_tic_pdf(
         data, polarity, file_name, overwrite, sharey, x_min, x_max, y_min, y_max, max_plots_per_page
     )
+
+def make_copy_to_clipboard_button(text: str, button_text: str) -> None:
+    display(HTML(f"""
+        <button type="button" onclick="copy_to_clipboard()">{button_text}</button>
+        <script>
+            function copy_to_clipboard() {{
+                navigator.clipboard.writeText("{text}").then(function() {{
+                    console.log('Async: Copying to clipboard was successful!');
+                }}, function(err) {{
+                    console.error('Async: Could not copy text: ', err);
+                }});
+            }}
+        </script>
+    """))
