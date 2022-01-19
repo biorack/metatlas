@@ -189,6 +189,6 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
 def create_c18_template_atlases():
     c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
     for polarity in ["negative", "positive"]:
-        name = f"C18_20220114_TPL_{polarity[:3].upper()}"
+        name = f"C18_20220118_TPL_{polarity[:3].upper()}"
         new_atlas = generate_template_atlas(c18_data, ["Gold", "Platinum"], polarity, name)
         metob.store(new_atlas)
