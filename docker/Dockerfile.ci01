@@ -42,7 +42,7 @@ ADD $BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG
 
 ADD $BASE_DATA_URL/meta_atlas.sqlite3 /work/root_workspace.db
 
-ADD $BASE_DATA_URL/notes_for_analysts.csv $NOTES_DIR/
+ADD $BASE_DATA_URL/instructions_for_analysts.csv $NOTES_DIR/
 
 RUN mkdir -p /root/.local/share/jupyter/kernels/papermill
 COPY papermill.kernel.json /root/.local/share/jupyter/kernels/papermill/kernel.json
