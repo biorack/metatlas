@@ -2254,7 +2254,7 @@ def fixture_instructions():
                 "OLXZPDWKRNYJJZ-RRKCRQDMSA-N",
             ],
             "adduct": ["", "[M+H]+", "", "", ""],
-            "chromotography": ["HILICZ", "HILICZ", "HILICZ", "", "NOT_REAL"],
+            "chromatography": ["HILICZ", "HILICZ", "HILICZ", "", "NOT_REAL"],
             "polarity": ["positive", "positive", "", "", ""],
             "note": [
                 "This is note number 1",
