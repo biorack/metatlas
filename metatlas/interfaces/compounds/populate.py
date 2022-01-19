@@ -1,4 +1,5 @@
 """Populate compound fields"""
+# pylint: disable=missing-function-docstring
 
 import time
 from typing import List, Optional
@@ -40,7 +41,7 @@ def flatten_inchi(mol: Chem.rdchem.Mol) -> str:
     flattened_rdkit_mol = Chem.MolFromSmiles(smiles)
     try:
         return Chem.MolToInchi(flattened_rdkit_mol)
-    except Exception:  # This fails when can't kekulize mol
+    except Exception:  # This fails when can't kekulize mol # pylint: disable=broad-except
         return ""
 
 
@@ -115,7 +116,7 @@ def set_all_ids(comp: metob.Compound):
         },
     ]
     for id_type in ids:
-        set_id(comp, id_type['metatlas_name'], id_type['cts_name'], id_type['base_url'], comp.inchi_key)
+        set_id(comp, id_type["metatlas_name"], id_type["cts_name"], id_type["base_url"], comp.inchi_key)
 
 
 def fill_neutralized_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
@@ -145,7 +146,7 @@ def fill_calculated_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
 def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
     """
     Populate blank fields that can be infered from other fields.
-    Does not overwrite any existing values that are not None, '', or 'Untitled' """
+    Does not overwrite any existing values that are not None, '', or 'Untitled'"""
     mol = Chem.inchi.MolFromInchi(comp.inchi)
     if mol is None:
         return

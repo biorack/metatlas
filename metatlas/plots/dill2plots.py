@@ -816,14 +816,14 @@ class adjust_rt_for_selected_compound(object):
                 overlaps: True if compound has RT bounds overlapping with those of self.compound_idx
         """
         cid = self.current_id
-        if len(cid.compound) == 0:
+        if len(cid.compound) == 0 or is_remove(ma_data.extract(cid, ["ms1_notes"])):
             return []
         out = []
         cid_mz_ref = cid.mz_references[0].mz
         cid_mass = cid.compound[0].mono_isotopic_molecular_weight
         for compound_iter_idx, _ in enumerate(self.data[0]):
             cpd_iter_id = self.data[0][compound_iter_idx]['identification']
-            if len(cpd_iter_id.compound) == 0:
+            if len(cpd_iter_id.compound) == 0 or is_remove(ma_data.extract(cpd_iter_id, ["ms1_notes"])):
                 continue
             mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
             mz_ref = cpd_iter_id.mz_references[0].mz
