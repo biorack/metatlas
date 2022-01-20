@@ -362,7 +362,7 @@ class adjust_rt_for_selected_compound(object):
         self.instructions.value = '; '.join(notes_list)
         self.id_note.value = self.current_id.identification_notes or ''
         self.copy_button_area.clear_output()
-        clipboard_text = f"{inchi_key},{adduct},{chromatography},{polarity}"
+        clipboard_text = f"{inchi_key}\t{adduct}\t{chromatography}\t{polarity}"
         with self.copy_button_area:
             make_copy_to_clipboard_button(clipboard_text, 'Copy Index')
 
