@@ -1,6 +1,7 @@
 """Populate compound fields"""
 # pylint: disable=missing-function-docstring
 
+import logging
 import time
 from typing import List, Optional
 from urllib.parse import quote
@@ -15,6 +16,8 @@ from metatlas.datastructures import metatlas_objects as metob
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import cheminfo
 
+logger = logging.getLogger(__name__)
+
 
 def generate_template_atlas(
     raw_file_name: str, confidence_levels: List[str], polarity: str, name: str, mz_tolerance: float = 10
@@ -22,6 +25,7 @@ def generate_template_atlas(
     data = pd.read_csv(raw_file_name, sep="\t")
     acceptable = data[data["confidence_category"].isin(confidence_levels)]
     by_polarity = acceptable[acceptable["polarity"] == polarity]
+    by_polarity = by_polarity.assign(label=None)
     atlas = dp.make_atlas_from_spreadsheet(
         by_polarity, name, filetype="dataframe", polarity=polarity, store=False, mz_tolerance=mz_tolerance
     )
@@ -29,6 +33,7 @@ def generate_template_atlas(
     pubchem_results = query_pubchem(inchi_keys)
     for cid in atlas.compound_identifications:
         fill_fields(cid.compound[0], pubchem_results)
+        cid.name = cid.compound[0].name
     return atlas
 
 
@@ -42,6 +47,7 @@ def flatten_inchi(mol: Chem.rdchem.Mol) -> str:
     try:
         return Chem.MolToInchi(flattened_rdkit_mol)
     except Exception:  # This fails when can't kekulize mol # pylint: disable=broad-except
+        logger.warning('failed to flatten a molecule')
         return ""
 
 
@@ -120,7 +126,11 @@ def set_all_ids(comp: metob.Compound):
 
 
 def fill_neutralized_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
-    norm_mol = cheminfo.normalize_molecule(mol)
+    try:
+        norm_mol = cheminfo.normalize_molecule(mol)
+    except Exception:
+        logger.warning('failed to normalized %s', comp.name)
+        return
     assert norm_mol is not None
     if not comp.neutralized_inchi:
         comp.neutralized_inchi = Chem.inchi.MolToInchi(norm_mol)
@@ -143,6 +153,17 @@ def fill_calculated_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
     fill_neutralized_fields(comp, mol)
 
 
+def first_all_ascii(list_of_strings: List[str]) -> str:
+    for s in list_of_strings:
+        if s.isascii():
+            return s
+    raise ValueError('No strings found with only ASCII characters')
+
+
+def filter_out_strings_with_non_ascii(list_of_strings: List[str]) -> List[str]:
+    return [s for s in list_of_strings if s.isascii()]
+
+
 def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
     """
     Populate blank fields that can be infered from other fields.
@@ -159,16 +180,16 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
         if not comp.pubchem_url:
             comp.pubchem_url = f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}"
         if not comp.synonyms:
-            comp.synonyms = "///".join(pubchem.synonyms)
+            comp.synonyms = "///".join(filter_out_strings_with_non_ascii(pubchem.synonyms))
         if not comp.iupac_name:
             comp.iupac_name = pubchem.iupac_name
     if comp.name in ["", "Untitled"]:
-        comp.name = comp.synonyms.split("///")[0] or comp.iupac_name
+        comp.name = first_all_ascii(comp.synonyms.split("///") + [comp.iupac_name])
 
 
-def create_c18_template_atlases() -> None:
+def create_c18_template_atlases():
     c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
     for polarity in ["negative", "positive"]:
-        name = f"C18_20220111_TPL_{polarity[:3].upper()}"
+        name = f"C18_20220118_TPL_{polarity[:3].upper()}"
         new_atlas = generate_template_atlas(c18_data, ["Gold", "Platinum"], polarity, name)
         metob.store(new_atlas)

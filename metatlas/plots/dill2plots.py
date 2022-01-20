@@ -3090,7 +3090,7 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     '''
     logger.debug('Generating atlas named %s from %s source.', atlas_name, filetype)
     atlas_df = _get_dataframe(filename, filetype, sheetname)
-    _clean_dataframe(atlas_df, required_columns=['inchi_key', 'label'])
+    _clean_dataframe(atlas_df, required_columns=['inchi_key'])
     _add_columns(atlas_df, column_names=['adduct'], default_values=[np.NaN])
     check_compound_names(atlas_df)
     check_filenames(atlas_df, 'file_msms')
