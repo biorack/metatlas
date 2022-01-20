@@ -242,3 +242,23 @@ def test_retrieve01(sqlite):
     mo.store(compound)
     assert mo.retrieve("Compounds", inchi_key=[], username="*") == []
     assert mo.retrieve("Compounds", inchi=[ADENOSINE_INCHI], username="*")[0].inchi == ADENOSINE_INCHI
+
+
+def test_get_latest():
+    test = mo.Compound(name='hello')
+    mo.store(test)
+    test.name = 'goodbye'
+    mo.store(test)
+    test = mo.retrieve('compound', unique_id=test.unique_id)
+    assert len(test) == 1
+    assert test[0].name == 'goodbye'
+
+
+def test_retrieve_head():
+    test = mo.LcmsRun(name='foo')
+    mo.store(test)
+    old = len(mo.retrieve('lcmsrun', name='foo'))
+    test.name = 'bar'
+    mo.store(test)
+    new = len(mo.retrieve('lcmsrun', name='foo'))
+    assert new == old
