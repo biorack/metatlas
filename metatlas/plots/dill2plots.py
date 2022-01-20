@@ -16,6 +16,7 @@ from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.plots import chromplotplus as cpp
 from metatlas.plots.compound_eic import save_compound_eic_pdf
 from metatlas.plots.tic import save_sample_tic_pdf
+from metatlas.plots.utils import pdf_with_text
 from metatlas.tools import parallel
 from metatlas.tools import spectralprocessing as sp
 
@@ -1604,6 +1605,8 @@ def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="",
 
 
 def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
+    fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
+    write_utils.check_existing_file(fig_path, overwrite)
     f, ax = plt.subplots(1, 1,figsize=(12,12))
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     num_points = 0
@@ -1615,7 +1618,8 @@ def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, lo
         plt.scatter(x, grp)
         num_points += np.sum(~np.isnan(grp))
     if num_points == 0:
-        logger.warning('Skipping export box plot of %s for %s as it contains zero data points.', ylabel, compound)
+        logger.warning('Zero data points in box plot of %s for %s.', ylabel, compound)
+        pdf_with_text("Molecule not detected", fig_path)
         return
     ax.set_title(compound,fontsize=12,weight='bold')
     plt.xticks(rotation=90)
@@ -1623,10 +1627,7 @@ def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, lo
         plt.yscale('log')
     if ylabel != "":
         plt.ylabel(ylabel)
-    if num_points > 0:
-        plt.tight_layout()
-    fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
-    write_utils.check_existing_file(fig_path, overwrite)
+    plt.tight_layout()
     f.savefig(fig_path)
     plt.close(f)
     logger.debug('Exported box plot of %s for %s at %s.', ylabel, compound, fig_path)
