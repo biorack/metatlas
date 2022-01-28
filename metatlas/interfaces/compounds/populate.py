@@ -237,5 +237,5 @@ def create_c18_stds_atlases():
             "rt_max": [4.9],
             "mz": [228.97384 + (1.00727647 * (1 if polarity == "positive" else -1))],
         })
-        new_atlas = generate_stds_atlas(c18_data, std_inchi_keys.values(), polarity, name, more_rows)
+        new_atlas = generate_stds_atlas(c18_data, std_inchi_keys.values(), polarity, name, more_rows=more_rows)
         metob.store(new_atlas)
