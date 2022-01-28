@@ -48,6 +48,29 @@ TEMPLATES = {
     ],
 }
 
+QC_ATLASES = {
+    "positive": {
+        "HILICZ": {
+            "atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS",
+            "username": "vrsingan"
+            },
+        "C18": {
+            "atlas": "C18_20220125_QC_POS",
+            "username": "wjholtz"
+            },
+        },
+    "negative": {
+        "HILICZ": {
+            "atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG",
+            "username": "vrsingan"
+            },
+        "C18": {
+            "atlas": "C18_20220125_QC_NEG",
+            "username": "wjholtz"
+            },
+        }
+}
+
 
 class Model:
     """Encapsulate both linear and polynomial models in a consistent interface"""
@@ -222,9 +245,11 @@ def get_files_df(groups):
 
 def get_qc_atlas(ids):
     """Retreives template QC atlas and return tuple (atlas, atlas_df)"""
-    qc_atlas_name = f"HILICz150_ANT20190824_TPL_QCv3_Unlab_{ids.short_polarity}"
+    qc_atlas_dict = QC_ATLASES[ids.polarity][ids.chromatography]
+    qc_atlas_name = qc_atlas_dict["atlas"]
+    username = qc_atlas_dict["username"]
     logger.info("Loading QC Atlas %s", qc_atlas_name)
-    atlas = metob.retrieve("Atlas", name=qc_atlas_name, username="vrsingan")[0]
+    atlas = metob.retrieve("Atlas", name=qc_atlas_name, username=username)[0]
     atlas_df = ma_data.make_atlas_df(atlas)
     atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
     return atlas, atlas_df
