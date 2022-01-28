@@ -200,7 +200,7 @@ def generate_stds_atlas(
     more_rows: Optional[pd.DataFrame] = None
 ) -> metob.Atlas:
     data = pd.read_csv(raw_file_name, sep="\t")
-    if more_rows:
+    if more_rows is not None:
         data = data.append(more_rows)
     acceptable = data[data["inchi_key"].isin(inchi_keys)]
     by_polarity = acceptable[acceptable["polarity"] == polarity]
