@@ -228,15 +228,14 @@ def create_c18_stds_atlases():
     for polarity in ["negative", "positive"]:
         name = f"C18_20220125_QC_{polarity[:3].upper()}"
         more_rows = pd.DataFrame({
-            "inchi_key": std_inchi_keys[abmba],
-            "label": abmba,
-            "adduct": "[M+H]+",
-            "polarity": polarity,
-            "rt_min": 4.5,
-            "rt_peak": 4.7,
-            "rt_max": 4.9,
-            "mz": "About 230",
+            "inchi_key": [std_inchi_keys[abmba]],
+            "label": [abmba],
+            "adduct": ["[M+H]+" if polarity == "positive" else "[M-H]-"],
+            "polarity": [polarity],
+            "rt_min": [4.5],
+            "rt_peak": [4.7],
+            "rt_max": [4.9],
+            "mz": [228.97384 + (1.00727647 * (1 if polarity == "positive" else -1))],
         })
-        # new_atlas = generate_stds_atlas(c18_data, std_inchi_keys.values(), polarity, name, more_rows)
-        new_atlas = generate_stds_atlas(c18_data, std_inchi_keys.values(), polarity, name)
+        new_atlas = generate_stds_atlas(c18_data, std_inchi_keys.values(), polarity, name, more_rows)
         metob.store(new_atlas)
