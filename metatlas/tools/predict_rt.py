@@ -50,7 +50,7 @@ TEMPLATES = {
 
 QC_ATLASES = {
     "positive": {
-        "HILIC": {
+        "HILICZ": {
             "atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS",
             "username": "vrsingan"
             },
@@ -60,7 +60,7 @@ QC_ATLASES = {
             },
         },
     "negative": {
-        "HILIC": {
+        "HILICZ": {
             "atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG",
             "username": "vrsingan"
             },
