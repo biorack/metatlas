@@ -37,7 +37,7 @@ if [[ $EXP_CHECK_LEN == "" ]]; then
 fi
 
 if id -nG "$USER" | grep -qw "gtrnd"; then
-    FLAGS="--account=gtrnd --qos=genepool"
+    FLAGS="--account=gtrnd --qos=genepool_shared"
 elif id -nG "$USER" | grep -qw "m2650"; then
     # could also use '--qos=flex' for lower cost and lower priority
     FLAGS="--account=m2650 --qos=shared"
