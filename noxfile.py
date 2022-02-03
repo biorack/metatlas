@@ -2,6 +2,7 @@
 # pylint: disable=missing-function-docstring
 
 import os
+from pathlib import Path
 
 import nox
 
@@ -100,7 +101,7 @@ flake8_deps = [
     "flake8-comprehensions==3.6.1",
 ]
 
-pytest_flags = ["-vv"]
+pytest_flags = ["-vv", f"--basetemp={Path.home() / '.pytest_tmp'}"]
 
 nox.options.error_on_external_run = True
 REUSE_LARGE_VENV = True
