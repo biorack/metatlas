@@ -137,9 +137,9 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("exclude_groups", append_inverse(self.exclude_groups, self.polarity))
 
     @property
-    def _default_include_groups(self) -> List[OutputType]:
+    def _default_include_groups(self) -> GroupMatchList:
         if self.output_type == "data_QC":
-            return [OutputType("QC")]
+            return ["QC"]
         return []
 
     @property

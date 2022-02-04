@@ -13,6 +13,7 @@ from rdkit import Chem
 from rdkit.Chem.Descriptors import ExactMolWt
 
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures.object_helpers import MetUnicode
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import cheminfo
 
@@ -178,13 +179,13 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
         if not comp.pubchem_compound_id:
             comp.pubchem_compound_id = pubchem.cid
         if not comp.pubchem_url:
-            comp.pubchem_url = f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}"
+            comp.pubchem_url = MetUnicode(f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}")
         if not comp.synonyms:
-            comp.synonyms = "///".join(filter_out_strings_with_non_ascii(pubchem.synonyms))
+            comp.synonyms = MetUnicode("///".join(filter_out_strings_with_non_ascii(pubchem.synonyms)))
         if not comp.iupac_name:
             comp.iupac_name = pubchem.iupac_name
     if comp.name in ["", "Untitled"]:
-        comp.name = first_all_ascii(comp.synonyms.split("///") + [comp.iupac_name])
+        comp.name = MetUnicode(first_all_ascii(comp.synonyms.split("///") + [comp.iupac_name]))
 
 
 def create_c18_template_atlases():

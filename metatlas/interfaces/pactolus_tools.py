@@ -3,7 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 import sys
 from metatlas import metatlas_objects as metob
-from metatlas import h5_query as h5q
+from metatlas.io import h5_query as h5q
 import qgrid
 
 from metatlas.helpers import metatlas_get_data_helper_fun as mgd
