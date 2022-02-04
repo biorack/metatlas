@@ -18,5 +18,6 @@ set -o pipefail
 date
 echo "input file: $IN_FILE"
 echo "output file: $OUT_FILE"
+echo "parameters: $PARAMETERS"
 
 (shifter --entrypoint /usr/local/bin/papermill -k "papermill" "$IN_FILE" "$OUT_FILE" $PARAMETERS) 2>&1 | tee --append "$LOG"
