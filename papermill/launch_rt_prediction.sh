@@ -6,7 +6,7 @@ max_cpus=8
 
 usage() { 
 >&2 echo "Usage:
-$(basename "$0") experiment_name analysis_number project_directory [-p notebook_parameter=value]
+$(basename "$0") experiment_name analysis_number project_directory [-p notebook_parameter=value] [-y yaml_string]
 
    where:
       experiment_name:   experiment identifier 
@@ -14,6 +14,7 @@ $(basename "$0") experiment_name analysis_number project_directory [-p notebook_
                          and increment if reworking one
       project_directory: output directory will be created within this directory
       -p:                optional notebook parameters, can have more than one 
+      -y:                optional notebook parameters in YAML string
 
 for more information see:
 https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md
@@ -46,9 +47,10 @@ declare -a positional_parameters=()
 declare -a extra_parameters=()
 while [ $OPTIND -le "$#" ]
 do
-  if getopts p: option; then
+  if getopts p:y: option; then
     case $option in
       p) extra_parameters+=("$OPTARG");;
+      y) PARAMETERS="-y $OPTARG";;
       \?) usage;;
     esac
   else
@@ -102,11 +104,11 @@ else
   echo "WARNING: ${USER} is not a member of gtrnd or m2650. Attempting to use ${USER}'s default account."
   flags="--qos=shared"
 fi
-flags+=" --cpus-per-task=${max_cpus}"
+IFS=$' ' flags="${flags} --cpus-per-task=${max_cpus}"
 
 IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
 OUT_FILE="${analysis_dir}/${proposal}_RT_Prediction_papermill.ipynb"
-PARAMETERS="-p experiment $exp -p project_directory $project_dir -p max_cpus $max_cpus -p analysis_number $analysis_num"
+PARAMETERS+=" -p experiment $exp -p project_directory $project_dir -p max_cpus $max_cpus -p analysis_number $analysis_num"
 if [  ${#extra_parameters[@]} -ne 0 ]; then
   for i in "${extra_parameters[@]}"
   do
