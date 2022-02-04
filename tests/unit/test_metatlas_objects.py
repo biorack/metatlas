@@ -245,20 +245,20 @@ def test_retrieve01(sqlite):
 
 
 def test_get_latest():
-    test = mo.Compound(name='hello')
+    test = mo.Compound(name="hello")
     mo.store(test)
-    test.name = 'goodbye'
+    test.name = "goodbye"
     mo.store(test)
-    test = mo.retrieve('compound', unique_id=test.unique_id)
+    test = mo.retrieve("compound", unique_id=test.unique_id)
     assert len(test) == 1
-    assert test[0].name == 'goodbye'
+    assert test[0].name == "goodbye"
 
 
 def test_retrieve_head():
-    test = mo.LcmsRun(name='foo')
+    test = mo.LcmsRun(name="foo")
     mo.store(test)
-    old = len(mo.retrieve('lcmsrun', name='foo'))
-    test.name = 'bar'
+    old = len(mo.retrieve("lcmsrun", name="foo"))
+    test.name = "bar"
     mo.store(test)
-    new = len(mo.retrieve('lcmsrun', name='foo'))
+    new = len(mo.retrieve("lcmsrun", name="foo"))
     assert new == old

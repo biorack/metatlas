@@ -74,7 +74,7 @@ class PlotSet(ABC):
         color_generator = utils.colors()
         current_group = ""
         plot_idx = 0
-        scale_factor = font_scale / num_plots ** 0.5
+        scale_factor = font_scale / num_plots**0.5
         matplotlib.rcParams.update({"font.size": 10 * scale_factor})
         for _ in range(num_pages):
             plots_remaining = num_plots - plot_idx
