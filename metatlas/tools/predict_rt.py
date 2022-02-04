@@ -50,25 +50,13 @@ TEMPLATES = {
 
 QC_ATLASES = {
     "positive": {
-        "HILICZ": {
-            "atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS",
-            "username": "vrsingan"
-            },
-        "C18": {
-            "atlas": "C18_20220125_QC_POS",
-            "username": "wjholtz"
-            },
-        },
+        "HILICZ": {"atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
+        "C18": {"atlas": "C18_20220125_QC_POS", "username": "wjholtz"},
+    },
     "negative": {
-        "HILICZ": {
-            "atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG",
-            "username": "vrsingan"
-            },
-        "C18": {
-            "atlas": "C18_20220125_QC_NEG",
-            "username": "wjholtz"
-            },
-        }
+        "HILICZ": {"atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
+        "C18": {"atlas": "C18_20220125_QC_NEG", "username": "wjholtz"},
+    },
 }
 
 

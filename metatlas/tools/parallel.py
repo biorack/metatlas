@@ -7,7 +7,7 @@ from tqdm.notebook import tqdm
 logger = logging.getLogger(__name__)
 
 
-def parallel_process(function, data, max_cpus, unit='it'):
+def parallel_process(function, data, max_cpus, unit="it"):
     """
     performs imap_unordered(function, data) using multiprocessing module but
     adds a progress bar and bypasses multiprocessing in the 1 cpu case as this makes debugging easier

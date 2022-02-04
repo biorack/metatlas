@@ -47,7 +47,7 @@ def flatten_inchi(mol: Chem.rdchem.Mol) -> str:
     try:
         return Chem.MolToInchi(flattened_rdkit_mol)
     except Exception:  # This fails when can't kekulize mol # pylint: disable=broad-except
-        logger.warning('failed to flatten a molecule')
+        logger.warning("failed to flatten a molecule")
         return ""
 
 
@@ -129,7 +129,7 @@ def fill_neutralized_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
     try:
         norm_mol = cheminfo.normalize_molecule(mol)
     except Exception:
-        logger.warning('failed to normalized %s', comp.name)
+        logger.warning("failed to normalized %s", comp.name)
         return
     assert norm_mol is not None
     if not comp.neutralized_inchi:
@@ -157,7 +157,7 @@ def first_all_ascii(list_of_strings: List[str]) -> str:
     for s in list_of_strings:
         if s.isascii():
             return s
-    raise ValueError('No strings found with only ASCII characters')
+    raise ValueError("No strings found with only ASCII characters")
 
 
 def filter_out_strings_with_non_ascii(list_of_strings: List[str]) -> List[str]:
@@ -196,8 +196,12 @@ def create_c18_template_atlases():
 
 
 def generate_stds_atlas(
-    raw_file_name: str, inchi_keys: List[str], polarity: str, name: str, mz_tolerance: float = 10,
-    more_rows: Optional[pd.DataFrame] = None
+    raw_file_name: str,
+    inchi_keys: List[str],
+    polarity: str,
+    name: str,
+    mz_tolerance: float = 10,
+    more_rows: Optional[pd.DataFrame] = None,
 ) -> metob.Atlas:
     data = pd.read_csv(raw_file_name, sep="\t")
     if more_rows is not None:
@@ -219,23 +223,27 @@ def generate_stds_atlas(
 def create_c18_stds_atlases():
     c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
     std_inchi_keys = {
-            'Phenylalanine' : 'COLNVLDHVKWLRT-QMMMGPOBSA-N',
-            'L-Tryptophan': 'QIVBCDIJIAJPQS-SECBINFHSA-N',
-            'Salicylic acid': 'YGSDEFSMJLZEOE-UHFFFAOYSA-N',
-            '2-Amino-3-bromo-5-methylbenzoic acid': 'LCMZECCEEOQWLQ-UHFFFAOYSA-N'  # this one will not be found in c18_data
+        "Phenylalanine": "COLNVLDHVKWLRT-QMMMGPOBSA-N",
+        "L-Tryptophan": "QIVBCDIJIAJPQS-SECBINFHSA-N",
+        "Salicylic acid": "YGSDEFSMJLZEOE-UHFFFAOYSA-N",
+        "2-Amino-3-bromo-5-methylbenzoic acid": "LCMZECCEEOQWLQ-UHFFFAOYSA-N",  # this one will not be found in c18_data
     }
     abmba = "2-Amino-3-bromo-5-methylbenzoic acid"
     for polarity in ["negative", "positive"]:
         name = f"C18_20220125_QC_{polarity[:3].upper()}"
-        more_rows = pd.DataFrame({
-            "inchi_key": [std_inchi_keys[abmba]],
-            "label": [abmba],
-            "adduct": ["[M+H]+" if polarity == "positive" else "[M-H]-"],
-            "polarity": [polarity],
-            "rt_min": [4.5],
-            "rt_peak": [4.7],
-            "rt_max": [4.9],
-            "mz": [228.97384 + (1.00727647 * (1 if polarity == "positive" else -1))],
-        })
-        new_atlas = generate_stds_atlas(c18_data, std_inchi_keys.values(), polarity, name, more_rows=more_rows)
+        more_rows = pd.DataFrame(
+            {
+                "inchi_key": [std_inchi_keys[abmba]],
+                "label": [abmba],
+                "adduct": ["[M+H]+" if polarity == "positive" else "[M-H]-"],
+                "polarity": [polarity],
+                "rt_min": [4.5],
+                "rt_peak": [4.7],
+                "rt_max": [4.9],
+                "mz": [228.97384 + (1.00727647 * (1 if polarity == "positive" else -1))],
+            }
+        )
+        new_atlas = generate_stds_atlas(
+            c18_data, std_inchi_keys.values(), polarity, name, more_rows=more_rows
+        )
         metob.store(new_atlas)

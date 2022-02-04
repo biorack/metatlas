@@ -1,16 +1,18 @@
+""" tests of parallel processing utilities """
+# pylint: disable=missing-function-docstring
 import pytest
 
 from metatlas.tools import parallel
 
 
-def times_two(x):
-    return x * 2
+def times_two(num):
+    return num * 2
 
 
-def error_on_zero(x):
-    if x == 0:
+def error_on_zero(num):
+    if num == 0:
         raise ValueError("Zero is illegal here!")
-    return x
+    return num
 
 
 def test_parallel_process01():
