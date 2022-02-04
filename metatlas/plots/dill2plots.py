@@ -1686,7 +1686,12 @@ def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="",
     logger.info('Exporting box plots of %s to %s.', ylabel, output_loc)
     disable_interactive_plots()
     args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy) for compound in df.index]
-    parallel.parallel_process(make_boxplot, args, max_cpus, unit='plot')
+    parallel.parallel_process(_make_boxplot_single_arg, args, max_cpus, unit='plot')
+
+
+def _make_boxplot_single_arg(arg_list):
+    """ this is a hack, but multiprocessing constrains the functions that can be passed """
+    make_boxplot(*arg_list)
 
 
 def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
@@ -2288,7 +2293,11 @@ def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=No
     compound_names = ma_data.get_compound_names(data, use_labels=True)[0]
     args = [(data, i, os.path.join(out_dir, f"{name}.pdf"), overwrite, share_y, max_plots_per_page)
             for i, name in enumerate(compound_names)]
-    parallel.parallel_process(save_compound_eic_pdf, args, max_cpus, unit='plot', spread_args=True)
+    parallel.parallel_process(_save_eic_pdf, args, max_cpus, unit='plot')
+
+
+def _save_eic_pdf(multi_args):
+    save_compound_eic_pdf(*multi_args)
 
 
 def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],

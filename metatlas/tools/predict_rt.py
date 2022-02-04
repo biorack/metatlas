@@ -266,9 +266,7 @@ def load_runs(files_df, qc_atlas_df, qc_atlas, cpus):
     """
     files = [(i[1].file, i[1].group, qc_atlas_df, qc_atlas) for i in files_df.iterrows()]
     logger.info("Loading LCMS data files")
-    return parallel.parallel_process(
-        ma_data.get_data_for_atlas_df_and_file, files, cpus, unit="sample", spread_args=False
-    )
+    return parallel.parallel_process(ma_data.get_data_for_atlas_df_and_file, files, cpus, unit="sample")
 
 
 def save_measured_rts(metatlas_dataset, file_name):
