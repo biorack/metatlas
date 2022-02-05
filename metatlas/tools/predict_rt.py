@@ -556,6 +556,8 @@ def write_notebooks(ids, atlases, use_poly_model):
         repo_path = Path(__file__).resolve().parent.parent.parent
         source = repo_path / "notebooks" / "reference" / "Targeted.ipynb"
         dest = Path(ids.output_dir).resolve().parent / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
+        # include_groups and exclude_groups do not get passed to subsequent notebooks
+        # as they need to be updated for each output type
         parameters = {
             "experiment": ids.experiment,
             "output_type": output_type,
@@ -563,12 +565,22 @@ def write_notebooks(ids, atlases, use_poly_model):
             "analysis_number": 0,
             "project_directory": ids.project_directory,
             "source_atlas": atlas_name,
+            "exclude_files": ids.exclude_files,
+            "groups_controlled_vocab": ids.groups_controlled_vocab,
         }
         notebook.create_notebook(source, dest, parameters)
 
 
 def get_analysis_ids_for_rt_prediction(
-    experiment, project_directory, google_folder, analysis_number=0, polarity="positive"
+    experiment,
+    project_directory,
+    google_folder,
+    analysis_number=0,
+    polarity="positive",
+    exclude_files=None,
+    include_groups=None,
+    exclude_groups=None,
+    groups_controlled_vocab=None,
 ):
     """
     Simplified interface for generating an AnalysisIds instance for use in rt prediction
@@ -578,6 +590,10 @@ def get_analysis_ids_for_rt_prediction(
         google_folder: id from URL of base export folder on Google Drive
         analysis_number: integer, defaults to 0, increment if redoing analysis
         polarity: defaults to 'positive', set to 'negative' if you only have neg mode data
+        exclude_files: list of substrings that will be used to filter out lcmsruns
+        include_groups: list of substrings that will used to filter groups
+        exclude_groups list of substrings that will used to filter out groups
+        groups_controlled_vocab: list of substrings that will group all matches into one group
     Returns an AnalysisIds instance
     """
     return mads.AnalysisIdentifiers(
@@ -587,4 +603,8 @@ def get_analysis_ids_for_rt_prediction(
         analysis_number=analysis_number,
         project_directory=project_directory,
         google_folder=google_folder,
+        exclude_files=exclude_files,
+        include_groups=include_groups,
+        exclude_groups=exclude_groups,
+        groups_controlled_vocab=groups_controlled_vocab,
     )
