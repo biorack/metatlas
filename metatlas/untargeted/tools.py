@@ -12,6 +12,8 @@ from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.plots import dill2plots as dp
 
+from metatlas.io.update_lcmsfiles_in_lims import EXTENSIONS
+
 # imports for the xml to dictionary round trip
 from collections import Mapping
 import six
