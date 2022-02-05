@@ -129,7 +129,7 @@ def set_all_ids(comp: metob.Compound):
 def fill_neutralized_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
     try:
         norm_mol = cheminfo.normalize_molecule(mol)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         logger.warning("failed to normalized %s", comp.name)
         return
     assert norm_mol is not None
@@ -155,9 +155,9 @@ def fill_calculated_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
 
 
 def first_all_ascii(list_of_strings: List[str]) -> str:
-    for s in list_of_strings:
-        if s.isascii():
-            return s
+    for to_check in list_of_strings:
+        if to_check.isascii():
+            return to_check
     raise ValueError("No strings found with only ASCII characters")
 
 
@@ -179,7 +179,9 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
         if not comp.pubchem_compound_id:
             comp.pubchem_compound_id = pubchem.cid
         if not comp.pubchem_url:
-            comp.pubchem_url = MetUnicode(f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}")
+            comp.pubchem_url = MetUnicode(
+                f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}"
+            )
         if not comp.synonyms:
             comp.synonyms = MetUnicode("///".join(filter_out_strings_with_non_ascii(pubchem.synonyms)))
         if not comp.iupac_name:
@@ -196,6 +198,7 @@ def create_c18_template_atlases():
         metob.store(new_atlas)
 
 
+# pylint: disable=too-many-arguments
 def generate_stds_atlas(
     raw_file_name: str,
     inchi_keys: List[str],
@@ -227,7 +230,8 @@ def create_c18_stds_atlases():
         "Phenylalanine": "COLNVLDHVKWLRT-QMMMGPOBSA-N",
         "L-Tryptophan": "QIVBCDIJIAJPQS-SECBINFHSA-N",
         "Salicylic acid": "YGSDEFSMJLZEOE-UHFFFAOYSA-N",
-        "2-Amino-3-bromo-5-methylbenzoic acid": "LCMZECCEEOQWLQ-UHFFFAOYSA-N",  # this one will not be found in c18_data
+        # the next one will not be found in c18_data
+        "2-Amino-3-bromo-5-methylbenzoic acid": "LCMZECCEEOQWLQ-UHFFFAOYSA-N",
     }
     abmba = "2-Amino-3-bromo-5-methylbenzoic acid"
     for polarity in ["negative", "positive"]:
