@@ -589,7 +589,7 @@ def get_analysis_ids_for_rt_prediction(
         project_directory: directory where per-experiment output directory will be created
         google_folder: id from URL of base export folder on Google Drive
         analysis_number: integer, defaults to 0, increment if redoing analysis
-        polarity: defaults to 'positive', set to 'negative' if you only have neg mode data
+        polarity: polarity to use for RT prediction, defaults to positive
         exclude_files: list of substrings that will be used to filter out lcmsruns
         include_groups: list of substrings that will used to filter groups
         exclude_groups list of substrings that will used to filter out groups
@@ -599,9 +599,9 @@ def get_analysis_ids_for_rt_prediction(
     return mads.AnalysisIdentifiers(
         experiment=experiment,
         output_type="data_QC",
-        polarity=polarity,
         analysis_number=analysis_number,
         project_directory=project_directory,
+        polarity=polarity,
         google_folder=google_folder,
         exclude_files=exclude_files,
         include_groups=include_groups,
