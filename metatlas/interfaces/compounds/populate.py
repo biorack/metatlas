@@ -179,15 +179,14 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
         if not comp.pubchem_compound_id:
             comp.pubchem_compound_id = pubchem.cid
         if not comp.pubchem_url:
-            comp.pubchem_url = MetUnicode(
-                f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}"
-            )
+            comp.pubchem_url = f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}"
         if not comp.synonyms:
-            comp.synonyms = MetUnicode("///".join(filter_out_strings_with_non_ascii(pubchem.synonyms)))
+            comp.synonyms = "///".join(filter_out_strings_with_non_ascii(pubchem.synonyms))
         if not comp.iupac_name:
             comp.iupac_name = pubchem.iupac_name
-    if comp.name in ["", "Untitled"]:
-        comp.name = MetUnicode(first_all_ascii(comp.synonyms.split("///") + [comp.iupac_name]))
+    if comp.name in ["", "Untitled"] or "///" in comp.name:
+        names = [first_all_ascii(comp.synonyms.split("///"))] + [comp.iupac_name]
+        comp.name = names[0]
 
 
 def create_c18_template_atlases():
@@ -213,9 +212,10 @@ def generate_stds_atlas(
     acceptable = data[data["inchi_key"].isin(inchi_keys)]
     by_polarity = acceptable[acceptable["polarity"] == polarity]
     by_polarity = by_polarity.assign(label=None)
-    atlas = dp.make_atlas_from_spreadsheet(
-        by_polarity, name, filetype="dataframe", polarity=polarity, store=False, mz_tolerance=mz_tolerance
-    )
+    return make_atlas_from_df(by_polarity, name, polarity, mz_tolerance)
+
+
+def fill_atlas_compound_fields(atlas):
     inchi_keys = [cid.compound[0].inchi_key for cid in atlas.compound_identifications]
     pubchem_results = query_pubchem(inchi_keys)
     for cid in atlas.compound_identifications:
@@ -224,18 +224,24 @@ def generate_stds_atlas(
     return atlas
 
 
-def create_c18_stds_atlases():
-    c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
+def make_atlas_from_df(df, name, polarity, mz_tolerance):
+    atlas = dp.make_atlas_from_spreadsheet(
+        df, name, filetype="dataframe", polarity=polarity, store=False, mz_tolerance=mz_tolerance
+    )
+    return fill_atlas_compound_fields(atlas)
+
+
+def create_c18_stds_atlases(mz_tolerance: float = 10) -> None:
+    c18_path = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
+    data = pd.read_csv(c18_path, sep="\t")
     std_inchi_keys = {
         "Phenylalanine": "COLNVLDHVKWLRT-QMMMGPOBSA-N",
         "L-Tryptophan": "QIVBCDIJIAJPQS-SECBINFHSA-N",
         "Salicylic acid": "YGSDEFSMJLZEOE-UHFFFAOYSA-N",
-        # the next one will not be found in c18_data
-        "2-Amino-3-bromo-5-methylbenzoic acid": "LCMZECCEEOQWLQ-UHFFFAOYSA-N",
+        "2-Amino-3-bromo-5-methylbenzoic acid": "LCMZECCEEOQWLQ-UHFFFAOYSA-N",  # this one will not be found in c18_data
     }
     abmba = "2-Amino-3-bromo-5-methylbenzoic acid"
-    for polarity in ["negative", "positive"]:
-        name = f"C18_20220125_QC_{polarity[:3].upper()}"
+    for polarity in ["positive", "negative"]:
         more_rows = pd.DataFrame(
             {
                 "inchi_key": [std_inchi_keys[abmba]],
@@ -246,9 +252,16 @@ def create_c18_stds_atlases():
                 "rt_peak": [4.7],
                 "rt_max": [4.9],
                 "mz": [228.97384 + (1.00727647 * (1 if polarity == "positive" else -1))],
+                "confidence_category": "Platinum",
             }
         )
-        new_atlas = generate_stds_atlas(
-            c18_data, std_inchi_keys.values(), polarity, name, more_rows=more_rows
-        )
-        metob.store(new_atlas)
+        if more_rows is not None:
+            data = data.append(more_rows)
+        acceptable = data[data["inchi_key"].isin(std_inchi_keys.values())]
+        by_polarity = acceptable[acceptable["polarity"] == polarity]
+        by_polarity = by_polarity.assign(label=None)
+        by_polarity["rank"] = by_polarity["confidence_category"] == "Platinum"
+        single = by_polarity.loc[by_polarity.groupby(["inchi_key"])["rank"].idxmax()]
+        name = f"C18_20220208c_QC_{polarity[:3].upper()}"
+        atlas = make_atlas_from_df(single, name, polarity, mz_tolerance)
+        metob.store(atlas)
