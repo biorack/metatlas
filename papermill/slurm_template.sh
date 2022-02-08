@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --licenses=cfs
 #SBATCH --mail-type=ALL
-#SBATCH --time=12:00:00
+#SBATCH --time=72:00:00
 
 #OpenMP settings:
 export OMP_NUM_THREADS=1
