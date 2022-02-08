@@ -137,9 +137,9 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("exclude_groups", append_inverse(self.exclude_groups, self.polarity))
 
     @property
-    def _default_include_groups(self) -> List[OutputType]:
+    def _default_include_groups(self) -> GroupMatchList:
         if self.output_type == "data_QC":
-            return [OutputType("QC")]
+            return ["QC"]
         return []
 
     @property
@@ -442,6 +442,11 @@ class AnalysisIdentifiers(HasTraits):
                     )
                 )
         return self._all_groups or []
+
+    @property
+    def chromatography(self) -> str:
+        """returns the type of chromatography used"""
+        return self.lcmsruns[0].name.split("_")[7]
 
     def store_all_groups(self, exist_ok: bool = False) -> None:
         """

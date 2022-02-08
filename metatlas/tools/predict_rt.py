@@ -48,6 +48,17 @@ TEMPLATES = {
     ],
 }
 
+QC_ATLASES = {
+    "positive": {
+        "HILICZ": {"atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
+        "C18": {"atlas": "C18_20220125_QC_POS", "username": "wjholtz"},
+    },
+    "negative": {
+        "HILICZ": {"atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
+        "C18": {"atlas": "C18_20220125_QC_NEG", "username": "wjholtz"},
+    },
+}
+
 
 class Model:
     """Encapsulate both linear and polynomial models in a consistent interface"""
@@ -222,9 +233,11 @@ def get_files_df(groups):
 
 def get_qc_atlas(ids):
     """Retreives template QC atlas and return tuple (atlas, atlas_df)"""
-    qc_atlas_name = f"HILICz150_ANT20190824_TPL_QCv3_Unlab_{ids.short_polarity}"
+    qc_atlas_dict = QC_ATLASES[ids.polarity][ids.chromatography]
+    qc_atlas_name = qc_atlas_dict["atlas"]
+    username = qc_atlas_dict["username"]
     logger.info("Loading QC Atlas %s", qc_atlas_name)
-    atlas = metob.retrieve("Atlas", name=qc_atlas_name, username="vrsingan")[0]
+    atlas = metob.retrieve("Atlas", name=qc_atlas_name, username=username)[0]
     atlas_df = ma_data.make_atlas_df(atlas)
     atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
     return atlas, atlas_df
@@ -241,9 +254,7 @@ def load_runs(files_df, qc_atlas_df, qc_atlas, cpus):
     """
     files = [(i[1].file, i[1].group, qc_atlas_df, qc_atlas) for i in files_df.iterrows()]
     logger.info("Loading LCMS data files")
-    return parallel.parallel_process(
-        ma_data.get_data_for_atlas_df_and_file, files, cpus, unit="sample", spread_args=False
-    )
+    return parallel.parallel_process(ma_data.get_data_for_atlas_df_and_file, files, cpus, unit="sample")
 
 
 def save_measured_rts(metatlas_dataset, file_name):
@@ -545,6 +556,8 @@ def write_notebooks(ids, atlases, use_poly_model):
         repo_path = Path(__file__).resolve().parent.parent.parent
         source = repo_path / "notebooks" / "reference" / "Targeted.ipynb"
         dest = Path(ids.output_dir).resolve().parent / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
+        # include_groups and exclude_groups do not get passed to subsequent notebooks
+        # as they need to be updated for each output type
         parameters = {
             "experiment": ids.experiment,
             "output_type": output_type,
@@ -552,12 +565,22 @@ def write_notebooks(ids, atlases, use_poly_model):
             "analysis_number": 0,
             "project_directory": ids.project_directory,
             "source_atlas": atlas_name,
+            "exclude_files": ids.exclude_files,
+            "groups_controlled_vocab": ids.groups_controlled_vocab,
         }
         notebook.create_notebook(source, dest, parameters)
 
 
 def get_analysis_ids_for_rt_prediction(
-    experiment, project_directory, google_folder, analysis_number=0, polarity="positive"
+    experiment,
+    project_directory,
+    google_folder,
+    analysis_number=0,
+    polarity="positive",
+    exclude_files=None,
+    include_groups=None,
+    exclude_groups=None,
+    groups_controlled_vocab=None,
 ):
     """
     Simplified interface for generating an AnalysisIds instance for use in rt prediction
@@ -566,14 +589,22 @@ def get_analysis_ids_for_rt_prediction(
         project_directory: directory where per-experiment output directory will be created
         google_folder: id from URL of base export folder on Google Drive
         analysis_number: integer, defaults to 0, increment if redoing analysis
-        polarity: defaults to 'positive', set to 'negative' if you only have neg mode data
+        polarity: polarity to use for RT prediction, defaults to positive
+        exclude_files: list of substrings that will be used to filter out lcmsruns
+        include_groups: list of substrings that will used to filter groups
+        exclude_groups list of substrings that will used to filter out groups
+        groups_controlled_vocab: list of substrings that will group all matches into one group
     Returns an AnalysisIds instance
     """
     return mads.AnalysisIdentifiers(
         experiment=experiment,
         output_type="data_QC",
-        polarity=polarity,
         analysis_number=analysis_number,
         project_directory=project_directory,
+        polarity=polarity,
         google_folder=google_folder,
+        exclude_files=exclude_files,
+        include_groups=include_groups,
+        exclude_groups=exclude_groups,
+        groups_controlled_vocab=groups_controlled_vocab,
     )

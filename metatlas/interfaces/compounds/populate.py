@@ -1,5 +1,7 @@
 """Populate compound fields"""
+# pylint: disable=missing-function-docstring
 
+import logging
 import time
 from typing import List, Optional
 from urllib.parse import quote
@@ -11,8 +13,11 @@ from rdkit import Chem
 from rdkit.Chem.Descriptors import ExactMolWt
 
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures.object_helpers import MetUnicode
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import cheminfo
+
+logger = logging.getLogger(__name__)
 
 
 def generate_template_atlas(
@@ -21,13 +26,15 @@ def generate_template_atlas(
     data = pd.read_csv(raw_file_name, sep="\t")
     acceptable = data[data["confidence_category"].isin(confidence_levels)]
     by_polarity = acceptable[acceptable["polarity"] == polarity]
+    by_polarity = by_polarity.assign(label=None)
     atlas = dp.make_atlas_from_spreadsheet(
         by_polarity, name, filetype="dataframe", polarity=polarity, store=False, mz_tolerance=mz_tolerance
     )
-    inchi_keys = [cid.compound[0].inchi_key for cid in atlas]
+    inchi_keys = [cid.compound[0].inchi_key for cid in atlas.compound_identifications]
     pubchem_results = query_pubchem(inchi_keys)
-    for cid in atlas:
-        cid.compound[0] = fill_fields(cid.compound[0], pubchem_results)
+    for cid in atlas.compound_identifications:
+        fill_fields(cid.compound[0], pubchem_results)
+        cid.name = cid.compound[0].name
     return atlas
 
 
@@ -40,7 +47,8 @@ def flatten_inchi(mol: Chem.rdchem.Mol) -> str:
     flattened_rdkit_mol = Chem.MolFromSmiles(smiles)
     try:
         return Chem.MolToInchi(flattened_rdkit_mol)
-    except Exception:  # This fails when can't kekulize mol
+    except Exception:  # This fails when can't kekulize mol # pylint: disable=broad-except
+        logger.warning("failed to flatten a molecule")
         return ""
 
 
@@ -91,7 +99,7 @@ def set_id(rec: metob.Compound, metatlas_name: str, cts_name: str, base_url: str
         pass
 
 
-def set_all_ids(compound: metob.Compound, inchi_key: str) -> metob.Compound:
+def set_all_ids(comp: metob.Compound):
     ids = [
         {
             "metatlas_name": "hmdb",
@@ -115,55 +123,132 @@ def set_all_ids(compound: metob.Compound, inchi_key: str) -> metob.Compound:
         },
     ]
     for id_type in ids:
-        set_id(compound, id_type['metatlas_name'], id_type['cts_name'], id_type['base_url'], inchi_key)
-    return compound
+        set_id(comp, id_type["metatlas_name"], id_type["cts_name"], id_type["base_url"], comp.inchi_key)
 
 
-# pylint: disable=invalid-name
-def fill_fields(c: metob.Compound, pubchem_results: List[pcp.Compound]) -> metob.Compound:
+def fill_neutralized_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
+    try:
+        norm_mol = cheminfo.normalize_molecule(mol)
+    except Exception:  # pylint: disable=broad-except
+        logger.warning("failed to normalized %s", comp.name)
+        return
+    assert norm_mol is not None
+    if not comp.neutralized_inchi:
+        comp.neutralized_inchi = Chem.inchi.MolToInchi(norm_mol)
+    if not comp.neutralized_inchi_key:
+        comp.neutralized_inchi_key = Chem.inchi.InchiToInchiKey(comp.neutralized_inchi)
+    if not comp.neutralized_2d_inchi:
+        comp.neutralized_2d_inchi = flatten_inchi(norm_mol)  # type: ignore
+    if not comp.neutralized_2d_inchi_key:
+        comp.neutralized_2d_inchi_key = Chem.inchi.InchiToInchiKey(comp.neutralized_2d_inchi)
+
+
+def fill_calculated_fields(comp: metob.Compound, mol: Chem.rdchem.Mol):
+    assert mol is not None
+    comp.inchi_key = comp.inchi_key or Chem.inchi.InchiToInchiKey(comp.inchi)
+    comp.formula = comp.formula or Chem.rdMolDescriptors.CalcMolFormula(mol)
+    comp.mono_isotopic_molecular_weight = comp.mono_isotopic_molecular_weight or ExactMolWt(mol)
+    comp.permanent_charge = comp.permanent_charge or Chem.GetFormalCharge(mol)
+    comp.number_components = comp.number_components or 1  # type: ignore
+    comp.num_free_radicals = comp.num_free_radicals or Chem.Descriptors.NumRadicalElectrons(mol)
+    fill_neutralized_fields(comp, mol)
+
+
+def first_all_ascii(list_of_strings: List[str]) -> str:
+    for to_check in list_of_strings:
+        if to_check.isascii():
+            return to_check
+    raise ValueError("No strings found with only ASCII characters")
+
+
+def filter_out_strings_with_non_ascii(list_of_strings: List[str]) -> List[str]:
+    return [s for s in list_of_strings if s.isascii()]
+
+
+def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]):
     """
-    Populate bank fields that can be infered from other fields.
-    Does not overwrite any existing values that are not None or ''"""
-    mol = Chem.inchi.MolFromInchi(c.inchi)
+    Populate blank fields that can be infered from other fields.
+    Does not overwrite any existing values that are not None, '', or 'Untitled'"""
+    mol = Chem.inchi.MolFromInchi(comp.inchi)
     if mol is None:
-        return c
-    if c.neutralized_inchi:
-        norm_mol = Chem.inchi.MolFromInchi(c.neutralized_inchi)
-    else:
-        norm_mol = cheminfo.normalize_molecule(mol)
-    c.formula = c.formula or Chem.rdMolDescriptors.CalcMolFormula(mol)
-    c.mono_isotopic_molecular_weight = c.mono_isotopic_molecular_weight or ExactMolWt(mol)
-    c.permanent_charge = c.permanent_charge or Chem.GetFormalCharge(mol)
-    c.number_components = c.number_components or metob.MetInt(1)
-    c.num_free_radicals = c.num_free_radicals or Chem.Descriptors.NumRadicalElectrons(mol)
-    c.inchi_key = c.inchi_key or Chem.inchi.InchiToInchiKey(c.inchi)
-    if not c.neutralized_inchi:
-        norm_mol = cheminfo.normalize_molecule(mol)
-        c.neutralized_inchi = Chem.inchi.MolToInchi(norm_mol)
-    c.neutralized_inchi_key = c.neutralized_inchi_key or Chem.inchi.InchiToInchiKey(c.neutralized_inchi)
-    if not c.neutralized_2d_inchi:
-        if not norm_mol:
-            norm_mol = Chem.inchi.MolFromInchi(c.neutralized_inchi)
-        c.neutralized_2d_inchi = metob.MetUnicode(flatten_inchi(norm_mol))
-    c.neutralized_2d_inchi_key = c.neutralized_2d_inchi_key or Chem.inchi.InchiToInchiKey(
-        c.neutralized_2d_inchi
-    )
-    pubchem = get_pubchem_compound(c.inchi_key, pubchem_results)
+        return
+    fill_calculated_fields(comp, mol)
+    set_all_ids(comp)
+    pubchem = get_pubchem_compound(comp.inchi_key, pubchem_results)
     if pubchem is not None:
-        c.pubchem_compound_id = c.pubchem_compound_id or pubchem.cid
-        c.pubchem_url = c.pubchem_url or metob.MetUnicode(
-            f"https://pubchem.ncbi.nlm.nih.gov/compound/{c.pubchem_compound_id}"
-        )
-        c.synonyms = c.synonyms or metob.MetUnicode("///".join(pubchem.synonyms))
-        c.iupac_name = c.iupac_name or pubchem.iupac_name
-    if c.name in ["", "Untitled"]:
-        c.name = c.synonyms.split("///")[0] or c.iupac_name
-    return set_all_ids(c, c.inchi_key)
+        if not comp.pubchem_compound_id:
+            comp.pubchem_compound_id = pubchem.cid
+        if not comp.pubchem_url:
+            comp.pubchem_url = MetUnicode(
+                f"https://pubchem.ncbi.nlm.nih.gov/compound/{comp.pubchem_compound_id}"
+            )
+        if not comp.synonyms:
+            comp.synonyms = MetUnicode("///".join(filter_out_strings_with_non_ascii(pubchem.synonyms)))
+        if not comp.iupac_name:
+            comp.iupac_name = pubchem.iupac_name
+    if comp.name in ["", "Untitled"]:
+        comp.name = MetUnicode(first_all_ascii(comp.synonyms.split("///") + [comp.iupac_name]))
 
 
-def create_c18_template_atlases() -> None:
+def create_c18_template_atlases():
     c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
-    for polarity in ["positive", "negative"]:
-        name = f"C18_20220111_TPL_{polarity[:3].upper()}"
+    for polarity in ["negative", "positive"]:
+        name = f"C18_20220118_TPL_{polarity[:3].upper()}"
         new_atlas = generate_template_atlas(c18_data, ["Gold", "Platinum"], polarity, name)
+        metob.store(new_atlas)
+
+
+# pylint: disable=too-many-arguments
+def generate_stds_atlas(
+    raw_file_name: str,
+    inchi_keys: List[str],
+    polarity: str,
+    name: str,
+    mz_tolerance: float = 10,
+    more_rows: Optional[pd.DataFrame] = None,
+) -> metob.Atlas:
+    data = pd.read_csv(raw_file_name, sep="\t")
+    if more_rows is not None:
+        data = data.append(more_rows)
+    acceptable = data[data["inchi_key"].isin(inchi_keys)]
+    by_polarity = acceptable[acceptable["polarity"] == polarity]
+    by_polarity = by_polarity.assign(label=None)
+    atlas = dp.make_atlas_from_spreadsheet(
+        by_polarity, name, filetype="dataframe", polarity=polarity, store=False, mz_tolerance=mz_tolerance
+    )
+    inchi_keys = [cid.compound[0].inchi_key for cid in atlas.compound_identifications]
+    pubchem_results = query_pubchem(inchi_keys)
+    for cid in atlas.compound_identifications:
+        fill_fields(cid.compound[0], pubchem_results)
+        cid.name = cid.compound[0].name
+    return atlas
+
+
+def create_c18_stds_atlases():
+    c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
+    std_inchi_keys = {
+        "Phenylalanine": "COLNVLDHVKWLRT-QMMMGPOBSA-N",
+        "L-Tryptophan": "QIVBCDIJIAJPQS-SECBINFHSA-N",
+        "Salicylic acid": "YGSDEFSMJLZEOE-UHFFFAOYSA-N",
+        # the next one will not be found in c18_data
+        "2-Amino-3-bromo-5-methylbenzoic acid": "LCMZECCEEOQWLQ-UHFFFAOYSA-N",
+    }
+    abmba = "2-Amino-3-bromo-5-methylbenzoic acid"
+    for polarity in ["negative", "positive"]:
+        name = f"C18_20220125_QC_{polarity[:3].upper()}"
+        more_rows = pd.DataFrame(
+            {
+                "inchi_key": [std_inchi_keys[abmba]],
+                "label": [abmba],
+                "adduct": ["[M+H]+" if polarity == "positive" else "[M-H]-"],
+                "polarity": [polarity],
+                "rt_min": [4.5],
+                "rt_peak": [4.7],
+                "rt_max": [4.9],
+                "mz": [228.97384 + (1.00727647 * (1 if polarity == "positive" else -1))],
+            }
+        )
+        new_atlas = generate_stds_atlas(
+            c18_data, std_inchi_keys.values(), polarity, name, more_rows=more_rows
+        )
         metob.store(new_atlas)
