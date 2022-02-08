@@ -11,6 +11,8 @@ export OMP_NUM_THREADS=1
 export OMP_PLACES=threads
 export OMP_PROC_BIND=spread
 
+export HDF5_USE_FILE_LOCKING=FALSE
+
 LOG="/global/cfs/projectdirs/m2650/jupyter_logs/${USER}.log"
 
 set -o pipefail
