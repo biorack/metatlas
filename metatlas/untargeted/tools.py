@@ -7,10 +7,11 @@ import glob as glob
 import os
 from collections import defaultdict
 from xml.etree import cElementTree as ET
+from io import StringIO
 
-from metatlas.datastructures import metatlas_objects as metob
-from metatlas.io import metatlas_get_data_helper_fun as ma_data
-from metatlas.plots import dill2plots as dp
+#from metatlas.datastructures import metatlas_objects as metob
+#from metatlas.io import metatlas_get_data_helper_fun as ma_data
+#from metatlas.plots import dill2plots as dp
 
 # imports for the xml to dictionary round trip
 from collections import Mapping
@@ -51,12 +52,64 @@ import time
 import math
 # sys.path.insert(0,'/global/homes/b/bpb/repos/metatlas')
 # from metatlas.untargeted import mzmine_batch_tools_adap as mzm
-from metatlas.plots import dill2plots as dp
+#from metatlas.plots import dill2plots as dp
 import collections
 from ast import literal_eval
 from copy import deepcopy
 import xmltodict
 import zipfile
+
+
+
+
+def get_google_sheet(notebook_name = "Sheet name",
+                     token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
+                     sheet_name = 'Sheet1',
+                    literal_cols=None):
+    """
+    Returns a pandas data frame from the google sheet.
+    Assumes header row is first row.
+
+    To use the token hard coded in the token field,
+    the sheet must be shared with:
+    metatlas-ipython-nersc@ipython-to-sheets-demo.iam.gserviceaccount.com
+    Unique sheet names are a requirement of this approach.
+
+    """
+    import gspread
+    # from oauth2client.client import SignedJwtAssertionCredentials
+    from oauth2client.service_account import ServiceAccountCredentials
+#     scope = ['https://spreadsheets.google.com/feeds']
+#     scope = ['https://www.googleapis.com/auth/spreadsheets']
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    #this is deprecated as of january, but we have pinned the version of oauth2.
+    #see https://github.com/google/oauth2client/issues/401
+#     json_key = json.load(open(token))
+#     credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
+    #here is the new way incase the version pin is removed
+    #credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
+
+    gc = gspread.authorize(credentials)
+    wks = gc.open(notebook_name)
+    istd_qc_data = wks.worksheet(sheet_name).get_all_values()
+    headers = istd_qc_data.pop(0)
+    df = pd.DataFrame(istd_qc_data,columns=headers)
+
+    # Use round trip through read_csv to infer dtypes
+    s = StringIO()
+    df.to_csv(s)
+    df2 = pd.read_csv(StringIO(s.getvalue()))
+    if 'Unnamed: 0' in df2.columns:
+        df2.drop(columns=['Unnamed: 0'],inplace=True)
+
+    #turn list elements into lists instead of strings
+    if literal_cols is not None:
+        for col in literal_cols:
+            df2[col] = df2[col].apply(literal_eval)
+    df2 = df2.fillna('')
+
+    return df2
 
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
@@ -599,6 +652,11 @@ def write_new_mzmine_params(gsheet_params,my_polarity,files,basepath,parent_dir)
 
     # # #unflatten it
     param_dict_unflat = unflatten(str_d)
+    files_filename = '%s_filelist.txt'%os.path.join(basepath,parent_dir)
+    file_list = [f for f in files.tolist() if f is not None]
+    if len(file_list)>0:
+        with open(files_filename,'w') as fid:
+            fid.write('%s'%'\n'.join(file_list))
 
 
     new_raw_data = {'@method': 'net.sf.mzmine.modules.rawdatamethods.rawdataimport.RawDataImportModule',
@@ -645,7 +703,7 @@ def submit_fbmn_jobs(polarity='positive',polarity_short='pos',N=15):
         update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
 
 def get_mzmine_param_dict(gdrive_file='params20190719_v2p39_IsotopeFilter_ADAP_DeDup',param_id=2):
-    gsheet_params = dp.get_google_sheet(notebook_name=gdrive_file,sheet_name='Sheet1')
+    gsheet_params = get_google_sheet(notebook_name=gdrive_file,sheet_name='Sheet1')
 
     new_cols = []
     for c in gsheet_params.columns:
@@ -688,7 +746,7 @@ def write_fbmn_sbatch_and_runner(basepath,parent_dir):
     runner_filename = '%s_fbmn.sh'%os.path.join(basepath,parent_dir)
 
     python_binary = '/global/common/software/m2650/python3-metatlas-cori/bin/python'
-    python_file = '/global/homes/b/bpb/repos/metatlas/notebooks/workspace/mzmine/send_to_gnps.py'
+    python_file = '/global/homes/b/bpb/repos/metatlas/metatlas/untargeted/send_to_gnps.py'
     python_args = '--basedir %s --basename %s --override True'%(basepath,parent_dir)
     with open(runner_filename,'w') as fid:
         fid.write('%s %s %s\n'%(python_binary,python_file,python_args))
