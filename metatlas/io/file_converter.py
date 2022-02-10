@@ -27,6 +27,14 @@ MEMBERS_CMD = "getent group metatlas | cut -d: -f4"
 USERS = sorted(subprocess.check_output(MEMBERS_CMD, shell=True, text=True).strip().split(','))
 
 
+def move_file(src, dest):
+    """ move file and create directories if needed """
+    assert os.path.isfile(src)
+    dest_dir = dest if os.path.isdir(dest) else os.path.dirname(dest)
+    os.makedirs(dest_dir, exist_ok=True)
+    shutil.move(src, dest)
+
+
 def _file_name_to_username(file_name):
     initials_field = os.path.basename(file_name).split("_")[1].lower()
     initials = initials_field.split("-")[-1]
@@ -56,7 +64,7 @@ def get_acqtime_from_mzml(mzml_file):
             if 'start_time' in line:
                 start_time = line.split('start_time="')[1].split('"')[0].replace('T', ' ').rstrip('Z')
                 break
-    if '-infinity' not in start_time:
+    if start_time is not None and '-infinity' not in start_time:
         date_object = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
         utc_timestamp = int(time.mktime(date_object.timetuple()))
     else:
@@ -130,7 +138,7 @@ def convert(ind, fname):
             other_errors[username].append('\n'.join(msg))
             fail_path = fname.replace('raw_data', 'conversion_failures')
             _write_stderr(f"Moving file\n{fname}\nto\n{fail_path}\n")
-            shutil.move(fname, fail_path)
+            move_file(fname, fail_path)
         _write_stderr(str(e))
         try:
             os.remove(hdf5_file)
