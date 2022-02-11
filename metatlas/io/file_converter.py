@@ -85,11 +85,6 @@ def convert(ind, fname):
         _write_stdout(f"Invalid path name: {fname}")
         return
     dirname = os.path.dirname(fname)
-    # Change to read only.
-    try:
-        os.chmod(fname, 0o660)
-    except Exception as e:
-        _write_stderr(str(e))
 
     # Convert to HDF and store the entry in the database.
     try:
@@ -97,7 +92,7 @@ def convert(ind, fname):
         _write_stderr(f"hdf5file is: {hdf5_file}")
         acquisition_time = get_acqtime_from_mzml(fname)
         mzml_to_hdf(fname, hdf5_file, True)
-        os.chmod(hdf5_file, 0o660)
+        os.chmod(hdf5_file, 0o640)
         description = info['experiment'] + ' ' + info['path']
         ctime = os.stat(fname).st_ctime
         # Add this to the database unless it is already there
@@ -158,7 +153,7 @@ def update_metatlas(directory):
             convert(ind, ffff)
         if readonly_files:
             for (username, dirnames) in readonly_files.items():
-                body = ("Please log in to NERSC and run 'chmod 777' on the "
+                body = ("Please log in to NERSC and run 'chmod g+rwXs' on the "
                         "following directories:\n%s" % ('\n'.join(dirnames)))
                 send_mail('Metatlas Files are Inaccessible', username, body)
         if other_errors:
