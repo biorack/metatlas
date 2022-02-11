@@ -10,6 +10,11 @@
 # */15 will run it every 15 minutes
 # will only email if stderr has content since stdout goes to null
 
+set -euo pipefail
+IFS=$'\n\t'
+
+export HDF5_USE_FILE_LOCKING=FALSE
+
 mkdir -p "$HOME/tmp"
 PIDFILE="$HOME/tmp/file_converter.pid"
 
