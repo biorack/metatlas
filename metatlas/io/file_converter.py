@@ -90,14 +90,6 @@ def convert(ind, fname):
         os.chmod(fname, 0o660)
     except Exception as e:
         _write_stderr(str(e))
-    # Get a lock on the mzml file to prevent interference.
-    try:
-        fid = open(fname, 'r', encoding="utf-8")
-        fcntl.flock(fid, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except IOError:
-        fid.close()
-        _write_stderr(f"{fname} already converting in another process")
-        return
 
     # Convert to HDF and store the entry in the database.
     try:
@@ -144,8 +136,6 @@ def convert(ind, fname):
             os.remove(hdf5_file)
         except:
             pass
-    finally:
-        fid.close()
 
 
 def update_metatlas(directory):
