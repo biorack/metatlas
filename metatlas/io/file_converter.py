@@ -1,7 +1,8 @@
 """ mzml to h5 file conversion """
 
 import argparse
-import fcntl
+import functools
+import logging
 import os
 import re
 import shutil
@@ -18,13 +19,35 @@ from metatlas.io.mzml_loader import mzml_to_hdf
 from metatlas.io.mzml_loader import VERSION_TIMESTAMP
 from metatlas.io.system_utils import send_mail
 
+logger = logging.getLogger(__name__)
 
 readonly_files = {}  # username (or uid) | a set of files associated with them
 other_errors = {}  # info with user | list of error messages
 patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
 MEMBERS_CMD = "getent group metatlas | cut -d: -f4"
-USERS = sorted(subprocess.check_output(MEMBERS_CMD, shell=True, text=True).strip().split(','))
+ALL_USERS = set(sorted(subprocess.check_output(MEMBERS_CMD, shell=True, text=True).strip().split(',')))
+REMOVE_USERS = {'msdata', 'jaws', 'jgi_dna', 'vrsingan', 'wjholtz',
+                'mjblow', 'greensi', 'annau', 'jfroula', 'pasteur'}
+USERS = tuple(ALL_USERS - REMOVE_USERS)
+DEFAULT_USERNAME = 'smkosina'
+EXPLICIT_USERNAMES = {"ag": "agolini", "ao": "arosborn"}
+
+
+@functools.lru_cache
+def _initials_to_username(initials):
+    if initials == '':
+        return None
+    if initials in EXPLICIT_USERNAMES:
+        return EXPLICIT_USERNAMES[initials]
+    for user in USERS:
+        if user.startswith(initials):
+            return user
+    for user in USERS:
+        pat = re.compile(f"^{initials[0]}[a-z]{initials[1]}")
+        if pat.match(user):
+            return user
+    return None
 
 
 def move_file(src, dest):
@@ -35,26 +58,14 @@ def move_file(src, dest):
     shutil.move(src, dest)
 
 
-def _file_name_to_username(file_name):
+def _file_name_to_username(file_name, default):
+    """ extract initials from filename and convert to nersc username """
     initials_field = os.path.basename(file_name).split("_")[1].lower()
-    initials = initials_field.split("-")[-1]
-    for user in USERS:
-        if user.startswith(initials):
-            return user
-    return None
-
-
-def _write(message, out_fh):
-    out_fh.write(message + "\n")
-    out_fh.flush()
-
-
-def _write_stdout(message):
-    _write(message, sys.stdout)
-
-
-def _write_stderr(message):
-    _write(message, sys.stderr)
+    for initials in initials_field.split("-")[::-1]:  # from right to left
+        username = _initials_to_username(initials.replace('_', ''))
+        if username is not None:
+            return username
+    return default
 
 
 def get_acqtime_from_mzml(mzml_file):
@@ -74,45 +85,46 @@ def get_acqtime_from_mzml(mzml_file):
 
 def convert(ind, fname):
     """Helper function, converts a single file"""
-    _write_stdout(f"({ind+1}): {fname}")
+    logger.info("Converting file number %d: %s", ind + 1, fname)
 
     # Get relevant information about the file.
-    username = _file_name_to_username(fname)
+    username = _file_name_to_username(fname, DEFAULT_USERNAME)
     info = patt.match(os.path.abspath(fname))
     if info:
         info = info.groupdict()
     else:
-        _write_stdout(f"Invalid path name: {fname}")
+        logger.error("Invalid path name: %s", fname)
         return
     dirname = os.path.dirname(fname)
 
     # Convert to HDF and store the entry in the database.
     try:
         hdf5_file = fname.replace('mzML', 'h5')
-        _write_stderr(f"hdf5file is: {hdf5_file}")
-        acquisition_time = get_acqtime_from_mzml(fname)
+        logger.info("Generating h5 file: %s", hdf5_file)
         mzml_to_hdf(fname, hdf5_file, True)
         os.chmod(hdf5_file, 0o640)
-        description = info['experiment'] + ' ' + info['path']
-        ctime = os.stat(fname).st_ctime
         # Add this to the database unless it is already there
         try:
             runs = retrieve('lcmsrun', username='*', mzml_file=fname)
         except Exception:
             runs = []
         if not runs:
+            ctime = os.stat(fname).st_ctime
+            logger.info("LCMS run not in DB, inserting new entry.")
             run = LcmsRun(name=info['path'],
-                          description=description,
+                          description=f"{info['experiment']} {info['path']}",
                           username=username,
                           experiment=info['experiment'],
                           creation_time=ctime,
                           last_modified=ctime,
                           mzml_file=fname,
                           hdf5_file=hdf5_file,
-                          acquisition_time=acquisition_time)
+                          acquisition_time=get_acqtime_from_mzml(fname))
             store(run)
     except Exception as e:
+        logger.error("During file conversion: %s", str(e))
         if 'exists but it can not be written' in str(e):
+            logger.error("Cannot write to file within directory %s", dirname)
             if username not in readonly_files:
                 readonly_files[username] = set()
             readonly_files[username].add(dirname)
@@ -124,9 +136,8 @@ def convert(ind, fname):
                 other_errors[username] = []
             other_errors[username].append('\n'.join(msg))
             fail_path = fname.replace('raw_data', 'conversion_failures')
-            _write_stderr(f"Moving file\n{fname}\nto\n{fail_path}\n")
+            logger.error("Moving mzml file to %s", fail_path)
             move_file(fname, fail_path)
-        _write_stderr(str(e))
         try:
             os.remove(hdf5_file)
         except:
@@ -148,25 +159,27 @@ def update_metatlas(directory):
     new_files = [file for file in mzml_files if file.replace('.mzML', '.h5') not in valid_files]
 
     if new_files:
-        _write_stdout(f"Found {len(new_files)} files")
+        logger.info("Found %d files", len(new_files))
         for ind, ffff in enumerate(new_files):
             convert(ind, ffff)
         if readonly_files:
             for (username, dirnames) in readonly_files.items():
+                logger.info("Sending email to %s about inaccessible files.", username)
                 body = ("Please log in to NERSC and run 'chmod g+rwXs' on the "
                         "following directories:\n%s" % ('\n'.join(dirnames)))
                 send_mail('Metatlas Files are Inaccessible', username, body)
         if other_errors:
             for (username, errors) in other_errors.items():
+                logger.info("Sending email to %s about conversion error.", username)
                 body = ('Errored files found while loading in Metatlas files:\n\n%s' %
                         '\n********************************\n'.join(errors))
                 send_mail('Errors loading Metatlas files', username, body)
-    _write_stdout('Done!')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Watchdog to monitor directory for new files")
     parser.add_argument("directory", type=str, nargs=1, help="Directory to watch")
     args = parser.parse_args()
-    _write_stdout(str(args))
+    logger.info("Monitoring directory: %s", args.directory[0])
     update_metatlas(args.directory[0])
+    logger.info('Done! - file_converter.py run has completed.')
