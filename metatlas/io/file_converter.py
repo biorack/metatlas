@@ -20,6 +20,7 @@ from metatlas.io.mzml_loader import VERSION_TIMESTAMP
 from metatlas.io.system_utils import send_mail
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 readonly_files = {}  # username (or uid) | a set of files associated with them
 other_errors = {}  # info with user | list of error messages
