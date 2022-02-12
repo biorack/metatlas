@@ -11,7 +11,6 @@
 # will only email if stderr has content since stdout goes to null
 
 set -euo pipefail
-IFS=$'\n\t'
 
 export HDF5_USE_FILE_LOCKING=FALSE
 
