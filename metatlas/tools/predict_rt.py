@@ -32,30 +32,42 @@ from metatlas.tools import parallel
 logger = logging.getLogger(__name__)
 
 TEMPLATES = {
-    "positive": [
-        "HILICz150_ANT20190824_TPL_EMA_Unlab_POS",
-        "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS",
-        "HILICz150_ANT20190824_TPL_ISv5_Unlab_POS",
-        "HILICz150_ANT20190824_TPL_ISv5_13C15N_POS",
-        "HILICz150_ANT20190824_TPL_IS_LabUnlab2_POS",
-    ],
-    "negative": [
-        "HILICz150_ANT20190824_TPL_EMA_Unlab_NEG",
-        "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG",
-        "HILICz150_ANT20190824_TPL_ISv5_Unlab_NEG",
-        "HILICz150_ANT20190824_TPL_ISv5_13C15N_NEG",
-        "HILICz150_ANT20190824_TPL_IS_LabUnlab2_NEG",
-    ],
+    "positive": {
+        "HILICZ": [
+            {"name": "HILICz150_ANT20190824_TPL_EMA_Unlab_POS", "username": "vrsingan"},
+            {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
+            {"name": "HILICz150_ANT20190824_TPL_ISv5_Unlab_POS", "username": "vrsingan"},
+            {"name": "HILICz150_ANT20190824_TPL_ISv5_13C15N_POS", "username": "vrsingan"},
+            {"name": "HILICz150_ANT20190824_TPL_IS_LabUnlab2_POS", "username": "vrsingan"},
+        ],
+        "C18": [
+            {"name": "C18_20220208c_QC_POS", "username": "wjholtz"},
+            {"name": "C18_20220118_TPL_POS", "username": "wjholtz"},
+        ],
+    },
+    "negative": {
+        "HILICZ": [
+            {"name": "HILICz150_ANT20190824_TPL_EMA_Unlab_NEG", "username": "vrsingan"},
+            {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
+            {"name": "HILICz150_ANT20190824_TPL_ISv5_Unlab_NEG", "username": "vrsingan"},
+            {"name": "HILICz150_ANT20190824_TPL_ISv5_13C15N_NEG", "username": "vrsingan"},
+            {"name": "HILICz150_ANT20190824_TPL_IS_LabUnlab2_NEG", "username": "vrsingan"},
+        ],
+        "C18": [
+            {"name": "C18_20220208c_QC_NEG", "username": "wjholtz"},
+            {"name": "C18_20220118_TPL_NEG", "username": "wjholtz"},
+        ],
+    },
 }
 
 QC_ATLASES = {
     "positive": {
-        "HILICZ": {"atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
-        "C18": {"atlas": "C18_20220208c_QC_POS", "username": "wjholtz"},
+        "HILICZ": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
+        "C18": {"name": "C18_20220208c_QC_POS", "username": "wjholtz"},
     },
     "negative": {
-        "HILICZ": {"atlas": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
-        "C18": {"atlas": "C18_20220208c_QC_NEG", "username": "wjholtz"},
+        "HILICZ": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
+        "C18": {"name": "C18_20220208c_QC_NEG", "username": "wjholtz"},
     },
 }
 
@@ -236,7 +248,7 @@ def get_files_df(groups):
 def get_qc_atlas(ids):
     """Retreives template QC atlas and return tuple (atlas, atlas_df)"""
     qc_atlas_dict = QC_ATLASES[ids.polarity][ids.chromatography]
-    qc_atlas_name = qc_atlas_dict["atlas"]
+    qc_atlas_name = qc_atlas_dict["name"]
     username = qc_atlas_dict["username"]
     logger.info("Loading QC Atlas %s", qc_atlas_name)
     atlas = metob.retrieve("Atlas", name=qc_atlas_name, username=username)[0]
@@ -487,7 +499,24 @@ def get_atlas_name(template_name, ids, model, free_text):
     return prod_atlas_name
 
 
-def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="", save_to_db=True):
+def adjust_atlas(atlas, model, ids):
+    """use model to adjust RTs within atlas"""
+    atlas_df = ma_data.make_atlas_df(atlas)
+    atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
+    atlas_df["rt_peak"] = model.predict(atlas_df["rt_peak"].to_numpy())
+    rt_offset = 0.2 if ids.chromatography == "C18" else 0.5
+    atlas_df["rt_min"] = atlas_df["rt_peak"].apply(lambda rt: rt - rt_offset)
+    atlas_df["rt_max"] = atlas_df["rt_peak"].apply(lambda rt: rt + rt_offset)
+    return atlas_df
+
+
+def get_template_atlas(ids, polarity, idx):
+    """Retreives a template atlas with the correct chromatorgraphy and polarity"""
+    template = TEMPLATES[polarity][ids.chromatography][idx]
+    return metob.retrieve("Atlas", **template)[-1]
+
+
+def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text=""):
     """
     input:
         linear_model: instance of class Model with first order model
@@ -500,44 +529,38 @@ def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="",
                         3: ISv5_13C15N
                         4: IS_LabUnlab2
         free_text: arbitrary string to append to atlas name
-        save_to_db: if True, save the atlases to the database
     returns a list of the names of atlases
     """
     # pylint: disable=too-many-locals
-    atlas_indices = [0, 4] if atlas_indices is None else atlas_indices
+    assert ids.chromatography in ["HILICZ", "C18"]
+    default_atlas_indices = [0, 1] if ids.chromatography == "C18" else [0, 4]
+    atlas_indices = default_atlas_indices if atlas_indices is None else atlas_indices
     plot_vars = [
         (polarity, idx, model)
         for polarity in ["positive", "negative"]
         for idx in atlas_indices
         for model in [linear, poly]
     ]
-    out = []
+    out_atlas_names = []
     for polarity, idx, model in tqdm(plot_vars, unit="atlas"):
-        template_name = TEMPLATES[polarity][idx]
-        atlas = metob.retrieve("Atlas", name=template_name, username="vrsingan")[-1]
-        prd_atlas_name = get_atlas_name(template_name, ids, model, free_text)
-        out.append(prd_atlas_name)
-        logger.info("Creating atlas %s", prd_atlas_name)
-        prd_atlas_file_name = os.path.join(ids.output_dir, f"{prd_atlas_name}.csv")
-        prd_atlas_df = ma_data.make_atlas_df(atlas)
-        prd_atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
-        prd_atlas_df["rt_peak"] = model.predict(prd_atlas_df["rt_peak"].to_numpy())
-        prd_atlas_df["rt_min"] = prd_atlas_df["rt_peak"].apply(lambda rt: rt - 0.5)
-        prd_atlas_df["rt_max"] = prd_atlas_df["rt_peak"].apply(lambda rt: rt + 0.5)
+        template_atlas = get_template_atlas(ids, polarity, idx)
+        out_atlas_names.append(get_atlas_name(template_atlas.name, ids, model, free_text))
+        logger.info("Creating atlas %s", out_atlas_names[-1])
+        out_atlas_file_name = os.path.join(ids.output_dir, f"{out_atlas_names[-1]}.csv")
+        out_atlas_df = adjust_atlas(template_atlas, model, ids)
         write_utils.export_dataframe_die_on_diff(
-            prd_atlas_df, prd_atlas_file_name, "predicted atlas", index=False, float_format="%.6e"
+            out_atlas_df, out_atlas_file_name, "predicted atlas", index=False, float_format="%.6e"
         )
-        if save_to_db:
-            dp.make_atlas_from_spreadsheet(
-                prd_atlas_df,
-                prd_atlas_name,
-                filetype="dataframe",
-                sheetname="",
-                polarity=polarity,
-                store=True,
-                mz_tolerance=12,
-            )
-    return out
+        dp.make_atlas_from_spreadsheet(
+            out_atlas_df,
+            out_atlas_names[-1],
+            filetype="dataframe",
+            sheetname="",
+            polarity=polarity,
+            store=True,
+            mz_tolerance=10 if ids.chromatography == "C18" else 12,
+        )
+    return out_atlas_names
 
 
 def write_notebooks(ids, atlases, use_poly_model):
