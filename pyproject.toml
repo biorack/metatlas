@@ -3,9 +3,12 @@ line-length = 110
 
 [[tool.mypy.overrides]]
 module = [
+    "app.*",
     "colorama.*",
+    "credentials.*",
     "dataset.*",
     "dill.*",
+    "ftputil.*",
     "gspread.*",
     "humanize.*",
     "h5py.*",
@@ -41,9 +44,13 @@ module = [
     "tables.*",
     "tqdm.*",
     "traitlets.*",
+    "werkzeug.utils.*",
     "xmltodict.*",
 ]
 ignore_missing_imports = true
+
+[tool.mypy]
+show_error_codes = true
 
 [tool.pylint.MASTER]
 extension-pkg-allow-list = [
