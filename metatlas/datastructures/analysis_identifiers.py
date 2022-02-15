@@ -36,6 +36,7 @@ DEFAULT_GROUPS_CONTROLLED_VOCAB = cast(GroupMatchList, ["QC", "InjBl", "ISTD"])
 OUTPUT_TYPES = [
     OutputType("ISTDsEtc"),
     OutputType("FinalEMA-HILIC"),
+    OutputType("FinalEMA-C18"),
     OutputType("data_QC"),
     OutputType("other"),
 ]
@@ -142,12 +143,15 @@ class AnalysisIdentifiers(HasTraits):
             return ["QC"]
         return []
 
-    @property
-    def _default_exclude_groups(self) -> GroupMatchList:
+    def _get_default_exclude_groups(self, polarity: Polarity) -> GroupMatchList:
         out: GroupMatchList = ["InjBl", "InjBL"]
         if self.output_type in ["ISTDsEtc", "FinalEMA-HILIC"]:
             out.append("QC")
-        return append_inverse(out, self.polarity)
+        return append_inverse(out, polarity)
+
+    @property
+    def _default_exclude_groups(self) -> GroupMatchList:
+        return self._get_default_exclude_groups(self.polarity)
 
     @validate("polarity")
     def _valid_polarity(self, proposal: Proposal) -> Polarity:
@@ -353,7 +357,7 @@ class AnalysisIdentifiers(HasTraits):
     @observe("polarity")
     def _observe_polarity(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self.set_trait("exclude_groups", append_inverse(self.exclude_groups, signal.new))
+            self.set_trait("exclude_groups", self._get_default_exclude_groups(signal.new))
             logger.debug("Change to polarity invalidates exclude_groups")
 
     @observe("_all_groups")
