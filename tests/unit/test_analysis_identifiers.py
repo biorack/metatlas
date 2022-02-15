@@ -22,10 +22,7 @@ def test_analysis_identifiers01(sqlite):
 
 
 def test_analysis_identifiers02(sqlite_with_atlas, username):
-    with pytest.raises(
-        traitlets.traitlets.TraitError,
-        match="Parameter output_type must be one of ISTDsEtc, FinalEMA-HILIC, data_QC",
-    ):
+    with pytest.raises(traitlets.traitlets.TraitError, match="Parameter output_type must be one of"):
         AnalysisIdentifiers(
             source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
             experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",

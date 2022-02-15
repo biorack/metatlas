@@ -102,12 +102,15 @@ class Model:
         return self.sk_model.predict(x_transformed)
 
 
-def generate_rt_correction_models(ids: mads.AnalysisIdentifiers, cpus: int) -> Tuple[Model, Model]:
+def generate_rt_correction_models(
+    ids: mads.AnalysisIdentifiers, cpus: int, selected_col
+) -> Tuple[Model, Model]:
     """
     Generate the RT correction models and model charaterization files
     inputs:
-        ids: an AnalysisIds object matching the one used in the main notebook
-        cpus: max number of cpus to use
+        ids: an AnalysisIds object matching the one selected_cold in the main notebook
+        cpus: max number of cpus to us
+        selected_col: name of column to use for model generation
     Returns a tuple with a linear and polynomial model
     """
     # pylint: disable=too-many-locals
@@ -127,21 +130,20 @@ def generate_rt_correction_models(ids: mads.AnalysisIdentifiers, cpus: int) -> T
     rts_df = get_rts(metatlas_dataset)
     compound_atlas_rts_file_name = os.path.join(ids.output_dir, "Compound_Atlas_RTs.pdf")
     plot_compound_atlas_rts(len(metatlas_dataset), rts_df, compound_atlas_rts_file_name)
-    selected_column = "median"
-    actual_df, pred_df = actual_and_predicted_df(selected_column, rts_df, qc_atlas_df)
+    actual_df, pred_df = actual_and_predicted_df(selected_col, rts_df, qc_atlas_df)
     linear, poly = generate_models(actual_df, pred_df)
     actual_rts, pred_rts = actual_and_predicted_rts(rts_df, qc_atlas_df, actual_df, pred_df)
     actual_vs_pred_file_name = os.path.join(ids.output_dir, "Actual_vs_Predicted_RTs.pdf")
     plot_actual_vs_pred_rts(pred_rts, actual_rts, rts_df, actual_vs_pred_file_name, linear, poly)
     rt_comparison_file_name = os.path.join(ids.output_dir, "RT_Predicted_Model_Comparison.csv")
-    save_model_comparison(selected_column, qc_atlas_df, rts_df, linear, poly, rt_comparison_file_name)
+    save_model_comparison(selected_col, qc_atlas_df, rts_df, linear, poly, rt_comparison_file_name)
     models_file_name = os.path.join(ids.output_dir, "rt_model.txt")
     write_models(models_file_name, linear, poly, groups, qc_atlas)
     return (linear, poly)
 
 
 def generate_outputs(
-    ids, cpus, num_points=5, peak_height=5e5, save_to_db=True, use_poly_model=True, model_only=False
+    ids, cpus, num_points=5, peak_height=5e5, use_poly_model=True, model_only=False, selected_col="median"
 ):
     """
     Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
@@ -151,15 +153,15 @@ def generate_outputs(
         cpus: max number of cpus to use
         num_points: minimum number of data points in a peak
         peak_height: threshold intensity level for filtering
-        save_to_db: If True, save the new atlases to the database
         use_poly_model: If True, use the polynomial model, else use linear model
                         Both types of models are always generated, this only determines which ones
                         are pre-populated into the generated notebooks
         model_only: If True, do not create atlases or notebooks, if False create them
+        selected_col: name of column to use for model generation
     """
-    linear, poly = generate_rt_correction_models(ids, cpus)
+    linear, poly = generate_rt_correction_models(ids, cpus, selected_col)
     if not model_only:
-        atlases = create_adjusted_atlases(linear, poly, ids, save_to_db=save_to_db)
+        atlases = create_adjusted_atlases(linear, poly, ids)
         write_notebooks(ids, atlases, use_poly_model)
         pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_points, peak_height)
     targeted_output.copy_outputs_to_google_drive(ids)
