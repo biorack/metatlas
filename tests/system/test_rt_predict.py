@@ -171,19 +171,16 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 0070_lysine_unlabeled_positive_M+H147p1128_17p01,1.704321e+01,1.703506e+01,1.705360e+01,1.705996e+01,1.704796e+01,1.704841e+01,1.703506e+01,1.705996e+01,1.102419e-02,5.512097e-03,0
 0071_ornithine_unlabeled_positive_M+H133p0972_17p04,1.705887e+01,1.706319e+01,1.708551e+01,1.707796e+01,1.707138e+01,1.707057e+01,1.705887e+01,1.708551e+01,1.246700e-02,6.233499e-03,0"""
 
-    command = """\
-                    jq -M '(.cells[] | select(.source[] | contains("predict_rt.generate_outputs(")).source) \
-                                = ["predict_rt.generate_outputs(ids, max_cpus, metatlas_repo_path, save_to_db=False, model_only=True)"]' \
-                                /src/notebooks/reference/RT_Prediction.ipynb > /out/Remove.ipynb &&  \
-                    papermill -k papermill \
+    command = """papermill -k papermill \
                         -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
+                        -p model_only True \
                         -p metatlas_repo_path /src \
                         -p project_directory /out \
                         -p max_cpus 2 \
-                        /out/Remove.ipynb \
+                        /src/notebooks/reference/RT_Prediction.ipynb \
                         /out/Remove-done.ipynb
-                   """
+    """
     utils.exec_docker(image, command, tmp_path)
-    assert utils.num_files_in(tmp_path) == 9
+    assert utils.num_files_in(tmp_path) == 8
     utils.assert_files_match(expected)
