@@ -198,21 +198,23 @@ def pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_p
     for atlas_name in atlases:
         if (use_poly_model and "linear" in atlas_name) or (not use_poly_model and "polynomial" in atlas_name):
             continue
-        polarity = "positive" if "_POS_" in atlas_name else "negative"
-        output_type = "FinalEMA-HILIC" if "EMA_Unlab" in atlas_name else "ISTDsEtc"
         current_ids = mads.AnalysisIdentifiers(
             source_atlas=atlas_name,
             experiment=ids.experiment,
-            output_type=output_type,
-            polarity=polarity,
+            output_type=get_output_type(ids.chromatography, atlas_name),
+            polarity="positive" if "_POS_" in atlas_name else "negative",
             analysis_number=ids.analysis_number,
             project_directory=ids.project_directory,
             google_folder=ids.google_folder,
         )
         metatlas_dataset = mads.MetatlasDataset(ids=current_ids, max_cpus=cpus)
         _ = metatlas_dataset.hits
-        if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
+        if "EMA" in metatlas_dataset.ids.output_type:
             metatlas_dataset.filter_compounds_by_signal(num_points=num_points, peak_height=peak_height)
+
+
+def get_output_type(chromatography, atlas_name):
+    return f"FinalEMA-{chromatography}" if "EMA" in atlas_name else "ISTDsEtc"
 
 
 def get_groups(ids):
@@ -577,7 +579,7 @@ def write_notebooks(ids, atlases, use_poly_model):
             continue
         polarity = "positive" if "_POS_" in atlas_name else "negative"
         short_polarity = "POS" if polarity == "positive" else "NEG"
-        output_type = f"FinalEMA-{ids.chromatography}" if "EMA" in atlas_name else "ISTDsEtc"
+        output_type = get_output_type(ids.chromatography, atlas_name)
         repo_path = Path(__file__).resolve().parent.parent.parent
         source = repo_path / "notebooks" / "reference" / "Targeted.ipynb"
         dest = Path(ids.output_dir).resolve().parent / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
