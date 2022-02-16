@@ -41,8 +41,8 @@ TEMPLATES = {
             {"name": "HILICz150_ANT20190824_TPL_IS_LabUnlab2_POS", "username": "vrsingan"},
         ],
         "C18": [
-            {"name": "C18_20220208c_QC_POS", "username": "wjholtz"},
-            {"name": "C18_20220118_TPL_POS", "username": "wjholtz"},
+            {"name": "C18_20220215_TPL_IS_Unlab_POS", "username": "wjholtz"},
+            {"name": "C18_20220215_TPL_EMA_Unlab_POS", "username": "wjholtz"},
         ],
     },
     "negative": {
@@ -54,8 +54,8 @@ TEMPLATES = {
             {"name": "HILICz150_ANT20190824_TPL_IS_LabUnlab2_NEG", "username": "vrsingan"},
         ],
         "C18": [
-            {"name": "C18_20220208c_QC_NEG", "username": "wjholtz"},
-            {"name": "C18_20220118_TPL_NEG", "username": "wjholtz"},
+            {"name": "C18_20220215_TPL_IS_Unlab_NEG", "username": "wjholtz"},
+            {"name": "C18_20220215_TPL_EMA_Unlab_NEG", "username": "wjholtz"},
         ],
     },
 }
@@ -63,11 +63,11 @@ TEMPLATES = {
 QC_ATLASES = {
     "positive": {
         "HILICZ": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
-        "C18": {"name": "C18_20220208c_QC_POS", "username": "wjholtz"},
+        "C18": {"name": "C18_20220215_TPL_IS_Unlab_POS", "username": "wjholtz"},
     },
     "negative": {
         "HILICZ": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
-        "C18": {"name": "C18_20220208c_QC_NEG", "username": "wjholtz"},
+        "C18": {"name": "C18_20220215_TPL_IS_Unlab_NEG", "username": "wjholtz"},
     },
 }
 
@@ -577,7 +577,7 @@ def write_notebooks(ids, atlases, use_poly_model):
             continue
         polarity = "positive" if "_POS_" in atlas_name else "negative"
         short_polarity = "POS" if polarity == "positive" else "NEG"
-        output_type = "FinalEMA-HILIC" if "EMA_Unlab" in atlas_name else "ISTDsEtc"
+        output_type = f"FinalEMA-{ids.chromatography}" if "EMA" in atlas_name else "ISTDsEtc"
         repo_path = Path(__file__).resolve().parent.parent.parent
         source = repo_path / "notebooks" / "reference" / "Targeted.ipynb"
         dest = Path(ids.output_dir).resolve().parent / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
