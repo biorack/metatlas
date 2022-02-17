@@ -4,16 +4,16 @@ IFS=$'\n\t'
 
 max_cpus=8
 
-usage() { 
+usage() {
 >&2 echo "Usage:
 $(basename "$0") experiment_name analysis_number project_directory [-p notebook_parameter=value] [-y yaml_string]
 
    where:
-      experiment_name:   experiment identifier 
+      experiment_name:   experiment identifier
       analysis_number:   integer, use 0 for a new analysis
                          and increment if reworking one
       project_directory: output directory will be created within this directory
-      -p:                optional notebook parameters, can have more than one 
+      -p:                optional notebook parameters, can have more than one
       -y:                optional notebook parameters in YAML string
 
 for more information see:
@@ -42,6 +42,17 @@ install_jupyter_kernel() {
   mkdir -p "$kernel_path"
   cp "${script_dir}/../docker/shifter.kernel.json" "${kernel_path}/kernel.json"
 }
+
+
+get_num_cpus() {
+  experiment_name="$1"
+  if [[ $experiment_name == *"_C18_"* ]]; then
+    echo "32"
+  else
+    echo "8"
+  fi
+}
+
 
 declare -a positional_parameters=()
 declare -a extra_parameters=()
@@ -82,6 +93,7 @@ exp="${positional_parameters[0]}"
 analysis_num="${positional_parameters[1]}"
 project_dir="${positional_parameters[2]}"
 
+max_cpus="$(get_num_cpus "$exp")"
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 exp_dir="${project_dir}/$exp"
 analysis_dir="${exp_dir}/${USER}${analysis_num}"
