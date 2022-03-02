@@ -3,8 +3,9 @@
 import json
 import logging
 import os
+import re
 
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 from IPython.core.display import display, HTML
@@ -70,22 +71,64 @@ def activate_sql_logging(console_level="INFO", console_format=None, file_level="
     activate_module_logging("sqlalchemy.engine", console_level, console_format, file_level, filename)
 
 
-def create_notebook(input_file_name, output_file_name, parameters, injection_cell=2):
+def cells_matching_tags(data: dict, tags: List[str]) -> List[int]:
     """
-    Copies from input_file_name to output_file_name and then places the parameters into a
-    cell of the output notebook.
+    For a jupyter notebook represented by data, return the list of cells with
+    one or more tags that are within the tags input
+    """
+    return [i for i, cell in enumerate(data["cells"]) if has_intersection(get_metadata_tags(cell), tags)]
+
+
+def has_intersection(one: List, two: List) -> bool:
+    """True if the set intersection of one and two is non-empty"""
+    return len(set.intersection(set(one), set(two))) > 0
+
+
+def get_metadata_tags(cell: dict):
+    """Return a list of metadata tags for the input cell"""
+    try:
+        return cell["metadata"]["tags"]
+    except KeyError:
+        return []
+
+
+def create_notebook(source: str, dest: str, parameters: dict) -> None:
+    """
+    Copies source notebook to dest and updates parameters (as defined by papermill)
     inputs:
-        input_file_name: source notebook
-        output_file_name: destination notebook
+        source: path of input notebook
+        dest: path of destination notebook
         parameters: dict where keys are LHS of assignment and values are RHS of assignment
-        injection_cell: zero-indexed number of cell to overwrite with the parameters
     """
-    with open(input_file_name, "r", encoding="utf8") as in_fh:
-        notebook = json.load(in_fh)
-    notebook["cells"][injection_cell]["source"] = [assignment_string(k, v) for k, v in parameters.items()]
-    with open(output_file_name, "w", encoding="utf-8") as out_fh:
-        json.dump(notebook, out_fh, ensure_ascii=False, indent=4)
-    logger.info("Created jupyter notebook %s", output_file_name)
+    with open(source, encoding="utf8") as source_fh:
+        data = json.load(source_fh)
+    param_cell_idx = cells_matching_tags(data, ["parameters"])[0]
+    param_source = data["cells"][param_cell_idx]["source"]
+    data["cells"][param_cell_idx]["source"] = replace_parameters(param_source, parameters)
+    with open(dest, "w", encoding="utf8") as out_fh:
+        json.dump(data, out_fh, indent=1)
+
+
+def replace_parameters(source: List[str], parameters: dict) -> List[str]:
+    """Update parameter values in a list of strings and return a new list of strings"""
+    eq_pat = re.compile(r"^([^#= ]+)\s*=.+$")
+    out = []
+    updated = []
+    for line in source:
+        re_match = eq_pat.match(line)
+        if re_match:
+            param_name = re_match.group(1)
+            if param_name in parameters:
+                new_value = parameters[param_name]
+                out_value = f"'{new_value}'" if isinstance(new_value, str) else new_value
+                out.append(f"{param_name} = {out_value}\n")
+                updated.append(param_name)
+                continue
+        out.append(line)
+    unused = set(parameters.keys()) - set(updated)
+    if len(unused) > 0:
+        raise ValueError(f"The following parameters could not be found in the source notebook: {unused}")
+    return out
 
 
 def assignment_string(lhs, rhs):
