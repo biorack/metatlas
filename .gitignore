@@ -66,7 +66,7 @@ target/
 *.tab
 
 # Database
-*.sql
+*.sqlite3
 *.db
 *-shm
 *-wal

@@ -5,6 +5,7 @@ import warnings
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
 
+from typing import Callable, List, Optional, Sized
 from enum import Enum
 
 from metatlas.datastructures import metatlas_objects as metob
@@ -15,6 +16,7 @@ from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.plots.compound_eic import save_compound_eic_pdf
 from metatlas.plots.tic import save_sample_tic_pdf
 from metatlas.plots.utils import pdf_with_text
+from metatlas.tools import fastanalysis
 from metatlas.tools import parallel
 from metatlas.tools import spectralprocessing as sp
 
@@ -2714,7 +2716,11 @@ def filter_atlas(atlas_df, data, num_data_points_passing=5, peak_height_passing=
     return atlas_df.iloc[keep_idxs].reset_index(drop=True)
 
 
-def strong_signal_compound_idxs(data, num_points_passing, peak_height_passing):
+def strong_signal_compound_idxs(
+        data,
+        num_points_passing: Optional[int] = None,
+        peak_height_passing: Optional[float] = None,
+        msms_score_passing: Optional[float] = None) -> List[int]:
     """
     inputs:
         data: metatlas_dataset
@@ -2722,17 +2728,53 @@ def strong_signal_compound_idxs(data, num_points_passing, peak_height_passing):
                                  in order for the compound to remain in the atlas
         peak_height_passing: max intensity in EIC that must be exceeded in one or more samples
                              in order for the compound to remain in the atlas
+        msms_score_passing: max msms spectra similarity score tha tmust be exceeded in one or
+                             more samples in order for the compound to remain in the atlas
     returns list of indices that are above the thresholds
     """
-    num_passing = np.array([
-        [len(get_intensity(compound)) > num_points_passing for compound in sample]
-        for sample in data]
-    ).any(axis=0)
-    peak_passing = np.array([
-        [np.array(get_intensity(compound)+[0]).max() > peak_height_passing for compound in sample]
-        for sample in data]
-    ).any(axis=0)
-    return np.flatnonzero(num_passing & peak_passing).tolist()
+    num_points_idxs = num_points_passing_idxs(data, num_points_passing)
+    height_idxs = peak_height_passing_idxs(data, peak_height_passing)
+    score_idxs = msms_score_passing_idxs(data, msms_score_passing)
+    return list(set.intersection(set(num_points_idxs), set(height_idxs), set(score_idxs)))
+
+
+def all_idxs(in_list: Sized) -> List[int]:
+    """Return a list of all the indices of in_list"""
+    return list(range(len(in_list)))
+
+
+def peak_height_passing_idxs(data, height_threshold: Optional[float]) -> List[int]:
+    """" Returns a list of compound indices that have intensity exceeding height_threshold"""
+    def eval_peak_height(compound):
+        return (max(get_intensity(compound)+[0])) > height_threshold
+    return all_idxs(data[0]) if height_threshold is None else get_passing_idxs(data, eval_peak_height)
+
+
+def num_points_passing_idxs(data, min_points: Optional[int]) -> List[int]:
+    """"
+    Returns a list of compound indices that have more than min_points of intensity data
+    for atleast one sample
+    """
+    def eval_num_points(compound):
+        return len(get_intensity(compound)) > min_points
+    return all_idxs(data[0]) if min_points is None else get_passing_idxs(data, eval_num_points)
+
+
+def get_passing_idxs(data, eval_func: Callable) -> List[int]:
+    per_sample_compound = np.array([[eval_func(compound) for compound in sample] for sample in data]
+                                   ).any(axis=0)
+    return np.flatnonzero(per_sample_compound).tolist()
+
+
+def msms_score_passing_idxs(data, msms_score: Optional[float]) -> List[int]:
+    """
+    inputs:
+        msms_score: spectra similarity score must be exceeded to pass
+    """
+    if msms_score is None:
+        return all_idxs(data[0])
+    scores_df = fastanalysis.make_scores_df(data.data, data.hits)
+    return [i for i, row in scores_df.iterrows() if row["max_msms_score"] > msms_score]
 
 
 def filter_metatlas_objects_to_most_recent(object_list, field):

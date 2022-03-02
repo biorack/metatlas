@@ -5,65 +5,41 @@ import getpass
 import logging
 import os
 
-from typing import cast, Dict, List, NewType, Optional, TypedDict
+from typing import cast, Dict, List, Optional
 
 import pandas as pd
 import traitlets
 
 from traitlets import Bool, TraitError, observe, validate
-from traitlets import HasTraits, Int, TraitType, Unicode
+from traitlets import HasTraits, Int, Unicode
 from traitlets.traitlets import ObserveHandler
 
-from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures.id_types import (
+    AnalysisNumber,
+    Experiment,
+    FileMatchList,
+    GroupList,
+    GroupMatchList,
+    LcmsRunDict,
+    LcmsRunsList,
+    PathString,
+    Polarity,
+    POLARITIES,
+    Proposal,
+    OutputType,
+    OUTPUT_TYPES,
+    ShortPolarity,
+    SHORT_POLARITIES,
+)
+import metatlas.datastructures.metatlas_objects as metob
+import metatlas.plots.dill2plots as dp
 from metatlas.datastructures.utils import AtlasName, get_atlas, Username
 from metatlas.io import write_utils
-from metatlas.plots import dill2plots as dp
 from metatlas.tools.util import or_default
-
-GroupList = Optional[List[metob.Group]]
-LcmsRunsList = Optional[List[metob.LcmsRun]]
-FileMatchList = List[str]
-GroupMatchList = List[str]
-
-Polarity = NewType("Polarity", str)
-ShortPolarity = NewType("ShortPolarity", str)
-Experiment = NewType("Experiment", str)
-OutputType = NewType("OutputType", str)
-AnalysisNumber = NewType("AnalysisNumber", int)
-PathString = NewType("PathString", str)
-
-DEFAULT_GROUPS_CONTROLLED_VOCAB = cast(GroupMatchList, ["QC", "InjBl", "ISTD"])
-OUTPUT_TYPES = [
-    OutputType("ISTDsEtc"),
-    OutputType("FinalEMA-HILIC"),
-    OutputType("FinalEMA-C18"),
-    OutputType("data_QC"),
-    OutputType("other"),
-]
-POLARITIES = [Polarity("positive"), Polarity("negative"), Polarity("fast-polarity-switching")]
-SHORT_POLARITIES = {
-    Polarity("positive"): ShortPolarity("POS"),
-    Polarity("negative"): ShortPolarity("NEG"),
-    Polarity("fast-polarity-switching"): ShortPolarity("FPS"),
-}
 
 logger = logging.getLogger(__name__)
 
-
-class Proposal(TypedDict):
-    """for use with traitlets.validate"""
-
-    owner: HasTraits
-    value: object
-    trait: TraitType
-
-
-class _LcmsRunDict(TypedDict):
-    """part of return type for AnalysisIdentifiers._files_dict"""
-
-    object: metob.LcmsRun
-    group: str
-    short_name: str
+DEFAULT_GROUPS_CONTROLLED_VOCAB = cast(GroupMatchList, ["QC", "InjBl", "ISTD"])
 
 
 class AnalysisIdentifiers(HasTraits):
@@ -145,7 +121,7 @@ class AnalysisIdentifiers(HasTraits):
 
     def _get_default_exclude_groups(self, polarity: Polarity) -> GroupMatchList:
         out: GroupMatchList = ["InjBl", "InjBL"]
-        if self.output_type in ["ISTDsEtc", "FinalEMA-HILIC"]:
+        if self.output_type not in ["data_QC"]:
             out.append("QC")
         return append_inverse(out, polarity)
 
@@ -237,7 +213,7 @@ class AnalysisIdentifiers(HasTraits):
     def output_dir(self) -> PathString:
         """Creates the output directory and returns the path as a string"""
         sub_dirs = [self.experiment, self.analysis, self.output_type]
-        if self.output_type in ["ISTDsEtc", "FinalEMA-HILIC"]:
+        if self.output_type not in ["data_QC"]:
             sub_dirs.append(self.short_polarity)
         out = os.path.join(self.project_directory, *sub_dirs)
         os.makedirs(out, exist_ok=True)
@@ -329,16 +305,16 @@ class AnalysisIdentifiers(HasTraits):
         )
 
     @property
-    def _files_dict(self) -> Dict[str, _LcmsRunDict]:
+    def _files_dict(self) -> Dict[str, LcmsRunDict]:
         """
         Queries DB for all lcmsruns matching the class properties.
         Returns a dict of dicts where keys are filenames minus extensions and values are
         dicts with keys: object, group, and short_name
         """
-        file_dict: Dict[str, _LcmsRunDict] = {}
+        file_dict: Dict[str, LcmsRunDict] = {}
         for lcms_file in self.lcmsruns:
             base_name: str = lcms_file.name.split(".")[0]
-            file_dict[base_name] = cast(_LcmsRunDict, {"object": lcms_file, **self.group_name(base_name)})
+            file_dict[base_name] = cast(LcmsRunDict, {"object": lcms_file, **self.group_name(base_name)})
         return file_dict
 
     @property

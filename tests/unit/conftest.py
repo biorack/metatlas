@@ -16,10 +16,10 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from metatlas.datastructures import analysis_identifiers as ids
-from metatlas.datastructures import metatlas_dataset as mads
-from metatlas.datastructures import metatlas_objects as metob
-from metatlas.datastructures import object_helpers as metoh
+import metatlas.datastructures.analysis_identifiers as ids
+import metatlas.datastructures.metatlas_dataset as mads
+import metatlas.datastructures.metatlas_objects as metob
+import metatlas.datastructures.object_helpers as metoh
 
 
 logger = logging.getLogger(__name__)
