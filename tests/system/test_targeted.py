@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_targeted_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.17"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.18"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
@@ -50,7 +50,6 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                     papermill -k papermill \
                         -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
-                        -p metatlas_repo_path /src \
                         -p project_directory /out \
                         -p max_cpus 2 \
                         /out/Remove.ipynb \

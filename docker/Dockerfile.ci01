@@ -3,8 +3,8 @@ FROM python:3.8-slim-bullseye
 # https://portal.nersc.gov/cfs/m2650/metatlas/test_data
 # serves from /global/cfs/cdirs/m2650/www/metatlas/test_data
 ARG BASE_DATA_URL=https://portal.nersc.gov/cfs/m2650/metatlas/test_data/ci01
-ARG REFS_DIR=/global/project/projectdirs/metatlas/projects/spectral_libraries
-ARG H5_DIR=/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583
+ARG REFS_DIR=/global/cfs/cdirs/metatlas/projects/spectral_libraries
+ARG H5_DIR=/global/cfs/cdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583
 ARG NOTES_DIR=/global/cfs/cdirs/m2650/targeted_analysis/
 
 ENV METATLAS_LOCAL=True

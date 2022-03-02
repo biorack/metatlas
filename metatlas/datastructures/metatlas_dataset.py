@@ -41,7 +41,7 @@ from metatlas.plots import dill2plots as dp
 from metatlas.tools import parallel
 
 MSMS_REFS_PATH = PathString(
-    "/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
+    "/global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
 )
 
 logger = logging.getLogger(__name__)
