@@ -11,7 +11,7 @@ fi
 # install mysql-to-sqlite3
 apt-get update
 apt-get install -y python3 python3-pip
-pip3 install mysql-to-sqlite3
+pip3 install mysql-to-sqlite3==1.4.10 python-slugify==5.0.2
 
 while ! grep "mysqld: Shutdown complete" /var/log/mysql/error.log; do
     echo 'still waiting for mysql server to finish loading data...'
