@@ -8,7 +8,7 @@ import os
 
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -21,6 +21,7 @@ from sklearn.preprocessing import PolynomialFeatures
 from tqdm.notebook import tqdm
 
 from metatlas.datastructures import metatlas_dataset as mads
+from metatlas.datastructures.analysis_identifiers import AnalysisIdentifiers
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import targeted_output
@@ -114,9 +115,7 @@ class Model:
         return self.sk_model.predict(x_transformed)
 
 
-def generate_rt_correction_models(
-    ids: mads.AnalysisIdentifiers, cpus: int, selected_col
-) -> Tuple[Model, Model]:
+def generate_rt_correction_models(ids: AnalysisIdentifiers, cpus: int, selected_col) -> Tuple[Model, Model]:
     """
     Generate the RT correction models and model charaterization files
     inputs:
@@ -155,7 +154,14 @@ def generate_rt_correction_models(
 
 
 def generate_outputs(
-    ids, cpus, num_points=5, peak_height=5e5, use_poly_model=True, model_only=False, selected_col="median"
+    ids: AnalysisIdentifiers,
+    cpus: int,
+    num_points: Optional[int] = None,
+    peak_height: Optional[float] = None,
+    msms_score: Optional[float] = None,
+    use_poly_model: bool = True,
+    model_only: bool = False,
+    selected_col: str = "median",
 ):
     """
     Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
@@ -165,6 +171,7 @@ def generate_outputs(
         cpus: max number of cpus to use
         num_points: minimum number of data points in a peak
         peak_height: threshold intensity level for filtering
+        msms_score: minimum spectra similarity score to pass filtering
         use_poly_model: If True, use the polynomial model, else use linear model
                         Both types of models are always generated, this only determines which ones
                         are pre-populated into the generated notebooks
@@ -175,13 +182,17 @@ def generate_outputs(
     if not model_only:
         atlases = create_adjusted_atlases(linear, poly, ids)
         write_notebooks(ids, atlases, use_poly_model)
-        pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_points, peak_height)
+        pre_process_data_for_all_notebooks(
+            ids, atlases, cpus, use_poly_model, num_points, peak_height, msms_score
+        )
     targeted_output.copy_outputs_to_google_drive(ids)
     targeted_output.archive_outputs(ids)
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
 
 
-def pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_points, peak_height):
+def pre_process_data_for_all_notebooks(
+    ids, atlases, cpus, use_poly_model, num_points, peak_height, msms_score
+):
     """
     inputs:
         ids: an AnalysisIds object matching the one used in the main notebook
@@ -192,13 +203,14 @@ def pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_p
                         are pre-populated into the generated notebooks
         num_points: minimum number of data points in a peak
         peak_height: threshold intensity level for filtering
+        msms_score: minimum spectra similarity score to pass filtering
     Calls MetatlasDataset().hits, which will create a hits cache file
     Filters compounds by signal strength to reduce atlas size
     """
     for atlas_name in atlases:
         if (use_poly_model and "linear" in atlas_name) or (not use_poly_model and "polynomial" in atlas_name):
             continue
-        current_ids = mads.AnalysisIdentifiers(
+        current_ids = AnalysisIdentifiers(
             source_atlas=atlas_name,
             experiment=ids.experiment,
             output_type=get_output_type(ids.chromatography, atlas_name),
@@ -210,10 +222,11 @@ def pre_process_data_for_all_notebooks(ids, atlases, cpus, use_poly_model, num_p
         metatlas_dataset = mads.MetatlasDataset(ids=current_ids, max_cpus=cpus)
         _ = metatlas_dataset.hits
         if "EMA" in metatlas_dataset.ids.output_type:
-            metatlas_dataset.filter_compounds_by_signal(num_points=num_points, peak_height=peak_height)
+            metatlas_dataset.filter_compounds_by_signal(num_points, peak_height, msms_score)
 
 
-def get_output_type(chromatography, atlas_name):
+def get_output_type(chromatography: str, atlas_name: str):
+    """Returns an output type string"""
     return f"FinalEMA-{chromatography}" if "EMA" in atlas_name else "ISTDsEtc"
 
 
@@ -623,7 +636,7 @@ def get_analysis_ids_for_rt_prediction(
         groups_controlled_vocab: list of substrings that will group all matches into one group
     Returns an AnalysisIds instance
     """
-    return mads.AnalysisIdentifiers(
+    return AnalysisIdentifiers(
         experiment=experiment,
         output_type="data_QC",
         analysis_number=analysis_number,

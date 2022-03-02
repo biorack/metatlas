@@ -30,6 +30,7 @@ more_checks = [
     "metatlas/io/targeted_output.py",
     "metatlas/io/write_utils.py",
     "metatlas/datastructures/analysis_identifiers.py",
+    "metatlas/datastructures/id_types.py",
     "metatlas/datastructures/metatlas_dataset.py",
     "metatlas/datastructures/spectrum.py",
     "metatlas/datastructures/utils.py",
@@ -45,6 +46,7 @@ more_checks = [
     "metatlas/tools/parallel.py",
     "metatlas/tools/predict_rt.py",
     "metatlas/tools/util.py",
+    "noxfile.py",
     "tests",
 ]
 
@@ -80,6 +82,7 @@ mypy_deps = [
 ]
 
 pylint_deps = [
+    "nox==2022.1.7",
     "pylint==2.11.1",
     "pytest==6.2.5",  # so "import pytest" doesn't get reported
 ]
@@ -194,7 +197,13 @@ def blacken_nb(session):
 def unit_tests(session):
     session.install("-r", "docker/requirements.txt", *pytest_deps)
     session.run(
-        "pytest", *pytest_flags, *session.posargs, "--cov", "metatlas", "tests/unit/", env={"METATLAS_LOCAL": "TRUE"}
+        "pytest",
+        *pytest_flags,
+        *session.posargs,
+        "--cov",
+        "metatlas",
+        "tests/unit/",
+        env={"METATLAS_LOCAL": "TRUE"},
     )
 
 

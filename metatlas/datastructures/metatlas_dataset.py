@@ -1,5 +1,4 @@
 """ object oriented interface to metatlas_dataset """
-# pylint: disable=too-many-lines
 
 import datetime
 import getpass
@@ -17,42 +16,33 @@ import humanize
 import pandas as pd
 import traitlets
 
+
 from IPython.display import display
 from traitlets import observe
-from traitlets import Bool, Float, HasTraits, Instance, Int, TraitType, Unicode
+from traitlets import Bool, Float, HasTraits, Instance, Int, Unicode
 from traitlets.traitlets import ObserveHandler
 
-from metatlas.datastructures.analysis_identifiers import (
-    AnalysisIdentifiers,
+import metatlas.plots.dill2plots as dp
+import metatlas.datastructures.analysis_identifiers as analysis_ids
+from metatlas.datastructures.id_types import (
+    AnalysisNumber,
+    Experiment,
     FileMatchList,
     GroupMatchList,
-    Polarity,
-    Experiment,
-    OutputType,
-    AnalysisNumber,
     PathString,
+    Polarity,
+    OutputType,
 )
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
 from metatlas.datastructures.utils import AtlasName, get_atlas, Username
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import targeted_output
-from metatlas.plots import dill2plots as dp
 from metatlas.tools import parallel
 
-MSMS_REFS_PATH = PathString(
-    "/global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab"
-)
+MSMS_REFS_PATH = PathString("/global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab")
 
 logger = logging.getLogger(__name__)
-
-
-class Proposal(TypedDict):
-    """for use with traitlets.validate"""
-
-    owner: HasTraits
-    value: object
-    trait: TraitType
 
 
 class MsSummary(TypedDict):
@@ -150,7 +140,7 @@ class MetatlasDataset(HasTraits):
     restarts between steps in the workflow.
 
 
-    ids: AnalysisIdentifiers instance defining the analysis
+    ids: analysis_ids.AnalysisIdentifiers instance defining the analysis
     save_metadata: if True, write metadata files containing data sources and LCMS runs short name
     """
 
@@ -161,7 +151,7 @@ class MetatlasDataset(HasTraits):
     save_metadata: bool = Bool(default_value=True)
     keep_nonmatches: bool = Bool(default_value=True)
     msms_refs_loc: PathString = Unicode(default_value=MSMS_REFS_PATH)
-    ids: AnalysisIdentifiers = Instance(klass=AnalysisIdentifiers)
+    ids: analysis_ids.AnalysisIdentifiers = Instance(klass=analysis_ids.AnalysisIdentifiers)
     atlas: metob.Atlas = Instance(klass=metob.Atlas)
     _atlas_df: Optional[pd.DataFrame] = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
     _data: Optional[Tuple[MetatlasSample, ...]] = traitlets.Tuple(allow_none=True, default_value=None)
@@ -330,6 +320,17 @@ class MetatlasDataset(HasTraits):
             raise Exception from err
         workspace.close_connection()
 
+    def _filter_data(self, keep_idxs: List[int]) -> None:
+        """Removes any compounds from _data that do not have their index in keep_idxs"""
+        if self._data is None:
+            return
+        self._data = tuple(
+            MetatlasSample(
+                tuple(compound for idx, compound in enumerate(sample.compounds) if idx in keep_idxs)
+            )
+            for sample in self._data
+        )
+
     def filter_compounds(
         self, keep_idxs: Optional[List[int]] = None, remove_idxs: Optional[List[int]] = None
     ) -> None:
@@ -352,28 +353,21 @@ class MetatlasDataset(HasTraits):
         in_idxs = cast(
             List[int], keep_idxs if remove_idxs is None else self.atlas_df.index.difference(remove_idxs)
         )
-        if len(in_idxs) == start_len:
-            return
-        out_idxs = cast(
-            List[int], remove_idxs if keep_idxs is None else self.atlas_df.index.difference(keep_idxs)
-        )
-        self._atlas_df = self.atlas_df.iloc[in_idxs].copy().reset_index(drop=True)
-        if self._data is not None:
-            self._data = tuple(
-                MetatlasSample(
-                    tuple(compound for idx, compound in enumerate(sample.compounds) if idx in in_idxs)
-                )
-                for sample in self._data
+        if len(in_idxs) != start_len:
+            out_idxs = cast(
+                List[int], remove_idxs if keep_idxs is None else self.atlas_df.index.difference(keep_idxs)
             )
-        for i in sorted(out_idxs, reverse=True):
-            self._remove_compound_id(i)
+            self._atlas_df = self.atlas_df.iloc[in_idxs].copy().reset_index(drop=True)
+            self._filter_data(in_idxs)
+            for i in sorted(out_idxs, reverse=True):
+                self._remove_compound_id(i)
         logger.info(
             "Filtering reduced atlas from %d to %d compounds (%d removed).",
             start_len,
             len(self.atlas_df),
             start_len - len(self.atlas_df),
         )
-        if self._hits is not None:
+        if len(in_idxs) != start_len and self._hits is not None:
             self.filter_hits_by_atlas()
             self._save_to_cache(self._hits, self._get_hits_metadata())
 
@@ -407,16 +401,28 @@ class MetatlasDataset(HasTraits):
         logger.debug("Filtering atlas to exclude ms1_notes=='remove'.")
         self.filter_compounds(remove_idxs=self.compound_indices_marked_remove())
 
-    def filter_compounds_by_signal(self, num_points: int, peak_height: float) -> None:
+    def filter_compounds_by_signal(
+        self,
+        num_points: Optional[int] = None,
+        peak_height: Optional[float] = None,
+        msms_score: Optional[float] = None,
+    ) -> None:
         """
         inputs:
             num_points: number of points in EIC that must be exceeded in one or more samples
                         in order for the compound to remain in the atlas
             peak_height: max intensity in the EIC that must be exceeded in one or more samples
                          in order for the compound to remain in the atlas
+            msms_score: spectra similarity score that must be exceeded in one or more samples
+                         in order for the compound to remain in the atlas
         """
-        logger.debug("Filtering atlas on num_points=%d, peak_height=%d.", num_points, peak_height)
-        keep_idxs = dp.strong_signal_compound_idxs(self, num_points, peak_height)
+        if num_points is not None:
+            logger.info("Filtering atlas on num_points=%d.", num_points)
+        if peak_height is not None:
+            logger.info("Filtering atlas on peak_height=%.2f.", peak_height)
+        if msms_score is not None:
+            logger.info("Filtering atlas on msms_score=%.2f.", msms_score)
+        keep_idxs = dp.strong_signal_compound_idxs(self, num_points, peak_height, msms_score)
         self.filter_compounds(keep_idxs=keep_idxs)
 
     def store_atlas(self, even_if_exists: bool = False) -> None:
@@ -806,7 +812,7 @@ def quoted_string_list(strings: List[str]) -> str:
     return ", ".join([f'"{x}"' for x in strings])
 
 
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-locals
 def pre_annotation(
     source_atlas: AtlasName,
     experiment: Experiment,
@@ -820,10 +826,11 @@ def pre_annotation(
     num_points: int,
     peak_height: float,
     max_cpus: int,
+    msms_score: float = None,
     username: Username = None,
 ) -> MetatlasDataset:
     """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
-    ids = AnalysisIdentifiers(
+    ids = analysis_ids.AnalysisIdentifiers(
         source_atlas=source_atlas,
         experiment=experiment,
         output_type=output_type,
@@ -836,14 +843,14 @@ def pre_annotation(
         username=getpass.getuser() if username is None else username,
     )
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=max_cpus)
-    if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
-        metatlas_dataset.filter_compounds_by_signal(num_points=num_points, peak_height=peak_height)
+    if "FinalEMA" in metatlas_dataset.ids.output_type:
+        metatlas_dataset.filter_compounds_by_signal(num_points, peak_height, msms_score)
     return metatlas_dataset
 
 
 def post_annotation(metatlas_dataset: MetatlasDataset, require_all_evaluated=True) -> None:
     """All data processing that needs to occur after the annotation GUI in Targeted notebook"""
-    if metatlas_dataset.ids.output_type in ["FinalEMA-HILIC"]:
+    if "FinalEMA" in metatlas_dataset.ids.output_type:
         if require_all_evaluated:
             metatlas_dataset.error_if_not_all_evaluated()
         metatlas_dataset.filter_compounds_ms1_notes_remove()
