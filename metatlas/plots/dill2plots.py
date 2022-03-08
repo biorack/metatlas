@@ -3144,26 +3144,12 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     _add_columns(atlas_df, column_names=['adduct'], default_values=[np.NaN])
     check_compound_names(atlas_df)
     check_filenames(atlas_df, 'file_msms')
-    atlas = sort_atlas(get_atlas(atlas_name, atlas_df, polarity, mz_tolerance))
+    sorted_atlas_df = atlas_df.sort_values('rt_peak')
+    atlas = get_atlas(atlas_name, sorted_atlas_df, polarity, mz_tolerance)
     if store:
         logger.info('Saving atlas named %s to DB.', atlas_name)
         metob.store(atlas)
     return atlas
-
-
-def _get_rt(cid):
-    """Returns the peak RT for a compound_identification if it is set, otherwise 0"""
-    try:
-        return cid.rt_references[0].rt_peak
-    except (AttributeError, IndexError):
-        return 0
-
-
-def sort_atlas(atlas):
-    """Copies an atlas and sorts on peak_rt"""
-    new_atlas = deepcopy(atlas)
-    new_atlas.compound_identifications = sorted(new_atlas.compound_identifications, key=_get_rt)
-    return new_atlas
 
 
 def _copy_attributes(source, dest, attribute_list, default_list=None, error_on_missing=False):
