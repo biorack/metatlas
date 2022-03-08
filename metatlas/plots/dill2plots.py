@@ -5,6 +5,7 @@ import warnings
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
 
+from copy import deepcopy
 from typing import Callable, List, Optional, Sized
 from enum import Enum
 
@@ -1406,7 +1407,6 @@ def NeutraliseCharges(mol, reactions=None):
 
 
 def drawStructure_Fragment(pactolus_tree,fragment_idx,myMol,myMol_w_Hs):
-    from copy import deepcopy
     fragment_atoms = np.where(pactolus_tree[fragment_idx]['atom_bool_arr'])[0]
     depth_of_hit = np.sum(pactolus_tree[fragment_idx]['bond_bool_arr'])
     mol2 = deepcopy(myMol_w_Hs)
@@ -2620,7 +2620,6 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
     get and pickle everything This is MSMS, raw MS1 datapoints, compound, group info, and file info
     """
     data = []
-    import copy as copy
     for i,treatment_groups in enumerate(group):
         for j in range(len(treatment_groups.items)):
             myFile = treatment_groups.items[j].hdf5_file
@@ -2636,7 +2635,7 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
                 result['atlas_unique_id'] = myAtlas.unique_id
                 result['lcmsrun'] = treatment_groups.items[j]
                 result['group'] = treatment_groups
-                temp_compound = copy.deepcopy(compound)
+                temp_compound = deepcopy(compound)
                 if use_set1:
                     if '_Set1' in treatment_groups.name:
                         temp_compound.rt_references[0].rt_min -= 0.2
@@ -3145,7 +3144,8 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     _add_columns(atlas_df, column_names=['adduct'], default_values=[np.NaN])
     check_compound_names(atlas_df)
     check_filenames(atlas_df, 'file_msms')
-    atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
+    sorted_atlas_df = atlas_df.sort_values('rt_peak')
+    atlas = get_atlas(atlas_name, sorted_atlas_df, polarity, mz_tolerance)
     if store:
         logger.info('Saving atlas named %s to DB.', atlas_name)
         metob.store(atlas)
