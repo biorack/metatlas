@@ -62,7 +62,7 @@ def move_file(src, dest):
 def _file_name_to_username(file_name, default):
     """ extract initials from filename and convert to nersc username """
     initials_field = os.path.basename(file_name).split("_")[1].lower()
-    for initials in initials_field.split("-")[::-1]:  # from right to left
+    for initials in initials_field.split("-"):  # from left to right
         username = _initials_to_username(initials.replace('_', ''))
         if username is not None:
             return username
