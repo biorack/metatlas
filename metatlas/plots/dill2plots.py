@@ -3144,8 +3144,7 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     _add_columns(atlas_df, column_names=['adduct'], default_values=[np.NaN])
     check_compound_names(atlas_df)
     check_filenames(atlas_df, 'file_msms')
-    sorted_atlas_df = atlas_df.sort_values('rt_peak')
-    atlas = get_atlas(atlas_name, sorted_atlas_df, polarity, mz_tolerance)
+    atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
     if store:
         logger.info('Saving atlas named %s to DB.', atlas_name)
         metob.store(atlas)
