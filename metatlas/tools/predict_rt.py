@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 TEMPLATES = {
     "positive": {
-        "HILICZ": [
+        "HILIC": [
             {"name": "HILICz150_ANT20190824_TPL_EMA_Unlab_POS", "username": "vrsingan"},
             {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
             {"name": "HILICz150_ANT20190824_TPL_ISv5_Unlab_POS", "username": "vrsingan"},
@@ -47,7 +47,7 @@ TEMPLATES = {
         ],
     },
     "negative": {
-        "HILICZ": [
+        "HILIC": [
             {"name": "HILICz150_ANT20190824_TPL_EMA_Unlab_NEG", "username": "vrsingan"},
             {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
             {"name": "HILICz150_ANT20190824_TPL_ISv5_Unlab_NEG", "username": "vrsingan"},
@@ -63,11 +63,11 @@ TEMPLATES = {
 
 QC_ATLASES = {
     "positive": {
-        "HILICZ": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
+        "HILIC": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
         "C18": {"name": "C18_20220215_TPL_IS_Unlab_POS", "username": "wjholtz"},
     },
     "negative": {
-        "HILICZ": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
+        "HILIC": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
         "C18": {"name": "C18_20220215_TPL_IS_Unlab_NEG", "username": "wjholtz"},
     },
 }
@@ -547,7 +547,7 @@ def create_adjusted_atlases(linear, poly, ids, atlas_indices=None, free_text="")
     returns a list of the names of atlases
     """
     # pylint: disable=too-many-locals
-    assert ids.chromatography in ["HILICZ", "C18"]
+    assert ids.chromatography in ["HILIC", "C18"]
     default_atlas_indices = [0, 1] if ids.chromatography == "C18" else [0, 4]
     atlas_indices = default_atlas_indices if atlas_indices is None else atlas_indices
     plot_vars = [

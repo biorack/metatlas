@@ -652,4 +652,4 @@ def test_query_cache02(metatlas_dataset):
 
 
 def test_chromatography01(metatlas_dataset):
-    assert metatlas_dataset.ids.chromatography == "HILICZ"
+    assert metatlas_dataset.ids.chromatography == "HILIC"

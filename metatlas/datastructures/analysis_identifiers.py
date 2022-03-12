@@ -426,7 +426,8 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def chromatography(self) -> str:
         """returns the type of chromatography used"""
-        return self.lcmsruns[0].name.split("_")[7]
+        field = self.lcmsruns[0].name.split("_")[7]
+        return "HILIC" if field == "HILICZ" else field
 
     def store_all_groups(self, exist_ok: bool = False) -> None:
         """
