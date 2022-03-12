@@ -174,12 +174,12 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
     command = """papermill -k papermill \
                         -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
-                        -p model_only True \
+                        -p model_only False \
                         -p project_directory /out \
                         -p max_cpus 2 \
                         /src/notebooks/reference/RT_Prediction.ipynb \
                         /out/Remove-done.ipynb
     """
     utils.exec_docker(image, command, tmp_path)
-    assert utils.num_files_in(tmp_path) == 8
+    assert utils.num_files_in(tmp_path) == 52  # this is 8 if model_only is set to True
     utils.assert_files_match(expected)
