@@ -35,6 +35,7 @@ more_checks = [
     "metatlas/datastructures/spectrum.py",
     "metatlas/datastructures/utils.py",
     "metatlas/plots/compound_eic.py",
+    "metatlas/plots/mirror.py",
     "metatlas/plots/plot_set.py",
     "metatlas/plots/tic.py",
     "metatlas/plots/utils.py",
