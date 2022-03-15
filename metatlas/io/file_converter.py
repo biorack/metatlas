@@ -103,7 +103,7 @@ def convert(ind, fname):
         hdf5_file = fname.replace('mzML', 'h5')
         logger.info("Generating h5 file: %s", hdf5_file)
         mzml_to_hdf(fname, hdf5_file, True)
-        os.chmod(hdf5_file, 0o640)
+        os.chmod(hdf5_file, 0o660)  # this can be changed to 0o440 once everyone is on the current code
         # Add this to the database unless it is already there
         try:
             runs = retrieve('lcmsrun', username='*', mzml_file=fname)
