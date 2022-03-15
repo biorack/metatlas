@@ -6,11 +6,16 @@ repos:
   - id: check-ast
   - id: check-merge-conflict
   - id: check-symlinks
+  - id: check-toml
   - id: check-yaml
   - id: debug-statements
   - id: end-of-file-fixer
   - id: trailing-whitespace
   - id: mixed-line-ending
+- repo: https://github.com/zricethezav/gitleaks
+  rev: v8.2.0
+  hooks:
+    - id: gitleaks
 - repo: local
   hooks:
   - id: flake8_diff
