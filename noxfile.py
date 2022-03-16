@@ -29,6 +29,7 @@ more_checks = [
     "metatlas/io/rclone.py",
     "metatlas/io/targeted_output.py",
     "metatlas/io/write_utils.py",
+    "metatlas/datastructures/atlas.py",
     "metatlas/datastructures/analysis_identifiers.py",
     "metatlas/datastructures/id_types.py",
     "metatlas/datastructures/metatlas_dataset.py",
