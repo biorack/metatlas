@@ -49,7 +49,10 @@ def get_msms_data(
     returns a tuple of numpy arrays containing mz values and intensity values
     """
     row = data.loc[idx]
-    return np.array(json.loads(row[mz_column_name])), np.array(json.loads(row[i_column_name]))
+    try:
+        return np.array(json.loads(row[mz_column_name])), np.array(json.loads(row[i_column_name]))
+    except TypeError:
+        return np.array([]), np.array([])
 
 
 # pylint: disable-next=too-many-arguments
