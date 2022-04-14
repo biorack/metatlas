@@ -357,14 +357,16 @@ class adjust_rt_for_selected_compound(object):
         logger.debug('Finished replot')
 
     def notes(self):
+        self.copy_button_area.clear_output()
+        self.id_note.value = self.current_id.identification_notes or ''
         inchi_key = self.current_inchi_key
+        if inchi_key is None:
+            return
         adduct = self.current_adduct
         polarity = self.data.ids.polarity
         chromatography = self.data.ids.chromatography
-        notes_list = self.instruction_set.query(inchi_key, adduct, chromatography, polarity)
-        self.instructions.value = '; '.join(notes_list)
-        self.id_note.value = self.current_id.identification_notes or ''
-        self.copy_button_area.clear_output()
+        instruction_list = self.instruction_set.query(inchi_key, adduct, chromatography, polarity)
+        self.instructions.value = '; '.join(instruction_list)
         clipboard_text = f"{inchi_key}\t{adduct}\t{chromatography}\t{polarity}"
         with self.copy_button_area:
             make_copy_to_clipboard_button(clipboard_text, 'Copy Index')
@@ -861,7 +863,7 @@ class adjust_rt_for_selected_compound(object):
 
     @property
     def current_inchi_key(self):
-        return self.current_id.compound[0].inchi_key
+        return extract(self.current_id, ['compound', 0, 'inchi_key'], None)
 
     @property
     def current_adduct(self):
