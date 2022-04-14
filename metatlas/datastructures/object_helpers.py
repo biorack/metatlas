@@ -149,6 +149,7 @@ class Workspace(object):
                 if os.path.exists(filename):
                     os.chmod(filename, 0o775)
         logger.debug('Using database at: %s', self.path)
+        self.engine_kwargs = {} if self.path.startswith("sqlite") else {"pool_recycle": 3600}
 
         self.tablename_lut = dict()
         self.subclass_lut = dict()
@@ -180,7 +181,7 @@ class Workspace(object):
         Each activity that queries the database needs to have this function preceeding it.
         """
         if self.db is None:
-            self.db = dataset.connect(self.path)
+            self.db = dataset.connect(self.path, engine_kwargs=self.engine_kwargs)
         else:
             self.db.begin()
             try:
@@ -188,7 +189,7 @@ class Workspace(object):
                 self.db.commit()
             except Exception:
                 self.db.rollback()
-                self.db = dataset.connect(self.path)
+                self.db = dataset.connect(self.path, engine_kwargs=self.engine_kwargs)
         assert self.db is not None
 
     def close_connection(self):
