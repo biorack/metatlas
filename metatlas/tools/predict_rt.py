@@ -324,7 +324,11 @@ def order_df_columns_by_run(dataframe):
     stats_start_idx = cols.index("mean")
     to_sort = cols[:stats_start_idx]
     no_sort = cols[stats_start_idx:]
-    to_sort.sort(key=lambda x: int(x.split(".")[0].split("_Run")[1]))
+    to_sort.sort(
+        key=lambda x: int(
+            x.split(".")[0].split("_")[-1].lower().replace("run", "").replace("seq", "").replace("s", "")
+        )
+    )
     new_cols = to_sort + no_sort
     return dataframe[new_cols]
 
