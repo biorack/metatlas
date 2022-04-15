@@ -35,6 +35,17 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
              -1 2021-09-13 16:34:45        -1 20210819_JGI-AK_MK_506588_SoilWaterRep_final_QE-139_HILICZ_USHXG01490
    ```
 
+   If instead you see:
+   ```
+   ERROR : : error listing: directory not found
+   Failed to lsd with 2 errors: last error was: directory not found
+   ```
+
+   then you need to request access to the
+   [JGI_Metabolomics_Projects Google Drive folder](https://drive.google.com/drive/folders/0B-ZDcHbPi-aqZzE5V3hOZFc0dms).
+   Please repeat step 9 after you have been granted access.
+
+
 ### Make a directory to store work in progress
 
 Still within the terminal in JupyterLab, run:
@@ -65,13 +76,13 @@ For example, your command with the parameters substituted in will be something l
 /global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 ~/metabolomics_data
 ```
 
-This will submit a slurm job. You will receive an email when the job starts executing and when it has completed. Typical jobs take 2 to 5 hours to complete.
+This will submit a slurm job. You will receive an email when the job starts executing and when it has completed. Typical HILIC jobs take 2 to 5 hours to complete.
 
 #### Outputs
 
 Once the job has completed, you should check the files generated to make sure the RT correction models look acceptable. You can find the output PDF files at `~/metabolomics_data/EXPERIMENT_NAME/${USER}ANALYSIS_NUMBER/data_QC/`. One easy way to view these files is to open them from the [Jupyter](https://jupyter.nersc.gov/) file browser. In `Actual_vs_Predicted_RTs.pdf`, you want to check that the default model (median-based RT correction and polynomial model) gives a good fit. At the bottom of the `Actual_vs_Predicted_RTs.pdf`, you can find the 'FileIndex' number that corresponds to the 'median' correction. Once you have determined the 'FileIndex' for median, you want to find the plot that has 'File: \<FileIndex\>' above it. This is the plot showing the models for the median-based RT correction. On each plot, there should be a red line (linear model) and green line (polynomial model). In many cases the lines for these models will almost be right on top of each other and you might not be able to see both of the lines unless you zoom in near the line ends.
 
-If the median-based polynomial model does not give a good fit, then ask Will Holtz to help you to switch to a different model, as the notebook does not yet support selecting other models.
+If the median-based polynomial model does not give a good fit, then ask Will Holtz to help you to switch to a different model.
 
 ### Perform ISTDsEtc Analysis
 
