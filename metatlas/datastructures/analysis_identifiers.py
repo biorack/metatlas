@@ -176,9 +176,12 @@ class AnalysisIdentifiers(HasTraits):
         return self.experiment.split("_")
 
     @property
-    def project(self) -> int:
-        """Returns project number (proposal id)"""
-        return int(self._exp_tokens[3])
+    def project(self) -> str:
+        """
+        Returns project identifier (proposal id)
+        This is an integer for JGI, but a string for EGSB
+        """
+        return self._exp_tokens[3]
 
     @property
     def atlas(self) -> AtlasName:
