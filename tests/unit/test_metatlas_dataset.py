@@ -586,7 +586,7 @@ def test_include_groups01(sqlite_with_atlas, username, lcmsrun, mocker, groups_c
 
 
 def test_project01(analysis_ids):
-    assert analysis_ids.project == 505892
+    assert analysis_ids.project == "505892"
 
 
 def test_exclude_files01(analysis_ids):
