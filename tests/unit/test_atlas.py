@@ -1,8 +1,10 @@
+# pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long
+
 import metatlas.datastructures.atlas as mda
 
 
 def test_get_rt01(compound_identification):
-    assert f"{mda._get_rt(compound_identification):0.3f}" == "2.196"
+    assert f"{mda._get_rt(compound_identification):0.3f}" == "2.196"  # pylint: disable=protected-access
 
 
 def test_sort_atlas(atlas_with_2_cids):
