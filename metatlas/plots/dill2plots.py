@@ -2891,6 +2891,8 @@ def check_compound_names(atlas_df):
         for _, row in atlas_df.iterrows()
         if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key) > 0) and row.inchi_key != 'None'
     }
+    if len(inchi_keys) == 0:
+        return
     found_keys = {result.inchi_key for result in
                   metob.retrieve('Compounds', inchi_key=list(inchi_keys), username='*')}
     bad_names = inchi_keys.difference(found_keys)
@@ -3014,10 +3016,8 @@ def _get_dataframe(filename_or_df=None, filetype=None, sheetname=None):
 def get_compound_identification(row, polarity, mz_tolerance):
     my_id = metob.CompoundIdentification()
     # currently, all copies of the molecule are returned.  The 0 is the most recent one.
-    compound_list = metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*')
-    if compound_list is None:
-        return None
-    my_id.compound = compound_list[-1:]
+    my_id.compound = ([] if pd.isnull(row.inchi_key) else
+                      metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*')[-1:])
     my_id.name = row.label if isinstance(row.label, str) else 'no label'
     _copy_attributes(row, my_id, ['do_normalization', 'internal_standard_id', 'internal_standard_to_use',
                                   'identification_notes', 'ms1_notes', 'ms2_notes'])
@@ -3148,8 +3148,8 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     _clean_dataframe(atlas_df, required_columns)
     _add_columns(
         atlas_df,
-        column_names=['label', 'adduct', 'mz_tolerance', 'polarity'],
-        default_values=[np.NaN, np.NaN, mz_tolerance, polarity]
+        column_names=['label', 'inchi_key', 'adduct', 'mz_tolerance', 'polarity'],
+        default_values=[np.NaN, np.NaN, np.NaN, mz_tolerance, polarity]
     )
     check_compound_names(atlas_df)
     check_filenames(atlas_df, 'file_msms')

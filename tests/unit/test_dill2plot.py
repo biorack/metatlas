@@ -1,5 +1,7 @@
 # pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long
 
+import pandas as pd
+
 from metatlas.plots import dill2plots
 
 
@@ -183,3 +185,13 @@ def test_instructions01(instructions, mocker):
     assert out3 == ["Note 2 contain a comma, right?"]
     out4 = inst.query("OIRDTQYFTABQOQ-KQYNXXCUSA-N", "", "C18", "negative")
     assert out4 == ["Note 4 is column and polarity independent"]
+
+
+def test_make_atlas_from_spreadsheet(mocker):
+    csv_data = pd.DataFrame({"rt_min": [1.1], "rt_peak": [1.3], "rt_max": [1.5], "mz": [234.6578]})
+    mocker.patch("metatlas.plots.dill2plots._get_dataframe", return_value=csv_data)
+    atlas = dill2plots.make_atlas_from_spreadsheet(
+        "foo.csv", "test_atlas_99", "csv", polarity="positive", mz_tolerance=5
+    )
+    assert len(atlas.compound_identifications) == 1
+    assert atlas.compound_identifications[0].rt_references[0].rt_peak == 1.3
