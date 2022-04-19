@@ -3140,13 +3140,27 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     specify polarity as 'positive' or 'negative'
 
     '''
+    required_columns = ['rt_min', 'rt_peak', 'rt_max', 'mz']
     logger.debug('Generating atlas named %s from %s source.', atlas_name, filetype)
     atlas_df = _get_dataframe(filename, filetype, sheetname)
-    _clean_dataframe(atlas_df, required_columns=['inchi_key'])
-    _add_columns(atlas_df, column_names=['adduct'], default_values=[np.NaN])
+    _clean_dataframe(atlas_df, required_columns=[])  # only remove fully empty
+    initial_row_count = len(atlas_df)
+    _clean_dataframe(atlas_df, required_columns)
+    _add_columns(
+        atlas_df,
+        column_names=['label', 'adduct', 'mz_tolerance', 'polarity'],
+        default_values=[np.NaN, np.NaN, mz_tolerance, polarity]
+    )
     check_compound_names(atlas_df)
     check_filenames(atlas_df, 'file_msms')
     atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
+    rows_removed = initial_row_count - len(atlas_df)
+    if rows_removed > 0:
+        logger.warning(
+            'Removed %d rows from atlas due to missing values in required columns (%s).',
+            rows_removed,
+            ', '.join(required_columns)
+        )
     if store:
         logger.info('Saving atlas named %s to DB.', atlas_name)
         metob.store(atlas)
