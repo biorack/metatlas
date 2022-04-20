@@ -91,6 +91,6 @@ def save_compound_eic_pdf(
         group_name = compound["group"].short_name
         file_order_eics.append(CompoundEic(title, group_name, compound))
     eics = sorted(file_order_eics, key=lambda x: (x.group_name, x.title))
-    compound_name = data[0][compound_idx]["identification"].compound[0].name
+    compound_name = data[0][compound_idx]["identification"].name
     with plot_set.PlotSet(eics, max_plots_per_page, sharey) as plots:
         plots.save_pdf(file_name, title=f"EICs for {compound_name}", overwrite=overwrite)

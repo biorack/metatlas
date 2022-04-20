@@ -3013,12 +3013,19 @@ def _get_dataframe(filename_or_df=None, filetype=None, sheetname=None):
     return pd.read_csv(filename_or_df, sep='\t' if filetype == 'tab' else ',')
 
 
+def get_compounds(row):
+    # currently, all copies of the molecule are returned.  The 0 is the most recent one.
+    results = (None if pd.isnull(row.inchi_key) else
+               metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*'))
+    compound = results[0] if results else metob.Compound()
+    compound.name = row.label if isinstance(row.label, str) and len(row.label) > 0 else 'no label'
+    return [compound]
+
+
 def get_compound_identification(row, polarity, mz_tolerance):
     my_id = metob.CompoundIdentification()
-    # currently, all copies of the molecule are returned.  The 0 is the most recent one.
-    my_id.compound = ([] if pd.isnull(row.inchi_key) else
-                      metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*')[-1:])
-    my_id.name = row.label if isinstance(row.label, str) else 'no label'
+    my_id.compound = get_compounds(row)
+    my_id.name = my_id.compound[0].name
     _copy_attributes(row, my_id, ['do_normalization', 'internal_standard_id', 'internal_standard_to_use',
                                   'identification_notes', 'ms1_notes', 'ms2_notes'])
     my_id.mz_references = get_mz_references(row, polarity, mz_tolerance)
