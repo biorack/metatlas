@@ -686,7 +686,7 @@ class MetatlasDataset(HasTraits):
             raise err
 
     def annotation_gui(
-        self, compound_idx: int = 0, width: float = 15, height: float = 3, alpha: float = 0.5, colors=""
+        self, compound_idx: int = 0, width: float = 15, height: float = 3, alpha: float = 0.5, colors="", adjustable_rt_peak=False
     ) -> dp.adjust_rt_for_selected_compound:
         """
         Opens the interactive GUI for setting RT bounds and annotating peaks
@@ -707,6 +707,7 @@ class MetatlasDataset(HasTraits):
             alpha=alpha,
             width=width,
             height=height,
+            adjustable_rt_peak=adjustable_rt_peak
         )
 
     def generate_all_outputs(self, msms_fragment_ions: bool = False, overwrite: bool = False) -> None:
