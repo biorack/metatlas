@@ -74,11 +74,10 @@ class PlotSet(ABC):
         color_generator = utils.colors()
         current_group = ""
         plot_idx = 0
-        scale_factor = font_scale / num_plots**0.5
-        matplotlib.rcParams.update({"font.size": 10 * scale_factor})
         for _ in range(num_pages):
             plots_remaining = num_plots - plot_idx
             num_plots_this_page = min(plots_per_page, plots_remaining)
+            _set_font_size(num_plots_this_page, font_scale)
             cur_fig, axs = utils.wrap_subplots(
                 num_plots_this_page, sharey=sharey, sharex=True, constrained_layout=True
             )
@@ -213,3 +212,10 @@ def _calculate_new_limit(
         # This is a axhline in the autoscale direction
         return np.inf, -np.inf
     return low, high
+
+
+def _set_font_size(num_plots: int, font_scale: float) -> None:
+    """Scales the font size down based on the number of plots"""
+    nrows, ncols = utils.subplot_dimensions(num_plots)
+    scale_factor = font_scale / (nrows * ncols)**0.5
+    matplotlib.rcParams.update({"font.size": 10 * scale_factor})
