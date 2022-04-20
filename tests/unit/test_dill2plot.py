@@ -1,4 +1,4 @@
-# pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long
+# pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long,unused-argument
 
 import pandas as pd
 
@@ -187,7 +187,7 @@ def test_instructions01(instructions, mocker):
     assert out4 == ["Note 4 is column and polarity independent"]
 
 
-def test_make_atlas_from_spreadsheet(mocker):
+def test_make_atlas_from_spreadsheet(mocker, sqlite_with_atlas):
     csv_data = pd.DataFrame({"rt_min": [1.1], "rt_peak": [1.3], "rt_max": [1.5], "mz": [234.6578]})
     mocker.patch("metatlas.plots.dill2plots._get_dataframe", return_value=csv_data)
     atlas = dill2plots.make_atlas_from_spreadsheet(
