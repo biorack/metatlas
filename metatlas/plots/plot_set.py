@@ -88,6 +88,8 @@ class PlotSet(ABC):
                     current_group = plots[plot_idx].group_name
                 plots[plot_idx].plot(ax, back_color=current_color)
                 plot_idx += 1
+        if sharey:
+            self.sharey_between_pages()
         self.limit_axes(x_min, x_max, y_min, y_max)
 
     def __enter__(self):
@@ -95,6 +97,20 @@ class PlotSet(ABC):
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.close()
+
+    def sharey_between_pages(self):
+        min_y = max_y = None
+        for fig in self.figures:
+            for ax in fig.axes:
+                ax_min, ax_max = ax.get_ylim()
+                if min_y is None or ax_min < min_y:
+                    min_y = ax_min
+                if max_y is None or ax_max > max_y:
+                    max_y = ax_max
+        if min_y is not None and max_y is not None:
+            for fig in self.figures:
+                for ax in fig.axes:
+                    ax.set_ylim(bottom=min_y, top=max_y)
 
     def limit_axes(
         self,
