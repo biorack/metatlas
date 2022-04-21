@@ -6,6 +6,8 @@ IFS=$'\n\t'
 # as the larger jobs need more memory per thread.
 threads_to_use=8
 
+rclone='/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone'
+
 usage() {
   >&2 echo "Usage:
   $(basename "$0") experiment_name analysis_number project_directory [-p notebook_parameter=value] [-y yaml_string]
@@ -94,6 +96,25 @@ get_slurm_queue() {
   fi
 }
 
+get_rclone_remote() {
+  # this assumes you only have one google account that is set up within rclone...
+  remote="$("$rclone" listremotes --long | grep "drive$" | head -1 | cut -d' ' -f1)"
+  if [ -z "$remote" ]; then
+    >&2 echo "ERROR: rclone has not been configured to access Google Drive. Follow instructions at:"
+    >&2 echo "       https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md#rclone-configuration"
+    exit 111
+  fi
+  echo "$remote"
+}
+
+check_gdrive_authorization() {
+  if !  "$rclone" lsf "$(get_rclone_remote)" > /dev/null 2>&1; then
+    >&2 echo "ERROR: rclone authoriation to Google Drive has expired. Please run:"
+    >&2 echo "       rclone config reconnect $(get_rclone_remote)"
+    exit 112
+  fi
+}
+
 declare -a positional_parameters=()
 declare -a extra_parameters=()
 while [ $OPTIND -le "$#" ]
@@ -141,6 +162,8 @@ if [[ $exp_check_len == "" ]]; then
   >&2 echo "ERROR: experiment_name parameter is invalid. Must have 9 fields when split on '_'."
   usage
 fi
+
+check_gdrive_authorization
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 exp_dir="${project_dir}/$exp"
