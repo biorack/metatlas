@@ -8,6 +8,13 @@ threads_to_use=8
 
 rclone='/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone'
 
+trap "exit 1" TERM
+export TOP_PID=$$
+
+die() {
+  kill -s TERM $TOP_PID
+}
+
 usage() {
   >&2 echo "Usage:
   $(basename "$0") experiment_name analysis_number project_directory [-p notebook_parameter=value] [-y yaml_string]
@@ -23,7 +30,7 @@ usage() {
   for more information see:
   https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md
   "
-  exit 128
+  die
 }
 
 validate_extra_parameters() {
@@ -98,11 +105,11 @@ get_slurm_queue() {
 
 get_rclone_remote() {
   # this assumes you only have one google account that is set up within rclone...
-  remote="$("$rclone" listremotes --long | grep "drive$" | head -1 | cut -d' ' -f1)"
+  remote="$("$rclone" listremotes --long 2> /dev/null | grep "drive$" | head -1 | cut -d' ' -f1)"
   if [ -z "$remote" ]; then
     >&2 echo "ERROR: rclone has not been configured to access Google Drive. Follow instructions at:"
     >&2 echo "       https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md#rclone-configuration"
-    exit 111
+    die
   fi
   echo "$remote"
 }
@@ -111,7 +118,7 @@ check_gdrive_authorization() {
   if !  "$rclone" lsf "$(get_rclone_remote)" > /dev/null 2>&1; then
     >&2 echo "ERROR: rclone authoriation to Google Drive has expired. Please run:"
     >&2 echo "       ${rclone} config reconnect $(get_rclone_remote)"
-    exit 112
+    die
   fi
 }
 
@@ -147,7 +154,7 @@ if [[ $(pwd) == /global/common/software/* ]]; then
   >&2 echo "Please change to a different directory and try again."
   >&2 echo "No SLURM jobs have been submitted."
   >&2 echo ""
-  exit 1
+  die
 fi
 
 exp="${positional_parameters[0]}"
