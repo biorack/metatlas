@@ -829,6 +829,7 @@ def pre_annotation(
     max_cpus: int,
     msms_score: float = None,
     username: Username = None,
+    clear_cache: bool = False,
 ) -> MetatlasDataset:
     """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
     ids = analysis_ids.AnalysisIdentifiers(
@@ -843,6 +844,8 @@ def pre_annotation(
         exclude_files=exclude_files,
         username=getpass.getuser() if username is None else username,
     )
+    if clear_cache:
+        shutil.rmtree(ids.cache_dir)
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=max_cpus)
     if "FinalEMA" in metatlas_dataset.ids.output_type:
         metatlas_dataset.filter_compounds_by_signal(num_points, peak_height, msms_score)
