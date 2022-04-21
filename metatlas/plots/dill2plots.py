@@ -1701,10 +1701,10 @@ def _make_boxplot_single_arg(arg_list):
 def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
     fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
     write_utils.check_existing_file(fig_path, overwrite)
-    f, ax = plt.subplots(1, 1,figsize=(12,12))
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     num_points = 0
     g = df.loc[compound].groupby(level=level)
+    f, ax = plt.subplots(1, 1, figsize=(max(len(g)*0.5, 12), 12))
     g.apply(pd.DataFrame).plot(kind='box', ax=ax)
     for i, (n, grp) in enumerate(g):
         x = [i+1] *len(grp)
