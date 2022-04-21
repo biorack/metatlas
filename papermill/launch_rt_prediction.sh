@@ -110,7 +110,7 @@ get_rclone_remote() {
 check_gdrive_authorization() {
   if !  "$rclone" lsf "$(get_rclone_remote)" > /dev/null 2>&1; then
     >&2 echo "ERROR: rclone authoriation to Google Drive has expired. Please run:"
-    >&2 echo "       rclone config reconnect $(get_rclone_remote)"
+    >&2 echo "       ${rclone} config reconnect $(get_rclone_remote)"
     exit 112
   fi
 }
