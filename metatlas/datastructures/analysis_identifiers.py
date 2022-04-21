@@ -429,8 +429,16 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def chromatography(self) -> str:
         """returns the type of chromatography used"""
-        field = self.lcmsruns[0].name.split("_")[7]
-        return "HILIC" if field == "HILICZ" else field
+        alternatives = {"HILIC": ["HILICZ", "Ag683775"], "C18": []}
+        chrom_field = self.lcmsruns[0].name.split("_")[7]
+        chrom_type = chrom_field.split('-')[0]
+        if chrom_type in alternatives:
+            return chrom_type
+        for name, alt_list in alternatives.items():
+            if chrom_type in alt_list:
+                return name
+        logger.warning("Unknown chromatography field '%s'.", chrom_type)
+        return chrom_type
 
     def store_all_groups(self, exist_ok: bool = False) -> None:
         """

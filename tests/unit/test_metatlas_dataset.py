@@ -660,3 +660,21 @@ def test_query_cache02(metatlas_dataset):
 
 def test_chromatography01(metatlas_dataset):
     assert metatlas_dataset.ids.chromatography == "HILIC"
+
+
+def test_chromatography02(metatlas_dataset):
+    metatlas_dataset.ids.lcmsruns[0].name = '_'.join(['x']*7+['Ag683775-foobar'])
+    assert metatlas_dataset.ids.chromatography == "HILIC"
+
+
+def test_chromatography03(metatlas_dataset):
+    metatlas_dataset.ids.lcmsruns[0].name = '_'.join(['x']*7+['C18-DNAsip'])
+    assert metatlas_dataset.ids.chromatography == "C18"
+
+
+def test_chromatography04(metatlas_dataset, caplog):
+    caplog.set_level(logging.INFO)
+    metatlas_dataset.ids.lcmsruns[0].name = '_'.join(['x']*7+['foobar'])
+    chrom_type = metatlas_dataset.ids.chromatography
+    assert chrom_type == "foobar"
+    assert "Unknown chromatography field 'foobar'" in caplog.text
