@@ -141,6 +141,9 @@ def generate_rt_correction_models(ids: AnalysisIdentifiers, cpus: int, selected_
     rts_df = get_rts(metatlas_dataset)
     compound_atlas_rts_file_name = os.path.join(ids.output_dir, "Compound_Atlas_RTs.pdf")
     plot_compound_atlas_rts(len(metatlas_dataset), rts_df, compound_atlas_rts_file_name)
+    peak_heights_df = get_peak_heights(metatlas_dataset)
+    peak_heights_plot_file_name = os.path.join(ids.output_dir, "Compound_Atlas_peak_heights.pdf")
+    plot_compound_atlas_peak_heights(len(metatlas_dataset), peak_heights_df, peak_heights_plot_file_name)
     actual_df, pred_df = actual_and_predicted_df(selected_col, rts_df, qc_atlas_df)
     linear, poly = generate_models(actual_df, pred_df)
     actual_rts, pred_rts = actual_and_predicted_rts(rts_df, qc_atlas_df, actual_df, pred_df)
@@ -315,6 +318,17 @@ def get_rts(metatlas_dataset, include_atlas_rt_peak=True):
     return order_df_columns_by_run(rts_df)
 
 
+def get_peak_heights(metatlas_dataset):
+    """Returns peak heights in DataFrame format"""
+    peak_height_df = dp.make_output_dataframe(
+        input_dataset=metatlas_dataset,
+        fieldname="peak_height",
+        use_labels=True,
+        summarize=True,
+    )
+    return order_df_columns_by_run(peak_height_df)
+
+
 def order_df_columns_by_run(dataframe):
     """
     Returns a dataframe with re-ordered columns such that second column up to column 'mean'
@@ -333,41 +347,60 @@ def order_df_columns_by_run(dataframe):
     return dataframe[new_cols]
 
 
-def plot_compound_atlas_rts(num_files, rts_df, file_name, fontsize=2, pad=0.1, cols=8):
+def plot_per_compound(field_name, num_files, data, file_name, fontsize=2, pad=0.1, cols=8):
     """
     Writes plot of RT peak for vs file for each compound
     inputs:
+        field_name: one of rt_peak or peak_height
         num_files: number of files in data set, ie len(metatlas_dataset)
-        rts_df: Dataframe with RTs values
+        data: Dataframe with RTs values
         file_name: where to save plot
         fontsize: size of text
         pad: padding size
         cols: number of columns in plot grid
     """
-    logger.info("Plotting RT Peak vs file for each compound")
-    rts_df_plot = (
-        rts_df.sort_values(by="standard deviation", ascending=False, na_position="last")
+    logger.info("Plotting %s vs file for each compound", field_name)
+    assert field_name in ["rt_peak", "peak_height"]
+    plot_df = (
+        data.sort_values(by="standard deviation", ascending=False, na_position="last")
         .drop(["#NaNs"], axis=1)
-        .dropna(axis=0, how="all", subset=rts_df.columns[:num_files])
+        .dropna(axis=0, how="all", subset=data.columns[:num_files])
     )
-    rows = int(math.ceil((rts_df.shape[0] + 1) / 8))
+    rows = int(math.ceil((data.shape[0] + 1) / 8))
     fig = plt.figure()
     grid = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.2, hspace=0.4)
-    for i, (_, row) in tqdm(enumerate(rts_df_plot.iterrows()), total=len(rts_df_plot), unit="plot"):
+    for i, (_, row) in tqdm(enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot"):
         a_x = fig.add_subplot(grid[i])
         a_x.tick_params(direction="in", length=1, pad=pad, width=0.1, labelsize=fontsize)
         a_x.scatter(range(num_files), row[:num_files], s=0.2)
-        a_x.axhline(y=row["atlas RT peak"], color="r", linestyle="-", linewidth=0.2)
+        range_columns = list(plot_df.columns[:num_files])
+        if field_name == "rt_peak":
+            a_x.axhline(y=row["atlas RT peak"], color="r", linestyle="-", linewidth=0.2)
+            range_columns += ["atlas RT peak"]
+            a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanmax(row.loc[range_columns]) + 0.12)
+        else:
+            a_x.set_yscale("log")
+            a_x.set_ylim(bottom=1e2, top=1e10)
         a_x.set_xlim(-0.5, num_files + 0.5)
         a_x.xaxis.set_major_locator(mticker.FixedLocator(np.arange(0, num_files, 1.0)))
-        range_columns = list(rts_df_plot.columns[:num_files]) + ["atlas RT peak"]
-        a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanmax(row.loc[range_columns]) + 0.12)
         _ = [s.set_linewidth(0.1) for s in a_x.spines.values()]
         # truncate name so it fits above a single subplot
         a_x.set_title(row.name[:33], pad=pad, fontsize=fontsize)
         a_x.set_xlabel("Files", labelpad=pad, fontsize=fontsize)
-        a_x.set_ylabel("Actual RTs", labelpad=pad, fontsize=fontsize)
+        ylabel = "Actual RTs" if field_name == "rt_peak" else "Peak Height"
+        a_x.set_ylabel(ylabel, labelpad=pad, fontsize=fontsize)
     plt.savefig(file_name, bbox_inches="tight")
+    plt.close()
+
+
+def plot_compound_atlas_rts(num_files, rts_df, file_name, fontsize=2, pad=0.1, cols=8):
+    """Plot filenames vs peak RT for each compound"""
+    plot_per_compound("rt_peak", num_files, rts_df, file_name, fontsize, pad, cols)
+
+
+def plot_compound_atlas_peak_heights(num_files, peak_heights_df, file_name, fontsize=2, pad=0.1, cols=8):
+    """Plot filenames vs peak height for each compound"""
+    plot_per_compound("peak_height", num_files, peak_heights_df, file_name, fontsize, pad, cols)
 
 
 def generate_models(actual_df, pred_df):
