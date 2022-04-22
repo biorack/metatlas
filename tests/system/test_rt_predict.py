@@ -172,7 +172,6 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 0071_ornithine_unlabeled_positive_M+H133p0972_17p04,1.705887e+01,1.706319e+01,1.708551e+01,1.707796e+01,1.707138e+01,1.707057e+01,1.705887e+01,1.708551e+01,1.246700e-02,6.233499e-03,0"""
 
     command = """papermill -k papermill \
-                        -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
                         -p model_only False \
                         -p project_directory /out \
@@ -181,5 +180,5 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         /out/Remove-done.ipynb
     """
     utils.exec_docker(image, command, tmp_path)
-    assert utils.num_files_in(tmp_path) == 52  # this is 8 if model_only is set to True
+    assert utils.num_files_in(tmp_path) == 53  # this is 9 if model_only is set to True
     utils.assert_files_match(expected)
