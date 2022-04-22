@@ -448,11 +448,15 @@ def plot_actual_vs_pred_rts(pred_rts, actual_rts, rts_df, file_name, linear, pol
         sub.set_title("File: " + str(i))
         sub.set_xlabel("predicted RTs")
         sub.set_ylabel("actual RTs")
-    fig_legend = "FileIndex       FileName"
-    for i in range(rts_df.shape[1] - 5):
-        fig_legend = fig_legend + "\n" + str(i) + "        " + rts_df.columns[i]
+    fig_legend = [
+        "Red line: linear model;  Green curve: polynomial model. Default model is a polynomial model using the median data.",
+        "",
+        "file_index  data_source"
+    ] + [f"{i:2d}              {rts_df.columns[i]}" for i in range(rts_df.shape[1] - 5)]
     fig.tight_layout(pad=0.5)
-    plt.text(0, -0.03 * rts_df.shape[1], fig_legend, transform=plt.gcf().transFigure)
+    line_height = 0.03
+    legend_offset = line_height * len(fig_legend)
+    plt.text(0, -1 * legend_offset, '\n'.join(fig_legend), transform=plt.gcf().transFigure)
     plt.savefig(file_name, bbox_inches="tight")
 
 
