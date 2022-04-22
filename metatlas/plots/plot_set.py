@@ -72,7 +72,7 @@ class PlotSet(ABC):
         plots_per_page = math.ceil(num_plots / num_pages)
         self.figures = []
         color_generator = utils.colors()
-        current_group = ""
+        current_group = None
         plot_idx = 0
         for _ in range(num_pages):
             plots_remaining = num_plots - plot_idx
@@ -83,7 +83,7 @@ class PlotSet(ABC):
             )
             self.figures.append(cur_fig)
             for ax in axs:
-                if plots[plot_idx].group_name != current_group:
+                if current_group is None or plots[plot_idx].group_name != current_group:
                     current_color = next(color_generator)
                     current_group = plots[plot_idx].group_name
                 plots[plot_idx].plot(ax, back_color=current_color)
