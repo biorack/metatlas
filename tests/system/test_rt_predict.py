@@ -180,5 +180,5 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         /out/Remove-done.ipynb
     """
     utils.exec_docker(image, command, tmp_path)
-    assert utils.num_files_in(tmp_path) == 53  # this is 9 if model_only is set to True
+    assert utils.num_files_in(tmp_path) == 197  # this is 11 if model_only is set to True
     utils.assert_files_match(expected)
