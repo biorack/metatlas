@@ -233,5 +233,5 @@ def _calculate_new_limit(
 def _set_font_size(num_plots: int, font_scale: float) -> None:
     """Scales the font size down based on the number of plots"""
     nrows, ncols = utils.subplot_dimensions(num_plots)
-    scale_factor = font_scale / (nrows * ncols)**0.5
+    scale_factor = font_scale / (nrows * ncols) ** 0.5
     matplotlib.rcParams.update({"font.size": 10 * scale_factor})

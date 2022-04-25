@@ -431,7 +431,7 @@ class AnalysisIdentifiers(HasTraits):
         """returns the type of chromatography used"""
         alternatives = {"HILIC": ["HILICZ", "Ag683775"], "C18": []}
         chrom_field = self.lcmsruns[0].name.split("_")[7]
-        chrom_type = chrom_field.split('-')[0]
+        chrom_type = chrom_field.split("-")[0]
         if chrom_type in alternatives:
             return chrom_type
         for name, alt_list in alternatives.items():
