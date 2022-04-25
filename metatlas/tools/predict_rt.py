@@ -8,7 +8,7 @@ import os
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -115,35 +115,23 @@ class Model:
         return self.sk_model.predict(x_transformed)
 
 
-def generate_rt_correction_models(ids: AnalysisIdentifiers, cpus: int, selected_col) -> Tuple[Model, Model]:
+def generate_rt_correction_models(
+    ids: AnalysisIdentifiers,
+    metatlas_dataset: List,
+    groups: List,
+    qc_atlas: metob.Atlas,
+    qc_atlas_df: pd.DataFrame,
+    selected_col: str,
+) -> Tuple[Model, Model]:
     """
     Generate the RT correction models and model charaterization files
     inputs:
         ids: an AnalysisIds object matching the one selected_cold in the main notebook
-        cpus: max number of cpus to us
         selected_col: name of column to use for model generation
     Returns a tuple with a linear and polynomial model
     """
     # pylint: disable=too-many-locals
-    groups = get_groups(ids)
-    files_df = get_files_df(groups)
-    qc_atlas, qc_atlas_df = get_qc_atlas(ids)
-    # this metatlas_dataset is not a class instance. Only has metatlas_dataset[file_idx][compound_idx]...
-    metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)
-    try:
-        if len(metatlas_dataset) == 0:
-            raise ValueError("No matching LCMS runs, terminating without generating outputs.")
-    except ValueError as err:
-        logger.exception(err)
-        raise err
-    save_rt_peak(metatlas_dataset, os.path.join(ids.output_dir, "rt_peak.tab"))
-    save_measured_rts(metatlas_dataset, os.path.join(ids.output_dir, "QC_Measured_RTs.csv"))
     rts_df = get_rts(metatlas_dataset)
-    compound_atlas_rts_file_name = os.path.join(ids.output_dir, "Compound_Atlas_RTs.pdf")
-    plot_compound_atlas_rts(len(metatlas_dataset), rts_df, compound_atlas_rts_file_name)
-    peak_heights_df = get_peak_heights(metatlas_dataset)
-    peak_heights_plot_file_name = os.path.join(ids.output_dir, "Compound_Atlas_peak_heights.pdf")
-    plot_compound_atlas_peak_heights(len(metatlas_dataset), peak_heights_df, peak_heights_plot_file_name)
     actual_df, pred_df = actual_and_predicted_df(selected_col, rts_df, qc_atlas_df)
     linear, poly = generate_models(actual_df, pred_df)
     actual_rts, pred_rts = actual_and_predicted_rts(rts_df, qc_atlas_df, actual_df, pred_df)
@@ -163,8 +151,9 @@ def generate_outputs(
     peak_height: Optional[float] = None,
     msms_score: Optional[float] = None,
     use_poly_model: bool = True,
-    model_only: bool = False,
+    model_only: bool = False,  # True is equivalent to stop_before="qc_plots"
     selected_col: str = "median",
+    stop_before: Optional[str] = None,
 ):
     """
     Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
@@ -178,19 +167,53 @@ def generate_outputs(
         use_poly_model: If True, use the polynomial model, else use linear model
                         Both types of models are always generated, this only determines which ones
                         are pre-populated into the generated notebooks
-        model_only: If True, do not create atlases or notebooks, if False create them
+        model_only: Setting to true is equivalent to stop_before=qc_plots
         selected_col: name of column to use for model generation
+        stop_before: one of None, qc_plots, atlases, notebooks, msms_hits
+                     stop before generating this output and all following outputs
     """
-    linear, poly = generate_rt_correction_models(ids, cpus, selected_col)
-    if not model_only:
+    stop_before = "qc_plots" if model_only else stop_before
+    assert stop_before in ["qc_plots", "atlases", "notebooks", "msms_hits", None]
+    metatlas_dataset, groups, atlas, atlas_df = load_data(ids, cpus)
+    linear, poly = generate_rt_correction_models(ids, metatlas_dataset, groups, atlas, atlas_df, selected_col)
+    if stop_before in ["atlases", "notebooks", "msms_hits", None]:
+        save_rt_peak(metatlas_dataset, os.path.join(ids.output_dir, "rt_peak.tab"))
+        save_measured_rts(metatlas_dataset, os.path.join(ids.output_dir, "QC_Measured_RTs.csv"))
+        rts_df = get_rts(metatlas_dataset)
+        compound_atlas_rts_file_name = os.path.join(ids.output_dir, "Compound_Atlas_RTs.pdf")
+        plot_compound_atlas_rts(len(metatlas_dataset), rts_df, compound_atlas_rts_file_name)
+        peak_heights_df = get_peak_heights(metatlas_dataset)
+        peak_heights_plot_file_name = os.path.join(ids.output_dir, "Compound_Atlas_peak_heights.pdf")
+        plot_compound_atlas_peak_heights(len(metatlas_dataset), peak_heights_df, peak_heights_plot_file_name)
+        write_chromatograms(metatlas_dataset, ids.output_dir, max_cpus=cpus)
+        # TODO generate mirror plots
+    if stop_before in ["notebooks", "msms_hits", None]:
         atlases = create_adjusted_atlases(linear, poly, ids)
+    if stop_before in ["msms_hits", None]:
         write_notebooks(ids, atlases, use_poly_model)
+    if stop_before is None:
         pre_process_data_for_all_notebooks(
             ids, atlases, cpus, use_poly_model, num_points, peak_height, msms_score
         )
     targeted_output.copy_outputs_to_google_drive(ids)
     targeted_output.archive_outputs(ids)
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
+
+
+def load_data(ids: AnalysisIdentifiers, cpus: int) -> Tuple[List, List, metob.Atlas, pd.DataFrame]:
+    """create metatlas_dataset, groups and atlas"""
+    groups = get_groups(ids)
+    files_df = get_files_df(groups)
+    qc_atlas, qc_atlas_df = get_qc_atlas(ids)
+    # this metatlas_dataset is not a class instance. Only has metatlas_dataset[file_idx][compound_idx]...
+    metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)
+    try:
+        if len(metatlas_dataset) == 0:
+            raise ValueError("No matching LCMS runs, terminating without generating outputs.")
+    except ValueError as err:
+        logger.exception(err)
+        raise err
+    return metatlas_dataset, groups, qc_atlas, qc_atlas_df
 
 
 def pre_process_data_for_all_notebooks(
@@ -689,3 +712,27 @@ def get_analysis_ids_for_rt_prediction(
         exclude_groups=exclude_groups,
         groups_controlled_vocab=groups_controlled_vocab,
     )
+
+
+def write_chromatograms(metatlas_dataset, output_dir, overwrite=False, max_cpus=1):
+    """
+    inputs:
+        metatlas_dataset: a metatlas_dataset datastructure
+        output_dir: directory to save plots within
+        overwrite: if False raise error if file already exists
+        max_cpus: number of cpus to use
+    """
+    # overwrite checks done within dp.make_chromatograms
+    logger.info("Exporting chromotograms to %s", output_dir)
+    params = {
+        "input_dataset": metatlas_dataset,
+        "share_y": True,
+        "output_loc": output_dir,
+        "overwrite": overwrite,
+        "max_cpus": max_cpus,
+        "suffix": "_sharedY",
+    }
+    dp.make_chromatograms(**params)
+    params["share_y"] = False
+    params["suffix"] = "_independentY"
+    dp.make_chromatograms(**params)
