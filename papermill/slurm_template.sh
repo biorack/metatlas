@@ -6,6 +6,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --time=36:00:00
 
+set -euo pipefail
+
 #OpenMP settings:
 export OMP_NUM_THREADS=1
 export OMP_PLACES=threads
@@ -13,9 +15,8 @@ export OMP_PROC_BIND=spread
 
 export HDF5_USE_FILE_LOCKING=FALSE
 
-log="/global/cfs/projectdirs/m2650/jupyter_logs/slurm/${SLURM_JOB_ID}.log"
-
-set -o pipefail
+log_dir="/global/cfs/projectdirs/m2650/jupyter_logs/slurm"
+log="${log_dir}/${SLURM_JOB_ID}.log"
 
 output () {
   printf "%s\n" "$1" | tee --append "$log"
@@ -28,3 +29,6 @@ output "output file: $OUT_FILE"
 output "parameters: $PARAMETERS"
 
 shifter --entrypoint /usr/local/bin/papermill -k "papermill" "$IN_FILE" "$OUT_FILE" $PARAMETERS 2>&1 | tee --append "$log"
+
+# make output notebook accessible for troubleshooting purposes
+cp "$OUT_FILE" "${log_dir}/"
