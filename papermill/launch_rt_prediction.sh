@@ -122,6 +122,35 @@ check_gdrive_authorization() {
   fi
 }
 
+check_analysis_dir_does_not_exist() {
+  if [ -d "$1" ]; then
+    >&2 echo "ERROR: Output directory already exists. Not overwriting:"
+    >&2 echo "       ${1}"
+    >&2 echo "       Consider incrementing analysis_number."
+    die
+  fi
+}
+
+check_exp_id_has_atleast_9_fields() {
+  if [[ $1 == "" ]]; then
+    >&2 echo "ERROR: experiment_name parameter is invalid. Must have 9 fields when split on '_'."
+    die
+  fi
+}
+
+check_not_in_commom_software_filesystem() {
+  if [[ $(pwd) == /global/common/software/* ]]; then
+    >&2 echo ""
+    >&2 echo "ERROR: You cannot submit a SLURM job from a directory that will be"
+    >&2 echo "read only from a job execution node, such as any directory under"
+    >&2 echo "/global/common/software"
+    >&2 echo "Please change to a different directory and try again."
+    >&2 echo "No SLURM jobs have been submitted."
+    >&2 echo ""
+    die
+  fi
+}
+
 declare -a positional_parameters=()
 declare -a extra_parameters=()
 while [ $OPTIND -le "$#" ]
@@ -146,35 +175,22 @@ if [  ${#extra_parameters[@]} -ne 0 ]; then
   validate_extra_parameters extra_parameters
 fi
 
-if [[ $(pwd) == /global/common/software/* ]]; then
-  >&2 echo ""
-  >&2 echo "ERROR: You cannot submit a SLURM job from a directory that will be"
-  >&2 echo "read only from a job execution node, such as any directory under"
-  >&2 echo "/global/common/software"
-  >&2 echo "Please change to a different directory and try again."
-  >&2 echo "No SLURM jobs have been submitted."
-  >&2 echo ""
-  die
-fi
-
 exp="${positional_parameters[0]}"
 analysis_num="${positional_parameters[1]}"
 project_dir="${positional_parameters[2]}"
+
+script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+exp_dir="${project_dir}/$exp"
+analysis_dir="${exp_dir}/${USER}${analysis_num}"
 
 IFS='_' read -ra TOKENS <<< "$exp"
 proposal="${TOKENS[3]:-}"
 exp_check_len="${TOKENS[8]:-}"
 
-if [[ $exp_check_len == "" ]]; then
-  >&2 echo "ERROR: experiment_name parameter is invalid. Must have 9 fields when split on '_'."
-  usage
-fi
-
+check_exp_id_has_atleast_9_fields "$exp_check_len"
+check_analysis_dir_does_not_exist "$analysis_dir"
 check_gdrive_authorization
-
-script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-exp_dir="${project_dir}/$exp"
-analysis_dir="${exp_dir}/${USER}${analysis_num}"
+check_not_in_commom_software_filesystem
 
 account="$(get_slurm_account)"
 cpus_requested="$(get_num_cpus "$exp")"
