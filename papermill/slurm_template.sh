@@ -13,9 +13,11 @@ export OMP_PROC_BIND=spread
 
 export HDF5_USE_FILE_LOCKING=FALSE
 
+log="/global/cfs/projectdirs/m2650/jupyter_logs/slurm/${SLURM_JOB_ID}.log"
+
+set -o pipefail
+
 output () {
-  log="/global/cfs/projectdirs/m2650/jupyter_logs/slurm/${SLURM_JOB_ID}.log"
-  set -o pipefail
   printf "%s\n" "$1" | tee --append "$log"
 }
 
@@ -25,4 +27,4 @@ output "input file: $IN_FILE"
 output "output file: $OUT_FILE"
 output "parameters: $PARAMETERS"
 
-(shifter --entrypoint /usr/local/bin/papermill -k "papermill" "$IN_FILE" "$OUT_FILE" $PARAMETERS) 2>&1 | tee --append "$LOG"
+shifter --entrypoint /usr/local/bin/papermill -k "papermill" "$IN_FILE" "$OUT_FILE" $PARAMETERS 2>&1 | tee --append "$log"
