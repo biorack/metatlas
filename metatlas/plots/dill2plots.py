@@ -2292,6 +2292,7 @@ def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=No
     data = filter_runs(input_dataset, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
     prefix = f"{polarity}_" if polarity != '' else ''
     out_dir = os.path.join(output_loc, f"{prefix}compound_EIC_chromatograms{suffix}")
+    logger.info('Saving chromatograms to %s.', out_dir)
     os.makedirs(out_dir, exist_ok=True)
     disable_interactive_plots()
     compound_names = ma_data.get_compound_names(data, use_labels=True)[0]
