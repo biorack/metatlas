@@ -13,8 +13,7 @@ log_dir="/global/cfs/projectdirs/m2650/jupyter_logs/slurm"
 # make output notebook accessible for troubleshooting purposes
 # want this to run even if we exit on a papermill error
 trap \
-  "{ nb_file_name="$(basename "${OUT_FILE}")" ;
-     cp "$OUT_FILE" "${log_dir}/${SLURM_JOB_ID}_${nb_file_name}" ; }" \
+  "{ cp "$OUT_FILE" "${log_dir}/${SLURM_JOB_ID}_$(basename "$OUT_FILE")" ; }" \
   EXIT
 
 #OpenMP settings:
