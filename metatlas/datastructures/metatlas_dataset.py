@@ -40,8 +40,6 @@ from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import targeted_output
 from metatlas.tools import parallel
 
-MSMS_REFS_PATH = PathString("/global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab")
-
 logger = logging.getLogger(__name__)
 
 
@@ -150,7 +148,7 @@ class MetatlasDataset(HasTraits):
     max_cpus: int = Int(default_value=1)
     save_metadata: bool = Bool(default_value=True)
     keep_nonmatches: bool = Bool(default_value=True)
-    msms_refs_loc: PathString = Unicode(default_value=MSMS_REFS_PATH)
+    msms_refs_loc: PathString = Unicode(default_value=analysis_ids.MSMS_REFS_PATH)
     ids: analysis_ids.AnalysisIdentifiers = Instance(klass=analysis_ids.AnalysisIdentifiers)
     atlas: metob.Atlas = Instance(klass=metob.Atlas)
     _atlas_df: Optional[pd.DataFrame] = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
