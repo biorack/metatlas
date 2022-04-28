@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_GROUPS_CONTROLLED_VOCAB = cast(GroupMatchList, ["QC", "InjBl", "ISTD"])
 
+MSMS_REFS_PATH = PathString("/global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab")
+
 
 class AnalysisIdentifiers(HasTraits):
     """Names used in generating an analysis"""
