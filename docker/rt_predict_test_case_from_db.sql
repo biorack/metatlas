@@ -144,6 +144,9 @@ WHERE unique_id NOT IN (
 	) AS error_fix
 );
 
+DELETE FROM compounds
+WHERE name NOT IN ('uracil', 'cytosine', 'leucine', 'valine', 'serine');
+
 -- work from compounds up to atlases_compound_identifications
 DELETE cic
 FROM compoundidentifications_compound AS cic
