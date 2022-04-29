@@ -5,7 +5,8 @@ import logging
 import os
 import re
 
-from typing import List, Optional
+from os import PathLike
+from typing import Any, List, Optional, Sequence
 
 import pandas as pd
 from IPython.core.display import display, HTML
@@ -56,7 +57,12 @@ def setup(log_level: str, source_code_version_id: Optional[str] = None) -> None:
     configure_pandas_display()
 
 
-def activate_sql_logging(console_level="INFO", console_format=None, file_level="DEBUG", filename=None):
+def activate_sql_logging(
+    console_level: str = "INFO",
+    console_format: Optional[logging.Formatter] = None,
+    file_level: str = "DEBUG",
+    filename: Optional[PathLike] = None,
+) -> None:
     """
     Turns on logging from sqlalchemy.
     Level 'INFO' gets SQL statements and 'DEBUG' gets SQL statements and results.
@@ -71,7 +77,7 @@ def activate_sql_logging(console_level="INFO", console_format=None, file_level="
     activate_module_logging("sqlalchemy.engine", console_level, console_format, file_level, filename)
 
 
-def cells_matching_tags(data: dict, tags: List[str]) -> List[int]:
+def cells_matching_tags(data: dict, tags: Sequence[str]) -> List[int]:
     """
     For a jupyter notebook represented by data, return the list of cells with
     one or more tags that are within the tags input
@@ -79,12 +85,12 @@ def cells_matching_tags(data: dict, tags: List[str]) -> List[int]:
     return [i for i, cell in enumerate(data["cells"]) if has_intersection(get_metadata_tags(cell), tags)]
 
 
-def has_intersection(one: List, two: List) -> bool:
+def has_intersection(one: Sequence, two: Sequence) -> bool:
     """True if the set intersection of one and two is non-empty"""
     return len(set.intersection(set(one), set(two))) > 0
 
 
-def get_metadata_tags(cell: dict):
+def get_metadata_tags(cell: dict) -> List[str]:
     """Return a list of metadata tags for the input cell"""
     try:
         return cell["metadata"]["tags"]
@@ -92,7 +98,7 @@ def get_metadata_tags(cell: dict):
         return []
 
 
-def create_notebook(source: str, dest: str, parameters: dict) -> None:
+def create_notebook(source: PathLike, dest: PathLike, parameters: dict) -> None:
     """
     Copies source notebook to dest and updates parameters (as defined by papermill)
     inputs:
@@ -109,7 +115,7 @@ def create_notebook(source: str, dest: str, parameters: dict) -> None:
         json.dump(data, out_fh, indent=1)
 
 
-def replace_parameters(source: List[str], parameters: dict) -> List[str]:
+def replace_parameters(source: Sequence[str], parameters: dict) -> List[str]:
     """Update parameter values in a list of strings and return a new list of strings"""
     eq_pat = re.compile(r"^([^#= ]+)\s*=.+$")
     out = []
@@ -131,7 +137,7 @@ def replace_parameters(source: List[str], parameters: dict) -> List[str]:
     return out
 
 
-def assignment_string(lhs, rhs):
+def assignment_string(lhs: str, rhs: Any) -> str:
     """
     inputs:
         lhs: name of variable to be assigned value
