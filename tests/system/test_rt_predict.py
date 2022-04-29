@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_rt_predict_by_line01(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci02:v1.4.17"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci02:v1.4.18"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
