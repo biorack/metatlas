@@ -99,6 +99,7 @@ class PlotSet(ABC):
         self.close()
 
     def sharey_between_pages(self):
+        """Sets all figures to have the same y-axis range"""
         min_y = max_y = None
         for fig in self.figures:
             for ax in fig.axes:
