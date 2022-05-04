@@ -12,7 +12,7 @@ RUN pip install --quiet -r /requirements.txt
 COPY papermill.kernel.json /usr/local/share/jupyter/kernels/papermill/kernel.json
 
 # Prevent incorrect caching of git clone, run `./most_recent_commits.py > version_info` before build
-ADD .version_info /version_info
+COPY .version_info /version_info
 RUN git clone https://github.com/biorack/metatlas /src && \
 	chmod -R a+rwX /src
 
