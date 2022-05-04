@@ -32,6 +32,8 @@ jobs:
         context: ./docker
         file: ./docker/Dockerfile.shifter
         platforms: linux/amd64
+        cache-from: type=registry,ref=wjhjgi/metatlas_shifter:latest
+        cache-to: type=inline
         tags: |
           wjhjgi/metatlas_shifter:${{ steps.timestamp.outputs.date_time }}
           wjhjgi/metatlas_shifter:latest
