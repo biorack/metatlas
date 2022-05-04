@@ -31,7 +31,7 @@ def mirror_plot(
       mz_tolerance: tolerance used for matching mz values
       resolve_by: one of 'distance', 'shape', or 'intensity' use to break ties between matching mzs
     """
-    if len(top) > 0 and len(bottom) > 0:
+    if len(top[0]) > 0 and len(bottom[0]) > 0:
         aligned_top, aligned_bottom = sp.pairwise_align_ms_vectors(top, bottom, mz_tolerance, resolve_by)
         dp.plot_msms_comparison(1, 0.0, axis, aligned_top, aligned_bottom)
 
