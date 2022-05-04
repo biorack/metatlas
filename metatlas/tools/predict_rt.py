@@ -459,7 +459,7 @@ def plot_per_compound(
             a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanmax(row.loc[range_columns]) + 0.12)
         else:
             a_x.set_yscale("log")
-            a_x.set_ylim(bottom=1e2, top=1e10)
+            a_x.set_ylim(bottom=1e4, top=1e10)
         a_x.set_xlim(-0.5, num_files + 0.5)
         a_x.xaxis.set_major_locator(mticker.FixedLocator(np.arange(0, num_files, 1.0)))
         _ = [s.set_linewidth(0.1) for s in a_x.spines.values()]
