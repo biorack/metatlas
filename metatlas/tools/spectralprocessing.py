@@ -436,12 +436,12 @@ def match_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
     # Create match matrix where row i and column j is value determined by resolve_by if msv_1[i] matches msv_2[j]
     # and a default value if otherwise
     if resolve_by == 'distance':
-        match_matrix = np.fromfunction(np.vectorize(lambda i, j: np.absolute(msv_1[0, int(i)] - msv_2[0, int(j)]) if int(j) in matches[int(i)] else np.inf), (msv_1[0].size, msv_2[0].size)).astype(float)
+        match_matrix = np.fromfunction(np.vectorize(lambda i, j: np.absolute(msv_1[0, int(i)] - msv_2[0, int(j)]) if int(j) in matches[int(i)] else np.inf, otypes=[float]), (msv_1[0].size, msv_2[0].size))
     if resolve_by == 'shape':
         ms_scale = np.median([msv_1[1,i]/msv_2[1,j] for i,l in enumerate(matches) for j in l])
-        match_matrix = np.fromfunction(np.vectorize(lambda i, j: np.absolute(msv_1[1, int(i)] - (ms_scale*msv_2[1, int(j)])) if int(j) in matches[int(i)] else np.inf), (msv_1[0].size, msv_2[0].size)).astype(float)
+        match_matrix = np.fromfunction(np.vectorize(lambda i, j: np.absolute(msv_1[1, int(i)] - (ms_scale*msv_2[1, int(j)])) if int(j) in matches[int(i)] else np.inf, otypes=[float]), (msv_1[0].size, msv_2[0].size))
     if resolve_by == 'intensity':
-        match_matrix = np.fromfunction(np.vectorize(lambda i, j: msv_1[1, int(i)] * msv_2[1, int(j)] if int(j) in matches[int(i)] else -np.inf), (msv_1[0].size, msv_2[0].size)).astype(float)
+        match_matrix = np.fromfunction(np.vectorize(lambda i, j: msv_1[1, int(i)] * msv_2[1, int(j)] if int(j) in matches[int(i)] else -np.inf, otypes=[float]), (msv_1[0].size, msv_2[0].size))
 
     # Initialize numpy arrays to return matching indices
     msv_1_to_msv_2 = np.full_like(msv_1[0], np.nan, dtype=float)
