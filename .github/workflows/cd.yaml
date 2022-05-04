@@ -37,6 +37,8 @@ jobs:
         tags: |
           wjhjgi/metatlas_shifter:${{ steps.timestamp.outputs.date_time }}
           wjhjgi/metatlas_shifter:latest
+          doejgi/metatlas_shifter:${{ steps.timestamp.outputs.date_time }}
+          doejgi/metatlas_shifter:latest
         push: true
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}
