@@ -51,9 +51,11 @@ def get_msms_data(
     """
     row = data.loc[idx]
     try:
-        return np.array(json.loads(row[mz_column_name])), np.array(json.loads(row[i_column_name]))
+        pairs = zip(json.loads(row[mz_column_name]), json.loads(row[i_column_name]))
     except TypeError:
         return np.array([]), np.array([])
+    ordered = sorted(list(pairs), key=lambda x: x[0])
+    return np.array(ordered[0]), np.array(ordered[1])
 
 
 # pylint: disable-next=too-many-arguments
