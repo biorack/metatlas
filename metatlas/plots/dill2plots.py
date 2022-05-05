@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 import os.path
@@ -6,7 +7,7 @@ import warnings
 # curr_ld_lib_path = ''
 
 from copy import deepcopy
-from typing import Callable, List, Optional, Sized
+from typing import Callable, List, Optional, Sequence, Sized, Union
 from enum import Enum
 
 from metatlas.datastructures import metatlas_objects as metob
@@ -33,8 +34,6 @@ import matplotlib.pyplot as plt
 from rdkit import Chem
 from rdkit.Chem import Draw, rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
-from itertools import cycle
-
 
 from ipywidgets import interact
 import ipywidgets as widgets
@@ -1179,7 +1178,7 @@ def plot_all_compounds_for_each_file(input_dataset = [], input_fname = '', inclu
                 d = data[file_idx][compound_idx]
                 if len(d['data']['eic']['rt']) > 0:
                     y_max.append(max(d['data']['eic']['intensity']))
-    y_max = cycle(y_max)
+    y_max = itertools.cycle(y_max)
 
     # create ouput dir
     if not os.path.exists(output_loc):
@@ -1287,9 +1286,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
                     y_max.append(max(d['data']['eic']['intensity']))
 
     print(("length of ymax is ", len(y_max)))
-    y_max = cycle(y_max)
-
-
+    y_max = itertools.cycle(y_max)
 
     # create ouput dir
     if not os.path.exists(output_loc):
@@ -2825,16 +2822,19 @@ class interact_get_metatlas_files():
         display(txt)
 
 
-
-def get_metatlas_files(experiment = '%%',name = '%%',most_recent = True):
+def get_metatlas_files(experiment: Union[str, Sequence[str]] = '%', name: str = '%', most_recent: bool = True):
     """
-    experiment is the folder name
+    experiment is the folder name or a list of folder names
     name is the filename
     """
-    files = metob.retrieve('LcmsRun',experiment=experiment,name=name, username='*')
+    batches = [experiment] if isinstance(experiment, str) else experiment
+    files = list(itertools.chain.from_iterable(
+        [metob.retrieve('LcmsRun', experiment=f"{batch}%", name=name, username='*') for batch in batches]
+    ))
     if most_recent:
-        files = filter_metatlas_objects_to_most_recent(files,'mzml_file')
+        files = filter_metatlas_objects_to_most_recent(files, 'mzml_file')
     return files
+
 
 def make_prefilled_fileinfo_sheet(groups, filename):
     #make a prefilled fileinfo sheet for editing groups manually and reimport to workflow
