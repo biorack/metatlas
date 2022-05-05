@@ -19,7 +19,7 @@ jobs:
         username: wjhjgi
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: generate version_info file
-      run: python ./most_recent_commits.py > docker/.version_info
+      run: python ./docker/most_recent_commits.py > docker/.version_info
     - name: generate time based tag
       id: timestamp
       run: |
