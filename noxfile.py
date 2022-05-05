@@ -50,6 +50,7 @@ more_checks = [
     "metatlas/tools/util.py",
     "noxfile.py",
     "tests",
+    "utils/copy_ms_to_new_names.py",
 ]
 
 # notebooks we can run all the checks on, as they don't contain legacy code that
