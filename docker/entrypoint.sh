@@ -19,4 +19,5 @@ cp -a "$1/." "$WORK_DIR"
 
 shift
 
-exec "$@"
+# don't do the usual 'exec "$@"' here as that will break the trap
+$@
