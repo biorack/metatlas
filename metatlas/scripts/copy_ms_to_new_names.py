@@ -194,7 +194,7 @@ def main():
     logger = activate_module_logging(
         __name__,
         console_level=["WARN", "INFO", "DEBUG"][args.verbose],
-        console_format="%(levelname)s:%(message)s",
+        console_format="{color}{levelname:8}{reset} {message}",
         file_level="INFO",
         filename=LOG_DIR / f"{getpass.getuser( )}.log",
     )
