@@ -2,10 +2,17 @@
 """Utility script for performing batch copy+rename operations"""
 
 import argparse
+import getpass
 import shutil
+import sys
 
 from pathlib import Path
 from typing import List
+
+from metatlas.tools.logging import activate_module_logging
+from metatlas.tools.validate_filenames import validate_file_name
+
+LOG_DIR = Path("/global/cfs/cdirs/m2650/copy_rename_logs")
 
 DIRECTORY_NUM_FIELDS = 9
 FILE_NUM_FIELDS = 16
@@ -105,16 +112,19 @@ def get_args() -> argparse.Namespace:
         action="store_true",
     )
     parser.add_argument(
+        "-f",
+        "--force",
+        help="Allow destination file names that do not pass validation",
+        action="store_true",
+    )
+    parser.add_argument(
         "-d",
         "--dry-run",
         help="only print out the filenames that would be created",
         action="store_true",
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        help="print source and destination filenames to stdout",
-        action="store_true",
+        "-v", "--verbose", help="Increase output. Can be repeated for more output", action="count", default=0
     )
     return parser.parse_args()
 
@@ -182,10 +192,27 @@ def get_dest_file_name(source: Path, args: argparse.Namespace) -> Path:
 def main():
     """Main body of script"""
     args = get_args()
+    logger = activate_module_logging(
+        __name__,
+        console_level=["WARN", "INFO", "DEBUG"][args.verbose],
+        console_format="%(levelname)s:%(message)s",
+        file_level="INFO",
+        filename=LOG_DIR / f"{getpass.getuser( )}.log",
+    )
     source_file_names = get_source_file_names(args.directory)
-    for source in source_file_names:
-        dest = get_dest_file_name(source, args)
-        if args.dry_run or args.verbose:
+    files = [{"source": src, "dest": get_dest_file_name(src, args)} for src in source_file_names]
+    num_invalid = sum(validate_file_name(file["dest"]) for file in files)
+    if num_invalid > 0:
+        logger.critical("%d destination file names failed one or more required checks.", num_invalid)
+        if args.force:
+            logger.info("Performing copy and rename anyways because the 'force' argument is set...")
+        else:
+            logger.critical(
+                "Terminating without copying or renaming any files due to invalid destination file names."
+            )
+            sys.exit(128)
+    for source, dest in files:
+        if args.dry_run or args.verbose > 0:
             print(f"{source} -> {dest}")
         if not args.dry_run:
             dest.parent.mkdir(parents=True, exist_ok=True)
