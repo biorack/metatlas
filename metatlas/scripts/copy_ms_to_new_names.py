@@ -193,14 +193,14 @@ def main():
     args = get_args()
     logger = activate_module_logging(
         __name__,
-        console_level=["WARN", "INFO", "DEBUG"][args.verbose],
+        console_level=["WARNING", "INFO", "DEBUG"][args.verbose],
         console_format="{color}{levelname:8}{reset} {message}",
         file_level="INFO",
         filename=LOG_DIR / f"{getpass.getuser( )}.log",
     )
     source_file_names = get_source_file_names(args.directory)
-    files = [{"source": src, "dest": get_dest_file_name(src, args)} for src in source_file_names]
-    num_invalid = sum(validate_file_name(file["dest"]) for file in files)
+    files = [(src, get_dest_file_name(src, args)) for src in source_file_names]
+    num_invalid = sum(validate_file_name(dest) for _, dest in files)
     if num_invalid > 0:
         logger.critical("%d destination file names failed one or more required checks.", num_invalid)
         if args.force:
