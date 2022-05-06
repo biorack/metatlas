@@ -112,7 +112,6 @@ def get_args() -> argparse.Namespace:
         action="store_true",
     )
     parser.add_argument(
-        "-f",
         "--force",
         help="Allow destination file names that do not pass validation",
         action="store_true",
