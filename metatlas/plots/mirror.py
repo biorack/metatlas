@@ -54,7 +54,7 @@ def get_msms_data(
         pairs = zip(json.loads(row[mz_column_name]), json.loads(row[i_column_name]))
     except TypeError:
         return np.array([]), np.array([])
-    ordered = sorted(list(pairs), key=lambda x: x[0])
+    ordered = sorted(pairs, key=lambda x: x[0])
     return np.array(ordered[0]), np.array(ordered[1])
 
 

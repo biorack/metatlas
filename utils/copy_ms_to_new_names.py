@@ -35,6 +35,7 @@ EPILOG = """Order of operations:
 
 class FStr:  # pylint: disable=too-few-public-methods
     """Delayed evaluation of string for f-string-like behavior on template strings"""
+
     def __init__(self, template, variables):
         self._template = template
         self._variables = variables
