@@ -12,14 +12,15 @@ activate_logging()
 """
 
 import getpass
+import logging
 import os
 import sys
-import logging
 
 from functools import wraps, partial
 from typing import Optional, Dict
 
 from colorama import Fore, Back, Style
+from IPython.core.interactiveshell import InteractiveShell
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,21 @@ def get_console_handler(level, format_str=None):
     return console_handler
 
 
+def _change_function(func):
+    """Override trackback"""
+    @wraps(func)
+    def showtraceback(*args, **kwargs):
+        # extract exception type, value and traceback
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        if issubclass(exc_type, Exception):
+            logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+        else:
+            # otherwise run the original hook
+            value = func(*args, **kwargs)
+            return value
+    return showtraceback
+
+
 def activate_logging(console_level="INFO", console_format=None, file_level="DEBUG", filename=None):
     """
     inputs:
@@ -147,6 +163,7 @@ def activate_logging(console_level="INFO", console_format=None, file_level="DEBU
     """
     disable_jupyter_default_logging()
     activate_module_logging("metatlas", console_level, console_format, file_level, filename)
+    InteractiveShell.showtraceback = _change_function(InteractiveShell.showtraceback)
 
 
 def log_errors(func=None, *, output_context=None):
