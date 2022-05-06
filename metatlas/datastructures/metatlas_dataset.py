@@ -305,18 +305,19 @@ class MetatlasDataset(HasTraits):
         link_table = "atlases_compound_identifications"
         target = f"target_id='{cid_id}'"
         workspace = metob.Workspace.get_instance()
-        workspace.get_connection()
-        workspace.db.begin()
+        db_conn = workspace.get_connection()
+        db_conn.begin()
         try:
-            workspace.db.query(f"delete from {link_table} where ({target} and source_id='{atlas_id}')")
-            links = workspace.db.query(f"select source_id from {link_table} where {target}")
+            db_conn.query(f"delete from {link_table} where ({target} and source_id='{atlas_id}')")
+            links = db_conn.query(f"select source_id from {link_table} where {target}")
             if len(list(links)) == 0:  # other atlases are not linked to this CompoundIdentification
-                workspace.db.query(f"delete from compoundidentifications where unique_id='{cid_id}'")
-            workspace.db.commit()
+                db_conn.query(f"delete from compoundidentifications where unique_id='{cid_id}'")
+            db_conn.commit()
         except Exception as err:  # pylint: disable=broad-except
-            metoh.rollback_and_log(workspace.db, err)
+            metoh.rollback_and_log(db_conn, err)
             raise Exception from err
-        workspace.close_connection()
+        finally:
+            db_conn.close()
 
     def _filter_data(self, keep_idxs: List[int]) -> None:
         """Removes any compounds from _data that do not have their index in keep_idxs"""
