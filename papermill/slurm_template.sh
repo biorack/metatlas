@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --image=docker:wjhjgi/metatlas_shifter:latest
+#SBATCH --image=docker:doejgi/metatlas_shifter:latest
 #SBATCH --constraint=haswell
 #SBATCH --nodes=1
 #SBATCH --licenses=cfs

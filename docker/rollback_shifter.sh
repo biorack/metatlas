@@ -9,7 +9,7 @@
 set -euf -o pipefail
 
 SHORT="metatlas_shifter"
-LONG="wjhjgi/$SHORT"
+LONG="doejgi/$SHORT"
 TAG=""
 
 while [[ "$#" -gt 0 ]]; do
@@ -19,7 +19,7 @@ while [[ "$#" -gt 0 ]]; do
         echo -e "$0 [options]"
         echo ""
         echo "   -h, --help          show this command reference"
-        echo "   -t, --tag string    tag value to revert to" 
+        echo "   -t, --tag string    tag value to revert to"
         exit 0
         ;;
     *)echo "Unknown parameter passed: $1"; exit 1 ;;
