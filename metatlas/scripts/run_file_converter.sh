@@ -25,7 +25,9 @@ fi
 
 LOGFILE="/global/cfs/cdirs/m2650/file_converter_logs/file_converter.log"
 RAW_DATA_PATH=/global/cfs/cdirs/metatlas/raw_data
-BIN_PATH="shifter --entrypoint --image=wjhjgi/metatlas_shifter:latest /usr/local/bin/python"
+
+# pass in PYTHONPATH and don't use "--entrypoint" so that it doesn't copy the git repo to /tmp/metatlas.*
+BIN_PATH="shifter -e PYTHONPATH=/src --image=wjhjgi/metatlas_shifter:latest /usr/local/bin/python"
 
 $BIN_PATH -m metatlas.io.file_converter "$RAW_DATA_PATH" &>> "${LOGFILE}" &
 
