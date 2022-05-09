@@ -119,36 +119,8 @@ class Workspace(object):
     instance = None
 
     def __init__(self):
-        # get metatlas directory since notebooks and scripts could be launched
-        # from other locations
-        # this directory contains the config files
-        metatlas_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
-        if ON_NERSC:
-            with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
-                nersc_info = yaml.safe_load(fid)
-
-            with open(nersc_info['db_passwd_file']) as fid:
-                pw = fid.read().strip()
-                self.path = 'mysql+pymysql://meta_atlas_admin:%s@nerscdb04.nersc.gov/%s' % (pw, nersc_info['db_name'])
-        else:
-            local_config_file = os.path.join(metatlas_dir, 'local_config', 'local.yml')
-            if os.path.isfile(local_config_file):
-                with open(local_config_file) as fid:
-                    local_info = yaml.load(fid)
-                hostname = 'localhost' if 'db_hostname' not in local_info else local_info['db_hostname']
-                login = ''
-                if 'db_username' in local_info:
-                    if 'db_password' in local_info:
-                        login = f"{local_info['db_username']}:{local_info['db_password']}@"
-                    else:
-                        login = f"{local_info['db_username']}@"
-                self.path = f"mysql+pymysql://{login}{hostname}/{local_info['db_name']}"
-            else:
-                filename = f"{getpass.getuser()}_workspace.db"
-                self.path = f"sqlite:///{filename}"
-                if os.path.exists(filename):
-                    os.chmod(filename, 0o775)
-        logger.debug('Using database at: %s', self.path)
+        logger.debug('Using database at: %s', self.get_database_path(with_password=False))
+        self.path = self.get_database_path(with_password=True)
         self.engine_kwargs = {} if self.path.startswith("sqlite") else {"pool_recycle": 3600}
 
         self.tablename_lut = dict()
@@ -174,6 +146,36 @@ class Workspace(object):
         if Workspace.instance is None:
             return Workspace()
         return Workspace.instance
+
+    def get_database_path(self, with_password: bool = True) -> str:
+        """Returns database access string, use with_password=False to hide password"""
+        config_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
+        if ON_NERSC:
+            with open(os.path.join(config_dir, 'nersc_config', 'nersc.yml'), encoding="utf-8") as fid:
+                nersc_info = yaml.safe_load(fid)
+            if with_password:
+                with open(nersc_info['db_passwd_file'], encoding="utf-8") as fid:
+                    password = fid.read().strip()
+            else:
+                password = '***********'
+            return f"mysql+pymysql://meta_atlas_admin:{password}@nerscdb04.nersc.gov/{nersc_info['db_name']}"
+        local_config_file = os.path.join(config_dir, 'local_config', 'local.yml')
+        if os.path.isfile(local_config_file):
+            with open(local_config_file, encoding="utf-8") as fid:
+                local_info = yaml.load(fid)
+            hostname = 'localhost' if 'db_hostname' not in local_info else local_info['db_hostname']
+            login = ''
+            if 'db_username' in local_info:
+                if 'db_password' in local_info:
+                    password = local_info['db_password'] if with_password else '***********'
+                    login = f"{local_info['db_username']}:{password}@"
+                else:
+                    login = f"{local_info['db_username']}@"
+            return f"mysql+pymysql://{login}{hostname}/{local_info['db_name']}"
+        filename = f"{getpass.getuser()}_workspace.db"
+        if os.path.exists(filename):
+            os.chmod(filename, 0o775)
+        return f"sqlite:///{filename}"
 
     def get_connection(self):
         """
