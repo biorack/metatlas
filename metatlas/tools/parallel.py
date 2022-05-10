@@ -4,16 +4,7 @@ import logging
 import multiprocessing
 from tqdm.notebook import tqdm
 
-from metatlas.datastructures import object_helpers as metoh
-
 logger = logging.getLogger(__name__)
-
-
-def initializer():
-    """ensure the parent proc's database connections are not touched in the new connection pool"""
-    workspace = metoh.Workspace.get_instance()
-    if workspace.db is not None:
-        workspace.db.engine.dispose(close=False)
 
 
 def parallel_process(function, data, max_cpus, unit="it"):
@@ -29,7 +20,7 @@ def parallel_process(function, data, max_cpus, unit="it"):
 
     if max_cpus > 1 and len(data) > 1:
         logger.debug("Starting parallel processing of %s with %d cpus.", function.__name__, max_cpus)
-        with multiprocessing.Pool(processes=min(max_cpus, len(data)), initializer=initializer) as pool:
+        with multiprocessing.Pool(processes=min(max_cpus, len(data))) as pool:
             return list(tqdm(pool.imap_unordered(function, data), total=len(data), unit=unit))
     logger.debug("Processing of %s with 1 cpu.", function.__name__)
     return list(map(function, data))
