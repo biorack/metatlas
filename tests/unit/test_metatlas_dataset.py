@@ -409,7 +409,6 @@ def test_store_atlas06(atlas, sqlite_with_atlas, username):
 def test_store_atlas07(atlas, sqlite, username):
     atlas.name = "test_store_atlas07"
     metob.store(atlas)
-    metoh.Workspace.get_instance().close_connection()
     metoh.Workspace.instance = None
     atlases = metob.retrieve("Atlas", name=atlas.name, username=username)
     assert len(atlases) == 1
