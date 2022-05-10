@@ -138,7 +138,6 @@ class Workspace(object):
         # handle circular references
         self.seen = dict()
         Workspace.instance = self
-        self.db = None
 
     @classmethod
     def get_instance(cls):
@@ -183,15 +182,6 @@ class Workspace(object):
         Each activity that queries the database needs to have this function preceeding it.
         """
         return dataset.connect(self.path, engine_kwargs=self.engine_kwargs)
-
-    def close_connection(self):
-        """close database connections"""
-        if self.db is not None:
-            try:
-                self.db.close()
-            except AttributeError:
-                logger.debug('Could not close DB. %s object contains %s', self.db.__class__, dir(self.db))
-            self.db = None
 
     def convert_to_double(self, table, entry):
         """Convert a table column to double type."""
