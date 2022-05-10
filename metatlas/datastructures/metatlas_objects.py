@@ -67,8 +67,7 @@ def retrieve(object_type, **kwargs):
       latest version of each object.
     """
     workspace = Workspace.get_instance()
-    out = workspace.retrieve(object_type, **kwargs)
-    return out
+    return workspace.retrieve(object_type, **kwargs)
 
 
 def remove(object_type, **kwargs):

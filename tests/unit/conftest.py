@@ -91,7 +91,6 @@ def fixture_sqlite(username, change_test_dir, atlas):
     metob.store(metob.LcmsRun())
     logger.debug("Done storing empty objects to create tables")
     yield
-    metoh.Workspace.get_instance().close_connection()
     metoh.Workspace.instance = None
 
 
