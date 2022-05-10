@@ -203,7 +203,7 @@ class Workspace(object):
         except Exception as err:
             rollback_and_log(db, err)
         finally:
-            db.close()
+            close_db_connection(db)
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
@@ -250,7 +250,7 @@ class Workspace(object):
         except Exception as err:
             rollback_and_log(db, err)
         finally:
-            db.close()
+            close_db_connection(db)
 
     def create_link_tables(self, klass):
         """
@@ -274,7 +274,7 @@ class Workspace(object):
         except Exception as err:
             rollback_and_log(db, err)
         finally:
-            db.close()
+            close_db_connection(db)
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
@@ -430,7 +430,7 @@ class Workspace(object):
         except Exception as err:
             rollback_and_log(db, err)
         finally:
-            db.close()
+            close_db_connection(db)
         return items
 
     def remove(self, object_type, **kwargs):
@@ -500,7 +500,7 @@ class Workspace(object):
         except Exception as err:
             rollback_and_log(db, err)
         finally:
-            db.close()
+            close_db_connection(db)
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
         """Remove a list of objects from the database."""
@@ -546,7 +546,7 @@ class Workspace(object):
         except Exception as err:
             rollback_and_log(db, err)
         finally:
-            db.close()
+            close_db_connection(db)
 
 
 def format_timestamp(tstamp):
@@ -668,3 +668,11 @@ def rollback_and_log(db_connection, err):
     logger.error("Transaction rollback within %s()", caller_name)
     logger.exception(err)
     raise err
+
+
+def close_db_connection(db_connection):
+    """Close database connection without raising exceptions"""
+    try:
+        db_connection.close()
+    except AttributeError:
+        logger.warning("AttributeError while closing database connection -- ignoring.")
