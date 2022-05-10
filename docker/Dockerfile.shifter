@@ -22,4 +22,11 @@ RUN echo "1" > /metatlas_image_version
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh", "/src"]
 
+# this is so that papermill calling black does not result in error messages
+ENV XDG_CACHE_HOME=/tmp/.xdg_cache
+RUN mkdir -p "$XDG_CACHE_HOME" \
+    && papermill /src/notebooks/reference//RT_Prediction.ipynb - \
+                 -p model_only True --prepare-only -k papermill  > dev/null \
+    && chmod -R 777 "$XDG_CACHE_HOME"
+
 CMD ["/usr/local/bin/python"]
