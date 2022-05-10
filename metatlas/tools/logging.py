@@ -143,6 +143,7 @@ def _change_function(func):
         exc_type, exc_value, exc_traceback = sys.exc_info()
         if issubclass(exc_type, Exception):
             logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+            sys.exit(128)
         else:
             # otherwise run the original hook
             value = func(*args, **kwargs)
