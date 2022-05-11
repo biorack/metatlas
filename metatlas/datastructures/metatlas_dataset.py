@@ -317,7 +317,7 @@ class MetatlasDataset(HasTraits):
             metoh.rollback_and_log(db_conn, err)
             raise Exception from err
         finally:
-            db_conn.close()
+            metoh.close_db_connection(db_conn)
 
     def _filter_data(self, keep_idxs: List[int]) -> None:
         """Removes any compounds from _data that do not have their index in keep_idxs"""

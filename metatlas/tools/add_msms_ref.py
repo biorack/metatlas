@@ -25,6 +25,7 @@ from traitlets import Float, HasTraits, Instance, Int, TraitError, TraitType, Un
 from tqdm.notebook import tqdm
 
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures import object_helpers as metoh
 from metatlas.datastructures.spectrum import Spectrum, str_to_spectrum
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.plots import dill2plots as dp
@@ -852,7 +853,7 @@ def get_synonym_matches(query: str) -> List[metob.Compound]:
         logger.error("synonym matches query failed: %s", err)
         out = []
     finally:
-        db_conn.close()
+        metoh.close_db_connection(db_conn)
     return out
 
 
