@@ -40,6 +40,7 @@ more_checks = [
     "metatlas/plots/plot_set.py",
     "metatlas/plots/tic.py",
     "metatlas/plots/utils.py",
+    "metatlas/scripts/copy_ms_to_new_names.py",
     "metatlas/tools/add_msms_ref.py",
     "metatlas/tools/cheminfo.py",
     "metatlas/tools/environment.py",
@@ -50,7 +51,6 @@ more_checks = [
     "metatlas/tools/util.py",
     "noxfile.py",
     "tests",
-    "utils/copy_ms_to_new_names.py",
 ]
 
 # notebooks we can run all the checks on, as they don't contain legacy code that
