@@ -137,6 +137,7 @@ def get_console_handler(level, format_str=None):
 
 def _change_function(func):
     """Override trackback"""
+
     @wraps(func)
     def showtraceback(*args, **kwargs):
         # extract exception type, value and traceback
@@ -148,6 +149,7 @@ def _change_function(func):
             # otherwise run the original hook
             value = func(*args, **kwargs)
             return value
+
     return showtraceback
 
 
