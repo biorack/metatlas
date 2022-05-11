@@ -8,6 +8,12 @@
 
 set -euo pipefail
 
+shifter_flags="--module=none --clearenv"
+shifter_flags+=" --env=HDF5_USE_FILE_LOCKING=FALSE"
+shifter_flags+=" --env=OMP_NUM_THREADS=1"
+shifter_flags+=" --env=OMP_PLACES=threads"
+shifter_flags+=" --env=OMP_PROC_BIND=spread"
+
 log_dir="/global/cfs/projectdirs/m2650/jupyter_logs/slurm"
 
 # make output notebook accessible for troubleshooting purposes
@@ -15,13 +21,6 @@ log_dir="/global/cfs/projectdirs/m2650/jupyter_logs/slurm"
 trap \
   "{ cp "$OUT_FILE" "${log_dir}/${SLURM_JOB_ID}_$(basename "$OUT_FILE")" ; }" \
   EXIT
-
-#OpenMP settings:
-export OMP_NUM_THREADS=1
-export OMP_PLACES=threads
-export OMP_PROC_BIND=spread
-
-export HDF5_USE_FILE_LOCKING=FALSE
 
 log="${log_dir}/${SLURM_JOB_ID}.log"
 
@@ -37,12 +36,18 @@ output "parameters: $PARAMETERS"
 
 # this creates the cache black uses and prevents some error messages
 # doesn't need --entrypoint and is faster to leave it off
-shifter /bin/bash -c 'black --quiet --check /metatlas_image_version &&
-        papermill \
-         /src/notebooks/reference/RT_Prediction.ipynb \
-         - \
-         -p model_only True \
-	 --prepare-only \
-	 -k papermill > /dev/null'
+shifter $shifter_flags /bin/bash -c \
+  'black --quiet --check /metatlas_image_version && \
+   papermill \
+     /src/notebooks/reference/RT_Prediction.ipynb \
+     - \
+     -p model_only True \
+     --prepare-only \
+     -k papermill > /dev/null'
 
-shifter --entrypoint /usr/local/bin/papermill -k "papermill" "$IN_FILE" "$OUT_FILE" $PARAMETERS 2>&1 | tee --append "$log"
+shifter --entrypoint $shifter_flags \
+  /usr/local/bin/papermill \
+  -k "papermill" \
+  "$IN_FILE" \
+  "$OUT_FILE" \
+  $PARAMETERS 2>&1 | tee --append "$log"
