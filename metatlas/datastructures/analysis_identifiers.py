@@ -5,7 +5,7 @@ import getpass
 import logging
 import os
 
-from typing import cast, Dict, List, Optional
+from typing import cast, Dict, List, Optional, Union
 
 import pandas as pd
 import traitlets
@@ -267,26 +267,29 @@ class AnalysisIdentifiers(HasTraits):
         """Returns a pandas DataFrame with lcmsrun matching self.experiment"""
         return metob.to_dataframe(self.lcmsruns)
 
-    def get_lcmsruns_short_names(self, fields: Optional[Dict[str, List[int]]] = None) -> pd.DataFrame:
+    def get_lcmsruns_short_names(
+        self, fields: Optional[Dict[str, Union[List[int], str]]] = None
+    ) -> pd.DataFrame:
         """
         Querys DB for lcms filenames from self.experiment and returns
         a pandas DataFrame containing identifiers for each file
         inputs:
             fields: optional dict with column names as key
-                    and list of lcms filename metadata fields positions as value
+                    and list of lcms filename metadata fields positions or 'all' as value
         """
         if fields is None:
             fields = {
-                "full_filename": list(range(16)),
+                "full_filename": "all",
                 "sample_treatment": [12],
                 "short_filename": [0, 2, 4, 5, 7, 9, 14],
                 "short_samplename": [9, 12, 13, 14],
             }
         out = pd.DataFrame(columns=fields.keys())
         for i, lcms_file in enumerate(self.lcmsruns):
-            tokens = lcms_file.name.split(".")[0].split("_")
+            stem = lcms_file.name.split(".")[0]
+            tokens = stem.split("_")
             for name, idxs in fields.items():
-                out.loc[i, name] = "_".join([tokens[n] for n in idxs])
+                out.loc[i, name] = stem if idxs == "all" else "_".join([tokens[n] for n in idxs])
             out.loc[i, "last_modified"] = pd.to_datetime(lcms_file.last_modified, unit="s")
         if out.empty:
             return out
