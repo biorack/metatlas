@@ -35,4 +35,14 @@ output "input file: $IN_FILE"
 output "output file: $OUT_FILE"
 output "parameters: $PARAMETERS"
 
+# this creates the cache black uses and prevents some error messages
+# doesn't need --entrypoint and is faster to leave it off
+shifter /bin/bash -c 'black --quiet --check /metatlas_image_version &&
+        papermill \
+         /src/notebooks/reference/RT_Prediction.ipynb \
+         - \
+         -p model_only True \
+	 --prepare-only \
+	 -k papermill > /dev/null'
+
 shifter --entrypoint /usr/local/bin/papermill -k "papermill" "$IN_FILE" "$OUT_FILE" $PARAMETERS 2>&1 | tee --append "$log"
