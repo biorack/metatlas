@@ -158,6 +158,7 @@ def generate_outputs(
     model_only: bool = False,
     selected_col: str = "median",
     stop_before: Optional[str] = None,
+    source_code_version_id: Optional[str] = None,
 ):
     """
     Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
@@ -185,7 +186,9 @@ def generate_outputs(
     if stop_before in ["notebooks", "msms_hits", None]:
         atlases = create_adjusted_atlases(linear, poly, ids)
     if stop_before in ["msms_hits", None]:
-        write_notebooks(ids, atlases, use_poly_model)
+        write_notebooks(
+            ids, atlases, use_poly_model, num_points, peak_height, msms_score, source_code_version_id
+        )
     if stop_before is None:
         pre_process_data_for_all_notebooks(
             ids, atlases, cpus, use_poly_model, num_points, peak_height, msms_score
@@ -736,7 +739,15 @@ def create_adjusted_atlases(
     return out_atlas_names
 
 
-def write_notebooks(ids: AnalysisIdentifiers, atlases: Sequence[str], use_poly_model: bool) -> None:
+def write_notebooks(
+    ids: AnalysisIdentifiers,
+    atlases: Sequence[str],
+    use_poly_model: bool,
+    num_points: Optional[int],
+    peak_height: Optional[float],
+    msms_score: Optional[float],
+    source_code_version_id: Optional[str],
+) -> None:
     """
     Creates Targeted analysis jupyter notebooks with pre-populated parameter sets
     Inputs:
@@ -744,6 +755,10 @@ def write_notebooks(ids: AnalysisIdentifiers, atlases: Sequence[str], use_poly_m
         atlases: list of atlas names to use as source atlases
         use_poly_model: if True use polynomial RT prediction model, else use linear model
                         this value is used to filter atlases from the input atlases list
+        num_points: pass through parameter to downstream notebooks
+        peak_height: pass through parameter to downstream notebooks
+        msms_score: pass through parameter to downstream notebooks
+        source_code_version_id: pass through parameter to downstream notebooks
     """
     for atlas_name in atlases:
         if (use_poly_model and "linear" in atlas_name) or (not use_poly_model and "polynomial" in atlas_name):
@@ -765,6 +780,11 @@ def write_notebooks(ids: AnalysisIdentifiers, atlases: Sequence[str], use_poly_m
             "source_atlas": atlas_name,
             "exclude_files": ids.exclude_files,
             "groups_controlled_vocab": ids.groups_controlled_vocab,
+            "num_points": num_points,
+            "peak_height": peak_height,
+            "msms_score": msms_score,
+            "google_folder": ids.google_folder,
+            "source_code_version_id": source_code_version_id,
         }
         notebook.create_notebook(source, dest, parameters)
 
