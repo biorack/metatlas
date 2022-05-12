@@ -84,21 +84,41 @@ get_slurm_account() {
   fi
 }
 
+get_slurm_time() {
+  if [ "$NERSC_HOST" = "perlmutter" ]; then
+    echo "06:00:00"
+  else
+    echo "36:00:00"
+  fi
+}
+
+get_slurm_constraint() {
+  if [ "$NERSC_HOST" = "perlmutter" ]; then
+    echo "cpu"
+  else
+    echo "haswell"
+  fi
+}
+
 get_slurm_queue() {
   local experiment_name="$1"
-  if is_C18_experiment "$experiment_name"; then
-    if is_group_member "gtrnd"; then
-      echo "genepool"
+  if [ "$NERSC_HOST" = "perlmutter" ]; then
+    echo "regular"
+  else  # cori
+    if is_C18_experiment "$experiment_name"; then
+      if is_group_member "gtrnd"; then
+        echo "genepool"
+      else
+        # could also use 'flex' for lower cost and lower priority
+        echo "regular"
+      fi
     else
-      # could also use 'flex' for lower cost and lower priority
-      echo "regular"
-    fi
-  else
-    if is_group_member "gtrnd"; then
-      echo "genepool_shared"
-    else
-      # could also use 'flex' for lower cost and lower priority
-      echo "shared"
+      if is_group_member "gtrnd"; then
+        echo "genepool_shared"
+      else
+        # could also use 'flex' for lower cost and lower priority
+        echo "shared"
+      fi
     fi
   fi
 }
@@ -195,7 +215,9 @@ check_not_in_commom_software_filesystem
 account="$(get_slurm_account)"
 cpus_requested="$(get_num_cpus "$exp")"
 queue="$(get_slurm_queue "$exp")"
-IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested}"
+constraint="$(get_slurm_constraint)"
+time="$(get_slurm_time)"
+IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested} --constraint=${constraint} --time=${time}"
 
 IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
 OUT_FILE="${analysis_dir}/${proposal}_RT_Prediction_papermill.ipynb"
@@ -217,4 +239,5 @@ export PARAMETERS
 install_jupyter_kernel
 
 mkdir -p "$analysis_dir"
+# shellcheck disable=SC2086
 sbatch $flags -J "${proposal}_RT_Pred" "${script_dir}/slurm_template.sh"
