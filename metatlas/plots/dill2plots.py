@@ -2746,6 +2746,8 @@ def peak_height_passing_idxs(data, height_threshold: Optional[float]) -> List[in
     """" Returns a list of compound indices that have intensity exceeding height_threshold"""
     def eval_peak_height(compound):
         return (max(get_intensity(compound)+[0])) > height_threshold
+    if len(data) == 0:
+        return []
     return all_idxs(data[0]) if height_threshold is None else get_passing_idxs(data, eval_peak_height)
 
 
@@ -2756,6 +2758,8 @@ def num_points_passing_idxs(data, min_points: Optional[int]) -> List[int]:
     """
     def eval_num_points(compound):
         return len(get_intensity(compound)) > min_points
+    if len(data) == 0:
+        return []
     return all_idxs(data[0]) if min_points is None else get_passing_idxs(data, eval_num_points)
 
 
@@ -2770,6 +2774,8 @@ def msms_score_passing_idxs(data, msms_score: Optional[float]) -> List[int]:
     inputs:
         msms_score: spectra similarity score must be exceeded to pass
     """
+    if len(data) == 0:
+        return []
     if msms_score is None:
         return all_idxs(data[0])
     scores_df = fastanalysis.make_scores_df(data.data, data.hits)
