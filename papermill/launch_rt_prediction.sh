@@ -59,6 +59,10 @@ is_group_member() {
   id -nG "$USER" | grep -qw "${group_name}"
 }
 
+is_perlmutter() {
+  [ "$NERSC_HOST" = "perlmutter" ]
+}
+
 is_C18_experiment() {
   local experiment_name="$1"
   [[ $experiment_name == *"_C18_"* ]]
@@ -74,7 +78,7 @@ get_num_cpus() {
 }
 
 get_slurm_account() {
-  if is_group_member "gtrnd"; then
+  if is_group_member "gtrnd" && ! is_perlmutter; then
     echo "gtrnd"
   elif is_group_member "m2650"; then
     echo "m2650"
@@ -85,7 +89,7 @@ get_slurm_account() {
 }
 
 get_slurm_time() {
-  if [ "$NERSC_HOST" = "perlmutter" ]; then
+  if is_perlmutter; then
     echo "06:00:00"
   else
     echo "36:00:00"
@@ -93,7 +97,7 @@ get_slurm_time() {
 }
 
 get_slurm_constraint() {
-  if [ "$NERSC_HOST" = "perlmutter" ]; then
+  if is_perlmutter; then
     echo "cpu"
   else
     echo "haswell"
@@ -102,7 +106,7 @@ get_slurm_constraint() {
 
 get_slurm_queue() {
   local experiment_name="$1"
-  if [ "$NERSC_HOST" = "perlmutter" ]; then
+  if is_perlmutter; then
     echo "regular"
   else  # cori
     if is_C18_experiment "$experiment_name"; then
