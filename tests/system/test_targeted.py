@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_targeted_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.19"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.20"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
