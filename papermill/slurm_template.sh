@@ -7,10 +7,6 @@
 set -euo pipefail
 
 shifter_flags="--module=none --clearenv"
-shifter_flags+=" --env=HDF5_USE_FILE_LOCKING=FALSE"
-shifter_flags+=" --env=OMP_NUM_THREADS=1"
-shifter_flags+=" --env=OMP_PLACES=threads"
-shifter_flags+=" --env=OMP_PROC_BIND=spread"
 
 log_dir="/global/cfs/projectdirs/m2650/jupyter_logs/slurm"
 
