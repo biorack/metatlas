@@ -15,7 +15,7 @@ from metatlas.tools.logging import activate_module_logging
 from metatlas.tools.environment import get_commit_date
 from metatlas.tools.environment import get_repo_hash
 from metatlas.tools.environment import set_git_head
-
+from metatlas.tools.environment import install_metatlas_kernel
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ def configure_environment(log_level: str) -> None:
     logger.debug("Configuring notebook environment with console log level of %s.", log_level)
     os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    install_metatlas_kernel()
 
 
 def configure_pandas_display(max_rows: int = 5000, max_columns: int = 500, max_colwidth: int = 100) -> None:
