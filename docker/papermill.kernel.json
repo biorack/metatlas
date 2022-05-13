@@ -7,5 +7,6 @@
         "{connection_file}"
     ],
     "display_name": "papermill",
-    "language": "python"
+    "language": "python",
+    "metadata": { "debugger": true }
 }
