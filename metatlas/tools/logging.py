@@ -13,10 +13,10 @@ activate_logging()
 
 import getpass
 import logging
-import os
 import sys
 
 from functools import wraps, partial
+from pathlib import Path
 from typing import Optional, Dict
 
 from colorama import Fore, Back, Style
@@ -31,6 +31,8 @@ levels = {
     "ERROR": logging.ERROR,
     "CRITICAL": logging.CRITICAL,
 }
+
+NERSC_LOG_DIRECTORY = Path("/global/cfs/projectdirs/m2650/jupyter_logs")
 
 
 class ColoredFormatter(logging.Formatter):
@@ -97,10 +99,10 @@ def get_file_handler(level, filename=None):
     Returns a logging.FileHandler object
     """
     if filename is None:
-        if "METATLAS_LOCAL" in os.environ:
-            filename = "metatlas.log"
+        if NERSC_LOG_DIRECTORY.exists() and NERSC_LOG_DIRECTORY.is_dir():
+            filename = NERSC_LOG_DIRECTORY / f"{getpass.getuser()}.log"
         else:
-            filename = f"/global/cfs/projectdirs/m2650/jupyter_logs/{getpass.getuser()}.log"
+            filename = "metatlas.log"
     file_formatter = logging.Formatter("%(asctime)s;%(levelname)s;%(name)s;%(message)s")
     file_handler = logging.FileHandler(filename)
     file_handler.setFormatter(file_formatter)
