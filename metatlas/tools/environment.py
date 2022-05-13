@@ -8,7 +8,10 @@ not correctly report problems with the notebook configuration
 
 import logging
 import os
+import shutil
 import subprocess
+
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -50,3 +53,13 @@ def get_commit_date() -> str:
     """Returns a string describing when the HEAD commit was created"""
     cmd = ["git", "show", "-s", "--format=%ci -- %cr", "HEAD"]
     return subprocess.run(cmd, cwd=repo_dir(), check=True, capture_output=True, text=True).stdout.rstrip()
+
+
+def install_metatlas_kernel() -> None:
+    """Installs the Metatlas Targeted kernel into the user's home directory"""
+    kernel_file_name = (
+        Path.home() / ".local" / "share" / "jupyter" / "kernels" / "metatlas-targeted" / "kernel.json"
+    )
+    logger.debug("Installing jupyter kernel 'Metatlas Targeted' to %s", kernel_file_name)
+    kernel_file_name.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(Path(repo_dir()) / "docker" / "shifter.kernel.json", kernel_file_name)
