@@ -5,6 +5,7 @@ import logging
 import math
 import os
 
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Sequence
@@ -159,6 +160,8 @@ def generate_outputs(
     selected_col: str = "median",
     stop_before: Optional[str] = None,
     source_code_version_id: Optional[str] = None,
+    rt_min_delta: Optional[float] = None,
+    rt_max_delta: Optional[float] = None,
 ):
     """
     Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
@@ -176,10 +179,13 @@ def generate_outputs(
         selected_col: name of column to use for model generation
         stop_before: one of None, qc_plots, atlases, notebooks, msms_hits
                      stop before generating this output and all following outputs
+        source_code_version_id: pass through parameter to downstream notebooks
+        rt_min_delta: added to atlas' rt_peak to generate rt_min, None uses atlas value for rt_min
+        rt_max_delta: added to atlas' rt_peak to generate rt_max, None uses atlas value for rt_max
     """
     stop_before = "qc_plots" if model_only else stop_before
     assert stop_before in ["qc_plots", "atlases", "notebooks", "msms_hits", None]
-    metatlas_dataset, groups, atlas, atlas_df = load_data(ids, cpus)
+    metatlas_dataset, groups, atlas, atlas_df = load_data(ids, cpus, rt_min_delta, rt_max_delta)
     linear, poly = generate_rt_correction_models(ids, metatlas_dataset, groups, atlas, atlas_df, selected_col)
     if stop_before in ["atlases", "notebooks", "msms_hits", None]:
         generate_qc_outputs(metatlas_dataset, ids, cpus)
@@ -214,12 +220,14 @@ def generate_qc_outputs(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdent
 
 
 def load_data(
-    ids: AnalysisIdentifiers, cpus: int
+    ids: AnalysisIdentifiers, cpus: int,
+    rt_min_delta: Optional[float],
+    rt_max_delta: Optional[float],
 ) -> Tuple[SimpleMetatlasData, List[metob.Group], metob.Atlas, pd.DataFrame]:
     """create metatlas_dataset, groups and atlas"""
     groups = get_groups(ids)
     files_df = get_files_df(groups)
-    qc_atlas, qc_atlas_df = get_qc_atlas(ids)
+    qc_atlas, qc_atlas_df = get_qc_atlas(ids, rt_min_delta, rt_max_delta)
     # this metatlas_dataset is not a class instance. Only has metatlas_dataset[file_idx][compound_idx]...
     metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)
     try:
@@ -335,16 +343,28 @@ def get_files_df(groups: Sequence[metob.Group]) -> pd.DataFrame:
     return files_df.sort_values(by=["time"])
 
 
-def get_qc_atlas(ids: AnalysisIdentifiers) -> Tuple[metob.Atlas, pd.DataFrame]:
+def get_qc_atlas(ids: AnalysisIdentifiers, rt_min_delta: Optional[float], rt_max_delta: Optional[float]) -> Tuple[metob.Atlas, pd.DataFrame]:
     """Retreives template QC atlas and return tuple (atlas, atlas_df)"""
     qc_atlas_dict = QC_ATLASES[ids.polarity][ids.chromatography]
     qc_atlas_name = qc_atlas_dict["name"]
     username = qc_atlas_dict["username"]
     logger.info("Loading QC Atlas %s", qc_atlas_name)
-    atlas = metob.retrieve("Atlas", name=qc_atlas_name, username=username)[0]
+    original_atlas = metob.retrieve("Atlas", name=qc_atlas_name, username=username)[0]
+    atlas = adjust_atlas_rt_range(original_atlas, rt_min_delta, rt_max_delta)
     atlas_df = ma_data.make_atlas_df(atlas)
     atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
     return atlas, atlas_df
+
+
+def adjust_atlas_rt_range(in_atlas: metob.Atlas, rt_min_delta: Optional[float], rt_max_delta: Optional[float]) -> metob.Atlas:
+    if rt_min_delta is None and rt_max_delta is None:
+        return in_atlas
+    out_atlas = deepcopy(in_atlas)
+    for cid in out_atlas.compound_identifications:
+        rts = cid.rt_references[0]
+        rts.rt_min = rts.rt_min if rt_min_delta is None else rts.rt_peak + rt_min_delta
+        rts.rt_max = rts.rt_max if rt_max_delta is None else rts.rt_peak + rt_max_delta
+    return out_atlas
 
 
 def load_runs(
