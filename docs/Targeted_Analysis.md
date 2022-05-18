@@ -23,7 +23,7 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
 9. To verify you RClone configuration was successful, copy and paste the following command into the terminal:
    ```
    /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd metabolomics:Analysis_uploads
-   ```
+   ```GjG
    Which should yield a listing of metabolomics experiment names similar to:
    ```
              -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
@@ -128,3 +128,15 @@ If the median-based polynomial model does not give a good fit, then ask Will Hol
 `z` - steps though zoom levels of 1x, 5x, 25x on the MSMS mirror plot by 5
 
 `s` - toggles on/off the red and blue shading of EIC plot that show RT ranges for similar compounds
+
+## Advanced Usage
+
+### Passing parameters additional notebook parameters to `launch_rt_prediction.sh`
+
+Any of the parameters in the first code block of the `RT_Prediction.ipynb` notebook can be passed to the `launch_rt_prediction.sh` script. There are two command line options that can be used to supply parameters.
+
+The `-p` option can be used to supply a parameter that takes a single unstructured value (number, string, or boolean): `-p parameter_name=parameter_value`. The `-p` option can be supplied multiple times to the `launch_rt_prediction.sh` script if needed.
+
+The '-y' option can be used to supply multiple parameters and structured parameters (lists, dictionaries, nested datastructures). The parameter names and values are passed asa YAML or JSON string: `-y "{parameter_name1: ['list', 'of', 'values'], parameter_name2: 'another value'}"`.
+
+The `-p` and `-y` options can be used at the same time.
