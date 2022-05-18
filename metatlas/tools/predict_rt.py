@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from matplotlib import gridspec
+from matplotlib.axis import Axis
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, RANSACRegressor
 from sklearn.preprocessing import PolynomialFeatures
@@ -81,7 +82,7 @@ QC_ATLASES = {
 class Model:
     """Encapsulate both linear and polynomial models in a consistent interface"""
 
-    def __init__(self, sk_model: BaseEstimator, intercept: float, coefficents: Sequence[float]):
+    def __init__(self, sk_model: BaseEstimator, intercept: float, coefficents: np.ndarray):
         """
         inputs:
             sk_model: scikit-learn model object
@@ -90,22 +91,22 @@ class Model:
         """
         self.sk_model = sk_model
         self.intercept = intercept
-        if isinstance(coefficents, (list, np.ndarray)):
-            self.coefficents = coefficents
-        else:
-            self.coefficents = [coefficents]
+        if coefficents.shape == (1, 1):
+            self.coefficents = [intercept, coefficents[0][0]]
+        elif coefficents.shape == (1, 3):
+            self.coefficents = coefficents[0].tolist()
 
     def __repr__(self) -> str:
         """Text description of the model function"""
         if self.order == 1:
-            return f"Linear model with intercept={self.intercept:.3f} and slope={self.coefficents[0]:.5f}"
+            return f"Linear model with intercept={self.intercept:.3f} and slope={self.coefficents[1]:.5f}"
         coef_str = ", ".join([f"{c:.5f}" for c in self.coefficents])
         return f"Polynomial model with intercept={self.intercept:.3f} and coefficents=[{coef_str}]"
 
     @property
     def order(self) -> int:
         """Polynomial order of the model"""
-        return 1 if len(self.coefficents) == 1 else len(self.coefficents) - 1
+        return len(self.coefficents) - 1
 
     @property
     def name(self) -> str:
@@ -116,8 +117,9 @@ class Model:
         """Returns y values for input x"""
         x_transformed = x_values.reshape(-1, 1)
         if self.order > 1:
-            x_transformed = np.array([[i[0] ** n for n in range(self.order + 1)] for i in x_transformed])
-        return self.sk_model.predict(x_transformed)
+            poly_reg = PolynomialFeatures(degree=2)
+            x_transformed = poly_reg.fit_transform(x_transformed)
+        return self.sk_model.predict(x_transformed).flatten().tolist()
 
 
 def generate_rt_correction_models(
@@ -127,19 +129,21 @@ def generate_rt_correction_models(
     qc_atlas: metob.Atlas,
     qc_atlas_df: pd.DataFrame,
     selected_col: str,
+    inchi_keys_not_in_model: Optional[List[str]] = None,
 ) -> Tuple[Model, Model]:
     """
     Generate the RT correction models and model charaterization files
     inputs:
         ids: an AnalysisIds object matching the one selected_cold in the main notebook
         selected_col: name of column to use for model generation
+        inchi_keys_not_in_model: InChi Keys that will be ignored when for model creation
     Returns a tuple with a linear and polynomial model
     """
     # pylint: disable=too-many-locals
     rts_df = get_rts(metatlas_dataset)
-    actual_df, pred_df = actual_and_predicted_df(selected_col, rts_df, qc_atlas_df)
-    linear, poly = generate_models(actual_df, pred_df)
-    actual_rts, pred_rts = actual_and_predicted_rts(rts_df, qc_atlas_df, actual_df, pred_df)
+    actual, pred = subset_data_for_model_input(selected_col, rts_df, qc_atlas_df, inchi_keys_not_in_model)
+    linear, poly = generate_models(actual, pred)
+    actual_rts, pred_rts = actual_and_predicted_rts(rts_df, qc_atlas_df, inchi_keys_not_in_model)
     actual_vs_pred_file_name = os.path.join(ids.output_dir, "Actual_vs_Predicted_RTs.pdf")
     plot_actual_vs_pred_rts(pred_rts, actual_rts, rts_df, actual_vs_pred_file_name, linear, poly)
     rt_comparison_file_name = os.path.join(ids.output_dir, "RT_Predicted_Model_Comparison.csv")
@@ -162,7 +166,8 @@ def generate_outputs(
     source_code_version_id: Optional[str] = None,
     rt_min_delta: Optional[float] = None,
     rt_max_delta: Optional[float] = None,
-):
+    inchi_keys_not_in_model: Optional[List[str]] = None,
+) -> None:
     """
     Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
     msms hits pickles
@@ -182,11 +187,15 @@ def generate_outputs(
         source_code_version_id: pass through parameter to downstream notebooks
         rt_min_delta: added to atlas' rt_peak to generate rt_min, None uses atlas value for rt_min
         rt_max_delta: added to atlas' rt_peak to generate rt_max, None uses atlas value for rt_max
+        inchi_keys_not_in_model: InChi Keys that will be ignored when for model creation
     """
+    # pylint: disable=too-many-locals
     stop_before = "qc_plots" if model_only else stop_before
     assert stop_before in ["qc_plots", "atlases", "notebooks", "msms_hits", None]
     metatlas_dataset, groups, atlas, atlas_df = load_data(ids, cpus, rt_min_delta, rt_max_delta)
-    linear, poly = generate_rt_correction_models(ids, metatlas_dataset, groups, atlas, atlas_df, selected_col)
+    linear, poly = generate_rt_correction_models(
+        ids, metatlas_dataset, groups, atlas, atlas_df, selected_col, inchi_keys_not_in_model
+    )
     if stop_before in ["atlases", "notebooks", "msms_hits", None]:
         generate_qc_outputs(metatlas_dataset, ids, cpus)
     if stop_before in ["notebooks", "msms_hits", None]:
@@ -220,7 +229,8 @@ def generate_qc_outputs(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdent
 
 
 def load_data(
-    ids: AnalysisIdentifiers, cpus: int,
+    ids: AnalysisIdentifiers,
+    cpus: int,
     rt_min_delta: Optional[float],
     rt_max_delta: Optional[float],
 ) -> Tuple[SimpleMetatlasData, List[metob.Group], metob.Atlas, pd.DataFrame]:
@@ -343,7 +353,9 @@ def get_files_df(groups: Sequence[metob.Group]) -> pd.DataFrame:
     return files_df.sort_values(by=["time"])
 
 
-def get_qc_atlas(ids: AnalysisIdentifiers, rt_min_delta: Optional[float], rt_max_delta: Optional[float]) -> Tuple[metob.Atlas, pd.DataFrame]:
+def get_qc_atlas(
+    ids: AnalysisIdentifiers, rt_min_delta: Optional[float], rt_max_delta: Optional[float]
+) -> Tuple[metob.Atlas, pd.DataFrame]:
     """Retreives template QC atlas and return tuple (atlas, atlas_df)"""
     qc_atlas_dict = QC_ATLASES[ids.polarity][ids.chromatography]
     qc_atlas_name = qc_atlas_dict["name"]
@@ -356,7 +368,10 @@ def get_qc_atlas(ids: AnalysisIdentifiers, rt_min_delta: Optional[float], rt_max
     return atlas, atlas_df
 
 
-def adjust_atlas_rt_range(in_atlas: metob.Atlas, rt_min_delta: Optional[float], rt_max_delta: Optional[float]) -> metob.Atlas:
+def adjust_atlas_rt_range(
+    in_atlas: metob.Atlas, rt_min_delta: Optional[float], rt_max_delta: Optional[float]
+) -> metob.Atlas:
+    """Reset the rt_min and rt_max values by adding rt_min_delta or rt_max_delta to rt_peak"""
     if rt_min_delta is None and rt_max_delta is None:
         return in_atlas
     out_atlas = deepcopy(in_atlas)
@@ -462,37 +477,45 @@ def plot_per_compound(
         cols: number of columns in plot grid
     """
     logger.info("Plotting %s vs file for each compound", field_name)
-    assert field_name in ["rt_peak", "peak_height"]
     plot_df = (
         data.sort_values(by="standard deviation", ascending=False, na_position="last")
         .drop(["#NaNs"], axis=1)
         .dropna(axis=0, how="all", subset=data.columns[:num_files])
     )
-    rows = int(math.ceil((data.shape[0] + 1) / 8))
+    rows = int(math.ceil((data.shape[0] + 1) / cols))
     fig = plt.figure()
     grid = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.2, hspace=0.4)
     for i, (_, row) in tqdm(enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot"):
         a_x = fig.add_subplot(grid[i])
-        a_x.tick_params(direction="in", length=1, pad=pad, width=0.1, labelsize=fontsize)
-        a_x.scatter(range(num_files), row[:num_files], s=0.2)
         range_columns = list(plot_df.columns[:num_files])
-        if field_name == "rt_peak":
-            a_x.axhline(y=row["atlas RT peak"], color="r", linestyle="-", linewidth=0.2)
-            range_columns += ["atlas RT peak"]
-            a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanmax(row.loc[range_columns]) + 0.12)
-        else:
-            a_x.set_yscale("log")
-            a_x.set_ylim(bottom=1e4, top=1e10)
-        a_x.set_xlim(-0.5, num_files + 0.5)
-        a_x.xaxis.set_major_locator(mticker.FixedLocator(np.arange(0, num_files, 1.0)))
-        _ = [s.set_linewidth(0.1) for s in a_x.spines.values()]
-        # truncate name so it fits above a single subplot
-        a_x.set_title(row.name[:33], pad=pad, fontsize=fontsize)
-        a_x.set_xlabel("Files", labelpad=pad, fontsize=fontsize)
-        ylabel = "Actual RTs" if field_name == "rt_peak" else "Peak Height"
-        a_x.set_ylabel(ylabel, labelpad=pad, fontsize=fontsize)
+        file_vs_value_plot(a_x, field_name, row, range_columns, fontsize, pad)
     plt.savefig(file_name, bbox_inches="tight")
     plt.close()
+
+
+def file_vs_value_plot(
+    a_x: Axis, field_name: str, row: pd.DataFrame, range_columns: List[str], fontsize: float, pad: float
+) -> None:
+    """Create a dot plot with one point per file"""
+    assert field_name in ["rt_peak", "peak_height"]
+    a_x.tick_params(direction="in", length=1, pad=pad, width=0.1, labelsize=fontsize)
+    num_files = len(range_columns)
+    a_x.scatter(range(num_files), row[:num_files], s=0.2)
+    if field_name == "rt_peak":
+        a_x.axhline(y=row["atlas RT peak"], color="r", linestyle="-", linewidth=0.2)
+        range_columns += ["atlas RT peak"]
+        a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanmax(row.loc[range_columns]) + 0.12)
+    else:
+        a_x.set_yscale("log")
+        a_x.set_ylim(bottom=1e4, top=1e10)
+    a_x.set_xlim(-0.5, num_files + 0.5)
+    a_x.xaxis.set_major_locator(mticker.FixedLocator(np.arange(0, num_files, 1.0)))
+    _ = [s.set_linewidth(0.1) for s in a_x.spines.values()]
+    # truncate name so it fits above a single subplot
+    a_x.set_title(row.name[:33], pad=pad, fontsize=fontsize)
+    a_x.set_xlabel("Files", labelpad=pad, fontsize=fontsize)
+    ylabel = "Actual RTs" if field_name == "rt_peak" else "Peak Height"
+    a_x.set_ylabel(ylabel, labelpad=pad, fontsize=fontsize)
 
 
 def plot_compound_atlas_rts(
@@ -514,61 +537,81 @@ def plot_compound_atlas_peak_heights(
     plot_per_compound("peak_height", num_files, peak_heights_df, file_name, fontsize, pad, cols)
 
 
-def generate_models(actual_df: pd.DataFrame, pred_df: pd.DataFrame) -> Tuple[Model, Model]:
+def generate_models(actual: List[float], pred: List[float]) -> Tuple[Model, Model]:
     """
     inputs:
-        actual_df: dataframe with experimental RTs
-        pred_df: dataframe with predicted RTs
+        actual: experimental RTs
+        pred_df: predicted RTs
     returns tuple containing two Model classes of order 1 and 2
     """
+    transformed_actual = np.array(actual).reshape(-1, 1)
+    transformed_pred = np.array(pred).reshape(-1, 1)
+
     ransac = RANSACRegressor(random_state=42)
-    rt_model_linear = ransac.fit(pred_df, actual_df)
+    rt_model_linear = ransac.fit(transformed_pred, transformed_actual)
     linear = Model(
-        rt_model_linear, rt_model_linear.estimator_.intercept_, rt_model_linear.estimator_.coef_[0]
+        rt_model_linear, rt_model_linear.estimator_.intercept_[0], rt_model_linear.estimator_.coef_
     )
 
     poly_reg = PolynomialFeatures(degree=2)
-    x_poly = poly_reg.fit_transform(pred_df)
-    rt_model_poly = LinearRegression().fit(x_poly, actual_df)
-    poly = Model(rt_model_poly, rt_model_poly.intercept_, rt_model_poly.coef_)
+    x_poly = poly_reg.fit_transform(transformed_pred)
+    rt_model_poly = LinearRegression().fit(x_poly, transformed_actual)
+    poly = Model(rt_model_poly, rt_model_poly.intercept_[0], rt_model_poly.coef_)
     return linear, poly
 
 
-def actual_and_predicted_df(
-    selected_column: str, rts_df: pd.DataFrame, atlas_df: pd.DataFrame
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def subset_data_for_model_input(
+    selected_column: str,
+    rts_df: pd.DataFrame,
+    atlas_df: pd.DataFrame,
+    inchi_keys_not_in_model: Optional[List[str]] = None,
+) -> Tuple[List[float], List[float]]:
     """
     inputs:
         selected_column: column number in rts_df to use for actual values
         rts_df: dataframe of RT values
         atlas_df: QC atlas in dataframe format
-    return a tuple of (actual_df, pred_df)
+        inchi_keys_not_in_model: InChi Keys that will be ignored for model creation
+    return a tuple of (actual, pred)
     """
-    actual_df = rts_df.loc[:, selected_column]
-    bad_qc_compounds = np.where(~np.isnan(actual_df))
-    actual_df = actual_df.iloc[bad_qc_compounds]
-    pred_df = atlas_df.iloc[bad_qc_compounds][["rt_peak"]]
-    return actual_df, pred_df
+    keep_idxs = get_keep_idxs(selected_column, rts_df, atlas_df, inchi_keys_not_in_model)
+    actual = rts_df.iloc[keep_idxs][selected_column].tolist()
+    pred = atlas_df.iloc[keep_idxs]["rt_peak"].tolist()
+    return actual, pred
+
+
+def get_keep_idxs(
+    selected_column: str,
+    rts_df: pd.DataFrame,
+    atlas_df: pd.DataFrame,
+    inchi_keys_not_in_model: Optional[List[str]] = None,
+) -> List[int]:
+    """Indices in rts_df that should be used within the model"""
+    keep_idxs = set(np.flatnonzero(~np.isnan(rts_df.loc[:, selected_column])))
+    if inchi_keys_not_in_model:
+        keep_idxs = keep_idxs.intersection(
+            set(np.flatnonzero(~atlas_df["inchi_key"].isin(inchi_keys_not_in_model)))
+        )
+    return list(keep_idxs)
 
 
 def actual_and_predicted_rts(
-    rts_df: pd.DataFrame, atlas_df: pd.DataFrame, actual_df: pd.DataFrame, pred_df: pd.DataFrame
+    rts_df: pd.DataFrame, atlas_df: pd.DataFrame, inchi_keys_not_in_model: Optional[List[str]] = None
 ) -> Tuple[List[List[float]], List[List[float]]]:
     """
     inputs:
         rts_df: dataframe of RT values
         atlas_df: QC atlas in dataframe format
-        acutal_df: dataframe of actual RT values
-        pred_df: dataframe of predicted RT values
+        inchi_keys_not_in_model: InChi Keys that will be ignored for model creation
     return a tuple of lists of lists: (actual_rts, pred_rts)
     """
-    actual_rts = [actual_df.values.tolist()]
-    pred_rts = [pred_df.values.tolist()]
+    actual_rts = []
+    pred_rts = []
     for i in range(rts_df.shape[1] - 5):
+        keep_idxs = get_keep_idxs(rts_df.columns[i], rts_df, atlas_df, inchi_keys_not_in_model)
         current_actual_df = rts_df.loc[:, rts_df.columns[i]]
-        bad_qc_compounds = np.where(~np.isnan(current_actual_df))
-        current_actual_df = current_actual_df.iloc[bad_qc_compounds]
-        current_pred_df = atlas_df.iloc[bad_qc_compounds][["rt_peak"]]
+        current_actual_df = current_actual_df.iloc[keep_idxs]
+        current_pred_df = atlas_df.iloc[keep_idxs][["rt_peak"]]
         actual_rts.append(current_actual_df.values.tolist())
         pred_rts.append(current_pred_df.values.tolist())
     return actual_rts, pred_rts
@@ -597,6 +640,7 @@ def plot_actual_vs_pred_rts(
         x_values = pred_rts[i]
         y_values = actual_rts[i]
         sub.scatter(x_values, y_values, s=2)
+        # spaced_x = pd.DataFrame({"rt_peak": np.linspace(0, max(x_values), 100)})
         spaced_x = np.linspace(0, max(x_values), 100)
         sub.plot(spaced_x, linear.predict(spaced_x), linewidth=0.5, color="red")
         sub.plot(spaced_x, poly.predict(spaced_x), linewidth=0.5, color="green")
