@@ -200,7 +200,7 @@ do
   if getopts p:y: option; then
     case $option in
       p) extra_parameters+=("$OPTARG");;
-      y) PARAMETERS="-y \"$OPTARG\"";;
+      y) YAML="$OPTARG";;
       \?) usage;;
     esac
   else
@@ -231,7 +231,7 @@ exp_check_len="${TOKENS[8]:-}"
 
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_analysis_dir_does_not_exist "$analysis_dir"
-check_yaml_for_double_quotes "${PARAMETERS:-}"
+check_yaml_for_double_quotes "${YAML:-}"
 check_gdrive_authorization
 check_not_in_commom_software_filesystem
 
@@ -244,6 +244,10 @@ IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${
 
 IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
 OUT_FILE="${analysis_dir}/${proposal}_RT_Prediction_papermill.ipynb"
+
+if [ -n "${YAML:-}" ]; then
+  PARAMETERS="-y \"${YAML}\""
+fi
 PARAMETERS+=" -p experiment $exp \
 	      -p project_directory $project_dir \
 	      -p max_cpus $threads_to_use \
