@@ -26,6 +26,8 @@ usage() {
         project_directory: output directory will be created within this directory
         -p:                optional notebook parameters, can have more than one
         -y:                optional notebook parameters in YAML string
+	                   do not use double-quotes inside of the YAML string
+			   you may use double quotes to enclose the YAML string
 
   for more information see:
   https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md
@@ -182,7 +184,7 @@ do
   if getopts p:y: option; then
     case $option in
       p) extra_parameters+=("$OPTARG");;
-      y) PARAMETERS="-y $OPTARG";;
+      y) PARAMETERS="-y \"$OPTARG\"";;
       \?) usage;;
     esac
   else
