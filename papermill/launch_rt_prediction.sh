@@ -56,13 +56,8 @@ contains_double_quotes() {
   [[ $1 == *"\""* ]]
 }
 
-check_yaml_for_double_quotes() {
-  if contains_double_quotes "$1"; then
-    >&2 echo "String supplied to '-y' contains one or more double quote characters."
-    >&2 echo "Double quotes are not allowed inside of the YAML string."
-    >&2 echo "Please replace the double quotes internal to the YAML string with single quotes."
-    die
-  fi
+is_valid_yaml() {
+  echo "$1" | shifter --image=doejgi/metatlas_shifter:latest python -c "import yaml, sys; yaml.safe_load(sys.stdin)" > /dev/null 2>&1
 }
 
 install_jupyter_kernel() {
@@ -155,6 +150,13 @@ get_rclone_remote() {
   echo "$remote"
 }
 
+check_yaml_is_valid() {
+  if ! is_valid_yaml "$1"; then
+    >&2 echo "ERROR: invalid YAML or JSON for -y value."
+    die
+  fi
+}
+
 check_gdrive_authorization() {
   if !  "$rclone" lsf "$(get_rclone_remote)" > /dev/null 2>&1; then
     >&2 echo "ERROR: rclone authoriation to Google Drive has expired. Please run:"
@@ -193,6 +195,7 @@ check_not_in_commom_software_filesystem() {
   fi
 }
 
+YAML_BASE64=""
 declare -a positional_parameters=()
 declare -a extra_parameters=()
 while [ $OPTIND -le "$#" ]
@@ -200,7 +203,7 @@ do
   if getopts p:y: option; then
     case $option in
       p) extra_parameters+=("$OPTARG");;
-      y) YAML="$OPTARG";;
+      y) YAML_BASE64="$(echo "${OPTARG}" | base64)";;
       \?) usage;;
     esac
   else
@@ -233,7 +236,7 @@ exp_check_len="${TOKENS[8]:-}"
 
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_analysis_dir_does_not_exist "$analysis_dir"
-check_yaml_for_double_quotes "${YAML:-}"
+check_yaml_is_valid "$(echo "${YAML_BASE64:-}" | base64)"
 check_gdrive_authorization
 check_not_in_commom_software_filesystem
 
@@ -247,9 +250,6 @@ IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${
 IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
 OUT_FILE="${analysis_dir}/${proposal}_RT_Prediction_papermill.ipynb"
 
-if [ -n "${YAML:-}" ]; then
-  PARAMETERS="-y \"${YAML}\""
-fi
 PARAMETERS+=" -p experiment $exp \
 	      -p project_directory $project_dir \
 	      -p max_cpus $threads_to_use \
@@ -264,6 +264,7 @@ fi
 export IN_FILE
 export OUT_FILE
 export PARAMETERS
+export YAML_BASE64
 
 install_jupyter_kernel
 

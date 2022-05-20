@@ -28,7 +28,7 @@ output "user: $USER"
 output "input file: $IN_FILE"
 output "output file: $OUT_FILE"
 output "parameters: $PARAMETERS"
-
+output "yaml parameters: $(echo "$YAML_BASE64" | base64)"
 
 # this creates the cache black uses and prevents some error messages
 # doesn't need --entrypoint and is faster to leave it off
@@ -48,4 +48,5 @@ shifter --entrypoint $shifter_flags \
   -k "papermill" \
   "$IN_FILE" \
   "$OUT_FILE" \
+  --parameters_base64 "$YAML_BASE64" \
   $PARAMETERS 2>&1 | tee --append "$log"
