@@ -28,7 +28,7 @@ output "user: $USER"
 output "input file: $IN_FILE"
 output "output file: $OUT_FILE"
 output "parameters: $PARAMETERS"
-output "yaml parameters: $(echo "$YAML_BASE64" | base64)"
+output "yaml parameters: $(echo "$YAML_BASE64" | base64 --decode)"
 
 # this creates the cache black uses and prevents some error messages
 # doesn't need --entrypoint and is faster to leave it off
