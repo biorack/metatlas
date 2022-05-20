@@ -24,10 +24,8 @@ usage() {
         analysis_number:   integer, use 0 for a new analysis
                            and increment if reworking one
         project_directory: output directory will be created within this directory
-        -p:                optional notebook parameters, can have more than one
-        -y:                optional notebook parameters in YAML string
-	                   do not use double quotes inside of the YAML string
-			   you may use double quotes to enclose the YAML string
+        -p:                optional notebook parameters, can use multiple times
+        -y:                optional notebook parameters in YAML or JSON string
 
   for more information see:
   https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md
@@ -52,12 +50,9 @@ validate_extra_parameters() {
   done
 }
 
-contains_double_quotes() {
-  [[ $1 == *"\""* ]]
-}
-
 is_valid_yaml() {
-  echo "$1" | shifter --image=doejgi/metatlas_shifter:latest python -c "import yaml, sys; yaml.safe_load(sys.stdin)" > /dev/null 2>&1
+  echo "$1" | shifter --module=none --clearenv --image=doejgi/metatlas_shifter:latest \
+	  python -c "import yaml, sys; yaml.safe_load(sys.stdin)" > /dev/null 2>&1
 }
 
 install_jupyter_kernel() {
