@@ -26,7 +26,7 @@ usage() {
         project_directory: output directory will be created within this directory
         -p:                optional notebook parameters, can have more than one
         -y:                optional notebook parameters in YAML string
-	                   do not use double-quotes inside of the YAML string
+	                   do not use double quotes inside of the YAML string
 			   you may use double quotes to enclose the YAML string
 
   for more information see:
@@ -48,6 +48,19 @@ validate_extra_parameters() {
       usage
     fi
   done
+}
+
+contains_double_quotes() {
+  [[ $1 == *"\""* ]]
+}
+
+check_yaml_for_double_quotes() {
+  if contains_double_quotes "$1"; then
+    >&2 echo "String supplied to '-y' contains one or more double quote characters."
+    >&2 echo "Double quotes are not allowed inside of the YAML string."
+    >&2 echo "Please replace the double quotes internal to the YAML string with single quotes."
+    die
+  fi
 }
 
 install_jupyter_kernel() {
@@ -177,6 +190,9 @@ check_not_in_commom_software_filesystem() {
   fi
 }
 
+
+
+
 declare -a positional_parameters=()
 declare -a extra_parameters=()
 while [ $OPTIND -le "$#" ]
@@ -215,6 +231,7 @@ exp_check_len="${TOKENS[8]:-}"
 
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_analysis_dir_does_not_exist "$analysis_dir"
+check_yaml_for_double_quotes "$PARAMETERS"
 check_gdrive_authorization
 check_not_in_commom_software_filesystem
 
