@@ -236,7 +236,7 @@ exp_check_len="${TOKENS[8]:-}"
 
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_analysis_dir_does_not_exist "$analysis_dir"
-check_yaml_is_valid "$(echo "${YAML_BASE64:-}" | base64)"
+check_yaml_is_valid "$(echo "${YAML_BASE64:-}" | base64 --decode)"
 check_gdrive_authorization
 check_not_in_commom_software_filesystem
 
