@@ -173,8 +173,8 @@ check_analysis_dir_does_not_exist() {
 }
 
 check_exp_id_has_atleast_9_fields() {
-  IFS='_' read -r -a arr <<< "$1"
-  if [ ${#arr[@]} -ne 9 ]; then
+  # inputs: the 9th field (1-indexed) of the experiment_name split on '_'
+  if [[ $1 == "" ]]; then
     >&2 echo "ERROR: experiment_name parameter is invalid. Must have 9 fields when split on '_'."
     die
   fi
