@@ -223,7 +223,7 @@ exp="${positional_parameters[0]}"
 analysis_num="${positional_parameters[1]}"
 project_dir="${positional_parameters[2]}"
 
-script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && realpath .)"
 exp_dir="${project_dir}/$exp"
 analysis_dir="${exp_dir}/${USER}${analysis_num}"
 
