@@ -41,11 +41,13 @@ validate_extra_parameters() {
   for i in "${parameters[@]}"
   do
     if [ "${i:0:1}" == "=" ]; then
-      usage
+      >&2 echo "ERROR: invalid usage of -p in '-p ${i}'"
+      die
     fi
     IFS='=' read -r -a arr <<< "$i"
     if [ ${#arr[@]} -ne 2 ]; then
-      usage
+      >&2 echo "ERROR: invalid usage of -p in '-p ${i}'"
+      die
     fi
   done
 }
@@ -171,7 +173,8 @@ check_analysis_dir_does_not_exist() {
 }
 
 check_exp_id_has_atleast_9_fields() {
-  if [[ $1 == "" ]]; then
+  IFS='_' read -r -a arr <<< "$1"
+  if [ ${#arr[@]} -ne 9 ]; then
     >&2 echo "ERROR: experiment_name parameter is invalid. Must have 9 fields when split on '_'."
     die
   fi
@@ -190,9 +193,6 @@ check_not_in_commom_software_filesystem() {
   fi
 }
 
-
-
-
 declare -a positional_parameters=()
 declare -a extra_parameters=()
 while [ $OPTIND -le "$#" ]
@@ -210,11 +210,13 @@ do
 done
 
 if [  ${#positional_parameters[@]} -ne 3 ]; then
+  >&2 echo "ERROR: one of experiment_name, analysis_number, or project_directory was not supplied."
+  >&2 echo ""
   usage
 fi
 
 if [  ${#extra_parameters[@]} -ne 0 ]; then
-  validate_extra_parameters extra_parameters
+  validate_extra_parameters extra_parameters  # pass extra_parameters by name
 fi
 
 exp="${positional_parameters[0]}"
