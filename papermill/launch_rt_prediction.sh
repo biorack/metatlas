@@ -231,7 +231,7 @@ exp_check_len="${TOKENS[8]:-}"
 
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_analysis_dir_does_not_exist "$analysis_dir"
-check_yaml_for_double_quotes "$PARAMETERS"
+check_yaml_for_double_quotes "${PARAMETERS:-}"
 check_gdrive_authorization
 check_not_in_commom_software_filesystem
 
