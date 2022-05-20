@@ -55,7 +55,8 @@ def get_msms_data(
     except TypeError:
         return np.array([]), np.array([])
     ordered = sorted(pairs, key=lambda x: x[0])
-    return np.array(ordered[0]), np.array(ordered[1])
+    out = list(zip(*ordered))  # inverse of zip
+    return np.array(out[0]), np.array(out[1])
 
 
 # pylint: disable-next=too-many-arguments
