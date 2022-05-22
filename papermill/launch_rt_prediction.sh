@@ -198,7 +198,7 @@ do
   if getopts p:y: option; then
     case $option in
       p) extra_parameters+=("$OPTARG");;
-      y) YAML_BASE64="$(echo "${OPTARG}" | base64)";;
+      y) YAML_BASE64="$(echo "${OPTARG}" | base64 --wrap=0)";;
       \?) usage;;
     esac
   else
