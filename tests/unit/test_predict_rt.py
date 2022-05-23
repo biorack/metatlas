@@ -19,3 +19,10 @@ def test_adjust_atlas_rt_range01(atlas):
     mod_atlas = predict_rt.adjust_atlas_rt_range(atlas, -0.1, 0.1)
     mod_rt_min = mod_atlas.compound_identifications[0].rt_references[0].rt_min
     assert orig_rt_min != mod_rt_min
+
+
+def test_adjust_atlas_rt_range02(atlas):
+    orig_rt_max = atlas.compound_identifications[0].rt_references[0].rt_max
+    mod_atlas = predict_rt.adjust_atlas_rt_range(atlas, -0.1, 0.1)
+    mod_rt_max = mod_atlas.compound_identifications[0].rt_references[0].rt_max
+    assert orig_rt_max != mod_rt_max
