@@ -52,7 +52,7 @@ validate_extra_parameters() {
 
 is_valid_yaml() {
   echo "$1" | shifter --module=none --clearenv --image=doejgi/metatlas_shifter:latest \
-	  python -c "import yaml, sys; yaml.safe_load(sys.stdin)" > /dev/null 2>&1
+	  /src/metatlas/scripts/yaml_validation.py
 }
 
 install_jupyter_kernel() {

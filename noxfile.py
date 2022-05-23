@@ -41,6 +41,7 @@ more_checks = [
     "metatlas/plots/tic.py",
     "metatlas/plots/utils.py",
     "metatlas/scripts/copy_ms_to_new_names.py",
+    "metatlas/scripts/yaml_validation.py",
     "metatlas/tools/add_msms_ref.py",
     "metatlas/tools/cheminfo.py",
     "metatlas/tools/environment.py",
