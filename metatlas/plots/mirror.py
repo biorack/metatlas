@@ -66,7 +66,7 @@ def multiple_mirror_plot(
     bottom_idx: int,
     mz_column_names: List[str],
     i_column_names: List[str],
-    mz_tolerance: float = 1e-6,
+    mz_tolerance: float = 1e-3,
     resolve_by: str = "shape",
     title: bool = True,
     width: float = 20,
