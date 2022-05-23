@@ -190,7 +190,7 @@ check_not_in_commom_software_filesystem() {
   fi
 }
 
-YAML_BASE64=""
+YAML_BASE64="$(echo "{}" | base64 --wrap=0)"
 declare -a positional_parameters=()
 declare -a extra_parameters=()
 while [ $OPTIND -le "$#" ]
