@@ -86,7 +86,7 @@ If the median-based polynomial model does not give a good fit, then you will wan
 
 ### Perform ISTDsEtc Analysis
 
-1. Launch [jupyter.nersc.gov](https://jupyter.nersc.gov/) in your web browser and start a 'Shared CPU Node' on Cori.
+1. Launch [jupyter.nersc.gov](https://jupyter.nersc.gov/) in your web browser and start a 'Shared CPU Node' on Cori or Perlmutter.
 2. Open `~/metabolomics_data/EXPERIMENT_NAME/${USER}ANALYSIS_NUMBER/PROJECT_ID_ISTDsEtc_POS.ipynb` within JupyterLab (you no longer need to use the Classic Notebook interface). If you are prompted to select a kernel, select 'Metatlas Targeted'.
 3. The first code cell of the notebook contains descriptions of the parameters and their default values. The second code cell of the notebook contain parameter values that were auto-populated from the RT correction slurm job. These values in the second code block will override the default values from the first code block. The third code block validates your parameter values and also validates that your environment is correctly configured. Execute the first 3 code cells and see if there are any errors. If you get an error message (usually error messages will be in red), you will need to correct the issue so that the cell executes without giving an error before moving on. The error messages commonly see at this point in the workflow generally include some description of what action is needed to correct the problem.
 4. Execute the code blocks 4 and 5 to read in data and bring up the Annotation GUI.
