@@ -3,16 +3,17 @@ from __future__ import print_function
 import sys
 import os
 import argparse
-
 # repos/metatlas/metatlas/untargeted/gnps_quickstart_util.py
-sys.path.insert(1,'/global/homes/b/bpb/repos/metatlas/metatlas/untargeted')
+sys.path.insert(0,'/global/homes/b/bpb/repos/metatlas/metatlas/untargeted')
+exec(open('/global/homes/b/bpb/repos/metatlas/metatlas/untargeted/gnps_quickstart_util.py').read())
+
 import uuid
 
 with open('/global/homes/b/bpb/gnps_password.txt','r') as fid:
     gnps_password = fid.read().strip()
 
 # execfile('/global/homes/b/bpb/repos/GNPS_quickstart/util.py')
-exec(open('/global/homes/b/bpb/repos/metatlas/metatlas/untargeted/gnps_quickstart_util.py').read())
+
 def copy_and_submit_to_gnps(basedir,basename,override=False):
     new_basename = os.path.join(basedir,basename)
     taskid_filename = '%s_%s.txt'%(new_basename,'gnps-uuid')
