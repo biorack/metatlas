@@ -131,17 +131,20 @@ If the median-based polynomial model does not give a good fit, then ask Will Hol
 
 ## Advanced Usage
 
-### Passing parameters additional notebook parameters to `launch_rt_prediction.sh`
+### Passing Additional Notebook Parameters To `launch_rt_prediction.sh`
 
 Any of the parameters in the first code block of the `RT_Prediction.ipynb` notebook can be passed to the `launch_rt_prediction.sh` script. There are two command line options that can be used to supply parameters.
 
 The `-p` option can be used to supply a parameter that takes a single unstructured value (number, string, or boolean): `-p parameter_name=parameter_value`. The `-p` option can be supplied multiple times to the `launch_rt_prediction.sh` script if needed.
 
-The `-y` option can be used to supply multiple parameters and structured parameters (lists, dictionaries, nested data structures). The parameter names and values are passed as YAML or JSON strings: `-y "{parameter_name1: ['list', 'of', 'values'], parameter_name2: 'another value'}"`.
+The `-y` option can be used to supply multiple parameters and structured parameters (lists, dictionaries, nested data structures). The parameter names and values are passed as YAML or JSON strings: `-y "{'parameter_name1': ['list', 'of', 'values'], 'parameter_name2': 'another value'}"`.
 
 The `-p` and `-y` options can be used at the same time.
 
 An example usage of `-p` and `-y`:
 ```
-/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 ~/metabolomics_data -y “{rt_min_delta: -1, rt_max_delta:1, inchi_keys_not_in_model: [‘CZMRCDWAGMRECN-UGDNZRGBSA-N', 'ISAKRJDGNUQOIC-UHFFFAOYSA-N']}" -p stop_before=atlases
+/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh \
+    20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 ~/metabolomics_data \
+    -y “{'rt_min_delta': -1.5, 'rt_max_delta': 1.5, 'inchi_keys_not_in_model': [‘CZMRCDWAGMRECN-UGDNZRGBSA-N', 'ISAKRJDGNUQOIC-UHFFFAOYSA-N']}" \
+    -p stop_before=atlases
 ```
