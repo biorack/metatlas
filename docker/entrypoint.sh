@@ -19,4 +19,10 @@ cp -a "$1/." "$WORK_DIR"
 
 shift
 
-exec "$@"
+export HDF5_USE_FILE_LOCKING="FALSE"
+export OMP_NUM_THREADS=1
+export OMP_PLACES="threads"
+export OMP_PROC_BIND="spread"
+
+# don't do the usual 'exec "$@"' here as that will break the trap
+$@

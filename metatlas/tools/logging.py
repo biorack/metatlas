@@ -12,14 +12,15 @@ activate_logging()
 """
 
 import getpass
-import os
-import sys
 import logging
+import sys
 
 from functools import wraps, partial
+from pathlib import Path
 from typing import Optional, Dict
 
 from colorama import Fore, Back, Style
+from IPython.core.interactiveshell import InteractiveShell
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,8 @@ levels = {
     "ERROR": logging.ERROR,
     "CRITICAL": logging.CRITICAL,
 }
+
+NERSC_LOG_DIRECTORY = Path("/global/cfs/projectdirs/m2650/jupyter_logs")
 
 
 class ColoredFormatter(logging.Formatter):
@@ -96,10 +99,10 @@ def get_file_handler(level, filename=None):
     Returns a logging.FileHandler object
     """
     if filename is None:
-        if "METATLAS_LOCAL" in os.environ:
-            filename = "metatlas.log"
+        if NERSC_LOG_DIRECTORY.exists() and NERSC_LOG_DIRECTORY.is_dir():
+            filename = NERSC_LOG_DIRECTORY / f"{getpass.getuser()}.log"
         else:
-            filename = f"/global/cfs/projectdirs/m2650/jupyter_logs/{getpass.getuser()}.log"
+            filename = "metatlas.log"
     file_formatter = logging.Formatter("%(asctime)s;%(levelname)s;%(name)s;%(message)s")
     file_handler = logging.FileHandler(filename)
     file_handler.setFormatter(file_formatter)
@@ -134,6 +137,24 @@ def get_console_handler(level, format_str=None):
     return console_handler
 
 
+def _change_function(func):
+    """Override trackback"""
+
+    @wraps(func)
+    def showtraceback(*args, **kwargs):
+        # extract exception type, value and traceback
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        if issubclass(exc_type, Exception):
+            logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+            sys.exit(128)
+        else:
+            # otherwise run the original hook
+            value = func(*args, **kwargs)
+            return value
+
+    return showtraceback
+
+
 def activate_logging(console_level="INFO", console_format=None, file_level="DEBUG", filename=None):
     """
     inputs:
@@ -147,6 +168,7 @@ def activate_logging(console_level="INFO", console_format=None, file_level="DEBU
     """
     disable_jupyter_default_logging()
     activate_module_logging("metatlas", console_level, console_format, file_level, filename)
+    InteractiveShell.showtraceback = _change_function(InteractiveShell.showtraceback)
 
 
 def log_errors(func=None, *, output_context=None):

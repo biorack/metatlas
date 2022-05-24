@@ -383,7 +383,7 @@ def find_all_ms_matches(msv_1, msv_2, mz_tolerance):
 
     msv_1 = np.asarray(msv_1, dtype=float)
     msv_2 = np.asarray(msv_2, dtype=float)
-    assert (np.any(np.isnan(msv_1)) and np.any(np.isnan(msv_2))) == False
+    assert not np.any(np.isnan(msv_1)) and not np.any(np.isnan(msv_2))
     assert msv_1.shape[0] == 2 and msv_2.shape[0] == 2
 
     #start_idx is element for which inserting msv_1 directly ahead of it maintains sort order
@@ -426,22 +426,26 @@ def match_ms_vectors(msv_1, msv_2, mz_tolerance, resolve_by):
 
     msv_1 = np.asarray(msv_1, dtype=float)
     msv_2 = np.asarray(msv_2, dtype=float)
-    assert (np.any(np.isnan(msv_1)) and np.any(np.isnan(msv_2))) == False
+    assert not np.any(np.isnan(msv_1)) and not np.any(np.isnan(msv_2))
     assert msv_1.shape[0] == 2 and msv_2.shape[0] == 2
-
-    assert resolve_by == 'distance' or resolve_by == 'shape' or resolve_by == 'intensity'
+    assert resolve_by in ['distance', 'shape', 'intensity']
 
     matches = find_all_ms_matches(msv_1, msv_2, mz_tolerance)[0]
 
-    # Create match matrix where row i and column j is value determined by resolve_by if msv_1[i] matches msv_2[j]
-    # and a default value if otherwise
-    if resolve_by == 'distance':
-        match_matrix = np.fromfunction(np.vectorize(lambda i, j: np.absolute(msv_1[0, int(i)] - msv_2[0, int(j)]) if int(j) in matches[int(i)] else np.inf), (msv_1[0].size, msv_2[0].size)).astype(float)
-    if resolve_by == 'shape':
-        ms_scale = np.median([msv_1[1,i]/msv_2[1,j] for i,l in enumerate(matches) for j in l])
-        match_matrix = np.fromfunction(np.vectorize(lambda i, j: np.absolute(msv_1[1, int(i)] - (ms_scale*msv_2[1, int(j)])) if int(j) in matches[int(i)] else np.inf), (msv_1[0].size, msv_2[0].size)).astype(float)
-    if resolve_by == 'intensity':
-        match_matrix = np.fromfunction(np.vectorize(lambda i, j: msv_1[1, int(i)] * msv_2[1, int(j)] if int(j) in matches[int(i)] else -np.inf), (msv_1[0].size, msv_2[0].size)).astype(float)
+    # Create match matrix where row i and column j is value determined by resolve_by
+    # if msv_1[i] matches msv_2[j] and a default value if otherwise
+    def match_distance(i, j):
+        return np.absolute(msv_1[0, int(i)] - msv_2[0, int(j)]) if j in matches[int(i)] else np.inf
+
+    def match_shape(i, j):
+        ms_scale = np.median([msv_1[1, i]/msv_2[1, j] for i, l in enumerate(matches) for j in l])
+        return np.absolute(msv_1[1, int(i)] - (ms_scale*msv_2[1, int(j)])) if j in matches[int(i)] else np.inf
+
+    def match_intensity(i, j):
+        return msv_1[1, int(i)] * msv_2[1, int(j)] if j in matches[int(i)] else -np.inf
+
+    match_fun = {"distance": match_distance, "shape": match_shape, "intensity": match_intensity}[resolve_by]
+    match_matrix = np.fromfunction(np.vectorize(match_fun, otypes=[float]), (msv_1[0].size, msv_2[0].size))
 
     # Initialize numpy arrays to return matching indices
     msv_1_to_msv_2 = np.full_like(msv_1[0], np.nan, dtype=float)

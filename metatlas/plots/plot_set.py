@@ -72,23 +72,24 @@ class PlotSet(ABC):
         plots_per_page = math.ceil(num_plots / num_pages)
         self.figures = []
         color_generator = utils.colors()
-        current_group = ""
+        current_group = None
         plot_idx = 0
-        scale_factor = font_scale / num_plots**0.5
-        matplotlib.rcParams.update({"font.size": 10 * scale_factor})
         for _ in range(num_pages):
             plots_remaining = num_plots - plot_idx
             num_plots_this_page = min(plots_per_page, plots_remaining)
+            _set_font_size(num_plots_this_page, font_scale)
             cur_fig, axs = utils.wrap_subplots(
                 num_plots_this_page, sharey=sharey, sharex=True, constrained_layout=True
             )
             self.figures.append(cur_fig)
             for ax in axs:
-                if plots[plot_idx].group_name != current_group:
+                if current_group is None or plots[plot_idx].group_name != current_group:
                     current_color = next(color_generator)
                     current_group = plots[plot_idx].group_name
                 plots[plot_idx].plot(ax, back_color=current_color)
                 plot_idx += 1
+        if sharey:
+            self.sharey_between_pages()
         self.limit_axes(x_min, x_max, y_min, y_max)
 
     def __enter__(self):
@@ -96,6 +97,21 @@ class PlotSet(ABC):
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.close()
+
+    def sharey_between_pages(self):
+        """Sets all figures to have the same y-axis range"""
+        min_y = max_y = None
+        for fig in self.figures:
+            for ax in fig.axes:
+                ax_min, ax_max = ax.get_ylim()
+                if min_y is None or ax_min < min_y:
+                    min_y = ax_min
+                if max_y is None or ax_max > max_y:
+                    max_y = ax_max
+        if min_y is not None and max_y is not None:
+            for fig in self.figures:
+                for ax in fig.axes:
+                    ax.set_ylim(bottom=min_y, top=max_y)
 
     def limit_axes(
         self,
@@ -213,3 +229,10 @@ def _calculate_new_limit(
         # This is a axhline in the autoscale direction
         return np.inf, -np.inf
     return low, high
+
+
+def _set_font_size(num_plots: int, font_scale: float) -> None:
+    """Scales the font size down based on the number of plots"""
+    nrows, ncols = utils.subplot_dimensions(num_plots)
+    scale_factor = font_scale / (nrows * ncols) ** 0.5
+    matplotlib.rcParams.update({"font.size": 10 * scale_factor})

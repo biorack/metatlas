@@ -5,64 +5,43 @@ import getpass
 import logging
 import os
 
-from typing import cast, Dict, List, NewType, Optional, TypedDict
+from typing import cast, Dict, List, Optional, Union
 
 import pandas as pd
 import traitlets
 
 from traitlets import Bool, TraitError, observe, validate
-from traitlets import HasTraits, Int, TraitType, Unicode
+from traitlets import HasTraits, Int, Unicode
 from traitlets.traitlets import ObserveHandler
 
-from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures.id_types import (
+    AnalysisNumber,
+    Experiment,
+    FileMatchList,
+    GroupList,
+    GroupMatchList,
+    LcmsRunDict,
+    LcmsRunsList,
+    PathString,
+    Polarity,
+    POLARITIES,
+    Proposal,
+    OutputType,
+    OUTPUT_TYPES,
+    ShortPolarity,
+    SHORT_POLARITIES,
+)
+import metatlas.datastructures.metatlas_objects as metob
+import metatlas.plots.dill2plots as dp
 from metatlas.datastructures.utils import AtlasName, get_atlas, Username
 from metatlas.io import write_utils
-from metatlas.plots import dill2plots as dp
 from metatlas.tools.util import or_default
-
-GroupList = Optional[List[metob.Group]]
-LcmsRunsList = Optional[List[metob.LcmsRun]]
-FileMatchList = List[str]
-GroupMatchList = List[str]
-
-Polarity = NewType("Polarity", str)
-ShortPolarity = NewType("ShortPolarity", str)
-Experiment = NewType("Experiment", str)
-OutputType = NewType("OutputType", str)
-AnalysisNumber = NewType("AnalysisNumber", int)
-PathString = NewType("PathString", str)
-
-DEFAULT_GROUPS_CONTROLLED_VOCAB = cast(GroupMatchList, ["QC", "InjBl", "ISTD"])
-OUTPUT_TYPES = [
-    OutputType("ISTDsEtc"),
-    OutputType("FinalEMA-HILIC"),
-    OutputType("data_QC"),
-    OutputType("other"),
-]
-POLARITIES = [Polarity("positive"), Polarity("negative"), Polarity("fast-polarity-switching")]
-SHORT_POLARITIES = {
-    Polarity("positive"): ShortPolarity("POS"),
-    Polarity("negative"): ShortPolarity("NEG"),
-    Polarity("fast-polarity-switching"): ShortPolarity("FPS"),
-}
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_GROUPS_CONTROLLED_VOCAB = cast(GroupMatchList, ["QC", "InjBl", "ISTD"])
 
-class Proposal(TypedDict):
-    """for use with traitlets.validate"""
-
-    owner: HasTraits
-    value: object
-    trait: TraitType
-
-
-class _LcmsRunDict(TypedDict):
-    """part of return type for AnalysisIdentifiers._files_dict"""
-
-    object: metob.LcmsRun
-    group: str
-    short_name: str
+MSMS_REFS_PATH = PathString("/global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab")
 
 
 class AnalysisIdentifiers(HasTraits):
@@ -142,12 +121,15 @@ class AnalysisIdentifiers(HasTraits):
             return ["QC"]
         return []
 
+    def _get_default_exclude_groups(self, polarity: Polarity) -> GroupMatchList:
+        out: GroupMatchList = ["InjBl", "InjBL"]
+        if self.output_type not in ["data_QC"]:
+            out.append("QC")
+        return append_inverse(out, polarity)
+
     @property
     def _default_exclude_groups(self) -> GroupMatchList:
-        out: GroupMatchList = ["InjBl", "InjBL"]
-        if self.output_type in ["ISTDsEtc", "FinalEMA-HILIC"]:
-            out.append("QC")
-        return append_inverse(out, self.polarity)
+        return self._get_default_exclude_groups(self.polarity)
 
     @validate("polarity")
     def _valid_polarity(self, proposal: Proposal) -> Polarity:
@@ -196,9 +178,12 @@ class AnalysisIdentifiers(HasTraits):
         return self.experiment.split("_")
 
     @property
-    def project(self) -> int:
-        """Returns project number (proposal id)"""
-        return int(self._exp_tokens[3])
+    def project(self) -> str:
+        """
+        Returns project identifier (proposal id)
+        This is an integer for JGI, but a string for EGSB
+        """
+        return self._exp_tokens[3]
 
     @property
     def atlas(self) -> AtlasName:
@@ -233,7 +218,7 @@ class AnalysisIdentifiers(HasTraits):
     def output_dir(self) -> PathString:
         """Creates the output directory and returns the path as a string"""
         sub_dirs = [self.experiment, self.analysis, self.output_type]
-        if self.output_type in ["ISTDsEtc", "FinalEMA-HILIC"]:
+        if self.output_type not in ["data_QC"]:
             sub_dirs.append(self.short_polarity)
         out = os.path.join(self.project_directory, *sub_dirs)
         os.makedirs(out, exist_ok=True)
@@ -282,26 +267,29 @@ class AnalysisIdentifiers(HasTraits):
         """Returns a pandas DataFrame with lcmsrun matching self.experiment"""
         return metob.to_dataframe(self.lcmsruns)
 
-    def get_lcmsruns_short_names(self, fields: Optional[Dict[str, List[int]]] = None) -> pd.DataFrame:
+    def get_lcmsruns_short_names(
+        self, fields: Optional[Dict[str, Union[List[int], str]]] = None
+    ) -> pd.DataFrame:
         """
         Querys DB for lcms filenames from self.experiment and returns
         a pandas DataFrame containing identifiers for each file
         inputs:
             fields: optional dict with column names as key
-                    and list of lcms filename metadata fields positions as value
+                    and list of lcms filename metadata fields positions or 'all' as value
         """
         if fields is None:
             fields = {
-                "full_filename": list(range(16)),
+                "full_filename": "all",
                 "sample_treatment": [12],
                 "short_filename": [0, 2, 4, 5, 7, 9, 14],
                 "short_samplename": [9, 12, 13, 14],
             }
         out = pd.DataFrame(columns=fields.keys())
         for i, lcms_file in enumerate(self.lcmsruns):
-            tokens = lcms_file.name.split(".")[0].split("_")
+            stem = lcms_file.name.split(".")[0]
+            tokens = stem.split("_")
             for name, idxs in fields.items():
-                out.loc[i, name] = "_".join([tokens[n] for n in idxs])
+                out.loc[i, name] = stem if idxs == "all" else "_".join([tokens[n] for n in idxs])
             out.loc[i, "last_modified"] = pd.to_datetime(lcms_file.last_modified, unit="s")
         if out.empty:
             return out
@@ -325,16 +313,16 @@ class AnalysisIdentifiers(HasTraits):
         )
 
     @property
-    def _files_dict(self) -> Dict[str, _LcmsRunDict]:
+    def _files_dict(self) -> Dict[str, LcmsRunDict]:
         """
         Queries DB for all lcmsruns matching the class properties.
         Returns a dict of dicts where keys are filenames minus extensions and values are
         dicts with keys: object, group, and short_name
         """
-        file_dict: Dict[str, _LcmsRunDict] = {}
+        file_dict: Dict[str, LcmsRunDict] = {}
         for lcms_file in self.lcmsruns:
             base_name: str = lcms_file.name.split(".")[0]
-            file_dict[base_name] = cast(_LcmsRunDict, {"object": lcms_file, **self.group_name(base_name)})
+            file_dict[base_name] = cast(LcmsRunDict, {"object": lcms_file, **self.group_name(base_name)})
         return file_dict
 
     @property
@@ -353,7 +341,7 @@ class AnalysisIdentifiers(HasTraits):
     @observe("polarity")
     def _observe_polarity(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self.set_trait("exclude_groups", append_inverse(self.exclude_groups, signal.new))
+            self.set_trait("exclude_groups", self._get_default_exclude_groups(signal.new))
             logger.debug("Change to polarity invalidates exclude_groups")
 
     @observe("_all_groups")
@@ -446,7 +434,16 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def chromatography(self) -> str:
         """returns the type of chromatography used"""
-        return self.lcmsruns[0].name.split("_")[7]
+        alternatives: Dict[str, List[str]] = {"HILIC": ["HILICZ", "Ag683775"], "C18": []}
+        chrom_field = self.lcmsruns[0].name.split("_")[7]
+        chrom_type = chrom_field.split("-")[0]
+        if chrom_type in alternatives:
+            return chrom_type
+        for name, alt_list in alternatives.items():
+            if chrom_type in alt_list:
+                return name
+        logger.warning("Unknown chromatography field '%s'.", chrom_type)
+        return chrom_type
 
     def store_all_groups(self, exist_ok: bool = False) -> None:
         """

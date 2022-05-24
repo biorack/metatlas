@@ -116,7 +116,7 @@ def df_container_from_metatlas_file(my_file):
     # assume its a metatlas lcmsrun object
         filename = my_file.hdf5_file
 
-    pd_h5_file  = pd.HDFStore(filename)
+    pd_h5_file = pd.HDFStore(filename, 'r')
     try:
         keys = list(pd_h5_file.keys(include='native'))
     except:

@@ -49,11 +49,11 @@ committed passes `flake8  <https://flake8.pycqa.org/>`_ along with a few other m
 (see .pre-commit-config.yaml). The flake8 parameters have been modified to allow for a maximum line length of
 110 characters.
 
-The current tests are in ./tests and are fairly minimal. The "system_tests" uses
+The current tests are in ./tests and while the tests are substantial, there is still a lot of code
+not being tested. The "system_tests" uses
 `Papermill <https://papermill.readthedocs.io/>`_ to run
 The workflow in `./notebooks/reference/Targeted.ipynb </notebooks/reference/Targeted.ipynb>`_ in a
 "headless", non-interactive mode.
-More high-quality unit tests are needed and the system_tests need to be expanded to cover more functionaltiy.
 
 Merging into Main
 #################
@@ -62,4 +62,11 @@ The unit and systems tests must be passing before code can be merged into the ma
 This is enforced by Github. This means you cannot commit directly to main. You'll need to make a
 branch, commit to the branch, and then create a pull request.
 
-Sucessuful pull requests to the main branch will build a new shifter image and push it to dockerhub. A cronjob runs on cori10 under user wjholtz every 5 minutes which run shifterimg to import the image.
+
+Deployment
+##########
+
+Sucessuful pull requests to the main branch will build a new shifter image and push it to dockerhub.
+A cronjob runs on cori21 under user pasteur every 5 minutes which run shifterimg to import the image.
+Another cronjob on cori21 under user pasteur pulls this git repo to
+:code:`/global/common/software/m2650/metatlas-repo`.

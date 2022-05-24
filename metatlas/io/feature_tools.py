@@ -8,7 +8,7 @@ import time
 
 #pandas columns that are "objects", but you are 100% sure contain strings
 # will through this warning.  There is no way to set them as strings.
-# pandas will permanently keep a reference to the object even if you 
+# pandas will permanently keep a reference to the object even if you
 # set it as a string.  Bottom line: make it a string and ignore the error.
 # it prints to hdf5 just fine.
 import warnings
@@ -39,13 +39,13 @@ warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 def setup_file_slicing_parameters(atlas,filenames,extra_time=0.1,ppm_tolerance=20,polarity='positive',project_dir=False,base_dir = '/project/projectdirs/metatlas/projects/',overwrite=True):
     """
     Make parameters that have to be setup to run the fast feature finding process.
-    
-    This function is called first when doing feature selection. It standardizes 
+
+    This function is called first when doing feature selection. It standardizes
     all necessary inputs and files so downstream functions get a consistent place
     to work.
-    
+
     Args:
-        atlas (pandas dataframe): with [label,mz,rt_min,rt_max,rt_peak]. optional 
+        atlas (pandas dataframe): with [label,mz,rt_min,rt_max,rt_peak]. optional
         parameters are fine too.
 
         filenames (list): full paths to hdf5 files
@@ -66,7 +66,7 @@ def setup_file_slicing_parameters(atlas,filenames,extra_time=0.1,ppm_tolerance=2
         other paths that have been tried, but only a few percent faster than project:
             scratch_dir = os.environ['SCRATCH']
             scratch_dir = os.environ['DW_JOB_STRIPED']
-    
+
     Returns:
         input_data list(dict): a list of python dictionaries with the following attributes
         for each lcmsrun to process:
@@ -74,7 +74,7 @@ def setup_file_slicing_parameters(atlas,filenames,extra_time=0.1,ppm_tolerance=2
             lcmsrun (str): lcmsrun to process
             atlas (pandas dataframe): atlas with necessary attributes for feature slicing,
             polarity (str): passthrough of input polarity string
-            
+
 
     """
 
@@ -89,14 +89,14 @@ def setup_file_slicing_parameters(atlas,filenames,extra_time=0.1,ppm_tolerance=2
 
     """
     Group together m/z values that are within ppm_tolerance.
-    This gives an index to acknowledge that there are multiple features with nearly 
-    equal m/z.  Assigning it here speeds up the file slicing and feature selection 
+    This gives an index to acknowledge that there are multiple features with nearly
+    equal m/z.  Assigning it here speeds up the file slicing and feature selection
     down the road.
     """
     atlas['group_index'] = group_consecutive(atlas['mz'].values[:],
                                              stepsize=ppm_tolerance,
                                              do_ppm=True)
-    
+
     """
     define output directory
     """
@@ -141,15 +141,15 @@ def group_consecutive(data,stepsize=10.0,do_ppm=True):
     split a numpy array where consecutive elements are greater than stepsize
     can be ppm or value
     if idx is not None then returns indices of elements otherwise returns values
-    
-    The main use case is an unsorted list of m/zs as "data" and optionally 
-    their numerical index as "idx". Typically a user would want to retrieve 
-    the group indices in the original order that they provided their list 
+
+    The main use case is an unsorted list of m/zs as "data" and optionally
+    their numerical index as "idx". Typically a user would want to retrieve
+    the group indices in the original order that they provided their list
     of m/zs.
-    
+
     usage:
-    
-       
+
+
     """
     if type(data) is np.ndarray:
         # cool way to sort and unsort array:
@@ -160,12 +160,12 @@ def group_consecutive(data,stepsize=10.0,do_ppm=True):
         data_sorted = data[sort_w_unsort[:,1]]
         # np.argsort(sort_w_unsort[:,1]) returns the indices to map the sorted data back to the original
         # data_unsorted = data_sorted[np.argsort(sort_w_unsort[:,1])]
-        
+
         if do_ppm:
             d = np.diff(data_sorted) / data_sorted[:-1] * 1e6
         else:
             d = np.diff(data_sorted)
-        
+
         # make groups of the array
         data_groups = np.split(data_sorted, np.where(d > 2.0*stepsize)[0]+1)
         # replace each group of values with group index
@@ -177,13 +177,13 @@ def group_consecutive(data,stepsize=10.0,do_ppm=True):
         return group_indices.astype(int)#
     else:
         print('not a numpy array. convert it and sort it first')
-        
+
 def map_mzgroups_to_data(mz_atlas,mz_group_indices,mz_data):
     """
     mz_atlas: m/z values from atlas
     mz_group_indices: integer index from "group_consecutive"
     mz_data: m/z values from raw data
-    
+
     """
     from scipy import interpolate
 
@@ -196,12 +196,12 @@ def map_mzgroups_to_data(mz_atlas,mz_group_indices,mz_data):
 
 def df_container_from_metatlas_file(filename,desired_key=None):
     """
-    
+
     """
 #     data_df = pd.DataFrame()
 
-    pd_h5_file  = pd.HDFStore(filename)
-        
+    pd_h5_file = pd.HDFStore(filename, 'r')
+
     keys = list(pd_h5_file.keys())
     pd_h5_file.close()
     df_container = {}
@@ -223,34 +223,34 @@ def group_duplicates(df,group_col,make_string=False,precision={'i':0,'mz':4,'rt'
     """
     takes in a list of grouping columns and turns the rest into arrays
     """
-    
+
     all_cols = np.asarray(df.columns)
     #get the index of the grouping term as array
     idx_group = np.argwhere(all_cols == group_col).flatten()
     #get the indices of all other terms as array
     idx_list = np.argwhere(all_cols != group_col).flatten()
     cols = all_cols[idx_list]
-    
+
     # create a sorted numpy array (sorted by column=group_col)
     a = df.sort_values(group_col).values.T
 
     #get the indices of the first instance of each unique identifier
     ukeys, index = np.unique(a[idx_group,:],return_index=True)
 
-    #split the other rows of the array into separate arrays using the 
+    #split the other rows of the array into separate arrays using the
     #unique index
     arrays = np.split(a[idx_list,:],index[1:],axis=1)
 
     #make a list of dicts with column headings as keys
     #if there are not multiple items then return value
     #If there are multiple items then return list
-    
+
 #     ucpds = [dict([(c,aa) if len(aa)>1 else (c,aa[0]) for c,aa in zip(cols,a)]) for a in arrays ]
     ucpds = [dict([(c,aa) for c,aa in zip(cols,a)]) for a in arrays ]
 
     #make a dataframe from the list of dicts
     df2 = pd.DataFrame(ucpds,index=ukeys)
-    
+
     #make strings of array columns if you want to save it in anything useful
     if make_string==True:
         for c in cols:
@@ -261,7 +261,7 @@ def group_duplicates(df,group_col,make_string=False,precision={'i':0,'mz':4,'rt'
                 pre_str = '{:.4f}'
             df2[c] = df2[c].apply(lambda x: [pre_str.format(n) for n in x.tolist()])
 #             df2[c] = df2[c].apply(lambda x: str(x.tolist()))
-            
+
     df2.index = df2.index.set_names(group_col)
     df2.reset_index(inplace=True)
 
@@ -278,26 +278,26 @@ def get_atlas_data_from_file(filename,atlas,desired_key='ms1_pos'):#,bundle=True
         # this has the expense of having to remerge it later.
         msdata = msdata[['rt','precursor_MZ']].drop_duplicates('rt')
         msdata = msdata.rename(columns={'precursor_MZ':'mz'})
-    
+
     g = map_mzgroups_to_data(atlas['mz'].values[:],
                                atlas['group_index'].values[:],
                                msdata['mz'].values[:])
     msdata['group_index'] = g#[:,1]
 #     msdata['group_index_ppm'] = g[:,0]
     df = pd.merge(atlas,msdata,left_on='group_index',right_on='group_index',how='outer',suffixes=('_atlas','_data'))
-    
+
     #grab all datapoints including "extra"
     mz_condition = abs(df['mz_data']-df['mz_atlas'])/df['mz_atlas']*1e6<df['ppm_tolerance']
     rt_min_condition = df['rt']>=(df['rt_min']-df['extra_time'])
     rt_max_condition = df['rt']<=(df['rt_max']+df['extra_time'])
     df = df[(mz_condition) & (rt_min_condition) & (rt_max_condition)]
-    
+
     #label datapoints that are within the bounds of the feature vs "extra"
     df['in_feature'] = True
     if df['extra_time'].max()>0.0:
         cond_rt = (df['rt']<df['rt_min']) | (df['rt']>df['rt_max'])
-        df.loc[cond_rt,'in_feature'] = False       
-    
+        df.loc[cond_rt,'in_feature'] = False
+
     #above, the df has mz_data and mz_atlas.  we don't need to differentiate anymore so:
     df = df.rename(columns={'mz_data':'mz'})
     if 'ms2' in desired_key:
@@ -305,7 +305,7 @@ def get_atlas_data_from_file(filename,atlas,desired_key='ms1_pos'):#,bundle=True
         df = df[['label','rt','in_feature']]
         # you've got to add it back in; so reload original file
         msdata = df_container_from_metatlas_file(filename,desired_key=desired_key)
-        # This will merge back into the MSMS data 
+        # This will merge back into the MSMS data
         # the missing intensity and scan attributes
         mcols = ['rt','i','mz','precursor_MZ','precursor_intensity','collision_energy']
         df = pd.merge(df,msdata[mcols],left_on='rt',right_on='rt',how='left')
@@ -362,14 +362,14 @@ def get_data(input_data,return_data=False,save_file=True):
     'atlas':atlas, #the atlas dataframe containing minimally: [mz, rt_min,rt_max,rt_peak)]
     'ppm_tolerance':ppm_tolerance, #ppm tolerance in m/z
     'extra_time':extra_time} #time to add to the collected data beyond rt_min and rt_max
-    
+
     The goal is to write to a file,
     ms1_data:
-    
+
     ms1_summary:
-    
+
     ms2_data:
-    
+
     Returns a dictionary
     """
     out_data = {} #setup a container to store any data to return to the user otherwise save it to file
@@ -381,18 +381,18 @@ def get_data(input_data,return_data=False,save_file=True):
     if save_file is True:
         with pd.HDFStore(input_data['outfile'],mode='a',complib='zlib',complevel=9) as f:
             f.put('ms1_data',d,data_columns=True)
-    
+
     d = d[d['in_feature']==True].groupby('label').apply(calculate_ms1_summary).reset_index()
     if d.shape[0]==0: #there isn't any data!
         for c in ['num_datapoints','peak_area','peak_height','mz_centroid','rt_peak']:
             d[c] = 0
-        
+
     if return_data is True:
         out_data['ms1_summary'] = d
     if save_file is True:
         with pd.HDFStore(input_data['outfile'],mode='a',complib='zlib',complevel=9) as f:
             f.put('ms1_summary',d,data_columns=True)
-    
+
 #     input_data['atlas']['extra_time'] = 0.0 # set extratime here to be zero for msms getting
     d = get_atlas_data_from_file(input_data['lcmsrun'],input_data['atlas'],desired_key='ms2_%s'%polarity_short_string)#,bundle=True,make_string=True)
     if return_data is True:
@@ -400,6 +400,6 @@ def get_data(input_data,return_data=False,save_file=True):
     if save_file is True:
         with pd.HDFStore(input_data['outfile'],mode='a',complib='zlib',complevel=9) as f:
             f.put('ms2_data',d,data_columns=True)
-    
+
     if return_data is True:
         return out_data

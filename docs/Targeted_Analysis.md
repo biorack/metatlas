@@ -35,6 +35,17 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
              -1 2021-09-13 16:34:45        -1 20210819_JGI-AK_MK_506588_SoilWaterRep_final_QE-139_HILICZ_USHXG01490
    ```
 
+   If instead you see:
+   ```
+   ERROR : : error listing: directory not found
+   Failed to lsd with 2 errors: last error was: directory not found
+   ```
+
+   then you need to request access to the
+   [JGI_Metabolomics_Projects Google Drive folder](https://drive.google.com/drive/folders/0B-ZDcHbPi-aqZzE5V3hOZFc0dms).
+   Please repeat step 9 after you have been granted access.
+
+
 ### Make a directory to store work in progress
 
 Still within the terminal in JupyterLab, run:
@@ -46,14 +57,14 @@ mkdir -p ~/metabolomics_data
 
 ### Perform RT correction
 
-#### Parameters
+#### Set Parameters
 The `experiment_name` parameter can retrieved from the [Sample Tracking and QC Checkpoints - Northen Lab](https://docs.google.com/spreadsheets/d/126t1OeXQnCCgP6e-6Pac_Ku_A1R7MQLm_tl_Dkqsv_w/edit#gid=1548851545) Google Sheet. The experiment names can be found on the 'New Extraction' sheet in either column 'N' or 'O' depending on the type of chromatography that was performed. This value will be something like `20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494`.
 
 The `analysis_number` parameter is an integer that you'll need to increment if you redo an analysis. It should be set to 0 initially.
 
 The `project_directory` is where you want to store the analysis while working on it. You should use `~/metabolomics_data`.
 
-#### Execution
+#### Run `launch_rt_prediction.sh`
 
 In your JupyterLab terminal, run the following command (where you substitute the 3 parameters described above):
 ```
@@ -65,17 +76,17 @@ For example, your command with the parameters substituted in will be something l
 /global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 ~/metabolomics_data
 ```
 
-This will submit a slurm job. You will receive an email when the job starts executing and when it has completed. Typical jobs take 2 to 5 hours to complete.
+This will submit a slurm job. On Cori, you will receive an email when the job starts executing and when it has completed. On Perlmutter, the SLRUM job notifications emails are currently broken. Typical HILIC jobs take 2 to 5 hours to complete.
 
-#### Outputs
+#### Evaluate Outputs
 
 Once the job has completed, you should check the files generated to make sure the RT correction models look acceptable. You can find the output PDF files at `~/metabolomics_data/EXPERIMENT_NAME/${USER}ANALYSIS_NUMBER/data_QC/`. One easy way to view these files is to open them from the [Jupyter](https://jupyter.nersc.gov/) file browser. In `Actual_vs_Predicted_RTs.pdf`, you want to check that the default model (median-based RT correction and polynomial model) gives a good fit. At the bottom of the `Actual_vs_Predicted_RTs.pdf`, you can find the 'FileIndex' number that corresponds to the 'median' correction. Once you have determined the 'FileIndex' for median, you want to find the plot that has 'File: \<FileIndex\>' above it. This is the plot showing the models for the median-based RT correction. On each plot, there should be a red line (linear model) and green line (polynomial model). In many cases the lines for these models will almost be right on top of each other and you might not be able to see both of the lines unless you zoom in near the line ends.
 
-If the median-based polynomial model does not give a good fit, then ask Will Holtz to help you to switch to a different model, as the notebook does not yet support selecting other models.
+If the median-based polynomial model does not give a good fit, then you will want to re-run  `launch_rt_predictions.sh` with additional parameters (and an incremented `analysis_number`). See [Passing Additional Notebook Parameters To launch_rt_predictions.sh](#passing-additional-notebook-parameters-to-launch_rt_predictionsh) to learn how to pass the parameters. The two most relevant parameters for choosing a different model are `use_poly_model` and `dependent_data_source`. Documentation of the parameters and their possible values can be found in the first code block of the [RT_prediction.ipynb](https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Prediction.ipynb) notebook.
 
 ### Perform ISTDsEtc Analysis
 
-1. Launch [jupyter.nersc.gov](https://jupyter.nersc.gov/) in your web browser and start a 'Shared CPU Node' on Cori.
+1. Launch [jupyter.nersc.gov](https://jupyter.nersc.gov/) in your web browser and start a 'Shared CPU Node' on Cori or Perlmutter.
 2. Open `~/metabolomics_data/EXPERIMENT_NAME/${USER}ANALYSIS_NUMBER/PROJECT_ID_ISTDsEtc_POS.ipynb` within JupyterLab (you no longer need to use the Classic Notebook interface). If you are prompted to select a kernel, select 'Metatlas Targeted'.
 3. The first code cell of the notebook contains descriptions of the parameters and their default values. The second code cell of the notebook contain parameter values that were auto-populated from the RT correction slurm job. These values in the second code block will override the default values from the first code block. The third code block validates your parameter values and also validates that your environment is correctly configured. Execute the first 3 code cells and see if there are any errors. If you get an error message (usually error messages will be in red), you will need to correct the issue so that the cell executes without giving an error before moving on. The error messages commonly see at this point in the workflow generally include some description of what action is needed to correct the problem.
 4. Execute the code blocks 4 and 5 to read in data and bring up the Annotation GUI.
@@ -117,3 +128,23 @@ If the median-based polynomial model does not give a good fit, then ask Will Hol
 `z` - steps though zoom levels of 1x, 5x, 25x on the MSMS mirror plot by 5
 
 `s` - toggles on/off the red and blue shading of EIC plot that show RT ranges for similar compounds
+
+## Advanced Usage
+
+### Passing Additional Notebook Parameters To `launch_rt_prediction.sh`
+
+Any of the parameters in the first code block of the `RT_Prediction.ipynb` notebook can be passed to the `launch_rt_prediction.sh` script. There are two command line options that can be used to supply parameters.
+
+The `-p` option can be used to supply a parameter that takes a single unstructured value (number, string, or boolean): `-p parameter_name=parameter_value`. The `-p` option can be supplied multiple times to the `launch_rt_prediction.sh` script if needed.
+
+The `-y` option can be used to supply multiple parameters and structured parameters (lists, dictionaries, nested data structures). The parameter names and values are passed as YAML or JSON strings: `-y "{'parameter_name1': ['list', 'of', 'values'], 'parameter_name2': 'another value'}"`.
+
+The `-p` and `-y` options can be used at the same time.
+
+An example usage of `-p` and `-y`:
+```
+/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh \
+    20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 ~/metabolomics_data \
+    -y “{'rt_min_delta': -1.5, 'rt_max_delta': 1.5, 'inchi_keys_not_in_model': [‘CZMRCDWAGMRECN-UGDNZRGBSA-N', 'ISAKRJDGNUQOIC-UHFFFAOYSA-N']}" \
+    -p stop_before=atlases
+```

@@ -67,9 +67,7 @@ def retrieve(object_type, **kwargs):
       latest version of each object.
     """
     workspace = Workspace.get_instance()
-    out = workspace.retrieve(object_type, **kwargs)
-    workspace.close_connection()
-    return out
+    return workspace.retrieve(object_type, **kwargs)
 
 
 def remove(object_type, **kwargs):
@@ -89,7 +87,6 @@ def remove(object_type, **kwargs):
               'delete actual objects.')
     workspace = Workspace.get_instance()
     workspace.remove(object_type, **kwargs)
-    workspace.close_connection()
 
 
 def remove_objects(objects, all_versions=True, **kwargs):
@@ -106,7 +103,6 @@ def remove_objects(objects, all_versions=True, **kwargs):
               'remove objects by type.')
     workspace = Workspace.get_instance()
     workspace.remove_objects(objects, all_versions, **kwargs)
-    workspace.close_connection()
 
 
 def store(objects, **kwargs):
@@ -119,7 +115,6 @@ def store(objects, **kwargs):
     """
     workspace = Workspace.get_instance()
     workspace.save_objects(objects, **kwargs)
-    workspace.close_connection()
 
 
 @set_docstring

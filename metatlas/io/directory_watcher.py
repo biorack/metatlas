@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import os
 import fcntl
+import getpass
 import pwd
 import re
 import shutil
@@ -118,7 +119,7 @@ def update_metatlas(directory):
             sys.stderr.flush()
 
         # Copy the original file to a pasteur backup.
-        if os.environ['USER'] == 'pasteur':
+        if getpass.getuser() == 'pasteur':
             pasteur_path = fname.replace('raw_data', 'pasteur_backup')
             dname = os.path.dirname(pasteur_path)
             if not os.path.exists(dname):

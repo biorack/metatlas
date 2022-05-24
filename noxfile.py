@@ -29,14 +29,19 @@ more_checks = [
     "metatlas/io/rclone.py",
     "metatlas/io/targeted_output.py",
     "metatlas/io/write_utils.py",
+    "metatlas/datastructures/atlas.py",
     "metatlas/datastructures/analysis_identifiers.py",
+    "metatlas/datastructures/id_types.py",
     "metatlas/datastructures/metatlas_dataset.py",
     "metatlas/datastructures/spectrum.py",
     "metatlas/datastructures/utils.py",
     "metatlas/plots/compound_eic.py",
+    "metatlas/plots/mirror.py",
     "metatlas/plots/plot_set.py",
     "metatlas/plots/tic.py",
     "metatlas/plots/utils.py",
+    "metatlas/scripts/copy_ms_to_new_names.py",
+    "metatlas/scripts/yaml_validation.py",
     "metatlas/tools/add_msms_ref.py",
     "metatlas/tools/cheminfo.py",
     "metatlas/tools/environment.py",
@@ -45,6 +50,7 @@ more_checks = [
     "metatlas/tools/parallel.py",
     "metatlas/tools/predict_rt.py",
     "metatlas/tools/util.py",
+    "noxfile.py",
     "tests",
 ]
 
@@ -60,7 +66,9 @@ pytest_deps = [
     "attrs==21.2.0",
     "coverage==6.0",
     "iniconfig==1.1.1",
+    "numpy==1.22.1",
     "packaging==21.0",
+    "pandas==1.3.5",
     "pluggy==0.13.1",
     "py==1.10.0",
     "pyparsing==2.4.7",
@@ -80,6 +88,7 @@ mypy_deps = [
 ]
 
 pylint_deps = [
+    "nox==2022.1.7",
     "pylint==2.11.1",
     "pytest==6.2.5",  # so "import pytest" doesn't get reported
 ]
@@ -194,7 +203,13 @@ def blacken_nb(session):
 def unit_tests(session):
     session.install("-r", "docker/requirements.txt", *pytest_deps)
     session.run(
-        "pytest", *pytest_flags, *session.posargs, "--cov", "metatlas", "tests/unit/", env={"METATLAS_LOCAL": "TRUE"}
+        "pytest",
+        *pytest_flags,
+        *session.posargs,
+        "--cov",
+        "metatlas",
+        "tests/unit/",
+        env={"METATLAS_LOCAL": "TRUE"},
     )
 
 

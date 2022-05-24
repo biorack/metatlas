@@ -25,6 +25,7 @@ from traitlets import Float, HasTraits, Instance, Int, TraitError, TraitType, Un
 from tqdm.notebook import tqdm
 
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures import object_helpers as metoh
 from metatlas.datastructures.spectrum import Spectrum, str_to_spectrum
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.plots import dill2plots as dp
@@ -827,7 +828,7 @@ def get_synonym_matches(query: str) -> List[metob.Compound]:
     fields and then filter out duplicates by inchi_key
     """
     workspace = metob.Workspace.get_instance()
-    workspace.get_connection()
+    db_conn = workspace.get_connection()
     # query based on from http://mysql.rjweb.org/doc.php/groupwise_max
     sql = f"""\
             SELECT
@@ -846,8 +847,13 @@ def get_synonym_matches(query: str) -> List[metob.Compound]:
             WHERE first;"""
     if workspace.path.startswith("sqlite:"):
         sql = f"SELECT inchi, name FROM compounds WHERE name LIKE '%{query}%' or synonyms LIKE '%{query}%'"
-    out = list(workspace.db.query(sql))
-    workspace.close_connection()
+    try:
+        out = list(db_conn.query(sql))
+    except Exception as err:  # pylint: disable=broad-except
+        logger.error("synonym matches query failed: %s", err)
+        out = []
+    finally:
+        metoh.close_db_connection(db_conn)
     return out
 
 

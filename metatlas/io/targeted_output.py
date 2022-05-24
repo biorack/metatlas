@@ -101,7 +101,7 @@ def write_chromatograms(metatlas_dataset, overwrite=False, max_cpus=1):
         overwrite: if False raise error if file already exists
     """
     # overwrite checks done within dp.make_chromatograms
-    logger.info("Exporting chromotograms to %s", metatlas_dataset.ids.output_dir)
+    logger.info("Exporting chromatograms with shared Y-axis.")
     params = {
         "input_dataset": metatlas_dataset,
         "include_lcmsruns": [],
@@ -114,6 +114,7 @@ def write_chromatograms(metatlas_dataset, overwrite=False, max_cpus=1):
         "suffix": "_sharedY",
     }
     dp.make_chromatograms(**params)
+    logger.info("Exporting chromatograms with independent Y-axis.")
     params["share_y"] = False
     params["suffix"] = "_independentY"
     dp.make_chromatograms(**params)

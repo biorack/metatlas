@@ -17,6 +17,7 @@ def parallel_process(function, data, max_cpus, unit="it"):
         max_cpus: number of cpus to use
         unit: string label for what is processed in one iteration, default 'it'
     """
+
     if max_cpus > 1 and len(data) > 1:
         logger.debug("Starting parallel processing of %s with %d cpus.", function.__name__, max_cpus)
         with multiprocessing.Pool(processes=min(max_cpus, len(data))) as pool:

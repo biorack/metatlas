@@ -3,8 +3,8 @@ FROM python:3.8-slim-bullseye
 # https://portal.nersc.gov/cfs/m2650/metatlas/test_data
 # serves from /global/cfs/cdirs/m2650/www/metatlas/test_data
 ARG BASE_DATA_URL=https://portal.nersc.gov/cfs/m2650/metatlas/test_data/ci01
-ARG REFS_DIR=/global/project/projectdirs/metatlas/projects/spectral_libraries
-ARG H5_DIR=/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583
+ARG REFS_DIR=/global/cfs/cdirs/metatlas/projects/spectral_libraries
+ARG H5_DIR=/global/cfs/cdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583
 ARG NOTES_DIR=/global/cfs/cdirs/m2650/targeted_analysis/
 
 ENV METATLAS_LOCAL=True
@@ -16,14 +16,8 @@ RUN apt-get update && apt-get install -y \
 	git \
     && rm -rf /var/lib/apt/lists/*
 
-
 ADD https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 /usr/local/bin/jq
-
 RUN chmod +x /usr/local/bin/jq
-
-COPY requirements.txt /requirements.txt
-
-RUN pip install --quiet -r requirements.txt
 
 RUN mkdir -p /io /src /work $REFS_DIR $H5_DIR
 
@@ -41,6 +35,9 @@ ADD $BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG
 ADD $BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.mzML $H5_DIR/
 
 ADD $BASE_DATA_URL/meta_atlas.sqlite3 /work/root_workspace.db
+
+COPY requirements.txt /requirements.txt
+RUN pip install --quiet -r requirements.txt
 
 ADD $BASE_DATA_URL/instructions_for_analysts.csv $NOTES_DIR/
 

@@ -3,7 +3,7 @@
 set -euf -o pipefail
 
 CMD=rclone
-if ! which "$CMD" > /dev/null; then
+if ! which "$CMD" > /dev/null 2>&1; then
   CMD="/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone"
 fi
 

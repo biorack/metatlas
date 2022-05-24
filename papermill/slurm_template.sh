@@ -1,25 +1,52 @@
 #!/bin/bash
-#SBATCH --image=docker:wjhjgi/metatlas_shifter:latest
-#SBATCH --constraint=haswell
+#SBATCH --image=docker:doejgi/metatlas_shifter:latest
 #SBATCH --nodes=1
 #SBATCH --licenses=cfs
 #SBATCH --mail-type=ALL
-#SBATCH --time=12:00:00
 
-#OpenMP settings:
-export OMP_NUM_THREADS=1
-export OMP_PLACES=threads
-export OMP_PROC_BIND=spread
+set -euo pipefail
 
-export HDF5_USE_FILE_LOCKING=FALSE
+shifter_flags="--module=none --clearenv"
 
-LOG="/global/cfs/projectdirs/m2650/jupyter_logs/${USER}.log"
+log_dir="/global/cfs/projectdirs/m2650/jupyter_logs/slurm"
 
-set -o pipefail
+# make output notebook accessible for troubleshooting purposes
+# want this to run even if we exit on a papermill error
+# shellcheck disable=SC2027,SC2086,SC2046
+trap \
+  "{ cp "$OUT_FILE" "${log_dir}/${SLURM_JOB_ID}_$(basename "$OUT_FILE")" ; }" \
+  EXIT
 
-date
-echo "input file: $IN_FILE"
-echo "output file: $OUT_FILE"
-echo "parameters: $PARAMETERS"
+log="${log_dir}/${SLURM_JOB_ID}.log"
 
-(shifter --entrypoint /usr/local/bin/papermill -k "papermill" "$IN_FILE" "$OUT_FILE" $PARAMETERS) 2>&1 | tee --append "$LOG"
+output () {
+  printf "%s\n" "$1" | tee --append "$log"
+}
+
+output "start time: $(date)"
+output "user: $USER"
+output "input file: $IN_FILE"
+output "output file: $OUT_FILE"
+output "parameters: $PARAMETERS"
+output "yaml parameters: $(echo "$YAML_BASE64" | base64 --decode)"
+
+# this creates the cache black uses and prevents some error messages
+# doesn't need --entrypoint and is faster to leave it off
+# shellcheck disable=SC2086
+shifter $shifter_flags /bin/bash -c \
+  'black --quiet --check /metatlas_image_version && \
+   papermill \
+     /src/notebooks/reference/RT_Prediction.ipynb \
+     - \
+     -p model_only True \
+     --prepare-only \
+     -k papermill > /dev/null'
+
+# shellcheck disable=SC2086
+shifter --entrypoint $shifter_flags \
+  /usr/local/bin/papermill \
+  -k "papermill" \
+  "$IN_FILE" \
+  "$OUT_FILE" \
+  --parameters_base64 "$YAML_BASE64" \
+  $PARAMETERS 2>&1 | tee --append "$log"

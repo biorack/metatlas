@@ -18,8 +18,8 @@ jobs:
       with:
         username: wjhjgi
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-    - name: generate dummy version_info file
-      run: touch docker/.version_info
+    - name: generate version_info file
+      run: python ./docker/most_recent_commits.py > docker/.version_info
     - name: generate time based tag
       id: timestamp
       run: |
@@ -32,9 +32,13 @@ jobs:
         context: ./docker
         file: ./docker/Dockerfile.shifter
         platforms: linux/amd64
+        cache-from: type=registry,ref=wjhjgi/metatlas_shifter:latest
+        cache-to: type=inline
         tags: |
           wjhjgi/metatlas_shifter:${{ steps.timestamp.outputs.date_time }}
           wjhjgi/metatlas_shifter:latest
+          doejgi/metatlas_shifter:${{ steps.timestamp.outputs.date_time }}
+          doejgi/metatlas_shifter:latest
         push: true
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}

@@ -16,17 +16,17 @@ jobs:
         path: ~/work/metatlas/metatlas/.nox
         key: ${{ runner.os }}-nox
     - name: Setup nox
-      uses: excitedleigh/setup-nox@v2.0.0
+      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
     - name: Run unit tests
       run: nox -s unit_tests-3.8
   system_test1:
-    name: Run system test 1 - targeted
+    name: Run system test 1 - HILIC targeted
     runs-on: ubuntu-latest
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
     - name: Setup nox
-      uses: excitedleigh/setup-nox@v2.0.0
+      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_targeted
   system_test2:
@@ -36,7 +36,7 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v2
     - name: Setup nox
-      uses: excitedleigh/setup-nox@v2.0.0
+      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_rt_predict
   system_test3:
@@ -46,6 +46,16 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v2
     - name: Setup nox
-      uses: excitedleigh/setup-nox@v2.0.0
+      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_add_msms_ref
+  system_test4:
+    name: Run system test 4 - C18 targeted
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+    - name: Run system tests
+      run: nox -s system_tests-3.8 -- -k test_c18

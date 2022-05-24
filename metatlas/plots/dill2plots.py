@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 import os.path
@@ -5,6 +6,8 @@ import warnings
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
 
+from copy import deepcopy
+from typing import Callable, List, Optional, Sequence, Sized, Union
 from enum import Enum
 
 from metatlas.datastructures import metatlas_objects as metob
@@ -15,6 +18,7 @@ from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.plots.compound_eic import save_compound_eic_pdf
 from metatlas.plots.tic import save_sample_tic_pdf
 from metatlas.plots.utils import pdf_with_text
+from metatlas.tools import fastanalysis
 from metatlas.tools import parallel
 from metatlas.tools import spectralprocessing as sp
 
@@ -30,8 +34,6 @@ import matplotlib.pyplot as plt
 from rdkit import Chem
 from rdkit.Chem import Draw, rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
-from itertools import cycle
-
 
 from ipywidgets import interact
 import ipywidgets as widgets
@@ -354,14 +356,16 @@ class adjust_rt_for_selected_compound(object):
         logger.debug('Finished replot')
 
     def notes(self):
+        self.copy_button_area.clear_output()
+        self.id_note.value = self.current_id.identification_notes or ''
         inchi_key = self.current_inchi_key
+        if inchi_key is None:
+            return
         adduct = self.current_adduct
         polarity = self.data.ids.polarity
         chromatography = self.data.ids.chromatography
-        notes_list = self.instruction_set.query(inchi_key, adduct, chromatography, polarity)
-        self.instructions.value = '; '.join(notes_list)
-        self.id_note.value = self.current_id.identification_notes or ''
-        self.copy_button_area.clear_output()
+        instruction_list = self.instruction_set.query(inchi_key, adduct, chromatography, polarity)
+        self.instructions.value = '; '.join(instruction_list)
         clipboard_text = f"{inchi_key}\t{adduct}\t{chromatography}\t{polarity}"
         with self.copy_button_area:
             make_copy_to_clipboard_button(clipboard_text, 'Copy Index')
@@ -858,7 +862,7 @@ class adjust_rt_for_selected_compound(object):
 
     @property
     def current_inchi_key(self):
-        return self.current_id.compound[0].inchi_key
+        return extract(self.current_id, ['compound', 0, 'inchi_key'], None)
 
     @property
     def current_adduct(self):
@@ -1174,7 +1178,7 @@ def plot_all_compounds_for_each_file(input_dataset = [], input_fname = '', inclu
                 d = data[file_idx][compound_idx]
                 if len(d['data']['eic']['rt']) > 0:
                     y_max.append(max(d['data']['eic']['intensity']))
-    y_max = cycle(y_max)
+    y_max = itertools.cycle(y_max)
 
     # create ouput dir
     if not os.path.exists(output_loc):
@@ -1282,9 +1286,7 @@ def plot_all_files_for_each_compound(input_dataset = [], input_fname = '', inclu
                     y_max.append(max(d['data']['eic']['intensity']))
 
     print(("length of ymax is ", len(y_max)))
-    y_max = cycle(y_max)
-
-
+    y_max = itertools.cycle(y_max)
 
     # create ouput dir
     if not os.path.exists(output_loc):
@@ -1404,7 +1406,6 @@ def NeutraliseCharges(mol, reactions=None):
 
 
 def drawStructure_Fragment(pactolus_tree,fragment_idx,myMol,myMol_w_Hs):
-    from copy import deepcopy
     fragment_atoms = np.where(pactolus_tree[fragment_idx]['atom_bool_arr'])[0]
     depth_of_hit = np.sum(pactolus_tree[fragment_idx]['bond_bool_arr'])
     mol2 = deepcopy(myMol_w_Hs)
@@ -1697,10 +1698,10 @@ def _make_boxplot_single_arg(arg_list):
 def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
     fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
     write_utils.check_existing_file(fig_path, overwrite)
-    f, ax = plt.subplots(1, 1,figsize=(12,12))
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     num_points = 0
     g = df.loc[compound].groupby(level=level)
+    f, ax = plt.subplots(1, 1, figsize=(max(len(g)*0.5, 12), 12))
     g.apply(pd.DataFrame).plot(kind='box', ax=ax)
     for i, (n, grp) in enumerate(g):
         x = [i+1] *len(grp)
@@ -2288,6 +2289,7 @@ def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=No
     data = filter_runs(input_dataset, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
     prefix = f"{polarity}_" if polarity != '' else ''
     out_dir = os.path.join(output_loc, f"{prefix}compound_EIC_chromatograms{suffix}")
+    logger.info('Saving chromatograms to %s.', out_dir)
     os.makedirs(out_dir, exist_ok=True)
     disable_interactive_plots()
     compound_names = ma_data.get_compound_names(data, use_labels=True)[0]
@@ -2618,7 +2620,6 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
     get and pickle everything This is MSMS, raw MS1 datapoints, compound, group info, and file info
     """
     data = []
-    import copy as copy
     for i,treatment_groups in enumerate(group):
         for j in range(len(treatment_groups.items)):
             myFile = treatment_groups.items[j].hdf5_file
@@ -2634,7 +2635,7 @@ def get_data_for_groups_and_atlas(group,myAtlas,output_filename,use_set1 = False
                 result['atlas_unique_id'] = myAtlas.unique_id
                 result['lcmsrun'] = treatment_groups.items[j]
                 result['group'] = treatment_groups
-                temp_compound = copy.deepcopy(compound)
+                temp_compound = deepcopy(compound)
                 if use_set1:
                     if '_Set1' in treatment_groups.name:
                         temp_compound.rt_references[0].rt_min -= 0.2
@@ -2714,7 +2715,11 @@ def filter_atlas(atlas_df, data, num_data_points_passing=5, peak_height_passing=
     return atlas_df.iloc[keep_idxs].reset_index(drop=True)
 
 
-def strong_signal_compound_idxs(data, num_points_passing, peak_height_passing):
+def strong_signal_compound_idxs(
+        data,
+        num_points_passing: Optional[int] = None,
+        peak_height_passing: Optional[float] = None,
+        msms_score_passing: Optional[float] = None) -> List[int]:
     """
     inputs:
         data: metatlas_dataset
@@ -2722,17 +2727,59 @@ def strong_signal_compound_idxs(data, num_points_passing, peak_height_passing):
                                  in order for the compound to remain in the atlas
         peak_height_passing: max intensity in EIC that must be exceeded in one or more samples
                              in order for the compound to remain in the atlas
+        msms_score_passing: max msms spectra similarity score tha tmust be exceeded in one or
+                             more samples in order for the compound to remain in the atlas
     returns list of indices that are above the thresholds
     """
-    num_passing = np.array([
-        [len(get_intensity(compound)) > num_points_passing for compound in sample]
-        for sample in data]
-    ).any(axis=0)
-    peak_passing = np.array([
-        [np.array(get_intensity(compound)+[0]).max() > peak_height_passing for compound in sample]
-        for sample in data]
-    ).any(axis=0)
-    return np.flatnonzero(num_passing & peak_passing).tolist()
+    num_points_idxs = num_points_passing_idxs(data, num_points_passing)
+    height_idxs = peak_height_passing_idxs(data, peak_height_passing)
+    score_idxs = msms_score_passing_idxs(data, msms_score_passing)
+    return list(set.intersection(set(num_points_idxs), set(height_idxs), set(score_idxs)))
+
+
+def all_idxs(in_list: Sized) -> List[int]:
+    """Return a list of all the indices of in_list"""
+    return list(range(len(in_list)))
+
+
+def peak_height_passing_idxs(data, height_threshold: Optional[float]) -> List[int]:
+    """" Returns a list of compound indices that have intensity exceeding height_threshold"""
+    def eval_peak_height(compound):
+        return (max(get_intensity(compound)+[0])) > height_threshold
+    if len(data) == 0:
+        return []
+    return all_idxs(data[0]) if height_threshold is None else get_passing_idxs(data, eval_peak_height)
+
+
+def num_points_passing_idxs(data, min_points: Optional[int]) -> List[int]:
+    """"
+    Returns a list of compound indices that have more than min_points of intensity data
+    for atleast one sample
+    """
+    def eval_num_points(compound):
+        return len(get_intensity(compound)) > min_points
+    if len(data) == 0:
+        return []
+    return all_idxs(data[0]) if min_points is None else get_passing_idxs(data, eval_num_points)
+
+
+def get_passing_idxs(data, eval_func: Callable) -> List[int]:
+    per_sample_compound = np.array([[eval_func(compound) for compound in sample] for sample in data]
+                                   ).any(axis=0)
+    return np.flatnonzero(per_sample_compound).tolist()
+
+
+def msms_score_passing_idxs(data, msms_score: Optional[float]) -> List[int]:
+    """
+    inputs:
+        msms_score: spectra similarity score must be exceeded to pass
+    """
+    if len(data) == 0:
+        return []
+    if msms_score is None:
+        return all_idxs(data[0])
+    scores_df = fastanalysis.make_scores_df(data.data, data.hits)
+    return [i for i, row in scores_df.iterrows() if row["max_msms_score"] > msms_score]
 
 
 def filter_metatlas_objects_to_most_recent(object_list, field):
@@ -2781,16 +2828,19 @@ class interact_get_metatlas_files():
         display(txt)
 
 
-
-def get_metatlas_files(experiment = '%%',name = '%%',most_recent = True):
+def get_metatlas_files(experiment: Union[str, Sequence[str]] = '%', name: str = '%', most_recent: bool = True):
     """
-    experiment is the folder name
+    experiment is the folder name or a list of folder names
     name is the filename
     """
-    files = metob.retrieve('LcmsRun',experiment=experiment,name=name, username='*')
+    batches = [experiment] if isinstance(experiment, str) else experiment
+    files = list(itertools.chain.from_iterable(
+        [metob.retrieve('LcmsRun', experiment=f"{batch}%", name=name, username='*') for batch in batches]
+    ))
     if most_recent:
-        files = filter_metatlas_objects_to_most_recent(files,'mzml_file')
+        files = filter_metatlas_objects_to_most_recent(files, 'mzml_file')
     return files
+
 
 def make_prefilled_fileinfo_sheet(groups, filename):
     #make a prefilled fileinfo sheet for editing groups manually and reimport to workflow
@@ -2848,6 +2898,8 @@ def check_compound_names(atlas_df):
         for _, row in atlas_df.iterrows()
         if (not pd.isnull(row.inchi_key)) and (len(row.inchi_key) > 0) and row.inchi_key != 'None'
     }
+    if len(inchi_keys) == 0:
+        return
     found_keys = {result.inchi_key for result in
                   metob.retrieve('Compounds', inchi_key=list(inchi_keys), username='*')}
     bad_names = inchi_keys.difference(found_keys)
@@ -2968,14 +3020,19 @@ def _get_dataframe(filename_or_df=None, filetype=None, sheetname=None):
     return pd.read_csv(filename_or_df, sep='\t' if filetype == 'tab' else ',')
 
 
+def get_compounds(row):
+    # currently, all copies of the molecule are returned.  The 0 is the most recent one.
+    results = (None if pd.isnull(row.inchi_key) else
+               metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*'))
+    compound = results[0] if results else metob.Compound()
+    compound.name = row.label if isinstance(row.label, str) and len(row.label) > 0 else 'no label'
+    return [compound]
+
+
 def get_compound_identification(row, polarity, mz_tolerance):
     my_id = metob.CompoundIdentification()
-    # currently, all copies of the molecule are returned.  The 0 is the most recent one.
-    compound_list = metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*')
-    if compound_list is None:
-        return None
-    my_id.compound = compound_list[-1:]
-    my_id.name = row.label if isinstance(row.label, str) else 'no label'
+    my_id.compound = get_compounds(row)
+    my_id.name = my_id.compound[0].name
     _copy_attributes(row, my_id, ['do_normalization', 'internal_standard_id', 'internal_standard_to_use',
                                   'identification_notes', 'ms1_notes', 'ms2_notes'])
     my_id.mz_references = get_mz_references(row, polarity, mz_tolerance)
@@ -3097,13 +3154,27 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     specify polarity as 'positive' or 'negative'
 
     '''
+    required_columns = ['rt_min', 'rt_peak', 'rt_max', 'mz']
     logger.debug('Generating atlas named %s from %s source.', atlas_name, filetype)
     atlas_df = _get_dataframe(filename, filetype, sheetname)
-    _clean_dataframe(atlas_df, required_columns=['inchi_key'])
-    _add_columns(atlas_df, column_names=['adduct'], default_values=[np.NaN])
+    _clean_dataframe(atlas_df, required_columns=[])  # only remove fully empty
+    initial_row_count = len(atlas_df)
+    _clean_dataframe(atlas_df, required_columns)
+    _add_columns(
+        atlas_df,
+        column_names=['label', 'inchi_key', 'adduct', 'mz_tolerance', 'polarity'],
+        default_values=[np.NaN, np.NaN, np.NaN, mz_tolerance, polarity]
+    )
     check_compound_names(atlas_df)
     check_filenames(atlas_df, 'file_msms')
     atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
+    rows_removed = initial_row_count - len(atlas_df)
+    if rows_removed > 0:
+        logger.warning(
+            'Removed %d rows from atlas due to missing values in required columns (%s).',
+            rows_removed,
+            ', '.join(required_columns)
+        )
     if store:
         logger.info('Saving atlas named %s to DB.', atlas_name)
         metob.store(atlas)

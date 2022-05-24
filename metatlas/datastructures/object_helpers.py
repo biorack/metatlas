@@ -119,36 +119,9 @@ class Workspace(object):
     instance = None
 
     def __init__(self):
-        # get metatlas directory since notebooks and scripts could be launched
-        # from other locations
-        # this directory contains the config files
-        metatlas_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
-        if ON_NERSC:
-            with open(os.path.join(metatlas_dir, 'nersc_config', 'nersc.yml')) as fid:
-                nersc_info = yaml.safe_load(fid)
-
-            with open(nersc_info['db_passwd_file']) as fid:
-                pw = fid.read().strip()
-                self.path = 'mysql+pymysql://meta_atlas_admin:%s@nerscdb04.nersc.gov/%s' % (pw, nersc_info['db_name'])
-        else:
-            local_config_file = os.path.join(metatlas_dir, 'local_config', 'local.yml')
-            if os.path.isfile(local_config_file):
-                with open(local_config_file) as fid:
-                    local_info = yaml.load(fid)
-                hostname = 'localhost' if 'db_hostname' not in local_info else local_info['db_hostname']
-                login = ''
-                if 'db_username' in local_info:
-                    if 'db_password' in local_info:
-                        login = f"{local_info['db_username']}:{local_info['db_password']}@"
-                    else:
-                        login = f"{local_info['db_username']}@"
-                self.path = f"mysql+pymysql://{login}{hostname}/{local_info['db_name']}"
-            else:
-                filename = f"{getpass.getuser()}_workspace.db"
-                self.path = f"sqlite:///{filename}"
-                if os.path.exists(filename):
-                    os.chmod(filename, 0o775)
-        logger.debug('Using database at: %s', self.path)
+        logger.debug('Using database at: %s', self.get_database_path(with_password=False))
+        self.path = self.get_database_path(with_password=True)
+        self.engine_kwargs = {} if self.path.startswith("sqlite") else {"pool_recycle": 3600}
 
         self.tablename_lut = dict()
         self.subclass_lut = dict()
@@ -165,7 +138,6 @@ class Workspace(object):
         # handle circular references
         self.seen = dict()
         Workspace.instance = self
-        self.db = None
 
     @classmethod
     def get_instance(cls):
@@ -174,41 +146,54 @@ class Workspace(object):
             return Workspace()
         return Workspace.instance
 
+    def get_database_path(self, with_password: bool = True) -> str:
+        """Returns database access string, use with_password=False to hide password"""
+        config_dir = os.path.dirname(sys.modules[self.__class__.__module__].__file__)
+        if ON_NERSC:
+            with open(os.path.join(config_dir, 'nersc_config', 'nersc.yml'), encoding="utf-8") as fid:
+                nersc_info = yaml.safe_load(fid)
+            if with_password:
+                with open(nersc_info['db_passwd_file'], encoding="utf-8") as fid:
+                    password = fid.read().strip()
+            else:
+                password = '***********'
+            return f"mysql+pymysql://meta_atlas_admin:{password}@nerscdb04.nersc.gov/{nersc_info['db_name']}"
+        local_config_file = os.path.join(config_dir, 'local_config', 'local.yml')
+        if os.path.isfile(local_config_file):
+            with open(local_config_file, encoding="utf-8") as fid:
+                local_info = yaml.load(fid)
+            hostname = 'localhost' if 'db_hostname' not in local_info else local_info['db_hostname']
+            login = ''
+            if 'db_username' in local_info:
+                if 'db_password' in local_info:
+                    password = local_info['db_password'] if with_password else '***********'
+                    login = f"{local_info['db_username']}:{password}@"
+                else:
+                    login = f"{local_info['db_username']}@"
+            return f"mysql+pymysql://{login}{hostname}/{local_info['db_name']}"
+        filename = f"{getpass.getuser()}_workspace.db"
+        if os.path.exists(filename):
+            os.chmod(filename, 0o775)
+        return f"sqlite:///{filename}"
+
     def get_connection(self):
         """
         Get a re-useable connection to the database.
         Each activity that queries the database needs to have this function preceeding it.
         """
-        if self.db is None:
-            self.db = dataset.connect(self.path)
-        else:
-            self.db.begin()
-            try:
-                self.db.query('SELECT 1')
-                self.db.commit()
-            except Exception:
-                self.db.rollback()
-                self.db = dataset.connect(self.path)
-        assert self.db is not None
-
-    def close_connection(self):
-        """close database connections"""
-        if self.db is not None:
-            try:
-                self.db.close()
-            except AttributeError:
-                logger.debug('Could not close DB. %s object contains %s', self.db.__class__, dir(self.db))
-            self.db = None
+        return dataset.connect(self.path, engine_kwargs=self.engine_kwargs)
 
     def convert_to_double(self, table, entry):
         """Convert a table column to double type."""
-        self.get_connection()
-        self.db.begin()
+        db = self.get_connection()
+        db.begin()
         try:
-            self.db.query('alter table `%s` modify `%s` double' % (table, entry))
-            self.db.commit()
+            db.query('alter table `%s` modify `%s` double' % (table, entry))
+            db.commit()
         except Exception as err:
-            rollback_and_log(self.db, err)
+            rollback_and_log(db, err)
+        finally:
+            close_db_connection(db)
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
@@ -227,57 +212,59 @@ class Workspace(object):
             logger.debug('Workspace._updates=%s', self._updates)
         if self._link_updates:
             logger.debug('Workspace._link_updates=%s', self._link_updates)
-        self.get_connection()
-        self.db.begin()
+        db = self.get_connection()
+        db.begin()
         try:
             for (table_name, updates) in self._link_updates.items():
-                if table_name not in self.db:
+                if table_name not in db:
                     continue
                 for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set source_id = "%s" where source_id = "%s"' %
-                                  (table_name, prev_uid, uid))
+                    db.query('update `%s` set source_id = "%s" where source_id = "%s"' %
+                             (table_name, prev_uid, uid))
             for (table_name, updates) in self._updates.items():
-                if '_' not in table_name and table_name not in self.db:
-                    self.db.create_table(table_name, primary_id='unique_id',
-                                         primary_type=self.db.types.string(32))
+                if '_' not in table_name and table_name not in db:
+                    db.create_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 for (uid, prev_uid) in updates:
-                    self.db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' %
-                                  (table_name, prev_uid, uid))
+                    db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' %
+                             (table_name, prev_uid, uid))
             for (table_name, inserts) in self._inserts.items():
-                if '_' not in table_name and table_name not in self.db:
-                    self.db.create_table(table_name, primary_id='unique_id',
-                                         primary_type=self.db.types.string(32))
+                if '_' not in table_name and table_name not in db:
+                    db.create_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
-                self.db[table_name].insert_many(inserts)
+                db[table_name].insert_many(inserts)
                 logger.debug('inserting %s', inserts)
-            self.db.commit()
+            db.commit()
         except Exception as err:
-            rollback_and_log(self.db, err)
+            rollback_and_log(db, err)
+        finally:
+            close_db_connection(db)
 
     def create_link_tables(self, klass):
         """
         Create a link table in the database of the given trait klass
         """
         name = self.table_name[klass]
-        self.get_connection()
-        self.db.begin()
+        db = self.get_connection()
+        db.begin()
         try:
             for (tname, trait) in klass.class_traits().items():
                 if isinstance(trait, MetList):
                     table_name = '_'.join([name, tname])
-                    if table_name not in self.db:
-                        self.db.create_table(table_name)
+                    if table_name not in db:
+                        db.create_table(table_name)
                         link = dict(source_id=uuid.uuid4().hex,
                                     head_id=uuid.uuid4().hex,
                                     target_id=uuid.uuid4().hex,
                                     target_table=uuid.uuid4().hex)
-                        self.db[table_name].insert(link)
-            self.db.commit()
+                        db[table_name].insert(link)
+            db.commit()
         except Exception as err:
-            rollback_and_log(self.db, err)
+            rollback_and_log(db, err)
+        finally:
+            close_db_connection(db)
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
@@ -350,10 +337,10 @@ class Workspace(object):
         object_type = object_type.lower()
         klass = self.subclass_lut.get(object_type, None)
         items = []
-        self.get_connection()
-        self.db.begin()
+        db = self.get_connection()
+        db.begin()
         try:
-            if object_type not in self.db:
+            if object_type not in db:
                 if not klass:
                     raise ValueError('Unknown object type: %s' % object_type)
                 object_type = self.tablename_lut[klass]
@@ -393,7 +380,7 @@ class Workspace(object):
             if not clauses:
                 query = query.replace(' where ()', '')
             try:
-                items = list(self.db.query(query))
+                items = list(db.query(query))
             except Exception as err:
                 if 'Unknown column' in str(err):
                     keys = [k for k in klass.class_traits().keys()
@@ -408,13 +395,13 @@ class Workspace(object):
             for (tname, trait) in items[0].traits().items():
                 if isinstance(trait, List):
                     table_name = '_'.join([object_type, tname])
-                    if table_name not in self.db:
+                    if table_name not in db:
                         for i in items:
                             setattr(i, tname, [])
                         continue
                     querystr = 'select * from `%s` where source_id in ("' % table_name
                     querystr += '" , "'.join(uids)
-                    result = self.db.query(querystr + '")')
+                    result = db.query(querystr + '")')
                     sublist = defaultdict(list)
                     for r in result:
                         stub = Stub(unique_id=r['target_id'],
@@ -429,9 +416,11 @@ class Workspace(object):
                     i.prev_uid = 'origin'
                 i._changed = False
             items.sort(key=lambda x: x.last_modified)
-            self.db.commit()
+            db.commit()
         except Exception as err:
-            rollback_and_log(self.db, err)
+            rollback_and_log(db, err)
+        finally:
+            close_db_connection(db)
         return items
 
     def remove(self, object_type, **kwargs):
@@ -469,26 +458,26 @@ class Workspace(object):
         query += ')'
         if not clauses:
             query = query.replace(' where ()', '')
-        self.get_connection()
-        self.db.begin()
+        db = self.get_connection()
+        db.begin()
         try:
             # check for lists items that need removal
             if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
                 uid_query = query.replace('delete ', 'select unique_id ')
-                uids = [i['unique_id'] for i in self.db.query(uid_query)]
+                uids = [i['unique_id'] for i in db.query(uid_query)]
                 sub_query = 'delete from `%s` where source_id in ("%s")'
                 for (tname, trait) in klass.class_traits().items():
                     table_name = '%s_%s' % (object_type, tname)
-                    if not uids or table_name not in self.db:
+                    if not uids or table_name not in db:
                         continue
                     if isinstance(trait, MetList):
                         table_query = sub_query % (table_name, '", "'.join(uids))
                         try:
-                            self.db.query(table_query)
+                            db.query(table_query)
                         except Exception as e:
                             print(e)
             try:
-                self.db.query(query)
+                db.query(query)
             except Exception as e:
                 if 'Unknown column' in str(e):
                     keys = [k for k in klass.class_traits().keys()
@@ -497,9 +486,11 @@ class Workspace(object):
                 else:
                     raise e
             print('Removed')
-            self.db.commit()
+            db.commit()
         except Exception as err:
-            rollback_and_log(self.db, err)
+            rollback_and_log(db, err)
+        finally:
+            close_db_connection(db)
 
     def remove_objects(self, objects, all_versions=True, **kwargs):
         """Remove a list of objects from the database."""
@@ -519,8 +510,8 @@ class Workspace(object):
         ids = defaultdict(list)
         username = getpass.getuser()
         attr = 'head_id' if all_versions else 'unique_id'
-        self.get_connection()
-        self.db.begin()
+        db = self.get_connection()
+        db.begin()
         try:
             for obj in objects:
                 if not override and obj.username != username:
@@ -533,17 +524,19 @@ class Workspace(object):
                         subname = '%s_%s' % (name, tname)
                         ids[subname].append(getattr(obj, attr))
             for (table_name, uids) in ids.items():
-                if table_name not in self.db:
+                if table_name not in db:
                     continue
                 query = 'delete from `%s` where %s in ("'
                 query = query % (table_name, attr)
                 query += '" , "'.join(uids)
                 query += '")'
-                self.db.query(query)
+                db.query(query)
             print(('Removed %s object(s)' % len(objects)))
-            self.db.commit()
+            db.commit()
         except Exception as err:
-            rollback_and_log(self.db, err)
+            rollback_and_log(db, err)
+        finally:
+            close_db_connection(db)
 
 
 def format_timestamp(tstamp):
@@ -590,8 +583,8 @@ class Stub(HasTraits):
     object_type = MetUnicode()
 
     def retrieve(self):
-        return Workspace.instance.retrieve(self.object_type, username='*',
-                        unique_id=self.unique_id)[0]
+        wsi = Workspace.get_instance()
+        return wsi.retrieve(self.object_type, username='*', unique_id=self.unique_id)[0]
 
     def __repr__(self):
         return '%s %s' % (self.object_type.capitalize(),
@@ -658,7 +651,18 @@ def rollback_and_log(db_connection, err):
         err: exception instance that ended the transaction
     """
     caller_name = inspect.stack()[1][3]
-    db_connection.rollback()
+    try:
+        db_connection.rollback()
+    except AttributeError:
+        logger.error("Cannot rollback transaction as db_connection is None.")
     logger.error("Transaction rollback within %s()", caller_name)
     logger.exception(err)
     raise err
+
+
+def close_db_connection(db_connection):
+    """Close database connection without raising exceptions"""
+    try:
+        db_connection.close()
+    except AttributeError:
+        logger.warning("AttributeError while closing database connection -- ignoring.")

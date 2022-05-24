@@ -1,4 +1,6 @@
-# pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long
+# pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long,unused-argument
+
+import pandas as pd
 
 from metatlas.plots import dill2plots
 
@@ -183,3 +185,66 @@ def test_instructions01(instructions, mocker):
     assert out3 == ["Note 2 contain a comma, right?"]
     out4 = inst.query("OIRDTQYFTABQOQ-KQYNXXCUSA-N", "", "C18", "negative")
     assert out4 == ["Note 4 is column and polarity independent"]
+
+
+def test_make_atlas_from_spreadsheet(mocker, sqlite_with_atlas):
+    csv_data = pd.DataFrame({"rt_min": [1.1], "rt_peak": [1.3], "rt_max": [1.5], "mz": [234.6578]})
+    mocker.patch("metatlas.plots.dill2plots._get_dataframe", return_value=csv_data)
+    atlas = dill2plots.make_atlas_from_spreadsheet(
+        "foo.csv", "test_atlas_99", "csv", polarity="positive", mz_tolerance=5
+    )
+    assert len(atlas.compound_identifications) == 1
+    assert atlas.compound_identifications[0].rt_references[0].rt_peak == 1.3
+
+
+def test_all_idxs01():
+    assert len(dill2plots.all_idxs([])) == 0
+
+
+def test_all_idxs02():
+    assert dill2plots.all_idxs(["a", "b", "c"]) == [0, 1, 2]
+
+
+def test_peak_height_passing_idxs01(metatlas_dataset):
+    assert dill2plots.peak_height_passing_idxs(metatlas_dataset, 4e5) == [0]
+
+
+def test_peak_height_passing_idxs02(metatlas_dataset):
+    assert dill2plots.peak_height_passing_idxs(metatlas_dataset, None) == [0]
+
+
+def test_peak_height_passing_idxs03():
+    assert len(dill2plots.peak_height_passing_idxs([], None)) == 0
+
+
+def test_peak_height_passing_idxs04(metatlas_dataset):
+    assert len(dill2plots.peak_height_passing_idxs(metatlas_dataset, 1e10)) == 0
+
+
+def test_num_points_passing_idxs01(metatlas_dataset):
+    assert dill2plots.num_points_passing_idxs(metatlas_dataset, 5) == [0]
+
+
+def test_num_points_passing_idxs02(metatlas_dataset):
+    assert dill2plots.num_points_passing_idxs(metatlas_dataset, None) == [0]
+
+
+def test_num_points_passing_idxs03():
+    assert len(dill2plots.num_points_passing_idxs([], None)) == 0
+
+
+def test_num_points_passing_idxs04(metatlas_dataset):
+    assert len(dill2plots.num_points_passing_idxs(metatlas_dataset, 200)) == 0
+
+
+def test_msms_score_passing_idxs01(metatlas_dataset, mocker, msms_refs):
+    mocker.patch("metatlas.plots.dill2plots.get_refs", return_value=msms_refs)
+    assert len(dill2plots.msms_score_passing_idxs(metatlas_dataset, 0.5)) == 0
+
+
+def test_msms_score_passing_idxs02(metatlas_dataset):
+    assert dill2plots.msms_score_passing_idxs(metatlas_dataset, None) == [0]
+
+
+def test_msms_score_passing_idxs03():
+    assert len(dill2plots.msms_score_passing_idxs([], None)) == 0
