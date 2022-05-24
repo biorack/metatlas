@@ -53,5 +53,5 @@ os.system("chmod o+rx %s"%download_folder)
 os.system("chmod o+rx %s"%download_folder)
 
 # cmd = """/global/cfs/cdirs/m342/USA/shared-repos/rclone/bin/rclone copy --update /global/cfs/cdirs/metatlas/projects/untargeted_outputs ben_lbl_gdrive:/untargeted_outputs"""
-cmd = """/global/cfs/cdirs/m342/USA/shared-repos/rclone/bin/rclone copy --size-only /global/cfs/cdirs/metatlas/projects/untargeted_outputs ben_lbl_gdrive:/untargeted_outputs"""
+cmd = """/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --size-only /global/cfs/cdirs/metatlas/projects/untargeted_outputs ben_lbl_gdrive:/untargeted_outputs"""
 subprocess.check_output(cmd, shell=True)

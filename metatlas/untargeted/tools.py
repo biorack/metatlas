@@ -60,12 +60,27 @@ from ast import literal_eval
 from copy import deepcopy
 import xmltodict
 import zipfile
+import re
+from rdkit import Chem
 
+def get_monoisotopic_mass(formula):
+    parts = re.findall("[A-Z][a-z]?|[0-9]+", formula)
+    mass = 0
+
+    for index in range(len(parts)):
+        if parts[index].isnumeric():
+            continue
+
+        multiplier = int(parts[index + 1]) if len(parts) > index + 1 and parts[index + 1].isnumeric() else 1
+        isotopeMass = Chem.PeriodicTable.GetMostCommonIsotopeMass(Chem.GetPeriodicTable(), parts[index])
+        mass += isotopeMass * multiplier
+
+    return mass
 
 
 
 def get_google_sheet(notebook_name = "Sheet name",
-                     token='/project/projectdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
+                     token='/global/cfs/cdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
                      sheet_name = 'Sheet1',
                     literal_cols=None):
     """
@@ -209,14 +224,14 @@ def get_acqtime_from_mzml(mzml_file):
     return utc_timestamp
 
 
-def get_table_from_lims(table,columns=None):
+def get_table_from_lims(table,columns=None,max_rows=1e6):
     if columns is None:
         sql = """SELECT * FROM %s;"""%table
     else:
         sql = """SELECT %s FROM %s;"""%(','.join(columns),table)
     # base execute_sql
     schema = 'lists'
-    sql_result = api.query.execute_sql(schema, sql,max_rows=1e6)
+    sql_result = api.query.execute_sql(schema, sql,max_rows=max_rows)
     if sql_result is None:
         print(('execute_sql: Failed to load results from ' + schema + '.' + table))
         return None
@@ -493,7 +508,10 @@ def build_untargeted_filename(output_dir,parent_dir,polarity,file_type):
                 'metadata':'_metadata.tab',
                 'fbmn-errlog':'fbmn.err',
                 'fbmn-outlog':'fbmn.out',
-                'gnps-download':'_gnps-download.zip'}
+                'gnps-download':'_gnps-download.zip',
+                'blink-hits':'_blinkhits.csv.gz',
+                'blink-network-hits':'_blinknetworkhits.csv.gz',
+                'simile-hits':'_similehits.csv.gz'}
     pathname = os.path.join(output_dir,'%s_%s'%(parent_dir,polarity))
     filename = '%s_%s%s'%(parent_dir,polarity,file_spec[file_type])
     filename = os.path.join(pathname,filename)
@@ -663,7 +681,7 @@ def write_new_mzmine_params(gsheet_params,my_polarity,files,basepath,parent_dir)
 
     new_raw_data = {'@method': 'net.sf.mzmine.modules.rawdatamethods.rawdataimport.RawDataImportModule',
                     'parameter': {'@name': 'Raw data file names',
-                                  'file': files.tolist()}}
+                                  'file': file_list}}
     # new_raw_data['parameter']['file'] = mzmine_things[i]['file_list']
     param_dict_unflat['batch']['batchstep'].insert(0,new_raw_data)# str_d.keys()
 
@@ -843,7 +861,8 @@ def update_new_untargeted_tasks(update_lims=True):
     
     
     df = get_table_from_lims('lcmsrun_plus')
-
+    df = df[pd.notna(df['mzml_file'])]
+    
     df.drop(columns=['mzml_file_container'],inplace=True)
     df.replace('',np.nan,inplace=True)
 
@@ -920,7 +939,6 @@ def update_new_untargeted_tasks(update_lims=True):
                 temp[cols[i]] = g
 #             else:
 #                 print('too many controls!!! %s'%g)
-            
             
         temp.to_csv(metadata_filename,sep='\t',index=False)
         pos_metadata_files[block[0]] = metadata_filename
@@ -1076,6 +1094,33 @@ def get_gnps_zipfile(parent_dir,output_dir,polarity,status,override=False):
 #         <parameter name="Peak lists" type="BATCH_LAST_PEAKLISTS"/>
 #     </batchstep>
 
+
+
+def melt_dataframe(ph,md):
+#     df.drop(columns=['filename','sample'],inplace=True)
+    # df.fillna(0.0,inplace=True)
+    feature_cols = ['feature_id','mz','rt']
+    var_cols = [c for c in ph.columns if c.endswith('mzML')]
+    df = ph.melt(id_vars=feature_cols,value_vars=var_cols)#,var_name='value')
+    # df = df[~pd.isna(df['value'])]
+    df['value'].fillna(0.0,inplace=True)
+    df['value'] = df['value'].astype(float)
+    df = pd.merge(df,md,left_on='variable',right_on='filename')
+    df.drop(columns=['variable','filename'],inplace=True)
+    df.reset_index(inplace=True,drop=True)
+    return df
+
+def calc_background(df,background='exctrl',background_ratio=3.0):
+    exctrl = df[df['sampletype'].str.contains(background.lower())].groupby(['feature_id','sampletype'])['value'].max().reset_index()
+    sample = df[~df['sampletype'].str.contains(background.lower())].groupby(['feature_id','sampletype'])['value'].max().reset_index()
+    ratio_df = pd.merge(exctrl.add_suffix('_exctrl'),sample.add_suffix('_sample'),left_on='feature_id_exctrl',right_on='feature_id_sample')
+    ratio_df['ratio'] = ratio_df['value_sample']/(1+ratio_df['value_exctrl'])
+    good_features = ratio_df.loc[ratio_df['ratio']>background_ratio,'feature_id_sample'].unique()
+    all_features = ratio_df['feature_id_sample'].unique()
+    bad_features = list(set(all_features) - set(good_features))
+    rm_count = len(all_features) - len(good_features)
+    print('Please remove %d features out of %d'%(rm_count,len(all_features)))
+    return good_features,bad_features
 
 
 
