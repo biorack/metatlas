@@ -23,7 +23,7 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
 9. To verify you RClone configuration was successful, copy and paste the following command into the terminal:
    ```
    /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd metabolomics:Analysis_uploads
-   ```GjG
+   ```
    Which should yield a listing of metabolomics experiment names similar to:
    ```
              -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
