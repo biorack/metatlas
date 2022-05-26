@@ -208,6 +208,9 @@ def unit_tests(session):
         *session.posargs,
         "--cov",
         "metatlas",
+        "--cov-report",
+        "term:skip-covered",
+        "--cov-branch",
         "tests/unit/",
         env={"METATLAS_LOCAL": "TRUE"},
     )
@@ -222,7 +225,8 @@ def cov_report(session):
         "--cov",
         "metatlas",
         "--cov-report",
-        "term-missing",
+        "term-missing:skip-covered",
+        "--cov-branch",
         "tests/unit/",
         env={"METATLAS_LOCAL": "TRUE"},
     )
