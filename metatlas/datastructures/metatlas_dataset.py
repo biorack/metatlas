@@ -18,7 +18,7 @@ import traitlets
 
 
 from IPython.display import display
-from traitlets import observe
+from traitlets import default, observe
 from traitlets import Bool, Float, HasTraits, Instance, Int, Unicode
 from traitlets.traitlets import ObserveHandler
 
@@ -142,7 +142,7 @@ class MetatlasDataset(HasTraits):
     save_metadata: if True, write metadata files containing data sources and LCMS runs short name
     """
 
-    extra_time: float = Float(default_value=0.75)
+    extra_time: float = Float()
     extra_mz: float = Float(default_value=0)
     frag_mz_tolerance: float = Float(default_value=0.01)
     max_cpus: int = Int(default_value=1)
@@ -462,6 +462,10 @@ class MetatlasDataset(HasTraits):
     def __getitem__(self, idx: int) -> MetatlasSample:
         """get sample at idx"""
         return self.data[idx]
+
+    @default('extra_time')
+    def get_extra_time_default(self) -> float:
+        return 0.2 if self.ids.chromatography == "C18" else 0.75
 
     @property
     def data(self) -> Tuple[MetatlasSample, ...]:
