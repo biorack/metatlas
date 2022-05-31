@@ -97,7 +97,7 @@ get_slurm_account() {
 
 get_slurm_time() {
   if is_perlmutter; then
-    echo "06:00:00"
+    echo "12:00:00"
   else
     echo "36:00:00"
   fi
