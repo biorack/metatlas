@@ -267,8 +267,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'total_score'] = ""
             final_df.loc[compound_idx, 'msi_level'] = ""
         if len(intensities) > 0:
-            final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].idxmax()]['intensity']
-            max_intensity_file_id = int(intensities.loc[intensities['intensity'].idxmax()]['file_id'])
+            final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].astype(float).idxmax()]['intensity']
+            max_intensity_file_id = int(intensities.loc[intensities['intensity'].astype(float).idxmax()]['file_id'])
             final_df.loc[compound_idx, 'max_intensity_file'] = file_names[max_intensity_file_id]
             final_df.loc[compound_idx, 'ms1_rt_peak'] = dataset[max_intensity_file_id][compound_idx]['data']['ms1_summary']['rt_peak']
         else:
@@ -319,8 +319,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                 dfs['num_frag_matches'].iat[compound_idx, file_idx] = np.nan
             else:
                 if not np.isnan(np.concatenate(rows['msv_ref_aligned'].values, axis=1)).all():
-                    dfs['msms_score'].iat[compound_idx, file_idx] = rows.loc[rows['score'].idxmax()]['score']
-                dfs['num_frag_matches'].iat[compound_idx, file_idx] = rows.loc[rows['score'].idxmax()]['num_matches']
+                    dfs['msms_score'].iat[compound_idx, file_idx] = rows.loc[rows['score'].astype(float).idxmax()]['score']
+                dfs['num_frag_matches'].iat[compound_idx, file_idx] = rows.loc[rows['score'].astype(float).idxmax()]['num_matches']
 
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
@@ -498,7 +498,7 @@ def make_scores_df(metatlas_dataset, msms_hits):
                 pass
 
         if len(comp_msms_hits['score']) > 0:
-            row = comp_msms_hits.loc[comp_msms_hits['score'].idxmax()]
+            row = comp_msms_hits.loc[comp_msms_hits['score'].astype(float).idxmax()]
             if np.isnan(row['msv_ref_aligned']).all():
                 max_msms_score = np.nan
             else:
