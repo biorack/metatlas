@@ -3,6 +3,7 @@
 
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from metatlas.plots import compound_eic
@@ -24,3 +25,9 @@ def test_insert_in_sorted_array():
 
 def test_add_interp_at():
     assert compound_eic.add_interp_at([1.0, 2.0], [3.0, 4.0], [1.5]) == ([1, 1.5, 2], [3, 3.5, 4])
+
+
+def test_eic_none(metatlas_dataset):
+    metatlas_dataset[0][0]["data"]["eic"] = None
+    _, axes = plt.subplots()
+    compound_eic.CompoundEic('Title', 'Group Name', metatlas_dataset[0][0]).plot(axes)
