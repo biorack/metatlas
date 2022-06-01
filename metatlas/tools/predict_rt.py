@@ -49,7 +49,7 @@ TEMPLATES = {
         ],
         "C18": [
             {"name": "C18_20220215_TPL_IS_Unlab_POS", "username": "wjholtz"},
-            {"name": "C18_20220215_TPL_EMA_Unlab_POS", "username": "wjholtz"},
+            {"name": "C18_20220531_TPL_EMA_Unlab_POS", "username": "wjholtz"},
         ],
     },
     "negative": {
@@ -62,7 +62,7 @@ TEMPLATES = {
         ],
         "C18": [
             {"name": "C18_20220215_TPL_IS_Unlab_NEG", "username": "wjholtz"},
-            {"name": "C18_20220215_TPL_EMA_Unlab_NEG", "username": "wjholtz"},
+            {"name": "C18_20220531_TPL_EMA_Unlab_NEG", "username": "wjholtz"},
         ],
     },
 }
