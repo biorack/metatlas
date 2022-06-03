@@ -208,6 +208,8 @@ def _update_limts(
     """Current limits low and high are updated to include data with ranges
     in the lists fixed and dependent subject to fixed_limits
     """
+    if len(fixed) == 0:
+        return low, high
     local_low, local_high = _calculate_new_limit(fixed, dependent, fixed_limits)
     return min(local_low, low), max(local_high, high)
 
