@@ -55,5 +55,5 @@ short samplename	NEG_ExCtrl_C_Rg80to1200-CE102040-soil-S1	NEG_Neg-D30_C_Rg80to12
                         /out/Remove-done.ipynb
                    """
     utils.exec_docker(image, command, tmp_path)
-    assert utils.num_files_in(tmp_path) == 50
+    assert utils.num_files_in(tmp_path) == 46
     utils.assert_files_match(expected)

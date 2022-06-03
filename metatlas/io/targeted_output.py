@@ -90,6 +90,7 @@ def write_stats_table(
         exclude_lcmsruns=["QC"],
         polarity=ids.short_polarity,
         overwrite=overwrite,
+        data_sheets=False  # this eliminates output of the legacy 'data_sheets' dir but not '{POL}_data_sheets'
     )
 
 
