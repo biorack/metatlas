@@ -50,7 +50,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                                      'mz_ppm': ['peak_height'],
                                      'msms_score': ['peak_height', 'num_frag_matches'],
                                      'num_frag_matches': ['peak_height', 'msms_score']},
-                     overwrite=False):
+                     overwrite=False,
+                     data_sheets=True):
 
     assert output_loc is not None or return_all
 
@@ -62,12 +63,13 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                              exclude_lcmsruns, exclude_groups)
     metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta',
                'peak_height', 'peak_area', 'num_data_points']
+    ds_dir = os.path.join(output_loc, 'data_sheets') if data_sheets else None
     dfs = {m: None for m in metrics}
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
         dfs[metric] = dp.make_output_dataframe(input_dataset=dataset,
                                                fieldname=metric,
                                                use_labels=use_labels,
-                                               output_loc=os.path.join(output_loc, 'data_sheets'),
+                                               output_loc=ds_dir,
                                                polarity=polarity)
     final_df = pd.DataFrame(columns=['index'])
     file_names = ma_data.get_file_names(dataset)
