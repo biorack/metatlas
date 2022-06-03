@@ -8,7 +8,7 @@ gspread==5.4.0
 h5py==3.7.0
 humanize==4.1.0
 ipykernel==6.13.0
-ipympl==0.8.8
+ipympl==0.8.6
 ipysheet==0.5.0
 ipywidgets==7.7.0
 jupyterlab==3.4.2
