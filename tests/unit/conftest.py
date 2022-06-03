@@ -16,11 +16,13 @@ import pytest
 import numpy as np
 import pandas as pd
 
+from sklearn.linear_model import RANSACRegressor
+
 import metatlas.datastructures.analysis_identifiers as ids
 import metatlas.datastructures.metatlas_dataset as mads
 import metatlas.datastructures.metatlas_objects as metob
 import metatlas.datastructures.object_helpers as metoh
-
+import metatlas.tools.predict_rt as predict_rt
 
 logger = logging.getLogger(__name__)
 
@@ -2264,3 +2266,12 @@ def fixture_instructions():
             ],
         }
     )
+
+
+@pytest.fixture(name="model")
+def fixture_model():
+    transformed_actual = np.array([1, 2, 3]).reshape(-1, 1)
+    transformed_pred = np.array([4, 5, 6]).reshape(-1, 1)
+    ransac = RANSACRegressor(random_state=42)
+    rt_model_linear = ransac.fit(transformed_pred, transformed_actual)
+    return predict_rt.Model(rt_model_linear, rt_model_linear.estimator_.intercept_[0], rt_model_linear.estimator_.coef_)
