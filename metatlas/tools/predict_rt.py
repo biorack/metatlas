@@ -636,11 +636,12 @@ def plot_actual_vs_pred_rts(
     plt.rc("xtick", labelsize=3)
     plt.rc("ytick", labelsize=3)
     for i in range(rts_df.shape[1] - 5):
-        sub = fig.add_subplot(grid[i])
         x_values = pred_rts[i]
         y_values = actual_rts[i]
+        if len(x_values) == 0 or len(y_values) == 0:
+            continue
+        sub = fig.add_subplot(grid[i])
         sub.scatter(x_values, y_values, s=2)
-        # spaced_x = pd.DataFrame({"rt_peak": np.linspace(0, max(x_values), 100)})
         spaced_x = np.linspace(0, max(x_values), 100)
         sub.plot(spaced_x, linear.predict(spaced_x), linewidth=0.5, color="red")
         sub.plot(spaced_x, poly.predict(spaced_x), linewidth=0.5, color="green")

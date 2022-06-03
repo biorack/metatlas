@@ -1,6 +1,8 @@
 """ unit testing of predict_rt functions """
 # pylint: disable=missing-function-docstring
 
+import pandas as pd
+
 from metatlas.tools import predict_rt
 
 
@@ -26,3 +28,9 @@ def test_adjust_atlas_rt_range02(atlas):
     mod_atlas = predict_rt.adjust_atlas_rt_range(atlas, -0.1, 0.1)
     mod_rt_max = mod_atlas.compound_identifications[0].rt_references[0].rt_max
     assert orig_rt_max != mod_rt_max
+
+
+def test_plot_actual_vs_pred_rts01(model):
+    arrays = [[]]
+    rts_df = pd.DataFrame(data={"1": [], "2": [], "3": [], "4": [], "5": [], "6": []})
+    predict_rt.plot_actual_vs_pred_rts(arrays, arrays, rts_df, "file_name", model, model)
