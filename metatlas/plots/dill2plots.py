@@ -390,7 +390,7 @@ class adjust_rt_for_selected_compound(object):
         self.y_max_slider()
         idx = 0 if self.y_scale == 'linear' else 1
         self.lin_log_radio = self.create_radio_buttons(self.lin_log_ax, ('linear', 'log'),
-                                                       self.set_lin_log, active_idx=idx)
+                                                       self.set_lin_log, 0.07, active_idx=idx)
         self.rt_bounds()
         self.highlight_similar_compounds()
         logger.debug('Finished eic_plot')
@@ -400,9 +400,11 @@ class adjust_rt_for_selected_compound(object):
             peak_flag_index = self.peak_flags.index(self.current_id.ms1_notes)
         else:
             peak_flag_index = 0
+        radius = 0.02 * self.gui_scale_factor
         logger.debug('Setting peak flag radio button with index %d', peak_flag_index)
         self.peak_flag_radio = self.create_radio_buttons(self.peak_flag_ax, self.peak_flags,
                                                          self.set_peak_flag,
+                                                         radius,
                                                          active_idx=peak_flag_index)
         self.peak_flag_radio.active = self.enable_edit
         if self.current_id.ms2_notes in self.msms_flags:
@@ -412,6 +414,7 @@ class adjust_rt_for_selected_compound(object):
         logger.debug('Setting msms flag radio button with index %d', msms_flag_index)
         self.msms_flag_radio = self.create_radio_buttons(self.msms_flag_ax, self.msms_flags,
                                                          self.set_msms_flag,
+                                                         radius,
                                                          active_idx=msms_flag_index)
         self.msms_flag_radio.active = self.enable_edit
 
@@ -604,10 +607,11 @@ class adjust_rt_for_selected_compound(object):
     def layout_radio_buttons(self, y_slider_width, y_axis_height):
         self.radio_button_radius = 0.02 * self.gui_scale_factor
         radio_button_axes_width = 1-self.plot_right_pos
+        lin_log_height_fraction = 0.3
         self.lin_log_ax = layout_radio_button_set([self.plot_left_pos,
-                                                   self.plot_bottom_pos,
+                                                   self.plot_bottom_pos + y_axis_height*(1-lin_log_height_fraction),
                                                    radio_button_axes_width,
-                                                   y_axis_height],
+                                                   y_axis_height*lin_log_height_fraction],
                                                   anchor='NW')
         self.peak_flag_ax = layout_radio_button_set([self.plot_right_pos + y_slider_width,
                                                      self.plot_bottom_pos,
@@ -633,10 +637,10 @@ class adjust_rt_for_selected_compound(object):
                                    rt_slider_width, rt_slider_height],
                                   facecolor=self.slider_color)
 
-    def create_radio_buttons(self, axes, labels, on_click_handler, active_idx=0):
+    def create_radio_buttons(self, axes, labels, on_click_handler, radius, active_idx=0):
         buttons = RadioButtons(axes, labels, active=active_idx)
         for circle in buttons.circles:
-            circle.set_radius(self.radio_button_radius)
+            circle.set_radius(radius)
         buttons.on_clicked(on_click_handler)
         return buttons
 
