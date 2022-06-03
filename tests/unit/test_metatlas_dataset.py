@@ -518,8 +518,8 @@ def test_annotation_gui02(metatlas_dataset, hits, mocker, instructions):
 def test_generate_all_outputs01(metatlas_dataset, hits, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     metatlas_dataset.generate_all_outputs()
-    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 16
-    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 23
+    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 15
+    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 19
 
 
 def test_short_polarity_inverse01(analysis_ids):
