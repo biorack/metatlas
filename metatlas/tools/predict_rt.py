@@ -197,7 +197,20 @@ def generate_outputs(
         ids, metatlas_dataset, groups, atlas, atlas_df, selected_col, inchi_keys_not_in_model
     )
     if stop_before in ["atlases", "notebooks", "msms_hits", None]:
+        alt_ids = get_analysis_ids_for_rt_prediction(
+            ids.experiment,
+            ids.project_directory,
+            ids.google_folder,
+            ids.analysis_number,
+            "negative" if ids.polarity == "positive" else "positive",
+            ids.exclude_files,
+            ids.include_groups,
+            ids.exclude_groups,
+            ids.groups_controlled_vocab,
+        )
+        alt_metatlas_dataset, _, _, _ = load_data(alt_ids, cpus, rt_min_delta, rt_max_delta)
         generate_qc_outputs(metatlas_dataset, ids, cpus)
+        generate_qc_outputs(alt_metatlas_dataset, alt_ids, cpus)
     if stop_before in ["notebooks", "msms_hits", None]:
         atlases = create_adjusted_atlases(linear, poly, ids)
     if stop_before in ["msms_hits", None]:
@@ -215,17 +228,17 @@ def generate_outputs(
 
 def generate_qc_outputs(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdentifiers, cpus: int) -> None:
     """Write outputs that can be used to QC the experiment"""
-    save_rt_peak(metatlas_dataset, os.path.join(ids.output_dir, "rt_peak.tab"))
-    save_measured_rts(metatlas_dataset, os.path.join(ids.output_dir, "QC_Measured_RTs.csv"))
+    save_rt_peak(metatlas_dataset, os.path.join(ids.output_dir, f"{ids.short_polarity}_rt_peak.tab"))
+    save_measured_rts(metatlas_dataset, os.path.join(ids.output_dir, f"{ids.short_polarity}_QC_Measured_RTs.csv"))
     rts_df = get_rts(metatlas_dataset)
-    compound_atlas_rts_file_name = os.path.join(ids.output_dir, "Compound_Atlas_RTs.pdf")
+    compound_atlas_rts_file_name = os.path.join(ids.output_dir, f"{ids.short_polarity}_Compound_Atlas_RTs.pdf")
     plot_compound_atlas_rts(len(metatlas_dataset), rts_df, compound_atlas_rts_file_name)
     peak_heights_df = get_peak_heights(metatlas_dataset)
-    peak_heights_plot_file_name = os.path.join(ids.output_dir, "Compound_Atlas_peak_heights.pdf")
+    peak_heights_plot_file_name = os.path.join(ids.output_dir, f"{ids.short_polarity}_Compound_Atlas_peak_heights.pdf")
     plot_compound_atlas_peak_heights(len(metatlas_dataset), peak_heights_df, peak_heights_plot_file_name)
     write_chromatograms(metatlas_dataset, ids.output_dir, max_cpus=cpus)
     hits = dp.get_msms_hits(metatlas_dataset, extra_time=0.2, ref_loc=MSMS_REFS_PATH)
-    write_identification_figures(metatlas_dataset, hits, ids.output_dir, ids.lcmsruns_short_names)
+    write_identification_figures(metatlas_dataset, hits, ids.output_dir, ids.lcmsruns_short_names, ids.short_polarity)
 
 
 def load_data(
@@ -255,6 +268,7 @@ def write_identification_figures(
     output_dir: str,
     run_short_names: pd.DataFrame,
     overwrite: bool = False,
+    prefix: str = '',
 ) -> None:
     """
     inputs:
@@ -264,7 +278,6 @@ def write_identification_figures(
        run_short_names: short names for LCMS runs in a dataframe
        overwrite: if False, throw error if files already exist
     """
-    logger.info("Exporting indentification figures to %s", output_dir)
     dp.make_identification_figure_v2(
         input_dataset=data,
         msms_hits=hits,
@@ -273,6 +286,7 @@ def write_identification_figures(
         exclude_lcmsruns=[],
         output_loc=output_dir,
         short_names_df=run_short_names,
+        polarity=prefix,
         overwrite=overwrite,
     )
 
