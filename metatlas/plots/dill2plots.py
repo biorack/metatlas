@@ -2312,6 +2312,7 @@ def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcms
                                   short_names_df=pd.DataFrame(), polarity='', overwrite=True):
     prefix = '' if polarity == '' else f"{polarity}_"
     output_loc = os.path.join(output_loc, f"{prefix}msms_mirror_plots")
+    logger.info("Exporting indentification figures to %s", output_loc)
     if not input_dataset:
         data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     else:
