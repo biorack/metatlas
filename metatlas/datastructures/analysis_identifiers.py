@@ -217,9 +217,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def output_dir(self) -> PathString:
         """Creates the output directory and returns the path as a string"""
-        sub_dirs = [self.experiment, self.analysis, self.output_type]
-        if self.output_type not in ["data_QC"]:
-            sub_dirs.append(self.short_polarity)
+        sub_dirs = [self.experiment, self.analysis, self.output_type, self.short_polarity]
         out = os.path.join(self.project_directory, *sub_dirs)
         os.makedirs(out, exist_ok=True)
         return PathString(out)
