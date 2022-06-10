@@ -143,13 +143,14 @@ def generate_rt_correction_models(
     rts_df = get_rts(metatlas_dataset)
     actual, pred = subset_data_for_model_input(selected_col, rts_df, qc_atlas_df, inchi_keys_not_in_model)
     linear, poly = generate_models(actual, pred)
+    out_dir = Path(ids.output_dir).parent
     actual_rts, pred_rts = actual_and_predicted_rts(rts_df, qc_atlas_df, inchi_keys_not_in_model)
-    actual_vs_pred_file_name = os.path.join(ids.output_dir, "Actual_vs_Predicted_RTs.pdf")
-    plot_actual_vs_pred_rts(pred_rts, actual_rts, rts_df, actual_vs_pred_file_name, linear, poly)
-    rt_comparison_file_name = os.path.join(ids.output_dir, "RT_Predicted_Model_Comparison.csv")
-    save_model_comparison(selected_col, qc_atlas_df, rts_df, linear, poly, rt_comparison_file_name)
-    models_file_name = os.path.join(ids.output_dir, "rt_model.txt")
-    write_models(models_file_name, linear, poly, groups, qc_atlas)
+    actual_vs_pred_file_name = out_dir / "Actual_vs_Predicted_RTs.pdf"
+    plot_actual_vs_pred_rts(pred_rts, actual_rts, rts_df, str(actual_vs_pred_file_name), linear, poly)
+    rt_comparison_file_name = out_dir / "RT_Predicted_Model_Comparison.csv"
+    save_model_comparison(selected_col, qc_atlas_df, rts_df, linear, poly, str(rt_comparison_file_name))
+    models_file_name = out_dir / "rt_model.txt"
+    write_models(str(models_file_name), linear, poly, groups, qc_atlas)
     return (linear, poly)
 
 
@@ -847,7 +848,7 @@ def write_notebooks(
         output_type = get_output_type(ids.chromatography, atlas_name)
         repo_path = Path(__file__).resolve().parent.parent.parent
         source = repo_path / "notebooks" / "reference" / "Targeted.ipynb"
-        dest = Path(ids.output_dir).resolve().parent / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
+        dest = Path(ids.output_dir).resolve().parent.parent / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
         # include_groups and exclude_groups do not get passed to subsequent notebooks
         # as they need to be updated for each output type
         parameters = {
