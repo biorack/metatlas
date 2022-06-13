@@ -463,7 +463,7 @@ class MetatlasDataset(HasTraits):
         """get sample at idx"""
         return self.data[idx]
 
-    @default('extra_time')
+    @default("extra_time")
     def get_extra_time_default(self) -> float:
         return 0.2 if self.ids.chromatography == "C18" else 0.75
 

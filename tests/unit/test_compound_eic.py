@@ -30,4 +30,4 @@ def test_add_interp_at():
 def test_eic_none(metatlas_dataset):
     metatlas_dataset[0][0]["data"]["eic"] = None
     _, axes = plt.subplots()
-    compound_eic.CompoundEic('Title', 'Group Name', metatlas_dataset[0][0]).plot(axes)
+    compound_eic.CompoundEic("Title", "Group Name", metatlas_dataset[0][0]).plot(axes)
