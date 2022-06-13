@@ -2274,4 +2274,6 @@ def fixture_model():
     transformed_pred = np.array([4, 5, 6]).reshape(-1, 1)
     ransac = RANSACRegressor(random_state=42)
     rt_model_linear = ransac.fit(transformed_pred, transformed_actual)
-    return predict_rt.Model(rt_model_linear, rt_model_linear.estimator_.intercept_[0], rt_model_linear.estimator_.coef_)
+    return predict_rt.Model(
+        rt_model_linear, rt_model_linear.estimator_.intercept_[0], rt_model_linear.estimator_.coef_
+    )

@@ -30,10 +30,9 @@ def check_for_colon(in_keys: List[str]) -> None:
     """die with error if any of in_keys contains a ':'"""
     all_valid = True
     for k in in_keys:
-        if ':' in k:
+        if ":" in k:
             print(
-                f"ERROR: Bad key '{k}'. Either quote the key or add a space after the ':'.",
-                file=sys.stderr
+                f"ERROR: Bad key '{k}'. Either quote the key or add a space after the ':'.", file=sys.stderr
             )
             all_valid = False
     if not all_valid:
