@@ -22,7 +22,7 @@ import metatlas.datastructures.analysis_identifiers as ids
 import metatlas.datastructures.metatlas_dataset as mads
 import metatlas.datastructures.metatlas_objects as metob
 import metatlas.datastructures.object_helpers as metoh
-import metatlas.tools.predict_rt as predict_rt
+from metatlas.tools import predict_rt
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def fixture_analysis_ids(sqlite_with_atlas, username, lcmsrun, mocker, groups_co
         polarity,
         analysis_number,
         google_folder,
-        source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+        source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}_0_0",
     )
 
 
@@ -74,7 +74,7 @@ def fixture_analysis_ids_with_2_cids(
         polarity,
         analysis_number,
         google_folder,
-        source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+        source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}_0_0",
     )
 
 
@@ -98,14 +98,14 @@ def fixture_sqlite(username, change_test_dir, atlas):
 
 @pytest.fixture(name="sqlite_with_atlas")
 def fixture_sqlite_with_atlas(sqlite, atlas, username):
-    atlas.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0"
+    atlas.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}_0_0"
     logger.debug("Saving atlas %s", atlas.name)
     metob.store(atlas)
 
 
 @pytest.fixture(name="sqlite_with_atlas_with_2_cids")
 def fixture_sqlite_with_atlas_with_2_cids(sqlite, atlas_with_2_cids, username):
-    atlas_with_2_cids.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0"
+    atlas_with_2_cids.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}_0_0"
     logger.debug("Saving atlas %s", atlas_with_2_cids.name)
     metob.store(atlas_with_2_cids)
 
@@ -1273,7 +1273,7 @@ def fixture_group(lcmsrun, username):
     grp.last_modified = 1620146477
     grp.prev_uid = "origin"
     grp.name = (
-        f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}0_Cone-S1"
+        f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}_0_0_Cone-S1"
     )
     grp.head_id = "61041d07b5a24ca5b88efbda8f319654"
     grp.short_name = "POS_Cone-S1"
@@ -1291,7 +1291,7 @@ def fixture_group_with_2_lcmsruns(lcmsrun, username):
     grp.last_modified = 1620146477
     grp.prev_uid = "origin"
     grp.name = (
-        f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}0_Cone-S1"
+        f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}_0_0_Cone-S1"
     )
     grp.head_id = "61041d07b5a24ca5b88efbda8f319654"
     grp.short_name = "POS_Cone-S1"

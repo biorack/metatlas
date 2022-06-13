@@ -60,7 +60,7 @@ mkdir -p ~/metabolomics_data
 #### Set Parameters
 The `experiment_name` parameter can retrieved from the [Sample Tracking and QC Checkpoints - Northen Lab](https://docs.google.com/spreadsheets/d/126t1OeXQnCCgP6e-6Pac_Ku_A1R7MQLm_tl_Dkqsv_w/edit#gid=1548851545) Google Sheet. The experiment names can be found on the 'New Extraction' sheet in either column 'N' or 'O' depending on the type of chromatography that was performed. This value will be something like `20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494`.
 
-The `analysis_number` parameter is an integer that you'll need to increment if you redo an analysis. It should be set to 0 initially.
+The `rt_predict_number` parameter is an integer that you'll need to increment if you re-run the RT correction. It should be set to 0 initially.
 
 The `project_directory` is where you want to store the analysis while working on it. You should use `~/metabolomics_data`.
 
@@ -68,7 +68,7 @@ The `project_directory` is where you want to store the analysis while working on
 
 In your JupyterLab terminal, run the following command (where you substitute the 3 parameters described above):
 ```
-/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh experiment_name analysis_number project_directory
+/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh experiment_name rt_predict_number project_directory
 ```
 
 For example, your command with the parameters substituted in will be something like:
@@ -82,7 +82,7 @@ This will submit a slurm job. On Cori, you will receive an email when the job st
 
 Once the job has completed, you should check the files generated to make sure the RT correction models look acceptable. You can find the output PDF files at `~/metabolomics_data/EXPERIMENT_NAME/${USER}ANALYSIS_NUMBER/data_QC/`. One easy way to view these files is to open them from the [Jupyter](https://jupyter.nersc.gov/) file browser. In `Actual_vs_Predicted_RTs.pdf`, you want to check that the default model (median-based RT correction and polynomial model) gives a good fit. At the bottom of the `Actual_vs_Predicted_RTs.pdf`, you can find the 'FileIndex' number that corresponds to the 'median' correction. Once you have determined the 'FileIndex' for median, you want to find the plot that has 'File: \<FileIndex\>' above it. This is the plot showing the models for the median-based RT correction. On each plot, there should be a red line (linear model) and green line (polynomial model). In many cases the lines for these models will almost be right on top of each other and you might not be able to see both of the lines unless you zoom in near the line ends.
 
-If the median-based polynomial model does not give a good fit, then you will want to re-run  `launch_rt_predictions.sh` with additional parameters (and an incremented `analysis_number`). See [Passing Additional Notebook Parameters To launch_rt_predictions.sh](#passing-additional-notebook-parameters-to-launch_rt_predictionsh) to learn how to pass the parameters. The two most relevant parameters for choosing a different model are `use_poly_model` and `dependent_data_source`. Documentation of the parameters and their possible values can be found in the first code block of the [RT_prediction.ipynb](https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Prediction.ipynb) notebook.
+If the median-based polynomial model does not give a good fit, then you will want to re-run  `launch_rt_predictions.sh` with additional parameters (and an incremented `rt_predict_number`). See [Passing Additional Notebook Parameters To launch_rt_predictions.sh](#passing-additional-notebook-parameters-to-launch_rt_predictionsh) to learn how to pass the parameters. The two most relevant parameters for choosing a different model are `use_poly_model` and `dependent_data_source`. Documentation of the parameters and their possible values can be found in the first code block of the [RT_prediction.ipynb](https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Prediction.ipynb) notebook.
 
 ### Perform ISTDsEtc Analysis
 

@@ -1,14 +1,12 @@
 """Functions for generating mirror plots of MSMS spectra"""
 import json
 
-from typing import List, Sequence, Tuple
+from typing import List, Sequence, Sized, Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from numpy.typing import ArrayLike
 
 import metatlas.plots.dill2plots as dp
 import metatlas.tools.spectralprocessing as sp
@@ -16,8 +14,8 @@ import metatlas.tools.spectralprocessing as sp
 
 def mirror_plot(
     axis: matplotlib.axes.Axes,
-    top: Tuple[ArrayLike, ArrayLike],
-    bottom: Tuple[ArrayLike, ArrayLike],
+    top: Tuple[Sized, Sized],
+    bottom: Tuple[Sized, Sized],
     mz_tolerance: float = 1e-6,
     resolve_by: str = "shape",
 ) -> None:

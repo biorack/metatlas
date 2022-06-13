@@ -17,12 +17,12 @@ die() {
 
 usage() {
   >&2 echo "Usage:
-  $(basename "$0") experiment_name analysis_number project_directory [-p notebook_parameter=value] [-y yaml_string]
+  $(basename "$0") experiment_name rt_predict_number project_directory [-p notebook_parameter=value] [-y yaml_string]
 
      where:
         experiment_name:   experiment identifier
-        analysis_number:   integer, use 0 for a new analysis
-                           and increment if reworking one
+        rt_predict_number: integer, use 0 the first time generating an RT correction for an experiment
+                           and increment if re-generating an RT correction
         project_directory: output directory will be created within this directory
         -p:                optional notebook parameters, can use multiple times
         -y:                optional notebook parameters in YAML or JSON string
@@ -164,7 +164,7 @@ check_analysis_dir_does_not_exist() {
   if [ -d "$1" ]; then
     >&2 echo "ERROR: Output directory already exists. Not overwriting:"
     >&2 echo "       ${1}"
-    >&2 echo "       Consider incrementing analysis_number."
+    >&2 echo "       Consider incrementing rt_predict_number."
     die
   fi
 }
@@ -208,7 +208,7 @@ do
 done
 
 if [  ${#positional_parameters[@]} -ne 3 ]; then
-  >&2 echo "ERROR: one of experiment_name, analysis_number, or project_directory was not supplied."
+  >&2 echo "ERROR: one of experiment_name, rt_predict_number, or project_directory was not supplied."
   >&2 echo ""
   usage
 fi
@@ -218,12 +218,12 @@ if [  ${#extra_parameters[@]} -ne 0 ]; then
 fi
 
 exp="${positional_parameters[0]}"
-analysis_num="${positional_parameters[1]}"
+rt_predict_num="${positional_parameters[1]}"
 project_dir="${positional_parameters[2]}"
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && realpath .)"
 exp_dir="${project_dir}/$exp"
-analysis_dir="${exp_dir}/${USER}${analysis_num}"
+analysis_dir="${exp_dir}/${USER}_${rt_predict_num}_0"
 
 IFS='_' read -ra TOKENS <<< "$exp"
 proposal="${TOKENS[3]:-}"
@@ -248,7 +248,7 @@ OUT_FILE="${analysis_dir}/${proposal}_RT_Prediction_papermill.ipynb"
 PARAMETERS+=" -p experiment $exp \
 	      -p project_directory $project_dir \
 	      -p max_cpus $threads_to_use \
-	      -p analysis_number $analysis_num"
+	      -p rt_predict_number $rt_predict_num"
 if [  ${#extra_parameters[@]} -ne 0 ]; then
   for i in "${extra_parameters[@]}"
   do

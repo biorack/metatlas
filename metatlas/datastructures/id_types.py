@@ -15,7 +15,7 @@ Polarity = NewType("Polarity", str)
 ShortPolarity = NewType("ShortPolarity", str)
 Experiment = NewType("Experiment", str)
 OutputType = NewType("OutputType", str)
-AnalysisNumber = NewType("AnalysisNumber", int)
+IterationNumber = NewType("IterationNumber", int)
 PathString = NewType("PathString", str)
 
 OUTPUT_TYPES = [

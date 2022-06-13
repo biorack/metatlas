@@ -202,8 +202,8 @@ def generate_outputs(
             ids.experiment,
             ids.project_directory,
             ids.google_folder,
-            ids.analysis_number,
-            "negative" if ids.polarity == "positive" else "positive",
+            ids.rt_predict_number,
+            Polarity("negative" if ids.polarity == "positive" else "positive"),
             ids.exclude_files,
             ids.include_groups,
             ids.exclude_groups,
@@ -230,16 +230,24 @@ def generate_outputs(
 def generate_qc_outputs(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdentifiers, cpus: int) -> None:
     """Write outputs that can be used to QC the experiment"""
     save_rt_peak(metatlas_dataset, os.path.join(ids.output_dir, f"{ids.short_polarity}_rt_peak.tab"))
-    save_measured_rts(metatlas_dataset, os.path.join(ids.output_dir, f"{ids.short_polarity}_QC_Measured_RTs.csv"))
+    save_measured_rts(
+        metatlas_dataset, os.path.join(ids.output_dir, f"{ids.short_polarity}_QC_Measured_RTs.csv")
+    )
     rts_df = get_rts(metatlas_dataset)
-    compound_atlas_rts_file_name = os.path.join(ids.output_dir, f"{ids.short_polarity}_Compound_Atlas_RTs.pdf")
+    compound_atlas_rts_file_name = os.path.join(
+        ids.output_dir, f"{ids.short_polarity}_Compound_Atlas_RTs.pdf"
+    )
     plot_compound_atlas_rts(len(metatlas_dataset), rts_df, compound_atlas_rts_file_name)
     peak_heights_df = get_peak_heights(metatlas_dataset)
-    peak_heights_plot_file_name = os.path.join(ids.output_dir, f"{ids.short_polarity}_Compound_Atlas_peak_heights.pdf")
+    peak_heights_plot_file_name = os.path.join(
+        ids.output_dir, f"{ids.short_polarity}_Compound_Atlas_peak_heights.pdf"
+    )
     plot_compound_atlas_peak_heights(len(metatlas_dataset), peak_heights_df, peak_heights_plot_file_name)
     write_chromatograms(metatlas_dataset, ids.output_dir, max_cpus=cpus)
     hits = dp.get_msms_hits(metatlas_dataset, extra_time=0.2, ref_loc=MSMS_REFS_PATH)
-    write_identification_figures(metatlas_dataset, hits, ids.output_dir, ids.lcmsruns_short_names, ids.short_polarity)
+    write_identification_figures(
+        metatlas_dataset, hits, ids.output_dir, ids.lcmsruns_short_names, prefix=ids.short_polarity
+    )
 
 
 def load_data(
@@ -269,7 +277,7 @@ def write_identification_figures(
     output_dir: str,
     run_short_names: pd.DataFrame,
     overwrite: bool = False,
-    prefix: str = '',
+    prefix: str = "",
 ) -> None:
     """
     inputs:
@@ -326,6 +334,7 @@ def pre_process_data_for_all_notebooks(
             analysis_number=ids.analysis_number,
             project_directory=ids.project_directory,
             google_folder=ids.google_folder,
+            rt_predict_number=ids.rt_predict_number,
         )
         metatlas_dataset = mads.MetatlasDataset(ids=current_ids, max_cpus=cpus)
         _ = metatlas_dataset.hits
@@ -848,13 +857,17 @@ def write_notebooks(
         output_type = get_output_type(ids.chromatography, atlas_name)
         repo_path = Path(__file__).resolve().parent.parent.parent
         source = repo_path / "notebooks" / "reference" / "Targeted.ipynb"
-        dest = Path(ids.output_dir).resolve().parent.parent / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
+        dest = (
+            Path(ids.output_dir).resolve().parent.parent
+            / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
+        )
         # include_groups and exclude_groups do not get passed to subsequent notebooks
         # as they need to be updated for each output type
         parameters = {
             "experiment": ids.experiment,
             "output_type": output_type,
             "polarity": polarity,
+            "rt_predict_number": ids.rt_predict_number,
             "analysis_number": 0,
             "project_directory": ids.project_directory,
             "source_atlas": atlas_name,
@@ -873,7 +886,7 @@ def get_analysis_ids_for_rt_prediction(
     experiment: str,
     project_directory: str,
     google_folder: str,
-    analysis_number: int = 0,
+    rt_predict_number: int = 0,
     polarity: Polarity = Polarity("positive"),  # noqa: B008
     exclude_files: Optional[List[str]] = None,
     include_groups: Optional[List[str]] = None,
@@ -886,7 +899,7 @@ def get_analysis_ids_for_rt_prediction(
         experiment: name of experiment as given in LCMS run names
         project_directory: directory where per-experiment output directory will be created
         google_folder: id from URL of base export folder on Google Drive
-        analysis_number: integer, defaults to 0, increment if redoing analysis
+        rt_predict_number: integer, defaults to 0, increment if redoing RT prediction
         polarity: polarity to use for RT prediction, defaults to positive
         exclude_files: list of substrings that will be used to filter out lcmsruns
         include_groups: list of substrings that will used to filter groups
@@ -897,7 +910,7 @@ def get_analysis_ids_for_rt_prediction(
     return AnalysisIdentifiers(
         experiment=experiment,
         output_type="data_QC",
-        analysis_number=analysis_number,
+        analysis_number=0,
         project_directory=project_directory,
         polarity=polarity,
         google_folder=google_folder,
@@ -905,6 +918,7 @@ def get_analysis_ids_for_rt_prediction(
         include_groups=include_groups,
         exclude_groups=exclude_groups,
         groups_controlled_vocab=groups_controlled_vocab,
+        rt_predict_number=rt_predict_number,
     )
 
 
