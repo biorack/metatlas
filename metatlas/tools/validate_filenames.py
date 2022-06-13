@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Sequence
 
 DIRECTORY_NUM_FIELDS = 9
 FILE_NUM_FIELDS = 16
@@ -69,7 +69,7 @@ def validate_file_name(file_name: Path) -> bool:
     return is_valid_file_name(file_name, required_checks, warn_only_checks)
 
 
-def run_check_list(file_name: Path, checks: List[Check], log_func: Callable) -> int:
+def run_check_list(file_name: Path, checks: Sequence[Check], log_func: Callable) -> int:
     """Run checks on a file, log failures, and return number of failures"""
     num_fail = 0
     for check_func in checks:
@@ -81,7 +81,7 @@ def run_check_list(file_name: Path, checks: List[Check], log_func: Callable) -> 
     return num_fail
 
 
-def is_valid_file_name(file_name: Path, required_checks: List[Check], warn_only_checks: List[Check]) -> bool:
+def is_valid_file_name(file_name: Path, required_checks: Sequence[Check], warn_only_checks: Sequence[Check]) -> bool:
     """
     inputs:
        file_name: file_name to evaluate
