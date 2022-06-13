@@ -161,7 +161,7 @@ class Workspace(object):
         local_config_file = os.path.join(config_dir, 'local_config', 'local.yml')
         if os.path.isfile(local_config_file):
             with open(local_config_file, encoding="utf-8") as fid:
-                local_info = yaml.load(fid)
+                local_info = yaml.safe_load(fid)
             hostname = 'localhost' if 'db_hostname' not in local_info else local_info['db_hostname']
             login = ''
             if 'db_username' in local_info:
