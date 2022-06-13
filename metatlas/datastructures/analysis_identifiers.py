@@ -15,7 +15,7 @@ from traitlets import HasTraits, Int, Unicode
 from traitlets.traitlets import ObserveHandler
 
 from metatlas.datastructures.id_types import (
-    AnalysisNumber,
+    IterationNumber,
     Experiment,
     FileMatchList,
     GroupList,
@@ -51,7 +51,8 @@ class AnalysisIdentifiers(HasTraits):
     experiment: Experiment = Unicode(read_only=True)
     output_type: OutputType = Unicode(read_only=True)
     polarity: Polarity = Unicode(default_value="positive", read_only=True)
-    analysis_number: AnalysisNumber = Int(default_value=0, read_only=True)
+    analysis_number: IterationNumber = Int(default_value=0, read_only=True)
+    rt_predict_number: IterationNumber = Int(default_value=0, read_only=True)
     google_folder: str = Unicode(read_only=True)
 
     source_atlas: Optional[AtlasName] = Unicode(allow_none=True, default_value=None, read_only=True)
@@ -86,6 +87,7 @@ class AnalysisIdentifiers(HasTraits):
         groups_controlled_vocab=None,
         lcmsruns=None,
         all_groups=None,
+        rt_predict_number=0,
     ) -> None:
         super().__init__()
         self.set_trait("project_directory", project_directory)
@@ -93,6 +95,7 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("output_type", output_type)
         self.set_trait("polarity", polarity)
         self.set_trait("analysis_number", analysis_number)
+        self.set_trait("rt_predict_number", rt_predict_number)
         self.set_trait("google_folder", google_folder)
         self.set_trait("source_atlas", source_atlas)
         self.set_trait("copy_atlas", copy_atlas)
@@ -155,10 +158,17 @@ class AnalysisIdentifiers(HasTraits):
         return None
 
     @validate("analysis_number")
-    def _valid_analysis_number(self, proposal: Proposal) -> AnalysisNumber:
-        value = cast(AnalysisNumber, proposal["value"])
+    def _valid_analysis_number(self, proposal: Proposal) -> IterationNumber:
+        value = cast(IterationNumber, proposal["value"])
         if value < 0:
             raise TraitError("Parameter analysis_number cannot be negative.")
+        return value
+
+    @validate("rt_predict_number")
+    def _valid_rt_predict_number(self, proposal: Proposal) -> IterationNumber:
+        value = cast(IterationNumber, proposal["value"])
+        if value < 0:
+            raise TraitError("Parameter rt_predict_number cannot be negative.")
         return value
 
     @validate("experiment")
@@ -197,7 +207,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def analysis(self) -> str:
         """Analysis identifier"""
-        return f"{self.username}{self.analysis_number}"
+        return f"{self.username}_{self.rt_predict_number}_{self.analysis_number}"
 
     @property
     def short_experiment_analysis(self) -> str:

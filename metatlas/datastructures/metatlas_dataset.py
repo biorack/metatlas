@@ -25,7 +25,7 @@ from traitlets.traitlets import ObserveHandler
 import metatlas.plots.dill2plots as dp
 import metatlas.datastructures.analysis_identifiers as analysis_ids
 from metatlas.datastructures.id_types import (
-    AnalysisNumber,
+    IterationNumber,
     Experiment,
     FileMatchList,
     GroupMatchList,
@@ -828,7 +828,7 @@ def pre_annotation(
     experiment: Experiment,
     output_type: OutputType,
     polarity: Polarity,
-    analysis_number: AnalysisNumber,
+    analysis_number: IterationNumber,
     project_directory: PathString,
     google_folder: str,
     groups_controlled_vocab: GroupMatchList,
@@ -839,6 +839,7 @@ def pre_annotation(
     msms_score: float = None,
     username: Username = None,
     clear_cache: bool = False,
+    rt_predict_number: int = 0,
 ) -> MetatlasDataset:
     """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
     ids = analysis_ids.AnalysisIdentifiers(
@@ -852,6 +853,7 @@ def pre_annotation(
         groups_controlled_vocab=groups_controlled_vocab,
         exclude_files=exclude_files,
         username=getpass.getuser() if username is None else username,
+        rt_predict_number=rt_predict_number,
     )
     if clear_cache:
         shutil.rmtree(ids.cache_dir)

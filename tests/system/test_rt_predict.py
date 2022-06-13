@@ -10,19 +10,19 @@ def test_rt_predict_by_line01(tmp_path):
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
-        str(tmp_path / experiment / "root0/data_QC/rt_model.txt")
+        str(tmp_path / experiment / "root_0_0/data_QC/rt_model.txt")
     ] = """RANSACRegressor(random_state=42)
 Linear model with intercept=0.430 and slope=0.95574
-groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_QC
+groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root_0_0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root_0_0_QC
 atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 
 LinearRegression()
 Polynomial model with intercept=0.733 and coefficents=[0.00000, 0.81321, 0.00919]
-groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root0_QC
+groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root_0_0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root_0_0_QC
 atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 """
     expected_df = {}
-    expected_df[str(tmp_path / experiment / "root0/data_QC/RT_Predicted_Model_Comparison.csv")] = {
+    expected_df[str(tmp_path / experiment / "root_0_0/data_QC/RT_Predicted_Model_Comparison.csv")] = {
         "Unnamed: 0": {
             0: "0000_uracil_unlabeled_positive_M+H113p0346_1p39",
             1: "0001_cytosine_unlabeled_positive_M+H112p0505_4p83",
@@ -36,7 +36,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
         "RT Diff Polynomial": {0: -1.865175e-14, 1: 1.776357e-15, 2: 1.776357e-14},
     }
 
-    expected_df[str(tmp_path / experiment / "root0/data_QC/QC_Measured_RTs.csv")] = {
+    expected_df[str(tmp_path / experiment / "root_0_0/data_QC/POS/POS_QC_Measured_RTs.csv")] = {
         "Unnamed: 0": {
             0: "0000_uracil_unlabeled_positive_M+H113p0346_1p39",
             1: "0001_cytosine_unlabeled_positive_M+H112p0505_4p83",
@@ -80,6 +80,6 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         /out/Remove-done.ipynb
     """
     utils.exec_docker(image, command, tmp_path)
-    assert utils.num_files_in(tmp_path) == 63  # this is 11 if model_only is set to True
+    assert utils.num_files_in(tmp_path) == 77  # this is 11 if model_only is set to True
     utils.assert_files_match(expected)
     utils.assert_dfs_match(expected_df)

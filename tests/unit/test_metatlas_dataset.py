@@ -437,7 +437,7 @@ def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, atlas, usernam
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     mocker.patch("glob.glob", return_value=range(10))
     metatlas_dataset = mads.MetatlasDataset(ids=analysis_ids)
-    assert metatlas_dataset.atlas.name == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
+    assert metatlas_dataset.atlas.name == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}_0_0"
 
 
 def test_get_atlas02(mocker, analysis_ids, caplog):
@@ -452,7 +452,7 @@ def test_get_atlas03(mocker, analysis_ids, caplog, username):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[0, 0])
     with pytest.raises(ValueError):
         mads.MetatlasDataset(ids=analysis_ids)
-    atlas = f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}0"
+    atlas = f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}_0_0"
     assert f"2 atlases with name {atlas} and owned by {username} already exist." in caplog.text
 
 
@@ -483,7 +483,7 @@ def test_store_groups02(metatlas_dataset, mocker, username):
         pass
 
     group.name = (
-        f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}0_Cone-S1"
+        f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}_0_0_Cone-S1"
     )
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[group])
     with pytest.raises(ValueError):
