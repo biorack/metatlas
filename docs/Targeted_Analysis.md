@@ -125,7 +125,7 @@ If the median-based polynomial model does not give a good fit, then you will wan
 
 `m` - steps through the similar compound-adduct pairs and matches the RT bounds to those of the similar compound-adduct pair
 
-`z` - steps though zoom levels of 1x, 5x, 25x on the MSMS mirror plot by 5
+`z` - steps though zoom levels of 1x, 5x, 25x on the MSMS mirror plot
 
 `s` - toggles on/off the display of similar compounds
 
