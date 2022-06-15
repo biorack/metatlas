@@ -127,7 +127,7 @@ If the median-based polynomial model does not give a good fit, then you will wan
 
 `z` - steps though zoom levels of 1x, 5x, 25x on the MSMS mirror plot by 5
 
-`s` - toggles on/off the red and blue shading of EIC plot that show RT ranges for similar compounds
+`s` - toggles on/off the display of similar compounds
 
 ## Advanced Usage
 

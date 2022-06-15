@@ -288,7 +288,7 @@ class adjust_rt_for_selected_compound(object):
            Previous MSMS hit: 'k' or up arrow
            Cycle zoom on MSMS plot: 'z'
            Flag for removal: 'x'
-           Toggle highlighting of overlapping RT ranges for similar compounds: 's'
+           Toggle display of similar compounds list and highlighting: 's'
         """
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
@@ -318,7 +318,7 @@ class adjust_rt_for_selected_compound(object):
         self.hit_ctr = 0
         self.msms_zoom_factor = 1
         self.match_idx = None
-        self.enable_highlight_similar = True
+        self.enable_similar_compounds = True
         self.similar_compounds = []
         self.in_switch_event = True
         self.instruction_set = InstructionSet(INSTRUCTIONS_PATH)
@@ -345,7 +345,7 @@ class adjust_rt_for_selected_compound(object):
 
     def set_plot_data(self):
         logger.debug('Starting replot')
-        self.enable_highlight_similar = True
+        self.enable_similar_compounds = True
         self.similar_compounds = self.get_similar_compounds()
         self.eic_plot()
         self.filter_hits()
@@ -455,8 +455,6 @@ class adjust_rt_for_selected_compound(object):
         self.similar_rects = []
 
     def highlight_similar_compounds(self):
-        if not self.enable_highlight_similar:
-            return
         self.unhighlight_similar_compounds()
         min_y, max_y = self.ax.get_ylim()
         min_x, max_x = self.ax.get_xlim()
@@ -658,7 +656,7 @@ class adjust_rt_for_selected_compound(object):
     def set_peak_flag(self, label):
         old_label = ma_data.extract(self.current_id, ["ms1_notes"])
         self.set_flag('ms1_notes', label)
-        if not self.enable_highlight_similar:
+        if not self.enable_similar_compounds:
             return
         was_remove = is_remove(old_label)
         now_remove = is_remove(label)
@@ -755,14 +753,15 @@ class adjust_rt_for_selected_compound(object):
             logger.debug("Setting msms zoom factor to %d.", self.msms_zoom_factor)
             self.msms_plot()
         elif event.key == 's':
-            self.enable_highlight_similar = not self.enable_highlight_similar
-            if self.enable_highlight_similar:
-                self.similar_compounds = self.get_similar_compounds()
-                logger.debug("Enabling highlight of similar compounds on EIC plot.")
+            self.enable_similar_compounds = not self.enable_similar_compounds
+            self.similar_compounds = self.get_similar_compounds()
+            if self.enable_similar_compounds:
+                logger.debug("Enabling similar compounds list and EIC plot highlighting.")
                 self.highlight_similar_compounds()
             else:
-                logger.debug("Removing highlight of similar compounds on EIC plot.")
+                logger.debug("Removing similar compounds list and EIC plot hightlighting.")
                 self.unhighlight_similar_compounds()
+            self.msms_plot()
         elif event.key == 'm':
             num_sim = len(self.similar_compounds)
             if num_sim > 0:
@@ -838,6 +837,8 @@ class adjust_rt_for_selected_compound(object):
                 rt: a metatlas.datastructures.metatlas_objects.RtReference
                 overlaps: True if compound has RT bounds overlapping with those of self.compound_idx
         """
+        if not self.enable_similar_compounds:
+            return []
         cid = self.current_id
         if len(cid.compound) == 0 or is_remove(ma_data.extract(cid, ["ms1_notes"])):
             return []
