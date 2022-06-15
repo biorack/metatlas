@@ -80,6 +80,6 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         /out/Remove-done.ipynb
     """
     utils.exec_docker(image, command, tmp_path)
-    assert utils.num_files_in(tmp_path) == 77  # this is 11 if model_only is set to True
+    assert utils.num_files_in(tmp_path) == 81
     utils.assert_files_match(expected)
     utils.assert_dfs_match(expected_df)

@@ -214,6 +214,7 @@ def generate_outputs(
         generate_qc_outputs(alt_metatlas_dataset, alt_ids, cpus)
     if stop_before in ["notebooks", "msms_hits", None]:
         atlases = create_adjusted_atlases(linear, poly, ids)
+        # ISTDs QC plots here
     if stop_before in ["msms_hits", None]:
         write_notebooks(
             ids, atlases, use_poly_model, num_points, peak_height, msms_score, source_code_version_id
@@ -227,12 +228,8 @@ def generate_outputs(
     logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
 
 
-def generate_qc_outputs(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdentifiers, cpus: int) -> None:
-    """Write outputs that can be used to QC the experiment"""
-    save_rt_peak(metatlas_dataset, os.path.join(ids.output_dir, f"{ids.short_polarity}_rt_peak.tab"))
-    save_measured_rts(
-        metatlas_dataset, os.path.join(ids.output_dir, f"{ids.short_polarity}_QC_Measured_RTs.csv")
-    )
+def generate_qc_plots(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdentifiers) -> None:
+    """Write plots that can be used to QC the experiment"""
     rts_df = get_rts(metatlas_dataset)
     compound_atlas_rts_file_name = os.path.join(
         ids.output_dir, f"{ids.short_polarity}_Compound_Atlas_RTs.pdf"
@@ -243,6 +240,15 @@ def generate_qc_outputs(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdent
         ids.output_dir, f"{ids.short_polarity}_Compound_Atlas_peak_heights.pdf"
     )
     plot_compound_atlas_peak_heights(len(metatlas_dataset), peak_heights_df, peak_heights_plot_file_name)
+
+
+def generate_qc_outputs(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdentifiers, cpus: int) -> None:
+    """Write outputs that can be used to QC the experiment"""
+    save_rt_peak(metatlas_dataset, os.path.join(ids.output_dir, f"{ids.short_polarity}_rt_peak.tab"))
+    save_measured_rts(
+        metatlas_dataset, os.path.join(ids.output_dir, f"{ids.short_polarity}_QC_Measured_RTs.csv")
+    )
+    generate_qc_plots(metatlas_dataset, ids)
     write_chromatograms(metatlas_dataset, ids.output_dir, max_cpus=cpus)
     hits = dp.get_msms_hits(metatlas_dataset, extra_time=0.2, ref_loc=MSMS_REFS_PATH)
     write_identification_figures(
@@ -337,8 +343,10 @@ def pre_process_data_for_all_notebooks(
             rt_predict_number=ids.rt_predict_number,
         )
         metatlas_dataset = mads.MetatlasDataset(ids=current_ids, max_cpus=cpus)
+        if current_ids.output_type == "ISTDsEtc":
+            generate_qc_plots(metatlas_dataset, current_ids)
         _ = metatlas_dataset.hits
-        if "EMA" in metatlas_dataset.ids.output_type:
+        if "EMA" in current_ids.output_type:
             metatlas_dataset.filter_compounds_by_signal(num_points, peak_height, msms_score)
 
 
