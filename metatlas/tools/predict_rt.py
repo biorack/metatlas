@@ -185,6 +185,7 @@ def generate_outputs(
         selected_col: name of column to use for model generation
         stop_before: one of None, qc_plots, atlases, notebooks, msms_hits
                      stop before generating this output and all following outputs
+                     ISTDEtc QC plots are only generated if step_before is None
         source_code_version_id: pass through parameter to downstream notebooks
         rt_min_delta: added to atlas' rt_peak to generate rt_min, None uses atlas value for rt_min
         rt_max_delta: added to atlas' rt_peak to generate rt_max, None uses atlas value for rt_max
@@ -214,7 +215,6 @@ def generate_outputs(
         generate_qc_outputs(alt_metatlas_dataset, alt_ids, cpus)
     if stop_before in ["notebooks", "msms_hits", None]:
         atlases = create_adjusted_atlases(linear, poly, ids)
-        # ISTDs QC plots here
     if stop_before in ["msms_hits", None]:
         write_notebooks(
             ids, atlases, use_poly_model, num_points, peak_height, msms_score, source_code_version_id
