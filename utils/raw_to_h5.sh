@@ -11,6 +11,13 @@ fi
 
 raw_file="$(realpath "$1")"
 
+validation="\
+from metatlas.tools.validate_filenames import validate_file_name
+assert validate_file_name('${raw_file}')"
+
+shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
+        python -c "$validation"
+
 # ThermoRawFileParser.sh should return non-zero exit code on error, but it doesn't
 # https://github.com/compomics/ThermoRawFileParser/issues/140
 # But the mzML to h5 conversion will fail nicely if the mzML files does not exist
@@ -20,9 +27,9 @@ shifter "--image=${raw_image}" ThermoRawFileParser.sh \
 
 mzml_file="${raw_file%.raw}.mzML"
 
-program="\
+mzml_to_h5="\
 from metatlas.io.file_converter import mzml_to_h5_and_add_to_db
 mzml_to_h5_and_add_to_db('${mzml_file}')"
 
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
-        python -c "$program"
+        python -c "$mzml_to_h5"
