@@ -14,10 +14,12 @@ raw_file="$(realpath "$1")"
 validation="\
 from pathlib import Path
 from metatlas.tools.validate_filenames import validate_file_name
+print('Validating ${raw_file}')
 assert validate_file_name(Path('${raw_file}'))"
 
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
-        python -c "$validation"
+        python -c "$validation" 2>&1 | \
+	ts "%Y-%m-%d %H:%M:%.S"
 
 # ThermoRawFileParser.sh should return non-zero exit code on error, but it doesn't
 # https://github.com/compomics/ThermoRawFileParser/issues/140
