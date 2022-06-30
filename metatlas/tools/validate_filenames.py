@@ -266,7 +266,7 @@ def valid_field5(file_name: Path) -> List[str]:
 
 def valid_field6(file_name: Path) -> List[str]:
     """System"""
-    field_num = 0
+    field_num = 6
     try:
         field = file_name.stem.split("_")[field_num]
     except IndexError:

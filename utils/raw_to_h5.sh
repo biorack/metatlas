@@ -12,8 +12,9 @@ fi
 raw_file="$(realpath "$1")"
 
 validation="\
+from pathlib import Path
 from metatlas.tools.validate_filenames import validate_file_name
-assert validate_file_name('${raw_file}')"
+assert validate_file_name(Path('${raw_file}'))"
 
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
         python -c "$validation"
