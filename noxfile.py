@@ -26,8 +26,10 @@ nox.options.sessions = [
 # has not yet been updated to pass all checks.
 more_checks = [
     "metatlas/interfaces/compounds/populate.py",
+    "metatlas/io/file_converter.py",
     "metatlas/io/rclone.py",
     "metatlas/io/targeted_output.py",
+    "metatlas/io/system_utils.py",
     "metatlas/io/write_utils.py",
     "metatlas/datastructures/atlas.py",
     "metatlas/datastructures/analysis_identifiers.py",
@@ -50,6 +52,7 @@ more_checks = [
     "metatlas/tools/parallel.py",
     "metatlas/tools/predict_rt.py",
     "metatlas/tools/util.py",
+    "metatlas/tools/validate_filenames.py",
     "noxfile.py",
     "tests",
 ]
