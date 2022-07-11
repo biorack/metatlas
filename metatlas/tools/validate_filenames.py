@@ -40,10 +40,18 @@ Check = Callable[[Path], List[str]]
 logger = logging.getLogger(__name__)
 
 
-def validate_file_name(file_name: Path) -> bool:
+def validate_file_name(file_name: Path, minimal: bool = False) -> bool:
     """Run set of validation functions on a file name"""
-    required_checks = [
+    minimal_checks = [  # the set of checks needed for analysis to complete
         has_minimum_num_fields,
+        valid_field7,
+        valid_field9,
+        valid_field12,
+    ]
+    # the union of minimal_checks and beyond_minimal_checks is set of checks derived
+    # from the Standard Operating Procedure doc
+    beyond_minimal_checks = [
+        parent_dir_is_prefix,
         valid_field0,
         valid_field1,
         valid_field2,
@@ -51,22 +59,20 @@ def validate_file_name(file_name: Path) -> bool:
         valid_field4,
         valid_field5,
         valid_field6,
-        valid_field7,
         valid_field8,
-        valid_field9,
         valid_field10,
         valid_field11,
-        valid_field12,
         valid_field13,
         valid_field14,
         valid_field15,
-        parent_dir_is_prefix,
     ]
     warn_only_checks = [
         has_exactly_num_fields,
         valid_num_subfields_field15,
     ]
-    return is_valid_file_name(file_name, required_checks, warn_only_checks)
+    required_checks = minimal_checks + ([] if minimal else beyond_minimal_checks)
+    warn_checks = (beyond_minimal_checks if minimal else []) + warn_only_checks
+    return is_valid_file_name(file_name, required_checks, warn_checks)
 
 
 def run_check_list(file_name: Path, checks: Sequence[Check], log_func: Callable) -> int:

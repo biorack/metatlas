@@ -15,7 +15,9 @@ validation="\
 from pathlib import Path
 from metatlas.tools.validate_filenames import validate_file_name
 print('Validating ${raw_file}')
-assert validate_file_name(Path('${raw_file}'))"
+assert validate_file_name(Path('${raw_file}'), minimal=True)"
+# the above "minimal=True" should be set to False once raw file names are expected to
+# be fully in agreement with the SOP
 
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
         python -c "$validation" 2>&1 | \
