@@ -67,6 +67,11 @@ Deployment
 ##########
 
 Sucessuful pull requests to the main branch will build a new shifter image and push it to dockerhub.
-A cronjob runs on cori21 under user pasteur every 5 minutes which run shifterimg to import the image.
+A cronjob runs on cori21 under user pasteur every 5 minutes which runs shifterimg to import the image
+to cori.
 Another cronjob on cori21 under user pasteur pulls this git repo to
+:code:`/global/common/software/m2650/metatlas-repo`.
+An scrontab job runs on perlmutter under user msdata every 5 mintues which runs shifterimg to
+import the image to perlmutter.
+Another scrontab job on perlmutter under user msdata also pulls this git repo to
 :code:`/global/common/software/m2650/metatlas-repo`.
