@@ -1,10 +1,12 @@
 #!/bin/bash
 
-# this script is run by user svc-metabolomics@lbl.gov on metabo-dtn.jgi.lbl.gov
+# this script is run via cron by user svc-metabolomics@lbl.gov on metabo-dtn.jgi.lbl.gov
 
 # # crontab entries:
-# */5 * * * * $HOME/bin/sync.sh jgi
-# */5 * * * * $HOME/bin/sync.sh egsb
+#*/5 * * * * $HOME/bin/sync.sh jgi
+#*/5 * * * * $HOME/bin/sync.sh egsb
+#*/5 * * * * cd /home/svc-metabolomics__lbl.gov/metatlas && git pull --quiet >> /home/svc-metabolomics__lbl.gov/logs/git_pull.log
+#48 2 * * * /usr/sbin/logrotate --state /home/svc-metabolomics__lbl.gov/logs/logrotate.status /home/svc-metabolomics__lbl.gov/logs/logrotate.conf
 
 netapp_mount="/net/storage.jgi.lbl.gov/vol_metabolomics"
 
