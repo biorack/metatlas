@@ -57,9 +57,7 @@ def validate_file_name(file_name: Path, minimal: bool = False) -> bool:
     """Run set of validation functions on a file name"""
     minimal_checks = [  # the set of checks needed for analysis to complete
         has_minimum_num_fields,
-        valid_field7,
         valid_field9,
-        valid_field12,
     ]
     # the union of minimal_checks and beyond_minimal_checks is set of checks derived
     # from the Standard Operating Procedure doc
@@ -72,9 +70,11 @@ def validate_file_name(file_name: Path, minimal: bool = False) -> bool:
         valid_field4,
         valid_field5,
         valid_field6,
+        valid_field7,
         valid_field8,
         valid_field10,
         valid_field11,
+        valid_field12,
         valid_field13,
         valid_field14,
         valid_field15,
