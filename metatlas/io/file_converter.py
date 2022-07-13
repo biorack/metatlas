@@ -207,14 +207,16 @@ def convert(ind, fname):
             pass
 
 
-def update_metatlas(directory):
+def get_email_address(username: str) -> str:
+    return f"{username}@nersc.gov"
+
+
+def update_metatlas(directory: os.PathLike) -> None:
     """
     Converts all files to HDF in metatlas. Emails the user if there was
     any kind of error with converting a file.
     """
-    mzml_files = check_output(f'find {directory} -name "*.mzML"', shell=True)
-    mzml_files = mzml_files.decode("utf-8").splitlines()
-
+    mzml_files = check_output(f'find {directory} -name "*.mzML"', shell=True).decode("utf-8").splitlines()
     # Find valid h5 files newer than the format version timestamp.
     delta = int((time.time() - VERSION_TIMESTAMP) / 60)
     check = f'find {directory} -name "*.h5" -mmin -{delta} -size +2k'
@@ -227,20 +229,22 @@ def update_metatlas(directory):
             convert(ind, ffff)
         if readonly_files:
             for (username, dirnames) in readonly_files.items():
-                logger.info("Sending email to %s about inaccessible files.", username)
+                email_address = get_email_address(username)
+                logger.info("Sending email to %s about inaccessible files.", email_address)
                 body = (
                     "Please log in to NERSC and run 'chmod g+rwXs' on the "
                     "following directories:\n%s" % ("\n".join(dirnames))
                 )
-                send_mail("Metatlas Files are Inaccessible", username, body)
+                send_mail("Metatlas Files are Inaccessible", email_address, body)
         if other_errors:
             for (username, errors) in other_errors.items():
-                logger.info("Sending email to %s about conversion error.", username)
+                email_address = get_email_address(username)
+                logger.info("Sending email to %s about conversion error.", email_address)
                 body = (
                     "Errored files found while loading in Metatlas files:\n\n%s"
                     % "\n********************************\n".join(errors)
                 )
-                send_mail("Errors loading Metatlas files", username, body)
+                send_mail("Errors loading Metatlas files", email_address, body)
 
 
 if __name__ == "__main__":
