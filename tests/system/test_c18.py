@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_c18_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci03:v0.0.7"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci03:v0.0.8"
     experiment = "20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680"
     expected = {}
     expected[
@@ -42,10 +42,11 @@ short samplename	NEG_ExCtrl_C_Rg80to1200-CE102040-soil-S1	NEG_Neg-D30_C_Rg80to12
                                    "agui.data.set_rt(1, \\"rt_max\\", 6.2470)\\n" \
                                   ]' /src/notebooks/reference/Targeted.ipynb > /out/Remove.ipynb &&  \
                     papermill -k papermill \
+                        -p config_file_name /src/metatlas_config.yaml \
+                        -p workflow_name JGI-C18 \
                         -p source_atlas C18_20220215_TPL_EMA_Unlab_NEG \
                         -p experiment {experiment} \
                         -p polarity negative \
-                        -p output_type FinalEMA-C18 \
                         -p project_directory /out \
                         -p num_points None \
                         -p peak_height None \
@@ -54,6 +55,6 @@ short samplename	NEG_ExCtrl_C_Rg80to1200-CE102040-soil-S1	NEG_Neg-D30_C_Rg80to12
                         /out/Remove.ipynb \
                         /out/Remove-done.ipynb
                    """
-    utils.exec_docker(image, command, tmp_path)
+    utils.exec_docker(image, command, tmp_path, utils.PAPERMILL_ENV)
     assert utils.num_files_in(tmp_path) == 46
     utils.assert_files_match(expected)

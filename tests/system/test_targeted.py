@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_targeted_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.21"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.22"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
@@ -52,9 +52,11 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
                         -p project_directory /out \
                         -p max_cpus 2 \
+                        -p config_file_name /src/metatlas_config.yaml \
+                        -p workflow_name JGI-HILIC \
                         /out/Remove.ipynb \
                         /out/Remove-done.ipynb
                    """
-    utils.exec_docker(image, command, tmp_path)
+    utils.exec_docker(image, command, tmp_path, utils.PAPERMILL_ENV)
     assert utils.num_files_in(tmp_path) == 55
     utils.assert_files_match(expected)

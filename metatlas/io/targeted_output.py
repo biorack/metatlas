@@ -10,17 +10,14 @@ from collections import namedtuple
 import numpy as np
 import pandas as pd
 
-from IPython.core.display import display, HTML
-
-from metatlas.io import rclone
+from metatlas.datastructures.metatlas_dataset import MetatlasDataset
 from metatlas.io.write_utils import export_dataframe_die_on_diff
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
+from metatlas.tools.config import Config, Workflow, Analysis
 from metatlas.plots.tic import save_sample_tic_pdf
 
 logger = logging.getLogger(__name__)
-
-RCLONE_PATH = "/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone"
 
 
 def write_atlas_to_spreadsheet(metatlas_dataset, overwrite=False):
@@ -81,7 +78,7 @@ def write_stats_table(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
         output_loc=ids.output_dir,
-        output_sheetname=f"{ids.project}_{ids.output_type}_Identifications.xlsx",
+        output_sheetname=f"{ids.project}_{ids.workflow}_{ids.analysis}_Identifications.xlsx",
         min_peak_height=1e5,
         use_labels=True,
         min_msms_score=0.01,
@@ -320,37 +317,28 @@ def archive_outputs(ids):
         ids: an AnalysisIds object
     """
     logger.info("Generating archive of output files.")
-    suffix = "" if ids.output_type == "data_QC" else f"-{ids.short_polarity}"
-    output_file = f"{ids.short_experiment_analysis}{suffix}.tar.gz"
+    output_file = f"{ids.atlas}.tar.gz"
     output_path = os.path.join(ids.project_directory, ids.experiment, output_file)
     with tarfile.open(output_path, "w:gz") as tar:
         tar.add(ids.output_dir, arcname=os.path.basename(ids.output_dir))
     logger.info("Generation of archive completed succesfully: %s", output_path)
 
 
-def copy_outputs_to_google_drive(ids):
-    """
-    Recursively copy the output files to Google Drive using rclone
-    Inputs:
-        ids: an AnalysisIds object
-    """
-    logger.info("Copying output files to Google Drive")
-    rci = rclone.RClone(RCLONE_PATH)
-    fail_suffix = "not copying files to Google Drive"
-    if rci.config_file() is None:
-        logger.warning("RClone config file not found -- %s.", fail_suffix)
-        return
-    drive = rci.get_name_for_id(ids.google_folder)
-    if drive is None:
-        logger.warning("RClone config file missing JGI_Metabolomics_Projects -- %s.", fail_suffix)
-        return
-    folders = [ids.experiment, ids.analysis, ids.output_type]
-    if ids.output_type != "data_QC":
-        folders.append(ids.short_polarity)
-    sub_folders_string = os.path.join("Analysis_uploads", *folders)
-    rci.copy_to_drive(ids.output_dir, drive, sub_folders_string, progress=True)
-    logger.info("Done copying output files to Google Drive")
-    path_string = f"{drive}:{sub_folders_string}"
-    display(
-        HTML(f'Data is now on Google Drive at <a href="{rci.path_to_url(path_string)}">{path_string}</a>')
-    )
+def generate_all_outputs(
+    data: MetatlasDataset,
+    configuration: Config,
+    workflow: Workflow,
+    analysis: Analysis,
+    overwrite: bool = False,
+) -> None:
+    """Generates the default set of outputs for a targeted experiment"""
+    write_atlas_to_spreadsheet(data, overwrite=overwrite)
+    write_stats_table(data, overwrite=overwrite)
+    write_chromatograms(data, overwrite=overwrite, max_cpus=data.max_cpus)
+    write_identification_figure(data, overwrite=overwrite)
+    write_metrics_and_boxplots(data, overwrite=overwrite, max_cpus=data.max_cpus)
+    write_tics(data, overwrite=overwrite, x_min=1.5)
+    if analysis.parameters.export_msms_fragment_ions:
+        write_msms_fragment_ions(data, overwrite=overwrite)
+    archive_outputs(data.ids)
+    logger.info("Generation of output files completed sucessfully.")

@@ -17,12 +17,13 @@ die() {
 
 usage() {
   >&2 echo "Usage:
-  $(basename "$0") experiment_name rt_predict_number project_directory [-p notebook_parameter=value] [-y yaml_string]
+  $(basename "$0") experiment_name rt_predict_number workflow_name project_directory [-p notebook_parameter=value] [-y yaml_string]
 
      where:
         experiment_name:   experiment identifier
         rt_predict_number: integer, use 0 the first time generating an RT correction for an experiment
                            and increment if re-generating an RT correction
+        workflow_name:     name associated with a workflow definition in the configuration file
         project_directory: output directory will be created within this directory
         -p:                optional notebook parameters, can use multiple times
         -y:                optional notebook parameters in YAML or JSON string
@@ -207,8 +208,8 @@ do
   fi
 done
 
-if [  ${#positional_parameters[@]} -ne 3 ]; then
-  >&2 echo "ERROR: one of experiment_name, rt_predict_number, or project_directory was not supplied."
+if [  ${#positional_parameters[@]} -ne 4 ]; then
+  >&2 echo "ERROR: one of experiment_name, rt_predict_number, workflow_name, or project_directory was not supplied."
   >&2 echo ""
   usage
 fi
@@ -220,6 +221,7 @@ fi
 exp="${positional_parameters[0]}"
 rt_predict_num="${positional_parameters[1]}"
 project_dir="${positional_parameters[2]}"
+workflow_name="${positional_parameters[3]}"
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && realpath .)"
 exp_dir="${project_dir}/$exp"
@@ -246,6 +248,7 @@ IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
 OUT_FILE="${analysis_dir}/${proposal}_RT_Prediction_papermill.ipynb"
 
 PARAMETERS+=" -p experiment $exp \
+	      -p workflow_name '${workflow_name}' \
 	      -p project_directory $project_dir \
 	      -p max_cpus $threads_to_use \
 	      -p rt_predict_number $rt_predict_num"

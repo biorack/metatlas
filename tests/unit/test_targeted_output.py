@@ -1,9 +1,13 @@
-""" unit testing of targeted_output functions """
-# pylint: disable=missing-function-docstring
+""" tests for metatlas.targeted.process"""
+# pylint: disable=missing-function-docstring,protected-access,unused-argument,too-many-arguments
 
-from metatlas.io import targeted_output
+import glob
+
+from metatlas.io.targeted_output import generate_all_outputs
 
 
-def test_write_msms_fragment_ions01(metatlas_dataset):
-    out = targeted_output.write_msms_fragment_ions(metatlas_dataset, min_mz=100, max_mz_offset=0.5)
-    assert out.loc[0, "spectrum"] == "[[252.11, 252.16], [100000, 7912]]"
+def test_generate_all_outputs01(metatlas_dataset, hits, mocker, configuration, workflow, analysis):
+    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
+    generate_all_outputs(metatlas_dataset, configuration, workflow, analysis)
+    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 15
+    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 19

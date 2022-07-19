@@ -22,7 +22,10 @@ import metatlas.datastructures.analysis_identifiers as ids
 import metatlas.datastructures.metatlas_dataset as mads
 import metatlas.datastructures.metatlas_objects as metob
 import metatlas.datastructures.object_helpers as metoh
-from metatlas.tools import predict_rt
+import metatlas.tools.config as config
+
+from metatlas.targeted import rt_alignment
+from metatlas.tools.util import repo_path
 
 logger = logging.getLogger(__name__)
 
@@ -37,49 +40,51 @@ def fixture_username():
 
 
 @pytest.fixture(name="analysis_ids")
-def fixture_analysis_ids(sqlite_with_atlas, username, lcmsrun, mocker, groups_controlled_vocab):
+def fixture_analysis_ids(sqlite_with_atlas, lcmsrun, configuration, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     project_directory = str(os.getcwd())
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
-    output_type = "FinalEMA-HILIC"
     polarity = "positive"
     analysis_number = 0
     google_folder = "0B-ZDcHbPi-aqZzE5V3hOZFc0dms"
     return ids.AnalysisIdentifiers(
-        project_directory,
-        experiment,
-        output_type,
-        polarity,
-        analysis_number,
-        google_folder,
-        source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}_0_0",
+        project_directory=project_directory,
+        experiment=experiment,
+        polarity=polarity,
+        analysis_number=analysis_number,
+        google_folder=google_folder,
+        source_atlas="HILICz150_ANT20190824_PRD_EMA_Unlab_POS",
+        copy_atlas=True,
+        configuration=configuration,
+        workflow="JGI-HILIC",
+        analysis="EMA-POS",
     )
 
 
 @pytest.fixture(name="analysis_ids_with_2_cids")
-def fixture_analysis_ids_with_2_cids(
-    sqlite_with_atlas_with_2_cids, username, lcmsrun, mocker, groups_controlled_vocab
-):
+def fixture_analysis_ids_with_2_cids(sqlite_with_atlas_with_2_cids, lcmsrun, configuration, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     project_directory = str(os.getcwd())
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
-    output_type = "FinalEMA-HILIC"
     polarity = "positive"
     analysis_number = 0
     google_folder = "0B-ZDcHbPi-aqZzE5V3hOZFc0dms"
     return ids.AnalysisIdentifiers(
-        project_directory,
-        experiment,
-        output_type,
-        polarity,
-        analysis_number,
-        google_folder,
-        source_atlas=f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}_0_0",
+        project_directory=project_directory,
+        experiment=experiment,
+        polarity=polarity,
+        analysis_number=analysis_number,
+        google_folder=google_folder,
+        source_atlas="HILICz150_ANT20190824_PRD_EMA_Unlab_POS",
+        copy_atlas=True,
+        configuration=configuration,
+        workflow="JGI-HILIC",
+        analysis="EMA-POS",
     )
 
 
 @pytest.fixture(name="sqlite")
-def fixture_sqlite(username, change_test_dir, atlas):
+def fixture_sqlite(username):
     logging.debug("creating database file in %s", os.getcwd())
     assert not os.path.exists(f"{username}_workspace.db")
     sqlite3.connect(f"{username}_workspace.db").close()
@@ -97,15 +102,15 @@ def fixture_sqlite(username, change_test_dir, atlas):
 
 
 @pytest.fixture(name="sqlite_with_atlas")
-def fixture_sqlite_with_atlas(sqlite, atlas, username):
-    atlas.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}_0_0"
+def fixture_sqlite_with_atlas(sqlite, atlas):
+    atlas.name = "HILICz150_ANT20190824_PRD_EMA_Unlab_POS"
     logger.debug("Saving atlas %s", atlas.name)
     metob.store(atlas)
 
 
 @pytest.fixture(name="sqlite_with_atlas_with_2_cids")
-def fixture_sqlite_with_atlas_with_2_cids(sqlite, atlas_with_2_cids, username):
-    atlas_with_2_cids.name = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}_0_0"
+def fixture_sqlite_with_atlas_with_2_cids(sqlite, atlas_with_2_cids):
+    atlas_with_2_cids.name = "HILICz150_ANT20190824_PRD_EMA_Unlab_POS"
     logger.debug("Saving atlas %s", atlas_with_2_cids.name)
     metob.store(atlas_with_2_cids)
 
@@ -2274,6 +2279,33 @@ def fixture_model():
     transformed_pred = np.array([4, 5, 6]).reshape(-1, 1)
     ransac = RANSACRegressor(random_state=42)
     rt_model_linear = ransac.fit(transformed_pred, transformed_actual)
-    return predict_rt.Model(
+    return rt_alignment.Model(
         rt_model_linear, rt_model_linear.estimator_.intercept_[0], rt_model_linear.estimator_.coef_
     )
+
+
+@pytest.fixture(name="analysis_parameters")
+def fixture_analysis_parameters():
+    return {
+        "config_file_name": repo_path() / "metatlas_config.yaml",
+        "workflow_name": "JGI-HILIC",
+        "analysis_name": "EMA-POS",
+    }
+
+
+@pytest.fixture(name="configuration")
+def fixture_configuration(analysis_parameters):
+    configuration, _, _ = config.get_config(analysis_parameters)
+    return configuration
+
+
+@pytest.fixture(name="workflow")
+def fixture_workflow(analysis_parameters):
+    _, workflow, _ = config.get_config(analysis_parameters)
+    return workflow
+
+
+@pytest.fixture(name="analysis")
+def fixture_analysis(analysis_parameters):
+    _, _, analysis = config.get_config(analysis_parameters)
+    return analysis

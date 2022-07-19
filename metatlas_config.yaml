@@ -1,0 +1,187 @@
+chromatography_types:
+  - name: HILIC
+    aliases:
+      - HILICZ
+      - Ag683775
+  - name: C18
+    aliases: []
+workflows:
+    - name: JGI-HILIC
+      rt_alignment:
+        atlas:
+          name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+          username: vrsingan
+        parameters:
+          include_groups: ["QC"]
+          exclude_groups: ["NEG"]
+          groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+          google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
+      analyses:
+        - name: QC-POS
+          atlas:
+            name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+            username: vrsingan
+          parameters:
+            polarity: positive
+            include_groups: ["QC"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            exclude_files: ["NEG"]
+            generate_qc_outputs: True
+            generate_post_annotation_outputs: False
+            copy_atlas: False
+        - name: ISTDsEtc-POS
+          atlas:
+            name: HILICz150_ANT20190824_TPL_IS_LabUnlab2_POS
+            username: vrsingan
+          parameters:
+            polarity: positive
+            exclude_groups: ["QC", "NEG", "FPS"]
+            exclude_groups_for_outputs: ["QC", "NEG", "FPS"]
+            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            generate_qc_outputs: True
+            require_all_evaluated: False
+            msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+        - name: EMA-POS
+          atlas:
+            name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS
+            username: vrsingan
+          parameters:
+            polarity: positive
+            exclude_groups: ["QC", "NEG", "FPS"]
+            exclude_groups_for_outputs: ["QC", "NEG", "FPS"]
+            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            filter_removed: True
+            num_points: 5
+            peak_height: 4e5
+            msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+        - name: QC-NEG
+          atlas:
+            name: HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG
+            username: vrsingan
+          parameters:
+            polarity: negative
+            include_groups: ["QC"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            exclude_files: ["POS"]
+            generate_qc_outputs: True
+            generate_post_annotation_outputs: False
+            copy_atlas: False
+        - name: ISTDsEtc-NEG
+          atlas:
+            name: HILICz150_ANT20190824_TPL_IS_LabUnlab2_NEG
+            username: vrsingan
+          parameters:
+            polarity: negative
+            exclude_groups: ["QC", "POS", "FPS"]
+            exclude_groups_for_outputs: ["QC", "POS", "FPS"]
+            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            generate_qc_outputs: True
+            require_all_evaluated: False
+            msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+        - name: EMA-NEG
+          atlas:
+            name: HILICz150_ANT20190824_TPL_EMA_Unlab_NEG
+            username: vrsingan
+          parameters:
+            polarity: negative
+            exclude_groups: ["QC", "POS", "FPS"]
+            exclude_groups_for_outputs: ["QC", "POS", "FPS"]
+            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            filter_removed: True
+            num_points: 5
+            peak_height: 4e5
+            msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+    - name: JGI-C18
+      rt_alignment:
+        atlas:
+          name: C18_20220215_TPL_IS_Unlab_POS
+          username: wjholtz
+        parameters:
+          include_groups: ["QC"]
+          groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+          google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
+      analyses:
+        - name: QC-POS
+          atlas:
+            name: C18_20220215_TPL_IS_Unlab_POS
+            username: wjholtz
+          parameters:
+            polarity: positive
+            include_groups: ["QC"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            exclude_files: ["NEG"]
+            generate_qc_outputs: True
+            generate_post_annotation_outputs: False
+            copy_atlas: False
+        - name: ISTDsEtc-POS
+          atlas:
+            name: C18_20220215_TPL_IS_Unlab_POS
+            username: wjholtz
+          parameters:
+            polarity: positive
+            exclude_groups: ["QC", "NEG", "FPS"]
+            exclude_groups_for_outputs: ["QC", "NEG", "FPS"]
+            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            generate_qc_outputs: True
+            require_all_evaluated: False
+            msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+        - name: EMA-POS
+          atlas:
+            name: C18_20220531_TPL_EMA_Unlab_POS
+            username: wjholtz
+          parameters:
+            polarity: positive
+            exclude_groups: ["QC", "NEG", "FPS"]
+            exclude_groups_for_outputs: ["QC", "NEG", "FPS"]
+            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            num_points: 3
+            peak_height: 1e6
+            msms_score: 0.6
+            filter_removed: True
+            msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+        - name: QC-NEG
+          atlas:
+            name: C18_20220215_TPL_IS_Unlab_NEG
+            username: wjholtz
+          parameters:
+            polarity: negative
+            include_groups: ["QC"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            exclude_files: ["POS"]
+            generate_qc_outputs: True
+            generate_post_annotation_outputs: False
+            copy_atlas: False
+        - name: ISTDsEtc-NEG
+          atlas:
+            name: C18_20220215_TPL_IS_Unlab_NEG
+            username: wjholtz
+          parameters:
+            polarity: negative
+            exclude_groups: ["QC", "POS", "FPS"]
+            exclude_groups_for_outputs: ["QC", "POS", "FPS"]
+            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            generate_qc_outputs: True
+            require_all_evaluated: False
+            msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+        - name: EMA-NEG
+          atlas:
+            name: C18_20220531_TPL_EMA_Unlab_NEG
+            username: wjholtz
+          parameters:
+            polarity: negative
+            exclude_groups: ["QC", "POS", "FPS"]
+            exclude_groups_for_outputs: ["QC", "POS", "FPS"]
+            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            num_points: 3
+            peak_height: 1e6
+            msms_score: 0.6
+            filter_removed: True
+            msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab

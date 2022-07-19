@@ -8,6 +8,8 @@ from typing import Any, Dict
 
 import pandas as pd
 
+PAPERMILL_ENV = {"PAPERMILL_EXECUTION": "True"}
+
 
 def num_files_in(path: os.PathLike) -> int:
     """Returns number of files in path. Does not count directories"""
@@ -60,8 +62,9 @@ def assert_dfs_match(expected: Dict[os.PathLike, Dict[str, Dict[int, Any]]]) -> 
         pd.testing.assert_frame_equal(disk_df, expected_df)
 
 
-def exec_docker(image: str, command: str, out_path: os.PathLike) -> None:
+def exec_docker(image: str, command: str, out_path: os.PathLike, env: Dict) -> None:
     """execute command in image with out_path mounted at /out"""
+    env_flags = [x for key, value in env.items() for x in ("--env", f"{key}={value}")]
     subprocess.run(
         [
             "docker",
@@ -71,6 +74,7 @@ def exec_docker(image: str, command: str, out_path: os.PathLike) -> None:
             f"{os.getcwd()}:/src",
             "-v",
             f"{out_path}:/out",
+            *env_flags,
             image,
             "/bin/bash",
             "-c",

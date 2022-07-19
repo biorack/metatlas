@@ -1,14 +1,14 @@
-""" unit testing of predict_rt functions """
+""" unit testing of rt_alignment functions """
 # pylint: disable=missing-function-docstring
 
 import pandas as pd
 
-from metatlas.tools import predict_rt
+from metatlas.targeted import rt_alignment
 
 
 def test_get_rts01(metatlas_dataset):
     # pylint: disable=line-too-long
-    rts_df = predict_rt.get_rts(metatlas_dataset, include_atlas_rt_peak=False)
+    rts_df = rt_alignment.get_rts(metatlas_dataset, include_atlas_rt_peak=False)
     assert f"{rts_df.iloc[0]['min']:0.5f}" == "2.29224"
     assert (
         rts_df.to_json()
@@ -18,19 +18,19 @@ def test_get_rts01(metatlas_dataset):
 
 def test_adjust_atlas_rt_range01(atlas):
     orig_rt_min = atlas.compound_identifications[0].rt_references[0].rt_min
-    mod_atlas = predict_rt.adjust_atlas_rt_range(atlas, -0.1, 0.1)
+    mod_atlas = rt_alignment.adjust_atlas_rt_range(atlas, -0.1, 0.1)
     mod_rt_min = mod_atlas.compound_identifications[0].rt_references[0].rt_min
     assert orig_rt_min != mod_rt_min
 
 
 def test_adjust_atlas_rt_range02(atlas):
     orig_rt_max = atlas.compound_identifications[0].rt_references[0].rt_max
-    mod_atlas = predict_rt.adjust_atlas_rt_range(atlas, -0.1, 0.1)
+    mod_atlas = rt_alignment.adjust_atlas_rt_range(atlas, -0.1, 0.1)
     mod_rt_max = mod_atlas.compound_identifications[0].rt_references[0].rt_max
     assert orig_rt_max != mod_rt_max
 
 
-def test_plot_actual_vs_pred_rts01(model):
+def test_plot_actual_vs_aligned_rts01(model):
     arrays = [[]]
     rts_df = pd.DataFrame(data={"1": [], "2": [], "3": [], "4": [], "5": [], "6": []})
-    predict_rt.plot_actual_vs_pred_rts(arrays, arrays, rts_df, "file_name", model, model)
+    rt_alignment.plot_actual_vs_aligned_rts(arrays, arrays, rts_df, "file_name", model, model)

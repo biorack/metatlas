@@ -169,7 +169,11 @@ INSTRUCTIONS_PATH = '/global/cfs/cdirs/m2650/targeted_analysis/instructions_for_
 
 class InstructionSet(object):
     def __init__(self, instructions_path):
-        self.data = pd.read_csv(instructions_path, dtype=str, na_values=[], keep_default_na=False)
+        try:
+            self.data = pd.read_csv(instructions_path, dtype=str, na_values=[], keep_default_na=False)
+        except FileNotFoundError:
+            logger.warning('Could not find instructions file %s.', instructions_path)
+            self.data = pd.DataFrame()
 
     def query(self, inchi_key, adduct, chromatography, polarity):
         inputs = {"inchi_key": inchi_key, "adduct": adduct, "chromatography": chromatography, "polarity": polarity}

@@ -1,7 +1,6 @@
 """ object oriented interface to metatlas_dataset """
 
 import datetime
-import getpass
 import glob
 import logging
 import os
@@ -37,7 +36,6 @@ from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
 from metatlas.datastructures.utils import AtlasName, get_atlas, Username
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
-from metatlas.io import targeted_output
 from metatlas.tools import parallel
 
 logger = logging.getLogger(__name__)
@@ -580,13 +578,15 @@ class MetatlasDataset(HasTraits):
     def _get_hits_metadata(self) -> Dict[str, Any]:
         return {
             "_variable_name": "hits",
-            "polarity": self.ids.polarity,
             "extra_time": self.extra_time,
             "keep_nonmatches": self.keep_nonmatches,
             "frag_mz_tolerance": self.frag_mz_tolerance,
             "ref_loc": self.msms_refs_loc,
             "extra_mz": self.extra_mz,
-            "output_type": self.ids.output_type,
+            "source_atlas": self.ids.source_atlas,
+            "exclude_files": self.ids.exclude_files,
+            "exclude_groups": self.ids.exclude_groups,
+            "include_groups": self.ids.include_groups,
         }
 
     def __len__(self) -> int:
@@ -688,63 +688,12 @@ class MetatlasDataset(HasTraits):
             logger.exception(err)
             raise err
 
-    def annotation_gui(
-        self,
-        compound_idx: int = 0,
-        width: float = 15,
-        height: float = 3,
-        alpha: float = 0.5,
-        colors="",
-        adjustable_rt_peak=False,
-    ) -> dp.adjust_rt_for_selected_compound:
-        """
-        Opens the interactive GUI for setting RT bounds and annotating peaks
-        inputs:
-            compound_idx: number of compound-adduct pair to start at
-            width: width of interface in inches
-            height: height of each plot in inches
-            alpha: (0-1] controls transparency of lines on EIC plot
-            colors: list (color_id, search_string) for coloring lines on EIC plot
-                    based on search_string occuring in LCMS run filename
-        """
-        display(dp.LOGGING_WIDGET)  # surface event handler error messages in UI
-        return dp.adjust_rt_for_selected_compound(
-            self,
-            msms_hits=self.hits,
-            color_me=colors,
-            compound_idx=compound_idx,
-            alpha=alpha,
-            width=width,
-            height=height,
-            adjustable_rt_peak=adjustable_rt_peak,
-        )
-
-    def generate_all_outputs(self, msms_fragment_ions: bool = False, overwrite: bool = False) -> None:
-        """
-        Generates the default set of outputs for a targeted experiment
-        inputs:
-            msms_fragment_ions: if True, generate msms fragment ions report
-            overwrite: if False, throw error if any output files already exist
-        """
+    def update(self) -> None:
+        """update hits and data if they no longer are based on current rt bounds"""
         if not self._hits_valid_for_rt_bounds:
             self._hits = None  # force hits to be regenerated
         if not self._data_valid_for_rt_bounds:
             self._data = None  # force data to be regenerated
-        self.extra_time = 0.5
-        logger.info("extra_time set to 0.5 minutes for output generation.")
-        logger.info("Removing InjBl from exclude_groups.")
-        self.ids.remove_from_exclude_groups(["InjBl"])
-        targeted_output.write_atlas_to_spreadsheet(self, overwrite=overwrite)
-        targeted_output.write_stats_table(self, overwrite=overwrite)
-        targeted_output.write_chromatograms(self, overwrite=overwrite, max_cpus=self.max_cpus)
-        targeted_output.write_identification_figure(self, overwrite=overwrite)
-        targeted_output.write_metrics_and_boxplots(self, overwrite=overwrite, max_cpus=self.max_cpus)
-        targeted_output.write_tics(self, overwrite=overwrite, x_min=1.5)
-        if msms_fragment_ions:
-            targeted_output.write_msms_fragment_ions(self, overwrite=overwrite)
-        logger.info("Generation of output files completed sucessfully.")
-        targeted_output.archive_outputs(self.ids)
-        targeted_output.copy_outputs_to_google_drive(self.ids)
 
 
 def _duration_since(start: datetime.datetime) -> str:
@@ -820,54 +769,3 @@ def _error_if_bad_idxs(dataframe: pd.DataFrame, test_idx_list: List[int]) -> Non
 def quoted_string_list(strings: List[str]) -> str:
     """Adds double quotes around each string and seperates with ', '."""
     return ", ".join([f'"{x}"' for x in strings])
-
-
-# pylint: disable=too-many-arguments,too-many-locals
-def pre_annotation(
-    source_atlas: AtlasName,
-    experiment: Experiment,
-    output_type: OutputType,
-    polarity: Polarity,
-    analysis_number: IterationNumber,
-    project_directory: PathString,
-    google_folder: str,
-    groups_controlled_vocab: GroupMatchList,
-    exclude_files: FileMatchList,
-    num_points: int,
-    peak_height: float,
-    max_cpus: int,
-    msms_score: float = None,
-    username: Username = None,
-    clear_cache: bool = False,
-    rt_predict_number: int = 0,
-) -> MetatlasDataset:
-    """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
-    ids = analysis_ids.AnalysisIdentifiers(
-        source_atlas=source_atlas,
-        experiment=experiment,
-        output_type=output_type,
-        polarity=polarity,
-        analysis_number=analysis_number,
-        project_directory=project_directory,
-        google_folder=google_folder,
-        groups_controlled_vocab=groups_controlled_vocab,
-        exclude_files=exclude_files,
-        username=getpass.getuser() if username is None else username,
-        rt_predict_number=rt_predict_number,
-    )
-    if clear_cache:
-        shutil.rmtree(ids.cache_dir)
-    metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=max_cpus)
-    if "FinalEMA" in metatlas_dataset.ids.output_type:
-        metatlas_dataset.filter_compounds_by_signal(num_points, peak_height, msms_score)
-    return metatlas_dataset
-
-
-def post_annotation(metatlas_dataset: MetatlasDataset, require_all_evaluated=True) -> None:
-    """All data processing that needs to occur after the annotation GUI in Targeted notebook"""
-    if "FinalEMA" in metatlas_dataset.ids.output_type:
-        if require_all_evaluated:
-            metatlas_dataset.error_if_not_all_evaluated()
-        metatlas_dataset.filter_compounds_ms1_notes_remove()
-    metatlas_dataset.generate_all_outputs()
-    logger.info("DONE - execution of notebook is complete.")

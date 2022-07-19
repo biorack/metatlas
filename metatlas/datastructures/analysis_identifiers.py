@@ -10,8 +10,7 @@ from typing import cast, Dict, List, Optional, Union
 import pandas as pd
 import traitlets
 
-from traitlets import Bool, TraitError, observe, validate
-from traitlets import HasTraits, Int, Unicode
+from traitlets import observe, validate, Bool, HasTraits, Int, Instance, TraitError, Unicode
 from traitlets.traitlets import ObserveHandler
 
 from metatlas.datastructures.id_types import (
@@ -26,20 +25,19 @@ from metatlas.datastructures.id_types import (
     Polarity,
     POLARITIES,
     Proposal,
-    OutputType,
-    OUTPUT_TYPES,
     ShortPolarity,
     SHORT_POLARITIES,
 )
 import metatlas.datastructures.metatlas_objects as metob
 import metatlas.plots.dill2plots as dp
+
 from metatlas.datastructures.utils import AtlasName, get_atlas, Username
 from metatlas.io import write_utils
+from metatlas.tools.config import Config
 from metatlas.tools.util import or_default
 
-logger = logging.getLogger(__name__)
 
-DEFAULT_GROUPS_CONTROLLED_VOCAB = cast(GroupMatchList, ["QC", "InjBl", "ISTD"])
+logger = logging.getLogger(__name__)
 
 MSMS_REFS_PATH = PathString("/global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab")
 
@@ -49,22 +47,23 @@ class AnalysisIdentifiers(HasTraits):
 
     project_directory: PathString = Unicode(read_only=True)
     experiment: Experiment = Unicode(read_only=True)
-    output_type: OutputType = Unicode(read_only=True)
     polarity: Polarity = Unicode(default_value="positive", read_only=True)
     analysis_number: IterationNumber = Int(default_value=0, read_only=True)
-    rt_predict_number: IterationNumber = Int(default_value=0, read_only=True)
+    rt_alignment_number: IterationNumber = Int(default_value=0, read_only=True)
     google_folder: str = Unicode(read_only=True)
-
-    source_atlas: Optional[AtlasName] = Unicode(allow_none=True, default_value=None, read_only=True)
+    source_atlas: AtlasName = Unicode(read_only=True)
+    source_atlas_username: Username = Unicode(default_value=getpass.getuser(), read_only=True)
     copy_atlas: bool = Bool(default_value=True, read_only=True)
     username: Username = Unicode(default_value=getpass.getuser(), read_only=True)
     exclude_files: FileMatchList = traitlets.List(trait=Unicode(), default_value=[], read_only=True)
-    include_groups: GroupMatchList = traitlets.List(read_only=True)
-    exclude_groups: GroupMatchList = traitlets.List(read_only=True)
+    include_groups: GroupMatchList = traitlets.List(default_value=[], read_only=True)
+    exclude_groups: GroupMatchList = traitlets.List(default_value=[], read_only=True)
     groups_controlled_vocab: GroupMatchList = traitlets.List(
-        trait=Unicode(), default_value=DEFAULT_GROUPS_CONTROLLED_VOCAB, read_only=True
+        trait=Unicode(), default_value=[], read_only=True
     )
-
+    configuration: Config = Instance(klass=Config)
+    workflow: str = Unicode(read_only=True)
+    analysis: str = Unicode(read_only=True)
     _lcmsruns: LcmsRunsList = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _all_groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
@@ -74,11 +73,11 @@ class AnalysisIdentifiers(HasTraits):
         self,
         project_directory,
         experiment,
-        output_type,
-        polarity,
         analysis_number,
         google_folder,
+        polarity=None,
         source_atlas=None,
+        source_atlas_username=None,
         copy_atlas=True,
         username=None,
         exclude_files=None,
@@ -87,52 +86,39 @@ class AnalysisIdentifiers(HasTraits):
         groups_controlled_vocab=None,
         lcmsruns=None,
         all_groups=None,
-        rt_predict_number=0,
+        rt_alignment_number=0,
+        configuration=None,
+        workflow=None,
+        analysis="RT_Alignment",
     ) -> None:
         super().__init__()
         self.set_trait("project_directory", project_directory)
         self.set_trait("experiment", experiment)
-        self.set_trait("output_type", output_type)
-        self.set_trait("polarity", polarity)
+        self.set_trait("polarity", Polarity(or_default(polarity, "positive")))
         self.set_trait("analysis_number", analysis_number)
-        self.set_trait("rt_predict_number", rt_predict_number)
+        self.set_trait("rt_alignment_number", rt_alignment_number)
         self.set_trait("google_folder", google_folder)
-        self.set_trait("source_atlas", source_atlas)
+        with self.hold_trait_notifications():
+            self.set_trait("source_atlas", source_atlas)
+            self.set_trait("source_atlas_username", or_default(source_atlas_username, getpass.getuser()))
         self.set_trait("copy_atlas", copy_atlas)
         self.set_trait("username", or_default(username, getpass.getuser()))
         self.set_trait("exclude_files", or_default(exclude_files, []))
-        self.set_trait("include_groups", or_default(include_groups, self._default_include_groups))
-        self.set_trait("exclude_groups", or_default(exclude_groups, self._default_exclude_groups))
-        self.set_trait(
-            "groups_controlled_vocab", or_default(groups_controlled_vocab, DEFAULT_GROUPS_CONTROLLED_VOCAB)
-        )
+        self.set_trait("include_groups", or_default(include_groups, []))
+        self.set_trait("exclude_groups", or_default(exclude_groups, []))
+        self.set_trait("groups_controlled_vocab", or_default(groups_controlled_vocab, []))
         self.set_trait("_lcmsruns", lcmsruns)
         self.set_trait("_all_groups", all_groups)
+        self.set_trait("configuration", configuration)
+        self.set_trait("workflow", workflow)
+        self.set_trait("analysis", analysis)
         logger.info(
-            "IDs: source_atlas=%s, atlas=%s, short_experiment_analysis=%s, output_dir=%s",
+            "IDs: source_atlas=%s, atlas=%s, output_dir=%s",
             self.source_atlas,
             self.atlas,
-            self.short_experiment_analysis,
             self.output_dir,
         )
         self.store_all_groups(exist_ok=True)
-        self.set_trait("exclude_groups", append_inverse(self.exclude_groups, self.polarity))
-
-    @property
-    def _default_include_groups(self) -> GroupMatchList:
-        if self.output_type == "data_QC":
-            return ["QC"]
-        return []
-
-    def _get_default_exclude_groups(self, polarity: Polarity) -> GroupMatchList:
-        out: GroupMatchList = ["InjBl", "InjBL"]
-        if self.output_type not in ["data_QC"]:
-            out.append("QC")
-        return append_inverse(out, polarity)
-
-    @property
-    def _default_exclude_groups(self) -> GroupMatchList:
-        return self._get_default_exclude_groups(self.polarity)
 
     @validate("polarity")
     def _valid_polarity(self, proposal: Proposal) -> Polarity:
@@ -140,18 +126,13 @@ class AnalysisIdentifiers(HasTraits):
             raise TraitError(f"Parameter polarity must be one of {', '.join(POLARITIES)}")
         return cast(Polarity, proposal["value"])
 
-    @validate("output_type")
-    def _valid_output_type(self, proposal: Proposal) -> OutputType:
-        if proposal["value"] not in OUTPUT_TYPES:
-            raise TraitError(f"Parameter output_type must be one of {', '.join(OUTPUT_TYPES)}")
-        return cast(OutputType, proposal["value"])
-
     @validate("source_atlas")
     def _valid_source_atlas(self, proposal: Proposal) -> Optional[AtlasName]:
         if proposal["value"] is not None:
             proposed_name = cast(AtlasName, proposal["value"])
             try:
-                get_atlas(proposed_name, cast(Username, "*"))  # raises error if not found or matches multiple
+                # raises error if not found or matches multiple
+                get_atlas(proposed_name, self.source_atlas_username)
             except ValueError as err:
                 raise TraitError(str(err)) from err
             return proposed_name
@@ -164,11 +145,11 @@ class AnalysisIdentifiers(HasTraits):
             raise TraitError("Parameter analysis_number cannot be negative.")
         return value
 
-    @validate("rt_predict_number")
-    def _valid_rt_predict_number(self, proposal: Proposal) -> IterationNumber:
+    @validate("rt_alignment_number")
+    def _valid_rt_alignment_number(self, proposal: Proposal) -> IterationNumber:
         value = cast(IterationNumber, proposal["value"])
         if value < 0:
-            raise TraitError("Parameter rt_predict_number cannot be negative.")
+            raise TraitError("Parameter rt_alignment_number cannot be negative.")
         return value
 
     @validate("experiment")
@@ -198,21 +179,14 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def atlas(self) -> AtlasName:
         """Atlas identifier (name)"""
-        if self.source_atlas is None or (self.copy_atlas and self.source_atlas is not None):
-            return AtlasName(
-                f"{'_'.join(self._exp_tokens[3:6])}_{self.output_type}_{self.short_polarity}_{self.analysis}"
-            )
+        if self.copy_atlas:
+            return AtlasName(f"{'_'.join(self._exp_tokens[3:6])}_{self.source_atlas}_{self.execution}")
         return self.source_atlas
 
     @property
-    def analysis(self) -> str:
-        """Analysis identifier"""
-        return f"{self.username}_{self.rt_predict_number}_{self.analysis_number}"
-
-    @property
-    def short_experiment_analysis(self) -> str:
-        """Short experiment analysis identifier"""
-        return f"{self._exp_tokens[0]}_{self._exp_tokens[3]}_{self.output_type}_{self.analysis}"
+    def execution(self) -> str:
+        """execution identifier"""
+        return f"{self.username}_{self.rt_alignment_number}_{self.analysis_number}"
 
     @property
     def short_polarity(self) -> ShortPolarity:
@@ -227,7 +201,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def output_dir(self) -> PathString:
         """Creates the output directory and returns the path as a string"""
-        sub_dirs = [self.experiment, self.analysis, self.output_type, self.short_polarity]
+        sub_dirs = [self.experiment, self.execution, "Targeted", self.workflow, self.analysis]
         out = os.path.join(self.project_directory, *sub_dirs)
         os.makedirs(out, exist_ok=True)
         return PathString(out)
@@ -346,12 +320,6 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("_groups", dp.filter_empty_metatlas_objects(out, "items"))
         return self._groups or []
 
-    @observe("polarity")
-    def _observe_polarity(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            self.set_trait("exclude_groups", self._get_default_exclude_groups(signal.new))
-            logger.debug("Change to polarity invalidates exclude_groups")
-
     @observe("_all_groups")
     def _observe_all_groups(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
@@ -391,7 +359,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def existing_groups(self) -> List[metob.Group]:
         """Get your own groups that are prefixed by self.experiment"""
-        return metob.retrieve("Groups", name=f"{self.experiment}%{self.analysis}_%", username=self.username)
+        return metob.retrieve("Groups", name=f"{self.experiment}%{self.execution}_%", username=self.username)
 
     def group_name(self, base_filename: str) -> Dict[str, str]:
         """Returns dict with keys group and short_name corresponding to base_filename"""
@@ -403,7 +371,7 @@ class AnalysisIdentifiers(HasTraits):
             if s.lower() in base_filename.lower()
         ]
         suffix = self.groups_controlled_vocab[indices[0]].lstrip("_") if indices else tokens[12]
-        group_name = f"{prefix}_{self.analysis}_{suffix}"
+        group_name = f"{prefix}_{self.execution}_{suffix}"
         short_name = f"{tokens[9]}_{suffix}"  # Prepending POL to short_name
         return {"group": group_name, "short_name": short_name}
 
@@ -442,13 +410,11 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def chromatography(self) -> str:
         """returns the type of chromatography used"""
-        alternatives: Dict[str, List[str]] = {"HILIC": ["HILICZ", "Ag683775"], "C18": []}
+        alternatives = {t.name: t.aliases for t in self.configuration.chromatography_types}
         chrom_field = self.lcmsruns[0].name.split("_")[7]
         chrom_type = chrom_field.split("-")[0]
-        if chrom_type in alternatives:
-            return chrom_type
         for name, alt_list in alternatives.items():
-            if chrom_type in alt_list:
+            if chrom_type == name or chrom_type in alt_list:
                 return name
         logger.warning("Unknown chromatography field '%s'.", chrom_type)
         return chrom_type
@@ -475,21 +441,3 @@ class AnalysisIdentifiers(HasTraits):
                 raise err
         logger.debug("Storing %d groups in the database", len(self.all_groups))
         metob.store(self.all_groups)
-
-    def remove_from_exclude_groups(self, remove_groups: List[str]) -> None:
-        """Remove items in remove_groups from exclude_groups"""
-        self.set_trait("exclude_groups", remove_items(self.exclude_groups, remove_groups))
-
-
-def append_inverse(in_list: List[str], polarity: Polarity) -> List[str]:
-    """appends short version of inverse of polarity to and retuns the list"""
-    inverse = {"positive": "NEG", "negative": "POS"}
-    return in_list + [inverse[polarity]] if polarity in inverse else in_list
-
-
-def remove_items(edit_list: List[str], remove_list: List[str], ignore_case: bool = True) -> List[str]:
-    """Returns list of items in edit_list but not in remove_list"""
-    if ignore_case:
-        lower_remove_list = [x.lower() for x in remove_list]
-        return [x for x in edit_list if x.lower() not in lower_remove_list]
-    return [x for x in edit_list if x not in remove_list]

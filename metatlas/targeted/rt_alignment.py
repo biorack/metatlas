@@ -1,4 +1,4 @@
-"""Generate Retention Time Correction Model"""
+"""Generate Model for Retention Time Alignment"""
 # pylint: disable=too-many-arguments
 
 import logging
@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
+import papermill
 
 from matplotlib import gridspec
 from matplotlib.axis import Axis
@@ -22,61 +23,23 @@ from sklearn.linear_model import LinearRegression, RANSACRegressor
 from sklearn.preprocessing import PolynomialFeatures
 from tqdm.notebook import tqdm
 
-from metatlas.datastructures.id_types import Polarity
-from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures.analysis_identifiers import AnalysisIdentifiers, MSMS_REFS_PATH
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.datastructures.utils import get_atlas
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io import targeted_output
 from metatlas.io import write_utils
+from metatlas.io.gdrive import copy_outputs_to_google_drive
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import notebook
 from metatlas.tools import parallel
+from metatlas.tools.config import Config, Workflow
+from metatlas.tools.util import or_default, repo_path
 
 logger = logging.getLogger(__name__)
 
 # metatlas_dataset type that isn't an instance of the MetatlasDataset class
 SimpleMetatlasData = List[List[dict]]
-
-TEMPLATES = {
-    "positive": {
-        "HILIC": [
-            {"name": "HILICz150_ANT20190824_TPL_EMA_Unlab_POS", "username": "vrsingan"},
-            {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
-            {"name": "HILICz150_ANT20190824_TPL_ISv5_Unlab_POS", "username": "vrsingan"},
-            {"name": "HILICz150_ANT20190824_TPL_ISv5_13C15N_POS", "username": "vrsingan"},
-            {"name": "HILICz150_ANT20190824_TPL_IS_LabUnlab2_POS", "username": "vrsingan"},
-        ],
-        "C18": [
-            {"name": "C18_20220215_TPL_IS_Unlab_POS", "username": "wjholtz"},
-            {"name": "C18_20220531_TPL_EMA_Unlab_POS", "username": "wjholtz"},
-        ],
-    },
-    "negative": {
-        "HILIC": [
-            {"name": "HILICz150_ANT20190824_TPL_EMA_Unlab_NEG", "username": "vrsingan"},
-            {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
-            {"name": "HILICz150_ANT20190824_TPL_ISv5_Unlab_NEG", "username": "vrsingan"},
-            {"name": "HILICz150_ANT20190824_TPL_ISv5_13C15N_NEG", "username": "vrsingan"},
-            {"name": "HILICz150_ANT20190824_TPL_IS_LabUnlab2_NEG", "username": "vrsingan"},
-        ],
-        "C18": [
-            {"name": "C18_20220215_TPL_IS_Unlab_NEG", "username": "wjholtz"},
-            {"name": "C18_20220531_TPL_EMA_Unlab_NEG", "username": "wjholtz"},
-        ],
-    },
-}
-
-QC_ATLASES = {
-    "positive": {
-        "HILIC": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "username": "vrsingan"},
-        "C18": {"name": "C18_20220215_TPL_IS_Unlab_POS", "username": "wjholtz"},
-    },
-    "negative": {
-        "HILIC": {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG", "username": "vrsingan"},
-        "C18": {"name": "C18_20220215_TPL_IS_Unlab_NEG", "username": "wjholtz"},
-    },
-}
 
 
 class Model:
@@ -122,14 +85,13 @@ class Model:
         return self.sk_model.predict(x_transformed).flatten().tolist()
 
 
-def generate_rt_correction_models(
+def generate_rt_alignment_models(
     ids: AnalysisIdentifiers,
     metatlas_dataset: SimpleMetatlasData,
     groups: Sequence[metob.Group],
     qc_atlas: metob.Atlas,
     qc_atlas_df: pd.DataFrame,
-    selected_col: str,
-    inchi_keys_not_in_model: Optional[List[str]] = None,
+    workflow: Workflow,
 ) -> Tuple[Model, Model]:
     """
     Generate the RT correction models and model charaterization files
@@ -139,93 +101,45 @@ def generate_rt_correction_models(
         inchi_keys_not_in_model: InChi Keys that will be ignored when for model creation
     Returns a tuple with a linear and polynomial model
     """
-    # pylint: disable=too-many-locals
+    params = workflow.rt_alignment.parameters
     rts_df = get_rts(metatlas_dataset)
-    actual, pred = subset_data_for_model_input(selected_col, rts_df, qc_atlas_df, inchi_keys_not_in_model)
+    actual, pred = subset_data_for_model_input(
+        params.dependent_data_source, rts_df, qc_atlas_df, params.inchi_keys_not_in_model
+    )
     linear, poly = generate_models(actual, pred)
-    out_dir = Path(ids.output_dir).parent
-    actual_rts, pred_rts = actual_and_predicted_rts(rts_df, qc_atlas_df, inchi_keys_not_in_model)
-    actual_vs_pred_file_name = out_dir / "Actual_vs_Predicted_RTs.pdf"
-    plot_actual_vs_pred_rts(pred_rts, actual_rts, rts_df, str(actual_vs_pred_file_name), linear, poly)
-    rt_comparison_file_name = out_dir / "RT_Predicted_Model_Comparison.csv"
-    save_model_comparison(selected_col, qc_atlas_df, rts_df, linear, poly, str(rt_comparison_file_name))
-    models_file_name = out_dir / "rt_model.txt"
+    out_dir = Path(ids.output_dir)
+    actual_rts, aligned_rts = actual_and_aligned_rts(rts_df, qc_atlas_df, params.inchi_keys_not_in_model)
+    actual_vs_pred_file_name = out_dir / "Actual_vs_Aligned_RTs.pdf"
+    plot_actual_vs_aligned_rts(aligned_rts, actual_rts, rts_df, str(actual_vs_pred_file_name), linear, poly)
+    rt_comparison_file_name = out_dir / "RT_Alignment_Model_Comparison.csv"
+    save_model_comparison(
+        params.dependent_data_source, qc_atlas_df, rts_df, linear, poly, str(rt_comparison_file_name)
+    )
+    models_file_name = out_dir / "rt_alignment_model.txt"
     write_models(str(models_file_name), linear, poly, groups, qc_atlas)
     return (linear, poly)
 
 
-def generate_outputs(
-    ids: AnalysisIdentifiers,
-    cpus: int,
-    num_points: Optional[int] = None,
-    peak_height: Optional[float] = None,
-    msms_score: Optional[float] = None,
-    use_poly_model: bool = True,
-    model_only: bool = False,
-    selected_col: str = "median",
-    stop_before: Optional[str] = None,
-    source_code_version_id: Optional[str] = None,
-    rt_min_delta: Optional[float] = None,
-    rt_max_delta: Optional[float] = None,
-    inchi_keys_not_in_model: Optional[List[str]] = None,
-) -> None:
+def generate_outputs(ids: AnalysisIdentifiers, workflow: Workflow) -> None:
     """
-    Generate the RT correction models, associated atlases with adjusted RT values, follow up notebooks,
-    msms hits pickles
-    inputs:
-        ids: an AnalysisIds object matching the one used in the main notebook
-        cpus: max number of cpus to use
-        num_points: minimum number of data points in a peak
-        peak_height: threshold intensity level for filtering
-        msms_score: minimum spectra similarity score to pass filtering
-        use_poly_model: If True, use the polynomial model, else use linear model
-                        Both types of models are always generated, this only determines which ones
-                        are pre-populated into the generated notebooks
-        model_only: Setting to true is equivalent to stop_before=qc_plots
-        selected_col: name of column to use for model generation
-        stop_before: one of None, qc_plots, atlases, notebooks, msms_hits
-                     stop before generating this output and all following outputs
-                     ISTDEtc QC plots are only generated if step_before is None
-        source_code_version_id: pass through parameter to downstream notebooks
-        rt_min_delta: added to atlas' rt_peak to generate rt_min, None uses atlas value for rt_min
-        rt_max_delta: added to atlas' rt_peak to generate rt_max, None uses atlas value for rt_max
-        inchi_keys_not_in_model: InChi Keys that will be ignored when for model creation
+    Generate the RT alignment models, associated atlases with relative RT values, follow up notebooks
     """
     # pylint: disable=too-many-locals
-    stop_before = "qc_plots" if model_only else stop_before
-    assert stop_before in ["qc_plots", "atlases", "notebooks", "msms_hits", None]
-    metatlas_dataset, groups, atlas, atlas_df = load_data(ids, cpus, rt_min_delta, rt_max_delta)
-    linear, poly = generate_rt_correction_models(
-        ids, metatlas_dataset, groups, atlas, atlas_df, selected_col, inchi_keys_not_in_model
-    )
-    if stop_before in ["atlases", "notebooks", "msms_hits", None]:
-        alt_ids = get_analysis_ids_for_rt_prediction(
-            ids.experiment,
-            ids.project_directory,
-            ids.google_folder,
-            ids.rt_predict_number,
-            Polarity("negative" if ids.polarity == "positive" else "positive"),
-            ids.exclude_files,
-            ids.include_groups,
-            ids.exclude_groups,
-            ids.groups_controlled_vocab,
-        )
-        alt_metatlas_dataset, _, _, _ = load_data(alt_ids, cpus, rt_min_delta, rt_max_delta)
-        generate_qc_outputs(metatlas_dataset, ids, cpus)
-        generate_qc_outputs(alt_metatlas_dataset, alt_ids, cpus)
-    if stop_before in ["notebooks", "msms_hits", None]:
-        atlases = create_adjusted_atlases(linear, poly, ids)
-    if stop_before in ["msms_hits", None]:
-        write_notebooks(
-            ids, atlases, use_poly_model, num_points, peak_height, msms_score, source_code_version_id
-        )
-    if stop_before is None:
-        pre_process_data_for_all_notebooks(
-            ids, atlases, cpus, use_poly_model, num_points, peak_height, msms_score
-        )
-    targeted_output.copy_outputs_to_google_drive(ids)
+    params = workflow.rt_alignment.parameters
+    assert params.stop_before in ["atlases", "notebook_generation", "notebook_execution", None]
+    metatlas_dataset, groups, atlas, atlas_df = load_data(ids, workflow)
+    linear, poly = generate_rt_alignment_models(ids, metatlas_dataset, groups, atlas, atlas_df, workflow)
+    if params.stop_before in ["notebook_generation", "notebook_execution", None]:
+        atlases = create_aligned_atlases(linear, poly, ids, workflow)
+    if params.stop_before in ["notebook_execution", None]:
+        notebook_file_names = write_notebooks(ids, atlases, workflow)
+    if params.stop_before is None:
+        for in_file_name in notebook_file_names:
+            out_file_name = in_file_name.with_name(in_file_name.stem + "_SLURM.ipynb")
+            papermill.execute_notebook(in_file_name, out_file_name, {}, kernel_name="papermill")
+    copy_outputs_to_google_drive(ids)
     targeted_output.archive_outputs(ids)
-    logger.info("RT correction notebook complete. Switch to Targeted notebook to continue.")
+    logger.info("RT_Alignment notebook complete. Switch to an analysis notebook to continue.")
 
 
 def generate_qc_plots(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdentifiers) -> None:
@@ -258,16 +172,15 @@ def generate_qc_outputs(metatlas_dataset: SimpleMetatlasData, ids: AnalysisIdent
 
 def load_data(
     ids: AnalysisIdentifiers,
-    cpus: int,
-    rt_min_delta: Optional[float],
-    rt_max_delta: Optional[float],
+    workflow: Workflow,
 ) -> Tuple[SimpleMetatlasData, List[metob.Group], metob.Atlas, pd.DataFrame]:
     """create metatlas_dataset, groups and atlas"""
+    params = workflow.rt_alignment.parameters
     groups = get_groups(ids)
     files_df = get_files_df(groups)
-    qc_atlas, qc_atlas_df = get_qc_atlas(ids, rt_min_delta, rt_max_delta)
+    qc_atlas, qc_atlas_df = get_qc_atlas(workflow)
     # this metatlas_dataset is not a class instance. Only has metatlas_dataset[file_idx][compound_idx]...
-    metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, cpus)
+    metatlas_dataset = load_runs(files_df, qc_atlas_df, qc_atlas, params.max_cpus)
     try:
         if len(metatlas_dataset) == 0:
             raise ValueError("No matching LCMS runs, terminating without generating outputs.")
@@ -306,55 +219,6 @@ def write_identification_figures(
     )
 
 
-def pre_process_data_for_all_notebooks(
-    ids: AnalysisIdentifiers,
-    atlases: Sequence[str],
-    cpus: int,
-    use_poly_model: bool,
-    num_points: Optional[int],
-    peak_height: Optional[float],
-    msms_score: Optional[float],
-) -> None:
-    """
-    inputs:
-        ids: an AnalysisIds object matching the one used in the main notebook
-        atlases: list of atlas names to consider generating hits for
-        cpus: max number of cpus to use
-        use_poly_model: If True, use the polynomial model, else use linear model
-                        Both types of models are always generated, this only determines which ones
-                        are pre-populated into the generated notebooks
-        num_points: minimum number of data points in a peak
-        peak_height: threshold intensity level for filtering
-        msms_score: minimum spectra similarity score to pass filtering
-    Calls MetatlasDataset().hits, which will create a hits cache file
-    Filters compounds by signal strength to reduce atlas size
-    """
-    for atlas_name in atlases:
-        if (use_poly_model and "linear" in atlas_name) or (not use_poly_model and "polynomial" in atlas_name):
-            continue
-        current_ids = AnalysisIdentifiers(
-            source_atlas=atlas_name,
-            experiment=ids.experiment,
-            output_type=get_output_type(ids.chromatography, atlas_name),
-            polarity="positive" if "_POS_" in atlas_name else "negative",
-            analysis_number=ids.analysis_number,
-            project_directory=ids.project_directory,
-            google_folder=ids.google_folder,
-            rt_predict_number=ids.rt_predict_number,
-        )
-        metatlas_dataset = mads.MetatlasDataset(ids=current_ids, max_cpus=cpus)
-        if current_ids.output_type == "ISTDsEtc":
-            generate_qc_plots(metatlas_dataset, current_ids)
-        _ = metatlas_dataset.hits
-        if "EMA" in current_ids.output_type:
-            metatlas_dataset.filter_compounds_by_signal(num_points, peak_height, msms_score)
-
-
-def get_output_type(chromatography: str, atlas_name: str) -> str:
-    """Returns an output type string"""
-    return f"FinalEMA-{chromatography}" if "EMA" in atlas_name else "ISTDsEtc"
-
-
 def get_groups(ids: AnalysisIdentifiers) -> List[metob.Group]:
     """
     Create all experiment groups if they don't already exist and return the subset matching include_list
@@ -376,25 +240,22 @@ def get_files_df(groups: Sequence[metob.Group]) -> pd.DataFrame:
     """Pandas Datafram with one row per file plus columns for accquistion_time and group name"""
     files_df = pd.DataFrame(columns=["file", "time", "group"])
     for group in groups:
-        for run in group.items:
+        for lcms_run in group.items:
             try:
-                time = run.accquistion_time
+                time = lcms_run.accquistion_time
             except AttributeError:
                 time = 0
-            files_df = files_df.append({"file": run, "time": time, "group": group}, ignore_index=True)
+            files_df = files_df.append({"file": lcms_run, "time": time, "group": group}, ignore_index=True)
     return files_df.sort_values(by=["time"])
 
 
-def get_qc_atlas(
-    ids: AnalysisIdentifiers, rt_min_delta: Optional[float], rt_max_delta: Optional[float]
-) -> Tuple[metob.Atlas, pd.DataFrame]:
+def get_qc_atlas(workflow: Workflow) -> Tuple[metob.Atlas, pd.DataFrame]:
     """Retreives template QC atlas and return tuple (atlas, atlas_df)"""
-    qc_atlas_dict = QC_ATLASES[ids.polarity][ids.chromatography]
-    qc_atlas_name = qc_atlas_dict["name"]
-    username = qc_atlas_dict["username"]
-    logger.info("Loading QC Atlas %s", qc_atlas_name)
-    original_atlas = metob.retrieve("Atlas", name=qc_atlas_name, username=username)[0]
-    atlas = adjust_atlas_rt_range(original_atlas, rt_min_delta, rt_max_delta)
+    atlas = workflow.rt_alignment.atlas
+    params = workflow.rt_alignment.parameters
+    logger.info("Loading QC Atlas %s", atlas.name)
+    original_atlas = metob.retrieve("Atlas", name=atlas.name, username=atlas.username)[0]
+    atlas = adjust_atlas_rt_range(original_atlas, params.rt_min_delta, params.rt_max_delta)
     atlas_df = ma_data.make_atlas_df(atlas)
     atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
     return atlas, atlas_df
@@ -573,7 +434,7 @@ def generate_models(actual: List[float], pred: List[float]) -> Tuple[Model, Mode
     """
     inputs:
         actual: experimental RTs
-        pred_df: predicted RTs
+        pred: predicted RTs
     returns tuple containing two Model classes of order 1 and 2
     """
     transformed_actual = np.array(actual).reshape(-1, 1)
@@ -627,7 +488,7 @@ def get_keep_idxs(
     return list(keep_idxs)
 
 
-def actual_and_predicted_rts(
+def actual_and_aligned_rts(
     rts_df: pd.DataFrame, atlas_df: pd.DataFrame, inchi_keys_not_in_model: Optional[List[str]] = None
 ) -> Tuple[List[List[float]], List[List[float]]]:
     """
@@ -635,22 +496,22 @@ def actual_and_predicted_rts(
         rts_df: dataframe of RT values
         atlas_df: QC atlas in dataframe format
         inchi_keys_not_in_model: InChi Keys that will be ignored for model creation
-    return a tuple of lists of lists: (actual_rts, pred_rts)
+    return a tuple of lists of lists: (actual_rts, aligned_rts)
     """
     actual_rts = []
-    pred_rts = []
+    aligned_rts = []
     for i in range(rts_df.shape[1] - 5):
         keep_idxs = get_keep_idxs(rts_df.columns[i], rts_df, atlas_df, inchi_keys_not_in_model)
         current_actual_df = rts_df.loc[:, rts_df.columns[i]]
         current_actual_df = current_actual_df.iloc[keep_idxs]
         current_pred_df = atlas_df.iloc[keep_idxs][["rt_peak"]]
         actual_rts.append(current_actual_df.values.tolist())
-        pred_rts.append(current_pred_df.values.tolist())
-    return actual_rts, pred_rts
+        aligned_rts.append(current_pred_df.values.tolist())
+    return actual_rts, aligned_rts
 
 
-def plot_actual_vs_pred_rts(
-    pred_rts: Sequence[Sequence[float]],
+def plot_actual_vs_aligned_rts(
+    aligned_rts: Sequence[Sequence[float]],
     actual_rts: Sequence[Sequence[float]],
     rts_df: pd.DataFrame,
     file_name: str,
@@ -668,7 +529,7 @@ def plot_actual_vs_pred_rts(
     plt.rc("xtick", labelsize=3)
     plt.rc("ytick", labelsize=3)
     for i in range(rts_df.shape[1] - 5):
-        x_values = pred_rts[i]
+        x_values = aligned_rts[i]
         y_values = actual_rts[i]
         if len(x_values) == 0 or len(y_values) == 0:
             continue
@@ -678,7 +539,7 @@ def plot_actual_vs_pred_rts(
         sub.plot(spaced_x, linear.predict(spaced_x), linewidth=0.5, color="red")
         sub.plot(spaced_x, poly.predict(spaced_x), linewidth=0.5, color="green")
         sub.set_title("File: " + str(i))
-        sub.set_xlabel("predicted RTs")
+        sub.set_xlabel("relative RTs")
         sub.set_ylabel("actual RTs")
     fig_legend = [
         (
@@ -715,18 +576,15 @@ def save_model_comparison(
     """
     qc_df = rts_df[[selected_column]].copy()
     qc_df.columns = ["RT Measured"]
-    # qc_df["RT Reference"] = qc_atlas_df["rt_peak"]
     qc_df.loc[:, "RT Reference"] = qc_atlas_df["rt_peak"].to_numpy()
-    qc_df.loc[:, "RT Linear Pred"] = pd.Series(
+    qc_df.loc[:, "Relative RT Linear"] = pd.Series(
         linear.predict(qc_df["RT Reference"].to_numpy()), index=qc_df.index
     )
-    qc_df.loc[:, "RT Polynomial Pred"] = pd.Series(
+    qc_df.loc[:, "Relative RT Polynomial"] = pd.Series(
         poly.predict(qc_df["RT Reference"].to_numpy()), index=qc_df.index
     )
-    # qc_df["RT Linear Pred"] = linear.predict(qc_df["RT Reference"].to_numpy())
-    # qc_df["RT Polynomial Pred"] = poly.predict(qc_df["RT Reference"].to_numpy())
-    qc_df["RT Diff Linear"] = qc_df["RT Measured"] - qc_df["RT Linear Pred"]
-    qc_df["RT Diff Polynomial"] = qc_df["RT Measured"] - qc_df["RT Polynomial Pred"]
+    qc_df["RT Diff Linear"] = qc_df["RT Measured"] - qc_df["Relative RT Linear"]
+    qc_df["RT Diff Polynomial"] = qc_df["RT Measured"] - qc_df["Relative RT Polynomial"]
     write_utils.export_dataframe_die_on_diff(qc_df, file_name, "model comparision", float_format="%.6e")
 
 
@@ -750,20 +608,16 @@ def write_models(
             out_fh.write(f"atlas = {atlas.name}\n\n")
 
 
-def get_atlas_name(template_name: str, ids: AnalysisIdentifiers, model: Model, free_text: str) -> str:
+def get_atlas_name(template_name: str, model: Model, project_id: str, analysis_name: str) -> str:
     """
     input:
         template_name: name of template atlas
         ids: an AnalysisIds object matching the one used in the main notebook
         model: an instance of Model
-        free_text: arbitrary string to append to atlas name
     returns the name of the production atlas
     """
     prod_name = template_name.replace("TPL", "PRD")
-    prod_atlas_name = f"{prod_name}_{model.name}_{ids.project}_{ids.analysis}"
-    if free_text != "":
-        prod_atlas_name += f"_{free_text}"
-    return prod_atlas_name
+    return f"{prod_name}_{model.name}_{project_id}_{analysis_name}"
 
 
 def adjust_atlas(atlas: metob.Atlas, model: Model, ids: AnalysisIdentifiers) -> pd.DataFrame:
@@ -777,157 +631,93 @@ def adjust_atlas(atlas: metob.Atlas, model: Model, ids: AnalysisIdentifiers) -> 
     return atlas_df
 
 
-def get_template_atlas(ids: AnalysisIdentifiers, polarity: Polarity, idx: int) -> metob.Atlas:
-    """Retreives a template atlas with the correct chromatorgraphy and polarity"""
-    template = TEMPLATES[polarity][ids.chromatography][idx]
-    return metob.retrieve("Atlas", **template)[-1]
-
-
-def create_adjusted_atlases(
+def create_aligned_atlases(
     linear: Model,
     poly: Model,
     ids: AnalysisIdentifiers,
-    atlas_indices: Optional[List[int]] = None,
-    free_text: str = "",
+    workflow: Workflow,
 ) -> List[str]:
     """
     input:
         linear_model: instance of class Model with first order model
         poly_model: instance of class Model with second order model
-        ids: an AnalysisIds object matching the one used in the main notebook
-        atlas_indices: list of integers for which adjusted atlases to create
-                        0: EMA_Unlab
-                        1: QCv3_Unlab
-                        2: ISv5_Unlab
-                        3: ISv5_13C15N
-                        4: IS_LabUnlab2
-        free_text: arbitrary string to append to atlas name
+        ids: an AnalysisIdentifiers object
+        workflow: a config Workflow object
     returns a list of the names of atlases
     """
     # pylint: disable=too-many-locals
-    assert ids.chromatography in ["HILIC", "C18"]
-    default_atlas_indices = [0, 1] if ids.chromatography == "C18" else [0, 4]
-    atlas_indices = default_atlas_indices if atlas_indices is None else atlas_indices
-    plot_vars = [
-        (polarity, idx, model)
-        for polarity in ["positive", "negative"]
-        for idx in atlas_indices
-        for model in [linear, poly]
-    ]
     out_atlas_names = []
-    for polarity, idx, model in tqdm(plot_vars, unit="atlas"):
-        template_atlas = get_template_atlas(ids, polarity, idx)
-        out_atlas_names.append(get_atlas_name(template_atlas.name, ids, model, free_text))
+    model = poly if workflow.rt_alignment.parameters.use_poly_model else linear
+    for analysis in tqdm(workflow.analyses, unit="atlas"):
+        template_atlas = get_atlas(analysis.atlas.name, analysis.atlas.username)
+        out_atlas_names.append(get_atlas_name(template_atlas.name, model, ids.project, analysis.name))
         logger.info("Creating atlas %s", out_atlas_names[-1])
         out_atlas_file_name = os.path.join(ids.output_dir, f"{out_atlas_names[-1]}.csv")
         out_atlas_df = adjust_atlas(template_atlas, model, ids)
         write_utils.export_dataframe_die_on_diff(
-            out_atlas_df, out_atlas_file_name, "predicted atlas", index=False, float_format="%.6e"
+            out_atlas_df, out_atlas_file_name, "RT aligned atlas", index=False, float_format="%.6e"
         )
         dp.make_atlas_from_spreadsheet(
             out_atlas_df,
             out_atlas_names[-1],
             filetype="dataframe",
             sheetname="",
-            polarity=polarity,
+            polarity=analysis.parameters.polarity,
             store=True,
             mz_tolerance=10 if ids.chromatography == "C18" else 12,
         )
     return out_atlas_names
 
 
-def write_notebooks(
-    ids: AnalysisIdentifiers,
-    atlases: Sequence[str],
-    use_poly_model: bool,
-    num_points: Optional[int],
-    peak_height: Optional[float],
-    msms_score: Optional[float],
-    source_code_version_id: Optional[str],
-) -> None:
+def write_notebooks(ids: AnalysisIdentifiers, atlases: Sequence[str], workflow: Workflow) -> List[Path]:
     """
     Creates Targeted analysis jupyter notebooks with pre-populated parameter sets
     Inputs:
         ids: an AnalysisIds object matching the one used in the main notebook
+        workflow: a Workflow object
         atlases: list of atlas names to use as source atlases
-        use_poly_model: if True use polynomial RT prediction model, else use linear model
-                        this value is used to filter atlases from the input atlases list
-        num_points: pass through parameter to downstream notebooks
-        peak_height: pass through parameter to downstream notebooks
-        msms_score: pass through parameter to downstream notebooks
-        source_code_version_id: pass through parameter to downstream notebooks
+    Returns a list of Paths to notebooks
     """
-    for atlas_name in atlases:
-        if (use_poly_model and "linear" in atlas_name) or (not use_poly_model and "polynomial" in atlas_name):
-            continue
-        polarity = "positive" if "_POS_" in atlas_name else "negative"
-        short_polarity = "POS" if polarity == "positive" else "NEG"
-        output_type = get_output_type(ids.chromatography, atlas_name)
-        repo_path = Path(__file__).resolve().parent.parent.parent
-        source = repo_path / "notebooks" / "reference" / "Targeted.ipynb"
-        dest = (
-            Path(ids.output_dir).resolve().parent.parent
-            / f"{ids.project}_{output_type}_{short_polarity}.ipynb"
-        )
-        # include_groups and exclude_groups do not get passed to subsequent notebooks
-        # as they need to be updated for each output type
+    out = []
+    for atlas_name, analysis in zip(atlases, workflow.analyses):
+        source = repo_path() / "notebooks" / "reference" / "Targeted.ipynb"
+        dest = Path(ids.output_dir).resolve().parent / f"{ids.project}_{workflow.name}_{analysis.name}.ipynb"
         parameters = {
             "experiment": ids.experiment,
-            "output_type": output_type,
-            "polarity": polarity,
-            "rt_predict_number": ids.rt_predict_number,
+            "rt_alignment_number": ids.rt_alignment_number,
             "analysis_number": 0,
-            "project_directory": ids.project_directory,
+            "workflow_name": workflow.name,
+            "analysis_name": analysis.name,
             "source_atlas": atlas_name,
-            "exclude_files": ids.exclude_files,
-            "groups_controlled_vocab": ids.groups_controlled_vocab,
-            "num_points": num_points,
-            "peak_height": peak_height,
-            "msms_score": msms_score,
-            "google_folder": ids.google_folder,
-            "source_code_version_id": source_code_version_id,
+            "copy_atlas": analysis.parameters.copy_atlas,
+            "polarity": analysis.parameters.polarity,
+            "include_groups": analysis.parameters.include_groups,
+            "exclude_groups": analysis.parameters.exclude_groups,
+            "groups_controlled_vocab": analysis.parameters.groups_controlled_vocab,
+            "exclude_files": analysis.parameters.exclude_files,
+            "generate_qc_outputs": analysis.parameters.generate_qc_outputs,
+            "num_points": analysis.parameters.num_points,
+            "peak_height": analysis.parameters.peak_height,
+            "msms_score": analysis.parameters.msms_score,
+            "filter_removed": analysis.parameters.filter_removed,
+            "line_colors": analysis.parameters.line_colors,
+            "require_all_evaluated": analysis.parameters.require_all_evaluated,
+            "generate_post_annotation_outputs": analysis.parameters.generate_post_annotation_outputs,
+            "exclude_groups_for_post_annotation_outputs": analysis.parameters.exclude_groups_for_post_annotation_outputs,
+            "export_msms_fragment_ions": analysis.parameters.export_msms_fragment_ions,
+            "clear_cache": analysis.parameters.clear_cache,
+            "config_file_name": analysis.parameters.config_file_name,
+            "source_code_version_id": analysis.parameters.source_code_version_id,
+            "project_directory": or_default(analysis.parameters.project_directory, ids.project_directory),
+            "google_folder": or_default(
+                analysis.parameters.google_folder, workflow.rt_alignment.parameters.google_folder
+            ),
+            "max_cpus": analysis.parameters.max_cpus,
+            "log_level": analysis.parameters.log_level,
         }
         notebook.create_notebook(source, dest, parameters)
-
-
-def get_analysis_ids_for_rt_prediction(
-    experiment: str,
-    project_directory: str,
-    google_folder: str,
-    rt_predict_number: int = 0,
-    polarity: Polarity = Polarity("positive"),  # noqa: B008
-    exclude_files: Optional[List[str]] = None,
-    include_groups: Optional[List[str]] = None,
-    exclude_groups: Optional[List[str]] = None,
-    groups_controlled_vocab: Optional[List[str]] = None,
-):
-    """
-    Simplified interface for generating an AnalysisIds instance for use in rt prediction
-    inputs:
-        experiment: name of experiment as given in LCMS run names
-        project_directory: directory where per-experiment output directory will be created
-        google_folder: id from URL of base export folder on Google Drive
-        rt_predict_number: integer, defaults to 0, increment if redoing RT prediction
-        polarity: polarity to use for RT prediction, defaults to positive
-        exclude_files: list of substrings that will be used to filter out lcmsruns
-        include_groups: list of substrings that will used to filter groups
-        exclude_groups list of substrings that will used to filter out groups
-        groups_controlled_vocab: list of substrings that will group all matches into one group
-    Returns an AnalysisIds instance
-    """
-    return AnalysisIdentifiers(
-        experiment=experiment,
-        output_type="data_QC",
-        analysis_number=0,
-        project_directory=project_directory,
-        polarity=polarity,
-        google_folder=google_folder,
-        exclude_files=exclude_files,
-        include_groups=include_groups,
-        exclude_groups=exclude_groups,
-        groups_controlled_vocab=groups_controlled_vocab,
-        rt_predict_number=rt_predict_number,
-    )
+        out.append(dest)
+    return out
 
 
 def write_chromatograms(
@@ -955,3 +745,30 @@ def write_chromatograms(
     params["share_y"] = False
     params["suffix"] = "_independentY"
     dp.make_chromatograms(**params)
+
+
+def run(
+    experiment: str,
+    rt_alignment_number: int,
+    configuration: Config,
+    workflow: Workflow,
+) -> None:
+    """Generates RT alignment model, applies to atlases, and generates all outputs"""
+    # pylint: disable=too-many-locals
+    params = workflow.rt_alignment.parameters
+    ids = AnalysisIdentifiers(
+        analysis_number=0,
+        source_atlas=workflow.rt_alignment.atlas.name,
+        source_atlas_username=workflow.rt_alignment.atlas.username,
+        experiment=experiment,
+        project_directory=params.project_directory,
+        google_folder=params.google_folder,
+        rt_alignment_number=rt_alignment_number,
+        exclude_files=params.exclude_files,
+        include_groups=params.include_groups,
+        exclude_groups=params.exclude_groups,
+        groups_controlled_vocab=params.groups_controlled_vocab,
+        configuration=configuration,
+        workflow=workflow.name,
+    )
+    generate_outputs(ids=ids, workflow=workflow)
