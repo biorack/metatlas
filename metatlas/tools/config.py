@@ -20,6 +20,7 @@ ALLOWED_NAME_CHARS = ascii_letters + digits + "-"
 class BaseNotebookParameters(BaseModel):
     """Parameters common to both RT_Alignment and Targeted notebooks"""
 
+    copy_atlas: bool = True
     source_atlas: Optional[str] = None
     include_groups: Optional[List[str]] = None
     exclude_groups: List[str] = []
@@ -38,7 +39,6 @@ class BaseNotebookParameters(BaseModel):
 class AnalysisNotebookParameters(BaseNotebookParameters):
     """Parameters for Targeted notebooks"""
 
-    copy_atlas: bool = True
     polarity: Polarity = Polarity("positive")
     generate_qc_outputs: bool = False
     num_points: Optional[int] = None
@@ -65,7 +65,7 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
 class Atlas(BaseModel):
     name: str
     username: str
-    do_alignment: bool = True
+    do_alignment: bool = False
 
 
 class RTAlignment(BaseModel):

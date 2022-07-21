@@ -15,23 +15,14 @@ import humanize
 import pandas as pd
 import traitlets
 
-
-from IPython.display import display
 from traitlets import default, observe
 from traitlets import Bool, Float, HasTraits, Instance, Int, Unicode
 from traitlets.traitlets import ObserveHandler
 
 import metatlas.plots.dill2plots as dp
 import metatlas.datastructures.analysis_identifiers as analysis_ids
-from metatlas.datastructures.id_types import (
-    IterationNumber,
-    Experiment,
-    FileMatchList,
-    GroupMatchList,
-    PathString,
-    Polarity,
-    OutputType,
-)
+
+from metatlas.datastructures.id_types import PathString, Polarity
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
 from metatlas.datastructures.utils import AtlasName, get_atlas, Username
@@ -149,6 +140,8 @@ class MetatlasDataset(HasTraits):
     msms_refs_loc: PathString = Unicode(default_value=analysis_ids.MSMS_REFS_PATH)
     ids: analysis_ids.AnalysisIdentifiers = Instance(klass=analysis_ids.AnalysisIdentifiers)
     atlas: metob.Atlas = Instance(klass=metob.Atlas)
+    rt_min_delta = Int(allow_none=True, default_value=None)
+    rt_max_delta = Int(allow_none=True, default_value=None)
     _atlas_df: Optional[pd.DataFrame] = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
     _data: Optional[Tuple[MetatlasSample, ...]] = traitlets.Tuple(allow_none=True, default_value=None)
     _hits: Optional[pd.DataFrame] = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
@@ -160,8 +153,7 @@ class MetatlasDataset(HasTraits):
         logger.debug("Creating new MetatlasDataset instance...")
         self._hits_valid_for_rt_bounds = False  # based only on RT min/max changes
         self._data_valid_for_rt_bounds = False  # based only on RT min/max changes
-        if self.ids.source_atlas is not None:
-            self._get_atlas()
+        self._get_atlas()
         if self.save_metadata:
             logger.debug("Writing MetatlasDataset metadata files")
             self.write_data_source_files()
@@ -223,6 +215,7 @@ class MetatlasDataset(HasTraits):
         If the atlas does not yet exist, it will be copied from source_atlas and there will be an
         an additional side effect that all mz_tolerances in the resulting atlas
         get their value from source_atlas' atlas.compound_identifications[0].mz_references[0].mz_tolerance
+        Adjusts rt_min and rt_max if rt_min_delta or rt_max_delta are not None
         """
         atlases = metob.retrieve("Atlas", name=self.ids.atlas, username=self.ids.username)
         if len(atlases) == 1:
@@ -234,7 +227,7 @@ class MetatlasDataset(HasTraits):
                 self.ids.atlas,
                 self.ids.source_atlas,
             )
-            self.atlas = atlases[0]
+            temp_atlas = atlases[0]
         elif len(atlases) > 1:
             try:
                 raise ValueError(
@@ -246,14 +239,9 @@ class MetatlasDataset(HasTraits):
             except ValueError as err:
                 logger.exception(err)
                 raise err
-        elif self.ids.source_atlas is not None:
-            self.atlas = self._clone_source_atlas()
         else:
-            try:
-                raise ValueError("Could not load atlas as source_atlas is None.")
-            except ValueError as err:
-                logger.exception(err)
-                raise err
+            temp_atlas = self._clone_source_atlas()
+        self.atlas = metob.adjust_atlas_rt_range(temp_atlas, self.rt_min_delta, self.rt_max_delta)
 
     def _clone_source_atlas(self) -> metob.Atlas:
         logger.info("Retriving source atlas: %s", self.ids.source_atlas)

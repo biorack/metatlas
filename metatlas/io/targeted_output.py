@@ -2,13 +2,21 @@
 # pylint: disable=too-many-arguments
 
 import logging
+import math
 import os
 import tarfile
 
 from collections import namedtuple
+from typing import List
 
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
+
+from matplotlib import gridspec
+from matplotlib.axis import Axis
+from tqdm.notebook import tqdm
 
 from metatlas.datastructures.metatlas_dataset import MetatlasDataset
 from metatlas.io.write_utils import export_dataframe_die_on_diff
@@ -342,3 +350,162 @@ def generate_all_outputs(
         write_msms_fragment_ions(data, overwrite=overwrite)
     archive_outputs(data.ids)
     logger.info("Generation of output files completed sucessfully.")
+
+
+def generate_qc_plots(data: MetatlasDataset) -> None:
+    """Write plots that can be used to QC the experiment"""
+    rts_df = get_rts(data)
+    compound_atlas_rts_file_name = os.path.join(
+        data.ids.output_dir, f"{data.ids.short_polarity}_Compound_Atlas_RTs.pdf"
+    )
+    plot_compound_atlas_rts(len(data), rts_df, compound_atlas_rts_file_name)
+    peak_heights_df = get_peak_heights(data)
+    peak_heights_plot_file_name = os.path.join(
+        data.ids.output_dir, f"{data.ids.short_polarity}_Compound_Atlas_peak_heights.pdf"
+    )
+    plot_compound_atlas_peak_heights(len(data), peak_heights_df, peak_heights_plot_file_name)
+
+
+def generate_qc_outputs(data: MetatlasDataset) -> None:
+    """Write outputs that can be used to QC the experiment"""
+    ids = data.ids
+    save_rt_peak(data, os.path.join(ids.output_dir, f"{ids.short_polarity}_rt_peak.tab"))
+    save_measured_rts(data, os.path.join(ids.output_dir, f"{ids.short_polarity}_QC_Measured_RTs.csv"))
+    generate_qc_plots(data)
+
+
+def save_measured_rts(data: MetatlasDataset, file_name: str) -> None:
+    """Save RT values in csv format file"""
+    rts_df = get_rts(data, include_atlas_rt_peak=False)
+    export_dataframe_die_on_diff(rts_df, file_name, "measured RT values", float_format="%.6e")
+
+
+def save_rt_peak(data: MetatlasDataset, file_name: str) -> None:
+    """Save peak RT values in tsv format file"""
+    rts_df = dp.make_output_dataframe(input_dataset=data, fieldname="rt_peak", use_labels=True)
+    export_dataframe_die_on_diff(rts_df, file_name, "peak RT values", sep="\t", float_format="%.6e")
+
+
+def get_rts(data: MetatlasDataset, include_atlas_rt_peak: bool = True) -> pd.DataFrame:
+    """Returns RT values in DataFrame format"""
+    rts_df = dp.make_output_dataframe(
+        input_dataset=data,
+        fieldname="rt_peak",
+        use_labels=True,
+        summarize=True,
+    )
+    if include_atlas_rt_peak:
+        rts_df["atlas RT peak"] = [
+            compound["identification"].rt_references[0].rt_peak for compound in data[0]
+        ]
+    return order_df_columns_by_run(rts_df)
+
+
+def get_peak_heights(data: MetatlasDataset) -> pd.DataFrame:
+    """Returns peak heights in DataFrame format"""
+    peak_height_df = dp.make_output_dataframe(
+        input_dataset=data,
+        fieldname="peak_height",
+        use_labels=True,
+        summarize=True,
+    )
+    return order_df_columns_by_run(peak_height_df)
+
+
+def order_df_columns_by_run(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """
+    Returns a dataframe with re-ordered columns such that second column up to column 'mean'
+    are ordered by run number from low to high
+    """
+    cols = dataframe.columns.tolist()
+    stats_start_idx = cols.index("mean")
+    to_sort = cols[:stats_start_idx]
+    no_sort = cols[stats_start_idx:]
+    to_sort.sort(
+        key=lambda x: int(
+            x.split(".")[0].split("_")[-1].lower().replace("run", "").replace("seq", "").replace("s", "")
+        )
+    )
+    new_cols = to_sort + no_sort
+    return dataframe[new_cols]
+
+
+def plot_per_compound(
+    field_name: str,
+    num_files: int,
+    data: pd.DataFrame,
+    file_name: str,
+    fontsize: float = 2,
+    pad: float = 0.1,
+    cols: int = 8,
+) -> None:
+    """
+    Writes plot of RT peak for vs file for each compound
+    inputs:
+        field_name: one of rt_peak or peak_height
+        num_files: number of files in data set, ie len(data)
+        data: Dataframe with RTs values
+        file_name: where to save plot
+        fontsize: size of text
+        pad: padding size
+        cols: number of columns in plot grid
+    """
+    logger.info("Plotting %s vs file for each compound", field_name)
+    plot_df = (
+        data.sort_values(by="standard deviation", ascending=False, na_position="last")
+        .drop(["#NaNs"], axis=1)
+        .dropna(axis=0, how="all", subset=data.columns[:num_files])
+    )
+    rows = int(math.ceil((data.shape[0] + 1) / cols))
+    fig = plt.figure()
+    grid = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.2, hspace=0.4)
+    for i, (_, row) in tqdm(enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot"):
+        a_x = fig.add_subplot(grid[i])
+        range_columns = list(plot_df.columns[:num_files])
+        file_vs_value_plot(a_x, field_name, row, range_columns, fontsize, pad)
+    plt.savefig(file_name, bbox_inches="tight")
+    plt.close()
+
+
+def file_vs_value_plot(
+    a_x: Axis, field_name: str, row: pd.DataFrame, range_columns: List[str], fontsize: float, pad: float
+) -> None:
+    """Create a dot plot with one point per file"""
+    assert field_name in ["rt_peak", "peak_height"]
+    a_x.tick_params(direction="in", length=1, pad=pad, width=0.1, labelsize=fontsize)
+    num_files = len(range_columns)
+    a_x.scatter(range(num_files), row[:num_files], s=0.2)
+    if field_name == "rt_peak":
+        a_x.axhline(y=row["atlas RT peak"], color="r", linestyle="-", linewidth=0.2)
+        range_columns += ["atlas RT peak"]
+        a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanmax(row.loc[range_columns]) + 0.12)
+    else:
+        a_x.set_yscale("log")
+        a_x.set_ylim(bottom=1e4, top=1e10)
+    a_x.set_xlim(-0.5, num_files + 0.5)
+    a_x.xaxis.set_major_locator(mticker.FixedLocator(np.arange(0, num_files, 1.0)))
+    _ = [s.set_linewidth(0.1) for s in a_x.spines.values()]
+    # truncate name so it fits above a single subplot
+    a_x.set_title(row.name[:33], pad=pad, fontsize=fontsize)
+    a_x.set_xlabel("Files", labelpad=pad, fontsize=fontsize)
+    ylabel = "Actual RTs" if field_name == "rt_peak" else "Peak Height"
+    a_x.set_ylabel(ylabel, labelpad=pad, fontsize=fontsize)
+
+
+def plot_compound_atlas_rts(
+    num_files: int, rts_df: pd.DataFrame, file_name: str, fontsize: float = 2, pad: float = 0.1, cols: int = 8
+) -> None:
+    """Plot filenames vs peak RT for each compound"""
+    plot_per_compound("rt_peak", num_files, rts_df, file_name, fontsize, pad, cols)
+
+
+def plot_compound_atlas_peak_heights(
+    num_files: int,
+    peak_heights_df: pd.DataFrame,
+    file_name: str,
+    fontsize: float = 2,
+    pad: float = 0.1,
+    cols: int = 8,
+) -> None:
+    """Plot filenames vs peak height for each compound"""
+    plot_per_compound("peak_height", num_files, peak_heights_df, file_name, fontsize, pad, cols)

@@ -18,13 +18,6 @@ OutputType = NewType("OutputType", str)
 IterationNumber = NewType("IterationNumber", int)
 PathString = NewType("PathString", str)
 
-OUTPUT_TYPES = [
-    OutputType("ISTDsEtc"),
-    OutputType("FinalEMA-HILIC"),
-    OutputType("FinalEMA-C18"),
-    OutputType("data_QC"),
-    OutputType("other"),
-]
 POLARITIES = [Polarity("positive"), Polarity("negative"), Polarity("fast-polarity-switching")]
 SHORT_POLARITIES = {
     Polarity("positive"): ShortPolarity("POS"),

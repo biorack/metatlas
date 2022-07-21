@@ -18,7 +18,7 @@ from metatlas.io.gdrive import copy_outputs_to_google_drive
 from metatlas.io.targeted_output import generate_all_outputs
 from metatlas.tools.config import Config, Workflow, Analysis
 from metatlas.tools.notebook import in_papermill
-from metatlas.targeted.rt_alignment import generate_qc_outputs
+from metatlas.io.targeted_output import generate_qc_outputs
 
 logger = logging.getLogger(__name__)
 
@@ -108,9 +108,9 @@ def post_annotation(
         data.filter_compounds_ms1_notes_remove()
     data.extra_time = 0.5
     logger.info("extra_time set to 0.5 minutes for output generation.")
-    data.update()
+    data.update()  # update hits and data if they no longer are based on current rt bounds
     if analysis.parameters.generate_qc_outputs:
-        generate_qc_outputs(data, data.ids, analysis.parameters.max_cpus)
+        generate_qc_outputs(data)
     if analysis.parameters.generate_post_annotation_outputs:
         logger.info(
             "Setting exclude_groups to %s.",

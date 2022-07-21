@@ -2849,7 +2849,7 @@ def get_metatlas_files(experiment: Union[str, Sequence[str]] = '%', name: str = 
     ))
     if most_recent:
         files = filter_metatlas_objects_to_most_recent(files, 'mzml_file')
-    return files
+    return sorted(files, key=lambda x: x.name)
 
 
 def make_prefilled_fileinfo_sheet(groups, filename):

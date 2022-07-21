@@ -10,7 +10,7 @@ def test_rt_alignment_by_line01(tmp_path):
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
-        str(tmp_path / experiment / "root_0_0/Targeted/JGI-HILIC/RT_Alignment/rt_model.txt")
+        str(tmp_path / experiment / "root_0_0/Targeted/Test-QC/RT_Alignment/rt_alignment_model.txt")
     ] = """RANSACRegressor(random_state=42)
 Linear model with intercept=0.430 and slope=0.95574
 groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root_0_0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root_0_0_QC
@@ -26,7 +26,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
         str(
             tmp_path
             / experiment
-            / "root_0_0/Targeted/JGI-HILIC/RT_Alignment/RT_Alignment_Model_Comparison.csv"
+            / "root_0_0/Targeted/Test-QC/RT_Alignment/RT_Alignment_Model_Comparison.csv"
         )
     ] = {
         "Unnamed: 0": {
@@ -36,13 +36,13 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
         },
         "RT Measured": {0: 1.884217, 1: 4.878586, 2: 13.32883},
         "RT Reference": {0: 1.3937, 1: 4.833664, 2: 13.44515},
-        "RT Linear Pred": {0: 1.761967, 1: 5.049671, 2: 13.28},
-        "RT Polynomial Pred": {0: 1.884217, 1: 4.878586, 2: 13.32883},
+        "Relative RT Linear": {0: 1.761967, 1: 5.049671, 2: 13.28},
+        "Relative RT Polynomial": {0: 1.884217, 1: 4.878586, 2: 13.32883},
         "RT Diff Linear": {0: 0.1222508, 1: -0.1710854, 2: 0.04883459},
         "RT Diff Polynomial": {0: -1.865175e-14, 1: 1.776357e-15, 2: 1.776357e-14},
     }
 
-    expected_df[str(tmp_path / experiment / "root_0_0/Targeted/JGI-HILIC/QC-POS/POS_QC_Measured_RTs.csv")] = {
+    expected_df[str(tmp_path / experiment / "root_0_0/Targeted/Test-QC/QC-POS/POS_QC_Measured_RTs.csv")] = {
         "Unnamed: 0": {
             0: "0000_uracil_unlabeled_positive_M+H113p0346_1p39",
             1: "0001_cytosine_unlabeled_positive_M+H112p0505_4p83",
@@ -82,11 +82,12 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         -p project_directory /out \
                         -p max_cpus 2 \
                         -p config_file_name /src/metatlas_config.yaml \
-                        -p workflow_name JGI-HILIC \
+                        -p workflow_name Test-QC \
+                        -p rt_alignment_number 0 \
                         /src/notebooks/reference/RT_Alignment.ipynb \
                         /out/Remove-done.ipynb
     """
     utils.exec_docker(image, command, tmp_path, utils.PAPERMILL_ENV)
-    # assert utils.num_files_in(tmp_path) == 317
+    assert utils.num_files_in(tmp_path) == 21
     utils.assert_files_match(expected)
     utils.assert_dfs_match(expected_df)

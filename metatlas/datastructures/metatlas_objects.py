@@ -7,11 +7,11 @@ import pprint
 import time
 import uuid
 
-from typing import Dict
+from copy import deepcopy
+from typing import Dict, Optional
 
-from pwd import getpwuid
-from tabulate import tabulate
 import pandas as pd
+from tabulate import tabulate
 
 from .object_helpers import (
     set_docstring, Workspace, format_timestamp, MetList,
@@ -710,3 +710,17 @@ def to_dataframe(objects):
     for col in ['last_modified', 'creation_time']:
         dataframe[col] = pd.to_datetime(dataframe[col], unit='s')
     return dataframe
+
+
+def adjust_atlas_rt_range(
+    in_atlas: Atlas, rt_min_delta: Optional[float], rt_max_delta: Optional[float]
+) -> Atlas:
+    """Reset the rt_min and rt_max values by adding rt_min_delta or rt_max_delta to rt_peak"""
+    if rt_min_delta is None and rt_max_delta is None:
+        return in_atlas
+    out_atlas = deepcopy(in_atlas)
+    for cid in out_atlas.compound_identifications:
+        rts = cid.rt_references[0]
+        rts.rt_min = rts.rt_min if rt_min_delta is None else rts.rt_peak + rt_min_delta
+        rts.rt_max = rts.rt_max if rt_max_delta is None else rts.rt_peak + rt_max_delta
+    return out_atlas

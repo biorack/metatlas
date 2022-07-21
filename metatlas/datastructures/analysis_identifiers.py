@@ -392,20 +392,20 @@ class AnalysisIdentifiers(HasTraits):
             return self._all_groups
         unique_groups = self.all_groups_dataframe[["group", "short_name"]].drop_duplicates()
         self.set_trait("_all_groups", [])
+        assert self._all_groups is not None  # needed for mypy
         for values in unique_groups.to_dict("index").values():
-            if self._all_groups is not None:  # needed for mypy
-                self._all_groups.append(
-                    metob.Group(
-                        name=values["group"],
-                        short_name=values["short_name"],
-                        items=[
-                            file_value["object"]
-                            for file_value in self._files_dict.values()
-                            if file_value["group"] == values["group"]
-                        ],
-                    )
+            self._all_groups.append(
+                metob.Group(
+                    name=values["group"],
+                    short_name=values["short_name"],
+                    items=[
+                        file_value["object"]
+                        for file_value in self._files_dict.values()
+                        if file_value["group"] == values["group"]
+                    ],
                 )
-        return self._all_groups or []
+            )
+        return sorted(self._all_groups, key=lambda x: x.name)
 
     @property
     def chromatography(self) -> str:
