@@ -21,6 +21,7 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
 7. Click the clipboard icon to copy the authorization code.
 
 ![clipboard icon screen shot](google_auth_copy_button.png)
+
 8. Go back to the JupyterLab page and paste the authorization code into the terminal and hit 'Enter'.
 9. To verify you RClone configuration was successful, copy and paste the following command into the terminal:
 
