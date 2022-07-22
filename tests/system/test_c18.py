@@ -42,7 +42,7 @@ short samplename	NEG_ExCtrl_C_Rg80to1200-CE102040-soil-S1	NEG_Neg-D30_C_Rg80to12
                                    "agui.data.set_rt(1, \\"rt_max\\", 6.2470)\\n" \
                                   ]' /src/notebooks/reference/Targeted.ipynb > /out/Remove.ipynb &&  \
                     papermill -k papermill \
-                        -p config_file_name /src/metatlas_config.yaml \
+                        -p config_file_name /src/test_config.yaml \
                         -p workflow_name Test-C18 \
                         -p analysis_name EMA-NEG \
                         -p source_atlas C18_20220215_TPL_EMA_Unlab_NEG \

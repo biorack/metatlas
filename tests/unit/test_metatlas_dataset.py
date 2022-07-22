@@ -2,7 +2,6 @@
 # pylint: disable=missing-function-docstring,protected-access,unused-argument,too-many-arguments
 
 import datetime
-import glob
 import logging
 import os
 import time
@@ -11,7 +10,6 @@ import pandas as pd
 import pytest
 import traitlets
 
-from metatlas.datastructures import analysis_identifiers
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh

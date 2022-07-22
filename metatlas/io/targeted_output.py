@@ -22,20 +22,20 @@ from metatlas.datastructures.metatlas_dataset import MetatlasDataset
 from metatlas.io.write_utils import export_dataframe_die_on_diff
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
-from metatlas.tools.config import Config, Workflow, Analysis
+from metatlas.tools.config import Analysis
 from metatlas.plots.tic import save_sample_tic_pdf
 
 logger = logging.getLogger(__name__)
 
 
-def write_atlas_to_spreadsheet(metatlas_dataset, overwrite=False):
+def write_atlas_to_csv(metatlas_dataset, overwrite=False):
     """Save atlas as csv file. Will not overwrite existing file unless overwrite is True"""
     out_file_name = os.path.join(metatlas_dataset.ids.output_dir, f"{metatlas_dataset.atlas.name}_export.csv")
     out_df = dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas)
     export_dataframe_die_on_diff(out_df, out_file_name, "atlas", overwrite=overwrite, float_format="%.6e")
 
 
-def write_stats_table(
+def write_identifications_spreadsheet(
     metatlas_dataset,
     min_intensity=1e4,
     rt_tolerance=0.5,
@@ -334,14 +334,12 @@ def archive_outputs(ids):
 
 def generate_all_outputs(
     data: MetatlasDataset,
-    configuration: Config,
-    workflow: Workflow,
     analysis: Analysis,
     overwrite: bool = False,
 ) -> None:
     """Generates the default set of outputs for a targeted experiment"""
-    write_atlas_to_spreadsheet(data, overwrite=overwrite)
-    write_stats_table(data, overwrite=overwrite)
+    write_atlas_to_csv(data, overwrite=overwrite)
+    write_identifications_spreadsheet(data, overwrite=overwrite)
     write_chromatograms(data, overwrite=overwrite, max_cpus=data.max_cpus)
     write_identification_figure(data, overwrite=overwrite)
     write_metrics_and_boxplots(data, overwrite=overwrite, max_cpus=data.max_cpus)

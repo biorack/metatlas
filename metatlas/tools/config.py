@@ -20,7 +20,7 @@ ALLOWED_NAME_CHARS = ascii_letters + digits + "-"
 class BaseNotebookParameters(BaseModel):
     """Parameters common to both RT_Alignment and Targeted notebooks"""
 
-    copy_atlas: bool = True
+    copy_atlas: bool = False
     source_atlas: Optional[str] = None
     include_groups: Optional[List[str]] = None
     exclude_groups: List[str] = []
@@ -46,9 +46,9 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     msms_score: Optional[float] = None
     filter_removed: bool = False
     line_colors: List[Tuple[str, str]] = []
-    require_all_evaluated: bool = True
-    generate_post_annotation_outputs: bool = True
-    exclude_groups_for_post_annotation_outputs: List[str] = []
+    require_all_evaluated: bool = False
+    generate_analysis_outputs: bool = False
+    exclude_groups_for_analysis_outputs: List[str] = []
     export_msms_fragment_ions: bool = False
     clear_cache: bool = False
 
@@ -58,7 +58,7 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
 
     inchi_keys_not_in_model: List[str] = []
     dependent_data_source: str = "median"
-    use_poly_model: bool = True
+    use_poly_model: bool = False
     stop_before: Optional[str] = None
 
 
@@ -75,6 +75,7 @@ class RTAlignment(BaseModel):
 
     @validator("name")
     def allowed_name_chars(cls, to_check):
+        """Only contains letters, digits and dashes"""
         return validate_allowed_chars("RT alignment name", to_check)
 
 
@@ -85,6 +86,7 @@ class Analysis(BaseModel):
 
     @validator("name")
     def allowed_name_chars(cls, to_check):
+        """Only contains letters, digits and dashes"""
         return validate_allowed_chars("analysis names", to_check)
 
 
@@ -94,7 +96,9 @@ class Workflow(BaseModel):
     analyses: List[Analysis]
 
     @validator("name")
+    @classmethod
     def allowed_name_chars(cls, to_check):
+        """Only contains letters, digits and dashes"""
         return validate_allowed_chars("workflow names", to_check)
 
     def get_analysis(self, analysis_name: str) -> Analysis:
@@ -110,7 +114,9 @@ class Chromatography(BaseModel):
     aliases: List[str] = []
 
     @validator("name")
+    @classmethod
     def allowed_name_chars(cls, to_check):
+        """Only contains letters, digits and dashes"""
         return validate_allowed_chars("chromatography names", to_check)
 
 
@@ -119,7 +125,9 @@ class Config(BaseModel):
     workflows: List[Workflow]
 
     @validator("workflows")
+    @classmethod
     def unique_workflow_names(cls, to_check):
+        """Do not allow duplicated workflow names"""
         dup_workflow_names = get_dups([w.name for w in to_check])
         if dup_workflow_names:
             raise ValueError(f"Workflow names were redefined: {', '.join(dup_workflow_names)}.")

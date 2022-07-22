@@ -3,10 +3,10 @@
 from pathlib import Path
 from typing import Optional, TypeVar
 
-T = TypeVar("T")
+Generic = TypeVar("Generic")
 
 
-def or_default(none_or_value: Optional[T], default: T) -> T:
+def or_default(none_or_value: Optional[Generic], default: Generic) -> Generic:
     """
     inputs:
         none_or_value: variable to test

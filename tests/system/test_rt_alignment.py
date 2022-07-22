@@ -24,9 +24,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
     expected_df = {}
     expected_df[
         str(
-            tmp_path
-            / experiment
-            / "root_0_0/Targeted/Test-QC/RT_Alignment/RT_Alignment_Model_Comparison.csv"
+            tmp_path / experiment / "root_0_0/Targeted/Test-QC/RT_Alignment/RT_Alignment_Model_Comparison.csv"
         )
     ] = {
         "Unnamed: 0": {
@@ -81,7 +79,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
                         -p project_directory /out \
                         -p max_cpus 2 \
-                        -p config_file_name /src/metatlas_config.yaml \
+                        -p config_file_name /src/test_config.yaml \
                         -p workflow_name Test-QC \
                         -p rt_alignment_number 0 \
                         /src/notebooks/reference/RT_Alignment.ipynb \

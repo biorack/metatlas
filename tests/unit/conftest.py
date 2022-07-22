@@ -22,9 +22,9 @@ import metatlas.datastructures.analysis_identifiers as ids
 import metatlas.datastructures.metatlas_dataset as mads
 import metatlas.datastructures.metatlas_objects as metob
 import metatlas.datastructures.object_helpers as metoh
-import metatlas.tools.config as config
 
 from metatlas.targeted import rt_alignment
+from metatlas.tools import config
 from metatlas.tools.util import repo_path
 
 logger = logging.getLogger(__name__)
@@ -2287,8 +2287,8 @@ def fixture_model():
 @pytest.fixture(name="analysis_parameters")
 def fixture_analysis_parameters():
     return {
-        "config_file_name": repo_path() / "metatlas_config.yaml",
-        "workflow_name": "JGI-HILIC",
+        "config_file_name": repo_path() / "test_config.yaml",
+        "workflow_name": "Test-HILIC",
         "analysis_name": "EMA-POS",
     }
 

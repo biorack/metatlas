@@ -111,12 +111,12 @@ def post_annotation(
     data.update()  # update hits and data if they no longer are based on current rt bounds
     if analysis.parameters.generate_qc_outputs:
         generate_qc_outputs(data)
-    if analysis.parameters.generate_post_annotation_outputs:
+    if analysis.parameters.generate_analysis_outputs:
         logger.info(
             "Setting exclude_groups to %s.",
-            str(analysis.parameters.exclude_groups_for_post_annotation_outputs),
+            str(analysis.parameters.exclude_groups_for_analysis_outputs),
         )
-        data.ids.set_trait("exclude_groups", analysis.parameters.exclude_groups_for_post_annotation_outputs)
-        generate_all_outputs(data, configuration, workflow, analysis)
+        data.ids.set_trait("exclude_groups", analysis.parameters.exclude_groups_for_analysis_outputs)
+        generate_all_outputs(data, analysis)
     copy_outputs_to_google_drive(data.ids)
     logger.info("DONE - execution of notebook %s is complete.", "in draft mode" if in_papermill() else " ")

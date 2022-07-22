@@ -56,7 +56,9 @@ class AnalysisIdentifiers(HasTraits):
     copy_atlas: bool = Bool(default_value=True, read_only=True)
     username: Username = Unicode(default_value=getpass.getuser(), read_only=True)
     exclude_files: FileMatchList = traitlets.List(trait=Unicode(), default_value=[], read_only=True)
-    include_groups: GroupMatchList = traitlets.List(default_value=[], read_only=True)
+    include_groups: Optional[GroupMatchList] = traitlets.List(
+        allow_none=True, default_value=None, read_only=True
+    )
     exclude_groups: GroupMatchList = traitlets.List(default_value=[], read_only=True)
     groups_controlled_vocab: GroupMatchList = traitlets.List(
         trait=Unicode(), default_value=[], read_only=True
@@ -104,7 +106,7 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("copy_atlas", copy_atlas)
         self.set_trait("username", or_default(username, getpass.getuser()))
         self.set_trait("exclude_files", or_default(exclude_files, []))
-        self.set_trait("include_groups", or_default(include_groups, []))
+        self.set_trait("include_groups", include_groups)
         self.set_trait("exclude_groups", or_default(exclude_groups, []))
         self.set_trait("groups_controlled_vocab", or_default(groups_controlled_vocab, []))
         self.set_trait("_lcmsruns", lcmsruns)
@@ -318,7 +320,7 @@ class AnalysisIdentifiers(HasTraits):
         if self.exclude_groups is not None and len(self.exclude_groups) > 0:
             out = dp.remove_metatlas_objects_by_list(out, "name", self.exclude_groups)
         self.set_trait("_groups", dp.filter_empty_metatlas_objects(out, "items"))
-        return self._groups or []
+        return sorted(self._groups, key=lambda x: x.name)
 
     @observe("_all_groups")
     def _observe_all_groups(self, signal: ObserveHandler) -> None:
