@@ -15,8 +15,10 @@ workflows:
         parameters:
           polarity: positive
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
-          include_groups: ["QC"]
-          exclude_groups: ["NEG"]
+          include_groups:
+            rt_alignment: ["QC"]
+          exclude_groups:
+            rt_alignment: ["NEG"]
           use_poly_model: True
           google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
     analyses:
@@ -27,8 +29,10 @@ workflows:
           parameters:
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
-            include_groups: ["QC"]
-            exclude_groups: ["NEG"]
+            include_groups:
+              qc_outputs: ["QC"]
+            exclude_groups:
+              qc_outputs: ["NEG"]
             generate_qc_outputs: True
   - name: Test-HILIC
     rt_alignment:
@@ -37,8 +41,10 @@ workflows:
           username: vrsingan
         parameters:
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
-          include_groups: ["QC"]
-          exclude_groups: ["NEG"]
+          include_groups:
+            rt_alignment: ["QC"]
+          exclude_groups:
+            rt_alignment: ["NEG"]
           use_poly_model: True
           google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
     analyses:
@@ -50,9 +56,16 @@ workflows:
           parameters:
             copy_atlas: True
             polarity: positive
-            exclude_groups: ["QC", "NEG", "FPS"]
-            exclude_groups_for_analysis_outputs: ["QC", "NEG", "FPS"]
-            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
+            exclude_groups:
+              gui: ["QC", "NEG", "FPS"]
+              ids_spreadsheet: ["QC", "NEG", "FPS"]
+              chromatograms: ["QC", "NEG", "FPS"]
+              data_sheets: ["QC", "NEG", "FPS"]
+              box_plots: ["QC", "NEG", "FPS"]
+            exclude_lcmsruns:
+              gui: ["InjBl", "QC", "Blank", "blank"]
+              ids_spreadsheet: ["QC"]
+              chromatograms: ["InjBl", "QC", "Blank", "blank"]
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             filter_removed: True
             num_points: 5
@@ -66,8 +79,10 @@ workflows:
           username: wjholtz
         parameters:
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
-          include_groups: ["QC"]
-          exclude_groups: ["NEG"]
+          include_groups:
+            rt_alignment: ["QC"]
+          exclude_groups:
+            rt_alignment: ["NEG"]
           use_poly_model: True
           google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
     analyses:
@@ -79,10 +94,17 @@ workflows:
           parameters:
             copy_atlas: True
             polarity: negative
+            exclude_groups:
+              gui: ["QC", "NEG", "FPS"]
+              ids_spreadsheet: ["QC", "NEG", "FPS"]
+              chromatograms: ["QC", "NEG", "FPS"]
+              data_sheets: ["QC", "NEG", "FPS"]
+              box_plots: ["QC", "NEG", "FPS"]
+            exclude_lcmsruns:
+              gui: ["InjBl", "QC", "Blank", "blank"]
+              ids_spreadsheet: ["QC"]
+              chromatograms: ["InjBl", "QC", "Blank", "blank"]
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
-            exclude_groups: ["QC", "POS", "FPS"]
-            exclude_groups_for_analysis_outputs: ["QC", "POS", "FPS"]
-            exclude_lcmsruns_in_output_chromatograms: ["InjBl", "QC", "Blank", "blank"]
             num_points: 3
             peak_height: 1e6
             msms_score: 0.6

@@ -21,6 +21,7 @@ ALLOWED_NAME_CHARS = ascii_letters + digits + "-"
 class OutputLists(BaseModel):
     """Lists that are used to configure outputs"""
 
+    rt_alignment: List[str] = []
     qc_outputs: List[str] = []
     gui: List[str] = []
     ids_spreadsheet: List[str] = []
@@ -36,8 +37,8 @@ class BaseNotebookParameters(BaseModel):
     source_atlas: Optional[str] = None
     include_groups: OutputLists
     exclude_groups: OutputLists
-    include_files: OutputLists
-    exclude_files: OutputLists
+    include_lcmsruns: OutputLists
+    exclude_lcmsruns: OutputLists
     groups_controlled_vocab: List[str] = []
     rt_min_delta: Optional[float] = None
     rt_max_delta: Optional[float] = None
@@ -161,9 +162,16 @@ class Config(BaseModel):
                 if analysis.parameters.source_atlas is not None:
                     analysis.atlas.name = analysis.parameters.source_atlas
                     analysis.atlas.username = getpass.getuser()
-                for name in analysis.parameters.__dict__.keys():
-                    if name in override_parameters and override_parameters[name] is not None:
-                        setattr(analysis.parameters, name, override_parameters[name])
+                for name, a_value in analysis.parameters.__dict__.items():
+                    if name in override_parameters:
+                        o_value = override_parameters[name]
+                        if isinstance(o_value, OutputLists):
+                            for out_list in analysis.parameters[name].__dict__.keys():
+                                if out_list in o_value and o_value[out_list] is not None:
+                                    setattr(analysis.parameters, name, override_parameters[name])
+                                # TODO - not done!
+                        elif override_parameters[name] is not None:
+                            setattr(analysis.parameters, name, override_parameters[name])
                 analysis.parameters.google_folder = or_default(
                     analysis.parameters.google_folder, flow.rt_alignment.parameters.google_folder
                 )
