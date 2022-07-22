@@ -1,4 +1,5 @@
 """Manage configuration options using a YAML file"""
+# pylint: disable=too-few-public-methods
 
 import getpass
 import os
@@ -74,6 +75,7 @@ class RTAlignment(BaseModel):
     parameters: RTAlignmentNotebookParameters
 
     @validator("name")
+    @classmethod
     def allowed_name_chars(cls, to_check):
         """Only contains letters, digits and dashes"""
         return validate_allowed_chars("RT alignment name", to_check)
@@ -85,6 +87,7 @@ class Analysis(BaseModel):
     parameters: AnalysisNotebookParameters
 
     @validator("name")
+    @classmethod
     def allowed_name_chars(cls, to_check):
         """Only contains letters, digits and dashes"""
         return validate_allowed_chars("analysis names", to_check)

@@ -6,8 +6,8 @@ import glob
 from metatlas.io.targeted_output import generate_all_outputs
 
 
-def test_generate_all_outputs01(metatlas_dataset, hits, mocker, configuration, workflow, analysis):
+def test_generate_all_outputs01(metatlas_dataset, hits, mocker, analysis):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    generate_all_outputs(metatlas_dataset, configuration, workflow, analysis)
+    generate_all_outputs(metatlas_dataset, analysis)
     assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 15
     assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 19

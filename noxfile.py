@@ -61,7 +61,7 @@ more_checks = [
 # has not yet been updated to pass all checks.
 notebooks = [
     "notebooks/reference/Targeted.ipynb",
-    "notebooks/reference/RT_Prediction.ipynb",
+    "notebooks/reference/RT_Alignment.ipynb",
     "notebooks/reference/Add_MSMS_Reference.ipynb",
 ]
 
