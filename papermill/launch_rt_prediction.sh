@@ -17,14 +17,14 @@ die() {
 
 usage() {
   >&2 echo "Usage:
-  $(basename "$0") experiment_name rt_predict_number workflow_name project_directory [-p notebook_parameter=value] [-y yaml_string]
+  $(basename "$0") workflow_name experiment_name [rt_predict_number] [project_directory] [-p notebook_parameter=value] [-y yaml_string]
 
      where:
+        workflow_name:     name associated with a workflow definition in the configuration file
         experiment_name:   experiment identifier
         rt_predict_number: integer, use 0 the first time generating an RT correction for an experiment
-                           and increment if re-generating an RT correction
-        workflow_name:     name associated with a workflow definition in the configuration file
-        project_directory: output directory will be created within this directory
+	                   and increment if re-generating an RT correction (default: 0)
+	project_directory: output directory will be created within this directory (default: $HOME/metabolomics_data)
         -p:                optional notebook parameters, can use multiple times
         -y:                optional notebook parameters in YAML or JSON string
 
@@ -170,6 +170,14 @@ check_analysis_dir_does_not_exist() {
   fi
 }
 
+check_project_dir_does_exist() {
+  if ! [ -d "$1" ]; then
+    >&2 echo "ERROR: project_directory '${1}' does not exist."
+    >&2 echo "       Please run 'mkdir \"${1}\"' first."
+    die
+  fi
+}
+
 check_exp_id_has_atleast_9_fields() {
   # inputs: the 9th field (1-indexed) of the experiment_name split on '_'
   if [[ $1 == "" ]]; then
@@ -186,6 +194,16 @@ check_not_in_commom_software_filesystem() {
     >&2 echo "/global/common/software"
     >&2 echo "Please change to a different directory and try again."
     >&2 echo "No SLURM jobs have been submitted."
+    >&2 echo ""
+    die
+  fi
+}
+
+check_rt_predict_number_is_non_neg_int() {
+  re='^[0-9]+$'
+  if ! [[ $1 =~ $re ]] ; then
+    >&2 echo ""
+    >&2 echo "ERROR: rt_predict_number must be a non-negative integer"
     >&2 echo ""
     die
   fi
@@ -208,8 +226,8 @@ do
   fi
 done
 
-if [  ${#positional_parameters[@]} -ne 4 ]; then
-  >&2 echo "ERROR: one of experiment_name, rt_predict_number, workflow_name, or project_directory was not supplied."
+if [  ${#positional_parameters[@]} -ne 2 ]; then
+  >&2 echo "ERROR: one of workflow_name or experiment_name was not supplied."
   >&2 echo ""
   usage
 fi
@@ -218,10 +236,10 @@ if [  ${#extra_parameters[@]} -ne 0 ]; then
   validate_extra_parameters extra_parameters  # pass extra_parameters by name
 fi
 
-exp="${positional_parameters[0]}"
-rt_predict_num="${positional_parameters[1]}"
-project_dir="${positional_parameters[2]}"
-workflow_name="${positional_parameters[3]}"
+workflow_name="${positional_parameters[0]}"
+exp="${positional_parameters[1]}"
+rt_predict_num="${positional_parameters[2]:-0}"
+project_dir="${positional_parameters[3]:-$HOME/metabolomics_data}"
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && realpath .)"
 exp_dir="${project_dir}/$exp"
@@ -233,6 +251,8 @@ exp_check_len="${TOKENS[8]:-}"
 
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_analysis_dir_does_not_exist "$analysis_dir"
+check_project_dir_does_exist "$project_dir"
+check_rt_predict_number_is_non_neg_int "$rt_predict_num"
 check_yaml_is_valid "$(echo "${YAML_BASE64:-}" | base64 --decode)"
 check_gdrive_authorization
 check_not_in_commom_software_filesystem
@@ -251,7 +271,8 @@ PARAMETERS+=" -p experiment $exp \
 	      -p workflow_name '${workflow_name}' \
 	      -p project_directory $project_dir \
 	      -p max_cpus $threads_to_use \
-	      -p rt_predict_number $rt_predict_num"
+	      -p rt_predict_number $rt_predict_num \
+	      -p config_file_name /global/cfs/cdirs/m2650/targeted_analysis/metatlas_config.yaml"
 if [  ${#extra_parameters[@]} -ne 0 ]; then
   for i in "${extra_parameters[@]}"
   do
