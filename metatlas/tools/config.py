@@ -18,20 +18,32 @@ from metatlas.tools.util import or_default
 ALLOWED_NAME_CHARS = ascii_letters + digits + "-"
 
 
+class OutputLists(BaseModel):
+    """Lists that are used to configure outputs"""
+
+    qc_outputs: List[str] = []
+    gui: List[str] = []
+    ids_spreadsheet: List[str] = []
+    chromatograms: List[str] = []
+    data_sheets: List[str] = []
+    box_plots: List[str] = []
+
+
 class BaseNotebookParameters(BaseModel):
     """Parameters common to both RT_Alignment and Targeted notebooks"""
 
     copy_atlas: bool = False
     source_atlas: Optional[str] = None
-    include_groups: Optional[List[str]] = None
-    exclude_groups: List[str] = []
-    exclude_files: List[str] = []
+    include_groups: OutputLists
+    exclude_groups: OutputLists
+    include_files: OutputLists
+    exclude_files: OutputLists
     groups_controlled_vocab: List[str] = []
     rt_min_delta: Optional[float] = None
     rt_max_delta: Optional[float] = None
     config_file_name: Optional[str] = None
     source_code_version_id: Optional[str] = None
-    project_directory: str = str(Path().home())
+    project_directory: str = str(Path().home() / "metabolomics_data")
     google_folder: Optional[str] = None
     max_cpus: int = 4
     log_level: str = "INFO"
@@ -49,7 +61,6 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     line_colors: List[Tuple[str, str]] = []
     require_all_evaluated: bool = False
     generate_analysis_outputs: bool = False
-    exclude_groups_for_analysis_outputs: List[str] = []
     export_msms_fragment_ions: bool = False
     clear_cache: bool = False
 
