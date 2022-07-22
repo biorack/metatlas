@@ -78,6 +78,22 @@ def test_remove_metatlas_objects_by_list_remove_all():
     assert [] == dill2plots.remove_metatlas_objects_by_list([i, j], "myattr", [0, 2, 5])
 
 
+def test_remove_metatlas_objects_by_list01():
+    i = type("", (), {})()
+    i.myattr = "foobar"
+    j = type("", (), {})()
+    j.myattr = "zoop!"
+    assert [] == dill2plots.remove_metatlas_objects_by_list([i, j], "myattr", ["oo"])
+
+
+def test_remove_metatlas_objects_by_list02():
+    i = type("", (), {})()
+    i.myattr = "foobar"
+    j = type("", (), {})()
+    j.myattr = "zoop!"
+    assert [j] == dill2plots.remove_metatlas_objects_by_list([i, j], "myattr", ["bar"])
+
+
 def test_export_atlas_to_spreadsheet(atlas, username):
     # pylint: disable=line-too-long
     expected = (

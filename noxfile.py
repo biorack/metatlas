@@ -26,6 +26,7 @@ nox.options.sessions = [
 # has not yet been updated to pass all checks.
 more_checks = [
     "metatlas/interfaces/compounds/populate.py",
+    "metatlas/io/gdrive.py",
     "metatlas/io/file_converter.py",
     "metatlas/io/rclone.py",
     "metatlas/io/targeted_output.py",
@@ -44,13 +45,15 @@ more_checks = [
     "metatlas/plots/utils.py",
     "metatlas/scripts/copy_ms_to_new_names.py",
     "metatlas/scripts/yaml_validation.py",
+    "metatlas/targeted/rt_alignment.py",
+    "metatlas/targeted/process.py",
     "metatlas/tools/add_msms_ref.py",
     "metatlas/tools/cheminfo.py",
+    "metatlas/tools/config.py",
     "metatlas/tools/environment.py",
     "metatlas/tools/logging.py",
     "metatlas/tools/notebook.py",
     "metatlas/tools/parallel.py",
-    "metatlas/tools/predict_rt.py",
     "metatlas/tools/util.py",
     "metatlas/tools/validate_filenames.py",
     "noxfile.py",
@@ -61,7 +64,7 @@ more_checks = [
 # has not yet been updated to pass all checks.
 notebooks = [
     "notebooks/reference/Targeted.ipynb",
-    "notebooks/reference/RT_Prediction.ipynb",
+    "notebooks/reference/RT_Alignment.ipynb",
     "notebooks/reference/Add_MSMS_Reference.ipynb",
 ]
 

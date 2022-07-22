@@ -5,7 +5,7 @@ set -euf -o pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 REPO_DIR=$(dirname "$SCRIPT_DIR")
 OUT_DIR="${SCRIPT_DIR}/out"
-IMAGE='registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.20'
+IMAGE='registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.22'
 PORT=8888
 
 while [[ "$#" -gt 0 ]]; do

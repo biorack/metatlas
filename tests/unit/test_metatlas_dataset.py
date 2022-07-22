@@ -2,7 +2,6 @@
 # pylint: disable=missing-function-docstring,protected-access,unused-argument,too-many-arguments
 
 import datetime
-import glob
 import logging
 import os
 import time
@@ -11,7 +10,6 @@ import pandas as pd
 import pytest
 import traitlets
 
-from metatlas.datastructures import analysis_identifiers
 from metatlas.datastructures import metatlas_dataset as mads
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
@@ -430,14 +428,17 @@ def test_write_data_source_files02(metatlas_dataset, mocker, caplog):
     assert ma_data.make_data_sources_tables.called  # pylint: disable=no-member
 
 
-def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, atlas, username):
+def test_get_atlas01(mocker, analysis_ids, df_container, lcmsrun, username):
     mocker.patch(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     mocker.patch("glob.glob", return_value=range(10))
     metatlas_dataset = mads.MetatlasDataset(ids=analysis_ids)
-    assert metatlas_dataset.atlas.name == f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}_0_0"
+    assert (
+        metatlas_dataset.atlas.name
+        == f"505892_OakGall_final_HILICz150_ANT20190824_PRD_EMA_Unlab_POS_{username}_0_0"
+    )
 
 
 def test_get_atlas02(mocker, analysis_ids, caplog):
@@ -452,7 +453,7 @@ def test_get_atlas03(mocker, analysis_ids, caplog, username):
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[0, 0])
     with pytest.raises(ValueError):
         mads.MetatlasDataset(ids=analysis_ids)
-    atlas = f"505892_OakGall_final_FinalEMA-HILIC_POS_{username}_0_0"
+    atlas = f"505892_OakGall_final_HILICz150_ANT20190824_PRD_EMA_Unlab_POS_{username}_0_0"
     assert f"2 atlases with name {atlas} and owned by {username} already exist." in caplog.text
 
 
@@ -490,38 +491,6 @@ def test_store_groups02(metatlas_dataset, mocker, username):
         metatlas_dataset.ids.store_all_groups()
 
 
-def test_annotation_gui01(metatlas_dataset, hits, mocker, instructions):
-    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    mocker.patch("pandas.read_csv", return_value=instructions)
-    agui = metatlas_dataset.annotation_gui()
-    agui.compound_idx = 0
-    agui.set_msms_flag("1, co-isolated precursor but all reference ions are in sample spectrum")
-    agui.set_peak_flag("remove")
-    agui.data.set_rt(0, "rt_min", 2.1245)
-    agui.data.set_rt(0, "rt_max", 2.4439)
-    assert metatlas_dataset.rts[0].rt_min == 2.1245
-    assert metatlas_dataset.rts[0].rt_max == 2.4439
-    assert metatlas_dataset.data[0][0]["identification"].ms1_notes == "remove"
-    assert (
-        metatlas_dataset.data[0][0]["identification"].ms2_notes
-        == "1, co-isolated precursor but all reference ions are in sample spectrum"
-    )
-
-
-def test_annotation_gui02(metatlas_dataset, hits, mocker, instructions):
-    metatlas_dataset[0][0]["identification"].compound = []
-    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    mocker.patch("pandas.read_csv", return_value=instructions)
-    metatlas_dataset.annotation_gui()
-
-
-def test_generate_all_outputs01(metatlas_dataset, hits, mocker):
-    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    metatlas_dataset.generate_all_outputs()
-    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*")) == 15
-    assert len(glob.glob(metatlas_dataset.ids.output_dir + "/*/*")) == 19
-
-
 def test_short_polarity_inverse01(analysis_ids):
     assert set(analysis_ids.short_polarity_inverse) == {"NEG", "FPS"}
 
@@ -554,34 +523,6 @@ def test_invalidation01(analysis_ids):
     assert analysis_ids._groups is not None
     analysis_ids.set_trait("exclude_files", ["Cone-S1"])
     assert analysis_ids._groups is None
-
-
-def test_negative_polarity01(sqlite_with_atlas, username, lcmsrun, mocker, groups_controlled_vocab):
-    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    ids = analysis_identifiers.AnalysisIdentifiers(
-        experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
-        output_type="FinalEMA-HILIC",
-        polarity="negative",
-        analysis_number=0,
-        google_folder="0B-ZDcHbPi-aqZzE5V3hOZFc0dms",
-        project_directory=str(os.getcwd()),
-        groups_controlled_vocab=groups_controlled_vocab,
-    )
-    assert "POS" in ids.exclude_groups
-
-
-def test_include_groups01(sqlite_with_atlas, username, lcmsrun, mocker, groups_controlled_vocab):
-    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    ids = analysis_identifiers.AnalysisIdentifiers(
-        experiment="20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583",
-        output_type="data_QC",
-        polarity="negative",
-        analysis_number=0,
-        google_folder="0B-ZDcHbPi-aqZzE5V3hOZFc0dms",
-        project_directory=str(os.getcwd()),
-        groups_controlled_vocab=groups_controlled_vocab,
-    )
-    assert "QC" in ids.include_groups
 
 
 def test_project01(analysis_ids):

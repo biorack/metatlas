@@ -61,6 +61,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         metatlas_dataset = input_dataset
     dataset = dp.filter_runs(metatlas_dataset, include_lcmsruns, include_groups,
                              exclude_lcmsruns, exclude_groups)
+    assert len(dataset) > 0
     metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta',
                'peak_height', 'peak_area', 'num_data_points']
     ds_dir = os.path.join(output_loc, 'data_sheets') if data_sheets else ""

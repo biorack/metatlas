@@ -5,12 +5,12 @@ import numpy as np
 from . import utils
 
 
-def test_rt_predict_by_line01(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci02:v1.4.23"
+def test_rt_alignment_by_line01(tmp_path):
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci02:v1.4.24"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
-        str(tmp_path / experiment / "root_0_0/data_QC/rt_model.txt")
+        str(tmp_path / experiment / "root_0_0/Targeted/Test-QC/RT_Alignment/rt_alignment_model.txt")
     ] = """RANSACRegressor(random_state=42)
 Linear model with intercept=0.430 and slope=0.95574
 groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root_0_0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root_0_0_QC
@@ -22,7 +22,11 @@ groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_
 atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 """
     expected_df = {}
-    expected_df[str(tmp_path / experiment / "root_0_0/data_QC/RT_Predicted_Model_Comparison.csv")] = {
+    expected_df[
+        str(
+            tmp_path / experiment / "root_0_0/Targeted/Test-QC/RT_Alignment/RT_Alignment_Model_Comparison.csv"
+        )
+    ] = {
         "Unnamed: 0": {
             0: "0000_uracil_unlabeled_positive_M+H113p0346_1p39",
             1: "0001_cytosine_unlabeled_positive_M+H112p0505_4p83",
@@ -30,13 +34,13 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
         },
         "RT Measured": {0: 1.884217, 1: 4.878586, 2: 13.32883},
         "RT Reference": {0: 1.3937, 1: 4.833664, 2: 13.44515},
-        "RT Linear Pred": {0: 1.761967, 1: 5.049671, 2: 13.28},
-        "RT Polynomial Pred": {0: 1.884217, 1: 4.878586, 2: 13.32883},
+        "Relative RT Linear": {0: 1.761967, 1: 5.049671, 2: 13.28},
+        "Relative RT Polynomial": {0: 1.884217, 1: 4.878586, 2: 13.32883},
         "RT Diff Linear": {0: 0.1222508, 1: -0.1710854, 2: 0.04883459},
         "RT Diff Polynomial": {0: -1.865175e-14, 1: 1.776357e-15, 2: 1.776357e-14},
     }
 
-    expected_df[str(tmp_path / experiment / "root_0_0/data_QC/POS/POS_QC_Measured_RTs.csv")] = {
+    expected_df[str(tmp_path / experiment / "root_0_0/Targeted/Test-QC/QC-POS/POS_QC_Measured_RTs.csv")] = {
         "Unnamed: 0": {
             0: "0000_uracil_unlabeled_positive_M+H113p0346_1p39",
             1: "0001_cytosine_unlabeled_positive_M+H112p0505_4p83",
@@ -73,13 +77,15 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 
     command = """papermill -k papermill \
                         -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
-                        -p model_only False \
                         -p project_directory /out \
                         -p max_cpus 2 \
-                        /src/notebooks/reference/RT_Prediction.ipynb \
+                        -p config_file_name /src/test_config.yaml \
+                        -p workflow_name Test-QC \
+                        -p rt_alignment_number 0 \
+                        /src/notebooks/reference/RT_Alignment.ipynb \
                         /out/Remove-done.ipynb
     """
-    utils.exec_docker(image, command, tmp_path)
-    assert utils.num_files_in(tmp_path) == 81
+    utils.exec_docker(image, command, tmp_path, utils.PAPERMILL_ENV)
+    assert utils.num_files_in(tmp_path) == 21
     utils.assert_files_match(expected)
     utils.assert_dfs_match(expected_df)

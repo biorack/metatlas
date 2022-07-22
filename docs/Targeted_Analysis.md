@@ -16,14 +16,32 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
    ```
    /global/common/software/m2650/metatlas-repo/utils/rclone_auth.sh
    ```
-5. The output from step 4 will include a URL that you should copy into and open with a web browser that is logged into your LBL Google account.
+5. The output from step 4 will include a URL that you should copy into and open with a web browser that is logged in to your LBL Google account.
 6. You will be prompted to authorize RClone to have edit access to Google Drive. Select your lbl.gov Google Account and then click the 'Allow' button.
 7. Click the clipboard icon to copy the authorization code.
+
+![clipboard icon screen shot](google_auth_copy_button.png)
+
 8. Go back to the JupyterLab page and paste the authorization code into the terminal and hit 'Enter'.
 9. To verify you RClone configuration was successful, copy and paste the following command into the terminal:
+
+   ```
+   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls rclone_test:sub
+   ```
+
+   Which should yield:
+   ```
+   119 If_you_see_this_then_RClone_has_been_properly_configured.txt
+   ```
+
+10. If you will be working on JGI data, then check that you have access to the
+   [JGI_Metabolomics_Projects Google Drive folder](https://drive.google.com/drive/folders/0B-ZDcHbPi-aqZzE5V3hOZFc0dms)
+   by copying and pasting the following command into the terminal:
+
    ```
    /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd metabolomics:Analysis_uploads
    ```
+
    Which should yield a listing of metabolomics experiment names similar to:
    ```
              -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
@@ -43,7 +61,7 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
 
    then you need to request access to the
    [JGI_Metabolomics_Projects Google Drive folder](https://drive.google.com/drive/folders/0B-ZDcHbPi-aqZzE5V3hOZFc0dms).
-   Please repeat step 9 after you have been granted access.
+   Please repeat step 10 after you have been granted access.
 
 
 ### Make a directory to store work in progress
@@ -58,36 +76,36 @@ mkdir -p ~/metabolomics_data
 ### Perform RT correction
 
 #### Set Parameters
+The `workflow_name` parameter will be supplied by Katherine or Suzie. For JGI projects, it will likely be one of `JGI-HILIC` or `JGI-C18`.
+
 The `experiment_name` parameter can retrieved from the [Sample Tracking and QC Checkpoints - Northen Lab](https://docs.google.com/spreadsheets/d/126t1OeXQnCCgP6e-6Pac_Ku_A1R7MQLm_tl_Dkqsv_w/edit#gid=1548851545) Google Sheet. The experiment names can be found on the 'New Extraction' sheet in either column 'N' or 'O' depending on the type of chromatography that was performed. This value will be something like `20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494`.
 
-The `rt_predict_number` parameter is an integer that you'll need to increment if you re-run the RT correction. It should be set to 0 initially.
-
-The `project_directory` is where you want to store the analysis while working on it. You should use `~/metabolomics_data`.
+The `rt_predict_number` parameter is an integer that you'll need to increment if you re-run the RT alignment step. It should be set to 0 initially.
 
 #### Run `launch_rt_prediction.sh`
 
 In your JupyterLab terminal, run the following command (where you substitute the 3 parameters described above):
 ```
-/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh experiment_name rt_predict_number project_directory
+/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh workflow_name experiment_name rt_predict_number
 ```
 
 For example, your command with the parameters substituted in will be something like:
 ```
-/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 ~/metabolomics_data
+/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh JGI-HILIC 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0
 ```
 
 This will submit a slurm job. On Cori, you will receive an email when the job starts executing and when it has completed. On Perlmutter, the SLRUM job notifications emails are currently broken. Typical HILIC jobs take 2 to 5 hours to complete.
 
 #### Evaluate Outputs
 
-Once the job has completed, you should check the files generated to make sure the RT correction models look acceptable. You can find the output PDF files at `~/metabolomics_data/<experiment_name>/<user_id>_<rt_predict_number>_0/data_QC/`. One easy way to view these files is to open them from the [Jupyter](https://jupyter.nersc.gov/) file browser. In `Actual_vs_Predicted_RTs.pdf`, you want to check that the default model (median-based RT correction and polynomial model) gives a good fit. At the bottom of the `Actual_vs_Predicted_RTs.pdf`, you can find the 'FileIndex' number that corresponds to the 'median' correction. Once you have determined the 'FileIndex' for median, you want to find the plot that has 'File: \<FileIndex\>' above it. This is the plot showing the models for the median-based RT correction. On each plot, there should be a red line (linear model) and green line (polynomial model). In many cases the lines for these models will almost be right on top of each other and you might not be able to see both of the lines unless you zoom in near the line ends.
+Once the job has completed, you should check the files generated to make sure the RT correction models look acceptable. You can find the output PDF files at `~/metabolomics_data/<experiment_name>/<user_id>_<rt_predict_number>_0/Targeted/<workflow_name>/RT_Alignment/`. One easy way to view these files is to open them from the [Jupyter](https://jupyter.nersc.gov/) file browser. In `Actual_vs_Predicted_RTs.pdf`, you want to check that the default model (median-based RT correction and polynomial model) gives a good fit. At the bottom of the `Actual_vs_Predicted_RTs.pdf`, you can find the 'FileIndex' number that corresponds to the 'median' correction. Once you have determined the 'FileIndex' for median, you want to find the plot that has 'File: \<FileIndex\>' above it. This is the plot showing the models for the median-based RT correction. On each plot, there should be a red line (linear model) and green line (polynomial model). In many cases the lines for these models will almost be right on top of each other and you might not be able to see both of the lines unless you zoom in near the line ends.
 
 If the median-based polynomial model does not give a good fit, then you will want to re-run  `launch_rt_predictions.sh` with additional parameters (and an incremented `rt_predict_number`). See [Passing Additional Notebook Parameters To launch_rt_predictions.sh](#passing-additional-notebook-parameters-to-launch_rt_predictionsh) to learn how to pass the parameters. The two most relevant parameters for choosing a different model are `use_poly_model` and `dependent_data_source`. Documentation of the parameters and their possible values can be found in the first code block of the [RT_prediction.ipynb](https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Prediction.ipynb) notebook.
 
 ### Perform ISTDsEtc Analysis
 
 1. Launch [jupyter.nersc.gov](https://jupyter.nersc.gov/) in your web browser and start a 'Shared CPU Node' on Cori or Perlmutter.
-2. Open `~/metabolomics_data/<experiment_name>/<user_id>_<rt_predict_number>_0/<project_id>_ISTDsEtc_POS.ipynb` within JupyterLab (you no longer need to use the Classic Notebook interface). If you are prompted to select a kernel, select 'Metatlas Targeted'.
+2. Open `~/metabolomics_data/<experiment_name>/<user_id>_<rt_predict_number>_0/Targeted/<workflow_name>/<project_id>_<workflow_name>_ISTDsEtc-POS.ipynb` within JupyterLab (you no longer need to use the Classic Notebook interface). If you are prompted to select a kernel, select 'Metatlas Targeted'.
 3. The first code cell of the notebook contains descriptions of the parameters and their default values. The second code cell of the notebook contain parameter values that were auto-populated from the RT correction slurm job. These values in the second code block will override the default values from the first code block. The third code block validates your parameter values and also validates that your environment is correctly configured. Execute the first 3 code cells and see if there are any errors. If you get an error message (usually error messages will be in red), you will need to correct the issue so that the cell executes without giving an error before moving on. The error messages commonly see at this point in the workflow generally include some description of what action is needed to correct the problem.
 4. Execute the code blocks 4 and 5 to read in data and bring up the Annotation GUI.
 5. For each of the compound-adduct pairs in your atlas, set the RT min and RT max boundaries to just contain the EIC peak that corresponds to the compound you are currently evaluating. For each compound-adduct pair, you must either select one of the MSMS-quality descriptors (upper set of radio buttons) or use the bottom set of radio buttons to mark the compound-adduct pair for removal. Failure to set either MSMS-quality descriptors or the remove state for each compound-adduct pair will result in the subsequent step throwing an error.
@@ -100,7 +118,7 @@ If the median-based polynomial model does not give a good fit, then you will wan
 
 ### Perform FinalEMA-HILIC Analysis
 
-1. Follow the same steps as the ISTDsEtc analysis except use the notebook name `<project_id>_FinalEMA-HILIC_POS.ipynb`.
+1. Follow the same steps as the ISTDsEtc analysis except use the notebook name `<project_id>_<workflow_name>-_EMA-POS.ipynb`.
 2. Open the `POS_<project_id>_Final_Identifications.xlsx` file in the output directory on Google Drive.
 3. Make sure everything looks as expected in the spreadsheet.
 4. If there are any compound-adduct pairs that need to be removed at this point (because they are duplicated or you can now determine a similar compound was a better match for a given peak), you can place 'REMOVE' in columns B, M, and N. In columns B and N you should also include some description such as 'REMOVE - duplicate' or 'REMOVE - other isomer preferred (tryptophan matches MSMS reference)' or 'REMOVE - other isomer preferred (tryptophan matches reference RT)'.
@@ -144,7 +162,7 @@ The `-p` and `-y` options can be used at the same time.
 An example usage of `-p` and `-y`:
 ```
 /global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh \
-    20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 ~/metabolomics_data \
+    JGI-HILIC 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 \
     -y “{'rt_min_delta': -1.5, 'rt_max_delta': 1.5, 'inchi_keys_not_in_model': [‘CZMRCDWAGMRECN-UGDNZRGBSA-N', 'ISAKRJDGNUQOIC-UHFFFAOYSA-N']}" \
     -p stop_before=atlases
 ```

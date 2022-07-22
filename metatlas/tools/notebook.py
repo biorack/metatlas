@@ -19,6 +19,8 @@ from metatlas.tools.environment import install_metatlas_kernel
 
 logger = logging.getLogger(__name__)
 
+PAPERMILL_EXEC_ENV = "PAPERMILL_EXECUTION"
+
 
 def configure_environment(log_level: str) -> None:
     """
@@ -150,3 +152,11 @@ def assignment_string(lhs: str, rhs: Any) -> str:
     else:
         rhs_str = json.dumps(rhs)
     return f"{lhs} = {rhs_str}\n"
+
+
+def in_papermill():
+    """
+    Returns True if notebook is running in papermill.
+    Requires setting of envionmental variable before running papermill!
+    """
+    return PAPERMILL_EXEC_ENV in os.environ

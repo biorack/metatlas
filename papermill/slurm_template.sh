@@ -6,7 +6,9 @@
 
 set -euo pipefail
 
-shifter_flags="--module=none --clearenv"
+# PAPERMILL_EXECUTION is set to True so we can determine if notebooks
+# are being run in papermill or interactively
+shifter_flags="--module=none --clearenv --env=PAPERMILL_EXECUTION=True"
 
 log_dir="/global/cfs/projectdirs/m2650/jupyter_logs/slurm"
 

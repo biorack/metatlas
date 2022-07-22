@@ -5,7 +5,7 @@ from metatlas.datastructures.utils import get_atlas
 
 
 def test_get_atlas01(sqlite_with_atlas, username):
-    query = f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}_0_0"
+    query = "HILICz150_ANT20190824_PRD_EMA_Unlab_POS"
     atlas = get_atlas(query, username)
     assert atlas.name == query
     assert len(atlas.compound_identifications) == 1
