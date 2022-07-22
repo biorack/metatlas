@@ -12,21 +12,24 @@ fi
 raw_file="$(realpath "$1")"
 
 validation="\
+import logging
 from pathlib import Path
 from metatlas.tools.validate_filenames import validate_file_name
-print('Validating ${raw_file}')
-assert validate_file_name(Path('${raw_file}'))"
+logging.basicConfig(format='%(levelname)s, %(message)s', level=logging.INFO)
+assert validate_file_name(Path('${raw_file}'), minimal=True)"
+# the above "minimal=True" should be set to False once raw file names are expected to
+# be fully in agreement with the SOP
 
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
         python -c "$validation" 2>&1 | \
-	ts "%Y-%m-%d %H:%M:%.S"
+	ts "%Y-%m-%d %H:%M:%.S, "
 
 # ThermoRawFileParser.sh should return non-zero exit code on error, but it doesn't
 # https://github.com/compomics/ThermoRawFileParser/issues/140
 # But the mzML to h5 conversion will fail nicely if the mzML files does not exist
 shifter "--image=${raw_image}" ThermoRawFileParser.sh \
 	"-i=${raw_file}" "-o=$(dirname "$raw_file")" -f=1 2>&1 | \
-	ts "%Y-%m-%d %H:%M:%.S"
+	ts "%Y-%m-%d %H:%M:%.S, "
 
 mzml_file="${raw_file%.raw}.mzML"
 
