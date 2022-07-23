@@ -226,8 +226,14 @@ do
   fi
 done
 
-if [  ${#positional_parameters[@]} -ne 2 ]; then
+if [  ${#positional_parameters[@]} -lt 2 ]; then
   >&2 echo "ERROR: one of workflow_name or experiment_name was not supplied."
+  >&2 echo ""
+  usage
+fi
+
+if [  ${#positional_parameters[@]} -gt 4 ]; then
+  >&2 echo "ERROR: too many positional parameters supplied."
   >&2 echo ""
   usage
 fi
