@@ -82,16 +82,16 @@ The `experiment_name` parameter can retrieved from the [Sample Tracking and QC C
 
 The `rt_predict_number` parameter is an integer that you'll need to increment if you re-run the RT alignment step. It should be set to 0 initially.
 
-#### Run `launch_rt_prediction.sh`
+#### Run `submit_slurm_job.sh`
 
 In your JupyterLab terminal, run the following command (where you substitute the 3 parameters described above):
 ```
-/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh workflow_name experiment_name rt_predict_number
+/global/common/software/m2650/metatlas-repo/papermill/submit_slurm_job.sh workflow_name experiment_name rt_predict_number
 ```
 
 For example, your command with the parameters substituted in will be something like:
 ```
-/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh JGI-HILIC 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0
+/global/common/software/m2650/metatlas-repo/papermill/submit_slurm_job.sh JGI-HILIC 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0
 ```
 
 This will submit a slurm job. On Cori, you will receive an email when the job starts executing and when it has completed. On Perlmutter, the SLRUM job notifications emails are currently broken. Typical HILIC jobs take 2 to 5 hours to complete.
@@ -100,7 +100,7 @@ This will submit a slurm job. On Cori, you will receive an email when the job st
 
 Once the job has completed, you should check the files generated to make sure the RT correction models look acceptable. You can find the output PDF files at `~/metabolomics_data/<experiment_name>/<user_id>_<rt_predict_number>_0/Targeted/<workflow_name>/RT_Alignment/`. One easy way to view these files is to open them from the [Jupyter](https://jupyter.nersc.gov/) file browser. In `Actual_vs_Predicted_RTs.pdf`, you want to check that the default model (median-based RT correction and polynomial model) gives a good fit. At the bottom of the `Actual_vs_Predicted_RTs.pdf`, you can find the 'FileIndex' number that corresponds to the 'median' correction. Once you have determined the 'FileIndex' for median, you want to find the plot that has 'File: \<FileIndex\>' above it. This is the plot showing the models for the median-based RT correction. On each plot, there should be a red line (linear model) and green line (polynomial model). In many cases the lines for these models will almost be right on top of each other and you might not be able to see both of the lines unless you zoom in near the line ends.
 
-If the median-based polynomial model does not give a good fit, then you will want to re-run  `launch_rt_predictions.sh` with additional parameters (and an incremented `rt_predict_number`). See [Passing Additional Notebook Parameters To launch_rt_predictions.sh](#passing-additional-notebook-parameters-to-launch_rt_predictionsh) to learn how to pass the parameters. The two most relevant parameters for choosing a different model are `use_poly_model` and `dependent_data_source`. Documentation of the parameters and their possible values can be found in the first code block of the [RT_prediction.ipynb](https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Prediction.ipynb) notebook.
+If the median-based polynomial model does not give a good fit, then you will want to re-run  `submit_slurm_jobs.sh` with additional parameters (and an incremented `rt_predict_number`). See [Passing Additional Notebook Parameters To submit_slurm_jobs.sh](#passing-additional-notebook-parameters-to-submit_slurm_jobsh) to learn how to pass the parameters. The two most relevant parameters for choosing a different model are `use_poly_model` and `dependent_data_source`. Documentation of the parameters and their possible values can be found in the first code block of the [RT_prediction.ipynb](https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Prediction.ipynb) notebook.
 
 ### Perform ISTDsEtc Analysis
 
@@ -149,11 +149,11 @@ If the median-based polynomial model does not give a good fit, then you will wan
 
 ## Advanced Usage
 
-### Passing Additional Notebook Parameters To `launch_rt_prediction.sh`
+### Passing Additional Notebook Parameters To `submit_slurm_job.sh`
 
-Any of the parameters in the first code block of the `RT_Prediction.ipynb` notebook can be passed to the `launch_rt_prediction.sh` script. There are two command line options that can be used to supply parameters.
+Any of the parameters in the first code block of the `RT_Prediction.ipynb` notebook can be passed to the `submit_slurm_job.sh` script. There are two command line options that can be used to supply parameters.
 
-The `-p` option can be used to supply a parameter that takes a single unstructured value (number, string, or boolean): `-p parameter_name=parameter_value`. The `-p` option can be supplied multiple times to the `launch_rt_prediction.sh` script if needed.
+The `-p` option can be used to supply a parameter that takes a single unstructured value (number, string, or boolean): `-p parameter_name=parameter_value`. The `-p` option can be supplied multiple times to the `submit_slurm_job.sh` script if needed.
 
 The `-y` option can be used to supply multiple parameters and structured parameters (lists, dictionaries, nested data structures). The parameter names and values are passed as YAML or JSON strings: `-y "{'parameter_name1': ['list', 'of', 'values'], 'parameter_name2': 'another value'}"`.
 
@@ -161,7 +161,7 @@ The `-p` and `-y` options can be used at the same time.
 
 An example usage of `-p` and `-y`:
 ```
-/global/common/software/m2650/metatlas-repo/papermill/launch_rt_prediction.sh \
+/global/common/software/m2650/metatlas-repo/papermill/submit_slurm_job.sh \
     JGI-HILIC 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0 \
     -y “{'rt_min_delta': -1.5, 'rt_max_delta': 1.5, 'inchi_keys_not_in_model': [‘CZMRCDWAGMRECN-UGDNZRGBSA-N', 'ISAKRJDGNUQOIC-UHFFFAOYSA-N']}" \
     -p stop_before=atlases
