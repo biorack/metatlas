@@ -319,8 +319,9 @@ class AnalysisIdentifiers(HasTraits):
             out = dp.filter_metatlas_objects_by_list(out, "name", self.include_groups)
         if self.exclude_groups is not None and len(self.exclude_groups) > 0:
             out = dp.remove_metatlas_objects_by_list(out, "name", self.exclude_groups)
-        self.set_trait("_groups", dp.filter_empty_metatlas_objects(out, "items"))
-        return sorted(self._groups, key=lambda x: x.name)
+        sorted_out = sorted(dp.filter_empty_metatlas_objects(out, "items"), key=lambda x: x.name)
+        self.set_trait("_groups", sorted_out)
+        return self._groups
 
     @observe("_all_groups")
     def _observe_all_groups(self, signal: ObserveHandler) -> None:
