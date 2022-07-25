@@ -282,8 +282,8 @@ constraint="$(get_slurm_constraint)"
 time="$(get_slurm_time)"
 IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested} --constraint=${constraint} --time=${time}"
 
-IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
-OUT_FILE="${analysis_dir}/${proposal}_RT_Prediction_papermill.ipynb"
+IN_FILE="/src/notebooks/reference/RT_Alignment.ipynb"
+OUT_FILE="${analysis_dir}/${proposal}_${workflow_name}_RT_Alignment_SLURM.ipynb"
 
 PARAMETERS+=" -p experiment $exp \
 	      -p workflow_name '${workflow_name}' \
@@ -307,4 +307,4 @@ install_jupyter_kernel
 
 mkdir -p "$analysis_dir"
 # shellcheck disable=SC2086
-sbatch $flags -J "${proposal}_RT_Pred" "${script_dir}/slurm_template.sh"
+sbatch $flags -J "${proposal}_RT_Align" "${script_dir}/slurm_template.sh"
