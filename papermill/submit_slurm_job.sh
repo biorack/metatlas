@@ -209,6 +209,18 @@ check_rt_predict_number_is_non_neg_int() {
   fi
 }
 
+get_script_dir() {
+  # adapted from https://stackoverflow.com/questions/59895/
+  SOURCE=${BASH_SOURCE[0]}
+  while [ -L "$SOURCE" ]; do
+    DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+    SOURCE=$(readlink "$SOURCE")
+    [[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE
+  done
+  DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+  echo "$DIR"
+}
+
 YAML_BASE64="$(echo "{}" | base64 --wrap=0)"
 declare -a positional_parameters=()
 declare -a extra_parameters=()
@@ -247,7 +259,7 @@ exp="${positional_parameters[1]}"
 rt_predict_num="${positional_parameters[2]:-0}"
 project_dir="${positional_parameters[3]:-$HOME/metabolomics_data}"
 
-script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && realpath .)"
+script_dir="$(get_script_dir())"
 exp_dir="${project_dir}/$exp"
 analysis_dir="${exp_dir}/${USER}_${rt_predict_num}_0"
 
