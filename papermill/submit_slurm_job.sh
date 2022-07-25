@@ -259,7 +259,7 @@ exp="${positional_parameters[1]}"
 rt_predict_num="${positional_parameters[2]:-0}"
 project_dir="${positional_parameters[3]:-$HOME/metabolomics_data}"
 
-script_dir="$(get_script_dir())"
+script_dir="$(get_script_dir)"
 exp_dir="${project_dir}/$exp"
 analysis_dir="${exp_dir}/${USER}_${rt_predict_num}_0"
 
