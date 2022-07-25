@@ -286,7 +286,7 @@ IN_FILE="/src/notebooks/reference/RT_Alignment.ipynb"
 OUT_FILE="${analysis_dir}/${proposal}_${workflow_name}_RT_Alignment_SLURM.ipynb"
 
 PARAMETERS+=" -p experiment $exp \
-	      -p workflow_name '${workflow_name}' \
+	      -p workflow_name ${workflow_name} \
 	      -p project_directory $project_dir \
 	      -p max_cpus $threads_to_use \
 	      -p rt_predict_number $rt_predict_num \
