@@ -361,7 +361,7 @@ def create_aligned_atlases(
     out_atlas_names = []
     model = poly if workflow.rt_alignment.parameters.use_poly_model else linear
     for analysis in tqdm(workflow.analyses, unit="atlas"):
-        template_atlas = get_atlas(analysis.atlas.name, analysis.atlas.username)
+        template_atlas = get_atlas(analysis.atlas.name, analysis.atlas.username, analysis.atlas.unique_id)
         if analysis.atlas.do_alignment:
             out_atlas_names.append(get_atlas_name(template_atlas.name, model, ids.project, analysis.name))
             logger.info("Creating atlas %s", out_atlas_names[-1])
