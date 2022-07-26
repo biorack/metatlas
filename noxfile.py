@@ -100,7 +100,7 @@ pylint_deps = [
 ]
 
 nbqa_deps = [
-    "nbqa==0.8.1",
+    "nbqa==1.4.0",
     "tokenize-rt==4.1.0",
     "importlib-metadata==4.0.1",
     "astroid==2.8.0",
@@ -117,6 +117,7 @@ flake8_deps = [
 ]
 
 pytest_flags = ["-vv", f"--basetemp={Path.home() / '.pytest_tmp'}"]
+nbqa_flags = ["--nbqa-dont-skip-bad-cells"]
 
 nox.options.error_on_external_run = True
 REUSE_LARGE_VENV = True
@@ -183,26 +184,26 @@ def pylint_nb(session):
     # dupliate code cannot be disabled on per-cell level https://github.com/PyCQA/pylint/issues/214
     # Some duplicate code is required to setup the notebook and do error handling.
     # So turn off duplicate code for whole session -- not ideal.
-    session.run("nbqa", "pylint", "--disable=duplicate-code", f"--max-line-length={NB_LINE_LEN}", *notebooks)
+    session.run("nbqa", "pylint", "--disable=duplicate-code", f"--max-line-length={NB_LINE_LEN}", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions[0])
 def flake8_nb(session):
     session.install(*nbqa_deps, *flake8_deps)
-    session.run("nbqa", "flake8", *notebooks)
+    session.run("nbqa", "flake8", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions[0])
 def black_nb(session):
     session.install("black", *nbqa_deps)
-    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--check", *notebooks)
+    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--check", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions[0])
 def blacken_nb(session):
     """this modifies notebook files to meet black's requirements"""
     session.install("black", *nbqa_deps)
-    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--nbqa-mutate", *notebooks)
+    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions, reuse_venv=REUSE_LARGE_VENV)
