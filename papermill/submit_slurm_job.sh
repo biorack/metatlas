@@ -165,7 +165,15 @@ check_analysis_dir_does_not_exist() {
   if [ -d "$1" ]; then
     >&2 echo "ERROR: Output directory already exists. Not overwriting:"
     >&2 echo "       ${1}"
-    >&2 echo "       Consider incrementing rt_predict_number."
+    >&2 echo "       Consider incrementing rt_alignment_number."
+    die
+  fi
+}
+
+check_project_dir_does_exist() {
+  if ! [ -d "$1" ]; then
+    >&2 echo "ERROR: project_directory '${1}' does not exist."
+    >&2 echo "       Please run 'mkdir \"${1}\"' first."
     die
   fi
 }
@@ -199,14 +207,26 @@ check_not_in_commom_software_filesystem() {
   fi
 }
 
-check_rt_predict_number_is_non_neg_int() {
+check_rt_alignment_number_is_non_neg_int() {
   re='^[0-9]+$'
   if ! [[ $1 =~ $re ]] ; then
     >&2 echo ""
-    >&2 echo "ERROR: rt_predict_number must be a non-negative integer"
+    >&2 echo "ERROR: rt_alignment_number must be a non-negative integer"
     >&2 echo ""
     die
   fi
+}
+
+get_script_dir() {
+  # adapted from https://stackoverflow.com/questions/59895/
+  SOURCE=${BASH_SOURCE[0]}
+  while [ -L "$SOURCE" ]; do
+    DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+    SOURCE=$(readlink "$SOURCE")
+    [[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE
+  done
+  DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+  echo "$DIR"
 }
 
 YAML_BASE64="$(echo "{}" | base64 --wrap=0)"
@@ -226,8 +246,14 @@ do
   fi
 done
 
-if [  ${#positional_parameters[@]} -ne 2 ]; then
+if [  ${#positional_parameters[@]} -lt 2 ]; then
   >&2 echo "ERROR: one of workflow_name or experiment_name was not supplied."
+  >&2 echo ""
+  usage
+fi
+
+if [  ${#positional_parameters[@]} -gt 4 ]; then
+  >&2 echo "ERROR: too many positional parameters supplied."
   >&2 echo ""
   usage
 fi
@@ -238,12 +264,12 @@ fi
 
 workflow_name="${positional_parameters[0]}"
 exp="${positional_parameters[1]}"
-rt_predict_num="${positional_parameters[2]:-0}"
+rt_alignment_number="${positional_parameters[2]:-0}"
 project_dir="${positional_parameters[3]:-$HOME/metabolomics_data}"
 
-script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && realpath .)"
+script_dir="$(get_script_dir)"
 exp_dir="${project_dir}/$exp"
-analysis_dir="${exp_dir}/${USER}_${rt_predict_num}_0"
+analysis_dir="${exp_dir}/${USER}_${rt_alignment_number}_0"
 
 IFS='_' read -ra TOKENS <<< "$exp"
 proposal="${TOKENS[3]:-}"
@@ -252,7 +278,7 @@ exp_check_len="${TOKENS[8]:-}"
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_analysis_dir_does_not_exist "$analysis_dir"
 check_project_dir_does_exist "$project_dir"
-check_rt_predict_number_is_non_neg_int "$rt_predict_num"
+check_rt_alignment_number_is_non_neg_int "$rt_alignment_number"
 check_yaml_is_valid "$(echo "${YAML_BASE64:-}" | base64 --decode)"
 check_gdrive_authorization
 check_not_in_commom_software_filesystem
@@ -264,14 +290,14 @@ constraint="$(get_slurm_constraint)"
 time="$(get_slurm_time)"
 IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested} --constraint=${constraint} --time=${time}"
 
-IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
-OUT_FILE="${analysis_dir}/${proposal}_RT_Prediction_papermill.ipynb"
+IN_FILE="/src/notebooks/reference/RT_Alignment.ipynb"
+OUT_FILE="${analysis_dir}/${proposal}_${workflow_name}_RT_Alignment_SLURM.ipynb"
 
 PARAMETERS+=" -p experiment $exp \
-	      -p workflow_name '${workflow_name}' \
+	      -p workflow_name ${workflow_name} \
 	      -p project_directory $project_dir \
 	      -p max_cpus $threads_to_use \
-	      -p rt_predict_number $rt_predict_num \
+	      -p rt_alignment_number $rt_alignment_number \
 	      -p config_file_name /global/cfs/cdirs/m2650/targeted_analysis/metatlas_config.yaml"
 if [  ${#extra_parameters[@]} -ne 0 ]; then
   for i in "${extra_parameters[@]}"
@@ -289,4 +315,4 @@ install_jupyter_kernel
 
 mkdir -p "$analysis_dir"
 # shellcheck disable=SC2086
-sbatch $flags -J "${proposal}_RT_Pred" "${script_dir}/slurm_template.sh"
+sbatch $flags -J "${proposal}_RT_Align" "${script_dir}/slurm_template.sh"

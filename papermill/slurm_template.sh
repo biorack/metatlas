@@ -38,7 +38,7 @@ output "yaml parameters: $(echo "$YAML_BASE64" | base64 --decode)"
 shifter $shifter_flags /bin/bash -c \
   'black --quiet --check /metatlas_image_version && \
    papermill \
-     /src/notebooks/reference/RT_Prediction.ipynb \
+     /src/notebooks/reference/RT_Alignment.ipynb \
      - \
      -p model_only True \
      --prepare-only \

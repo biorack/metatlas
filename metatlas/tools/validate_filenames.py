@@ -11,25 +11,38 @@ DIRECTORY_NUM_FIELDS = 9
 FILE_NUM_FIELDS = 16
 
 FIELDS = [
-        {"code": "DATE", "label": "Date"},
-        {"code": "NORTHENLABINITIALS", "label": "Initials of LCMS user"},
-        {"code": "COLLABINITIALS", "label": "Initials of sample sumbitter"},
-        {"code": "PROJ", "label": "Project"},
-        {"code": "EXP", "label": "Experiment"},
-        {"code": "SAMPSET", "label": "Sample set"},
-        {"code": "SYSTEM", "label": "System"},
-        {"code": "COLUMN-method", "label": "Chromatography and optional method parameters"},
-        {"code": "SERIAL", "label": "Column serial number"},
-        {"code": "POL", "label": "Polarity"},
-        {"code": "ACQ", "label": "Acquisition type"},
-        {"code": "SAMPLE#", "label": "Sample number"},
-        {"code": "SAMPLEGROUP", "label": "Sample group"},
-        {"code": "REP", "label": "Replicate number"},
-        {"code": "OPTIONAL", "label": "Additonal parameters"},
-        {"code": "SEQ", "label": "Sequence injection #"},
+    {"code": "DATE", "label": "Date"},
+    {"code": "NORTHENLABINITIALS", "label": "Initials of LCMS user"},
+    {"code": "COLLABINITIALS", "label": "Initials of sample sumbitter"},
+    {"code": "PROJ", "label": "Project"},
+    {"code": "EXP", "label": "Experiment"},
+    {"code": "SAMPSET", "label": "Sample set"},
+    {"code": "SYSTEM", "label": "System"},
+    {"code": "COLUMN-method", "label": "Chromatography and optional method parameters"},
+    {"code": "SERIAL", "label": "Column serial number"},
+    {"code": "POL", "label": "Polarity"},
+    {"code": "ACQ", "label": "Acquisition type"},
+    {"code": "SAMPLE#", "label": "Sample number"},
+    {"code": "SAMPLEGROUP", "label": "Sample group"},
+    {"code": "REP", "label": "Replicate number"},
+    {"code": "OPTIONAL", "label": "Additonal parameters"},
+    {"code": "SEQ", "label": "Sequence injection #"},
 ]
 
-SYSTEMS = ["GCMS", "QTOF", "5800", "QQQ", "QE119", "QE144", "QEHF", "QE139", "QE139-UV", "LTQXL", "4800TN", "4800JBEI"]
+SYSTEMS = [
+    "GCMS",
+    "QTOF",
+    "5800",
+    "QQQ",
+    "QE119",
+    "QE144",
+    "QEHF",
+    "QE139",
+    "QE139-UV",
+    "LTQXL",
+    "4800TN",
+    "4800JBEI",
+]
 
 POLARITIES = ["FPS", "POS", "NEG", "EI"]
 
@@ -40,10 +53,16 @@ Check = Callable[[Path], List[str]]
 logger = logging.getLogger(__name__)
 
 
-def validate_file_name(file_name: Path) -> bool:
+def validate_file_name(file_name: Path, minimal: bool = False) -> bool:
     """Run set of validation functions on a file name"""
-    required_checks = [
+    minimal_checks = [  # the set of checks needed for analysis to complete
         has_minimum_num_fields,
+        valid_field9,
+    ]
+    # the union of minimal_checks and beyond_minimal_checks is set of checks derived
+    # from the Standard Operating Procedure doc
+    beyond_minimal_checks = [
+        parent_dir_is_prefix,
         valid_field0,
         valid_field1,
         valid_field2,
@@ -53,20 +72,20 @@ def validate_file_name(file_name: Path) -> bool:
         valid_field6,
         valid_field7,
         valid_field8,
-        valid_field9,
         valid_field10,
         valid_field11,
         valid_field12,
         valid_field13,
         valid_field14,
         valid_field15,
-        parent_dir_is_prefix,
     ]
     warn_only_checks = [
         has_exactly_num_fields,
         valid_num_subfields_field15,
     ]
-    return is_valid_file_name(file_name, required_checks, warn_only_checks)
+    required_checks = minimal_checks + ([] if minimal else beyond_minimal_checks)
+    warn_checks = (beyond_minimal_checks if minimal else []) + warn_only_checks
+    return is_valid_file_name(file_name, required_checks, warn_checks)
 
 
 def run_check_list(file_name: Path, checks: Sequence[Check], log_func: Callable) -> int:
@@ -81,7 +100,9 @@ def run_check_list(file_name: Path, checks: Sequence[Check], log_func: Callable)
     return num_fail
 
 
-def is_valid_file_name(file_name: Path, required_checks: Sequence[Check], warn_only_checks: Sequence[Check]) -> bool:
+def is_valid_file_name(
+    file_name: Path, required_checks: Sequence[Check], warn_only_checks: Sequence[Check]
+) -> bool:
     """
     inputs:
        file_name: file_name to evaluate
@@ -99,7 +120,9 @@ def is_valid_file_name(file_name: Path, required_checks: Sequence[Check], warn_o
         else:
             logger.info("Passed filename validation, but had %d warnings: %s", num_warn, file_name)
         return True
-    logger.info("Failed filename validation with %d errors and %d warnings: %s", num_error, num_warn, file_name)
+    logger.info(
+        "Failed filename validation with %d errors and %d warnings: %s", num_error, num_warn, file_name
+    )
     return False
 
 
@@ -141,7 +164,7 @@ def num_subfields(file_name: Path, field_num: int, min_num: int, max_num: Option
         return [f"Field {field_num} not found"]
     out = []
     sub_fields = field.split("-")
-    if (field == '' and min_num > 0) or (min_num > len(sub_fields)):
+    if (field == "" and min_num > 0) or (min_num > len(sub_fields)):
         out.append("number of sub-fields is too small.")
     if max_num is not None and max_num < len(sub_fields):
         out.append("number of sub-fields is too large.")
@@ -151,7 +174,14 @@ def num_subfields(file_name: Path, field_num: int, min_num: int, max_num: Option
     return []
 
 
-def valid_string(file_name: Path, field_num: int, min_len: int, max_len: int, alpha_only: bool = False, alphanumeric_only: bool = False) -> List[str]:
+def valid_string(
+    file_name: Path,
+    field_num: int,
+    min_len: int,
+    max_len: int,
+    alpha_only: bool = False,
+    alphanumeric_only: bool = False,
+) -> List[str]:
     """Only test length of field"""
     try:
         field = file_name.stem.split("_")[field_num]
@@ -180,7 +210,13 @@ def get_alpha_prefix(text: str) -> str:
     return text
 
 
-def valid_int(file_name: Path, field_num: int, min_int: int, max_int: Optional[int] = None, allowed_prefixes: Optional[List[str]] = None) -> List[str]:
+def valid_int(
+    file_name: Path,
+    field_num: int,
+    min_int: int,
+    max_int: Optional[int] = None,
+    allowed_prefixes: Optional[List[str]] = None,
+) -> List[str]:
     """Only integer with optional prefix"""
     try:
         field = file_name.stem.split("_")[field_num]
@@ -193,7 +229,7 @@ def valid_int(file_name: Path, field_num: int, min_int: int, max_int: Optional[i
             out.append("does not start with a digit")
         elif prefix not in allowed_prefixes:
             out.append(f"prefix can only be one of {' ,'.join(allowed_prefixes)}")
-    num_part = field[len(prefix):]
+    num_part = field[len(prefix) :]
     if not num_part.isdigit():
         out.append("cannot convert to an integer.")
     else:
@@ -233,7 +269,7 @@ def valid_field0(file_name: Path) -> List[str]:
     if day < 1 or day > 31:
         out.append("Day (in field 0) must be in range 01-31.")
     try:
-        datetime.strptime(field, '%Y%m%d')
+        datetime.strptime(field, "%Y%m%d")
     except ValueError:
         out.append("Day (in field 0) is not consistent with the year and month.")
     return out
@@ -310,7 +346,9 @@ def valid_field10(file_name: Path) -> List[str]:
     sub_fields = field.split("-")
     # This could be improved to test that the chromatography type matches with the polarity
     if sub_fields[0] not in ACQ_TYPES:
-        return [f"{FIELDS[field_num]['label']} (field {field_num}) must start with one of {','.join(ACQ_TYPES)}."]
+        return [
+            f"{FIELDS[field_num]['label']} (field {field_num}) must start with one of {','.join(ACQ_TYPES)}."
+        ]
     if sub_fields[0] == "MS1" and len(sub_fields) > 1:
         return [f"{FIELDS[field_num]['label']} (field {field_num}) takes no optional sub-fields for MS1."]
     if len(sub_fields) > 2:
@@ -330,7 +368,7 @@ def valid_field12(file_name: Path) -> List[str]:
 
 def valid_field13(file_name: Path) -> List[str]:
     """Replicate number"""
-    return valid_int(file_name, field_num=13, min_int=0, max_int=999, allowed_prefixes=['Rep', 'R'])
+    return valid_int(file_name, field_num=13, min_int=0, max_int=999, allowed_prefixes=["Rep", "R"])
 
 
 def valid_field14(file_name: Path) -> List[str]:
@@ -344,9 +382,9 @@ def valid_field14(file_name: Path) -> List[str]:
     if field == "NA":
         return []
     sub_fields = field.split("-")
-    if any(x == '' for x in sub_fields):
+    if any(x == "" for x in sub_fields):
         out.append("empty sub-fields are not allowed.")
-    if any(x == 'NA' for x in sub_fields):
+    if any(x == "NA" for x in sub_fields):
         out.append("NA only allowed as first and only sub-field.")
     if out:
         prefix = f"{FIELDS[field_num]['label']} (field {field_num})"
@@ -356,7 +394,7 @@ def valid_field14(file_name: Path) -> List[str]:
 
 def valid_field15(file_name: Path) -> List[str]:
     """Sequence injection number"""
-    return valid_int(file_name, field_num=15, min_int=0, max_int=999, allowed_prefixes=['Seq', 'S', 'Run'])
+    return valid_int(file_name, field_num=15, min_int=0, max_int=999, allowed_prefixes=["Seq", "S", "Run"])
 
 
 def valid_num_subfields_field15(file_name: Path) -> List[str]:

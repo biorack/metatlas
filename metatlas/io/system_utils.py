@@ -13,10 +13,12 @@ def is_bad_email_address(address: str) -> bool:
     Makes sure a command line switch ('-foo') isn't passed of as an email address
     """
     clean = address.strip()
-    return clean.startswith('-') or not EMAIL_RE.match(clean)
+    return clean.startswith("-") or not EMAIL_RE.match(clean)
 
 
-def send_mail(subject: str, recipients: Union[str, Sequence[str]], body: str, sender: Optional[str] = None) -> None:
+def send_mail(
+    subject: str, recipients: Union[str, Sequence[str]], body: str, sender: Optional[str] = None
+) -> None:
     """Sends an email using the mailx command"""
     sender = getpass.getuser() if sender is None else sender
     recipients = [recipients] if isinstance(recipients, str) else recipients
@@ -25,4 +27,4 @@ def send_mail(subject: str, recipients: Union[str, Sequence[str]], body: str, se
     for address in recipients:
         if is_bad_email_address(address):
             raise ValueError(f"'{address}' does not appear to be an email address")
-    subprocess.run(['mailx', '-s', subject] + list(recipients), text=True, input=body, check=True)
+    subprocess.run(["mailx", "-s", subject] + list(recipients), text=True, input=body, check=True)

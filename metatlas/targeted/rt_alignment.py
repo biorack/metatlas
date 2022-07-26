@@ -29,7 +29,7 @@ from metatlas.io import write_utils
 from metatlas.io.gdrive import copy_outputs_to_google_drive
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import notebook
-from metatlas.tools.config import Config, Workflow
+from metatlas.tools.config import Config, Workflow, Analysis
 from metatlas.tools.util import or_default, repo_path
 
 logger = logging.getLogger(__name__)
@@ -320,16 +320,13 @@ def write_models(
             out_fh.write(f"atlas = {atlas.name}\n\n")
 
 
-def get_atlas_name(template_name: str, model: Model, project_id: str, analysis_name: str) -> str:
-    """
-    input:
-        template_name: name of template atlas
-        ids: an AnalysisIds object matching the one used in the main notebook
-        model: an instance of Model
-    returns the name of the production atlas
-    """
-    prod_name = template_name.replace("TPL", "PRD")
-    return f"{prod_name}_{model.name}_{project_id}_{analysis_name}"
+def get_atlas_name(ids: AnalysisIdentifiers, workflow: Workflow, analysis: Analysis, model: Model) -> str:
+    """returns the name of the RT aligned atlas"""
+    prod_name = analysis.atlas.name.replace("TPL", "PRD")
+    return (
+        f"{prod_name}_{model.name}_{ids.experiment_id}_"
+        f"{workflow.name}_{analysis.name}_{ids.rt_alignment_number}"
+    )
 
 
 def align_atlas(atlas: metob.Atlas, model: Model, ids: AnalysisIdentifiers) -> pd.DataFrame:
@@ -361,9 +358,9 @@ def create_aligned_atlases(
     out_atlas_names = []
     model = poly if workflow.rt_alignment.parameters.use_poly_model else linear
     for analysis in tqdm(workflow.analyses, unit="atlas"):
-        template_atlas = get_atlas(analysis.atlas.name, analysis.atlas.username)
+        template_atlas = get_atlas(name=analysis.atlas.name, username=analysis.atlas.username, unique_id=analysis.atlas.unique_id)
         if analysis.atlas.do_alignment:
-            out_atlas_names.append(get_atlas_name(template_atlas.name, model, ids.project, analysis.name))
+            out_atlas_names.append(get_atlas_name(ids, workflow, analysis, model))
             logger.info("Creating atlas %s", out_atlas_names[-1])
             out_atlas_file_name = os.path.join(ids.output_dir, f"{out_atlas_names[-1]}.csv")
             out_atlas_df = align_atlas(template_atlas, model, ids)

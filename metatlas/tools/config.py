@@ -77,7 +77,8 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
 
 class Atlas(BaseModel):
     name: str
-    username: str
+    unique_id: Optional[str] = None
+    username: Optional[str] = None
     do_alignment: bool = False
 
 

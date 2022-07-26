@@ -27,8 +27,10 @@ nox.options.sessions = [
 more_checks = [
     "metatlas/interfaces/compounds/populate.py",
     "metatlas/io/gdrive.py",
+    "metatlas/io/file_converter.py",
     "metatlas/io/rclone.py",
     "metatlas/io/targeted_output.py",
+    "metatlas/io/system_utils.py",
     "metatlas/io/write_utils.py",
     "metatlas/datastructures/atlas.py",
     "metatlas/datastructures/analysis_identifiers.py",
@@ -53,6 +55,7 @@ more_checks = [
     "metatlas/tools/notebook.py",
     "metatlas/tools/parallel.py",
     "metatlas/tools/util.py",
+    "metatlas/tools/validate_filenames.py",
     "noxfile.py",
     "tests",
 ]
@@ -97,7 +100,7 @@ pylint_deps = [
 ]
 
 nbqa_deps = [
-    "nbqa==0.8.1",
+    "nbqa==1.4.0",
     "tokenize-rt==4.1.0",
     "importlib-metadata==4.0.1",
     "astroid==2.8.0",
@@ -114,9 +117,12 @@ flake8_deps = [
 ]
 
 pytest_flags = ["-vv", f"--basetemp={Path.home() / '.pytest_tmp'}"]
+nbqa_flags = ["--nbqa-dont-skip-bad-cells"]
 
 nox.options.error_on_external_run = True
 REUSE_LARGE_VENV = True
+# the NB_LINE_LEN value also appears in pre-commit-config.yaml and must be
+# manually updated when this value is changed
 NB_LINE_LEN = 140
 
 # parallel testings doesn't work well on NERSC login nodes
@@ -180,26 +186,26 @@ def pylint_nb(session):
     # dupliate code cannot be disabled on per-cell level https://github.com/PyCQA/pylint/issues/214
     # Some duplicate code is required to setup the notebook and do error handling.
     # So turn off duplicate code for whole session -- not ideal.
-    session.run("nbqa", "pylint", "--disable=duplicate-code", f"--max-line-length={NB_LINE_LEN}", *notebooks)
+    session.run("nbqa", "pylint", "--disable=duplicate-code", f"--max-line-length={NB_LINE_LEN}", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions[0])
 def flake8_nb(session):
     session.install(*nbqa_deps, *flake8_deps)
-    session.run("nbqa", "flake8", *notebooks)
+    session.run("nbqa", "flake8", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions[0])
 def black_nb(session):
     session.install("black", *nbqa_deps)
-    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--check", *notebooks)
+    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--check", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions[0])
 def blacken_nb(session):
     """this modifies notebook files to meet black's requirements"""
     session.install("black", *nbqa_deps)
-    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--nbqa-mutate", *notebooks)
+    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions, reuse_venv=REUSE_LARGE_VENV)
