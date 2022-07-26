@@ -393,7 +393,7 @@ def write_notebooks(ids: AnalysisIdentifiers, atlases: Sequence[str], workflow: 
     out = []
     for atlas_name, analysis in zip(atlases, workflow.analyses):
         source = repo_path() / "notebooks" / "reference" / "Targeted.ipynb"
-        dest = Path(ids.output_dir).resolve().parent / f"{ids.project}_{workflow.name}_{analysis.name}.ipynb"
+        dest = Path(ids.output_dir).resolve().parent / f"{ids.experiment_id}_{workflow.name}_{analysis.name}.ipynb"
         parameters = {
             "experiment": ids.experiment,
             "rt_alignment_number": ids.rt_alignment_number,
