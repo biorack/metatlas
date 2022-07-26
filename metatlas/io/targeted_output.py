@@ -7,6 +7,7 @@ import os
 import tarfile
 
 from collections import namedtuple
+from pathlib import Path
 from typing import List
 
 import matplotlib.pyplot as plt
@@ -19,10 +20,11 @@ from matplotlib.axis import Axis
 from tqdm.notebook import tqdm
 
 from metatlas.datastructures.metatlas_dataset import MetatlasDataset
+from metatlas.datastructures.analysis_identifiers import AnalysisIdentifiers
 from metatlas.io.write_utils import export_dataframe_die_on_diff
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
-from metatlas.tools.config import Analysis
+from metatlas.tools.config import Analysis, Workflow
 from metatlas.plots.tic import save_sample_tic_pdf
 
 logger = logging.getLogger(__name__)
@@ -318,15 +320,11 @@ def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, sca
     return None, None
 
 
-def archive_outputs(ids):
-    """
-    Creates a .tar.gz file containing all output files
-    Inputs:
-        ids: an AnalysisIds object
-    """
+def archive_outputs(ids: AnalysisIdentifiers, workflow: Workflow, analysis: Analysis) -> None:
+    """Creates a .tar.gz file containing all output files"""
     logger.info("Generating archive of output files.")
-    output_file = f"{ids.atlas}.tar.gz"
-    output_path = os.path.join(ids.project_directory, ids.experiment, output_file)
+    output_file = f"{ids.experiment_id}_{workflow.name}_{analysis.name}_{ids.rt_alignment_number}.tar.gz"
+    output_path = Path(ids.output_dir).parent / output_file
     with tarfile.open(output_path, "w:gz") as tar:
         tar.add(ids.output_dir, arcname=os.path.basename(ids.output_dir))
     logger.info("Generation of archive completed succesfully: %s", output_path)
