@@ -96,7 +96,7 @@ workflows:
         - name: QC-NEG
           atlas:
             name: HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG
-            unique_id: 89694aa326cd46958d38d8e9066de16c
+            unique_id: 5b77242ad9c04e76a745e51e9d6a3c4b
             username: vrsingan
           parameters:
             polarity: negative
