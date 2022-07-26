@@ -179,6 +179,21 @@ class AnalysisIdentifiers(HasTraits):
         return self._exp_tokens[3]
 
     @property
+    def exp(self) -> str:
+        """Returns the exp field of the experiment"""
+        return self._exp_tokens[4]
+
+    @property
+    def sample_set(self) -> str:
+        """Returns the sample set field of the experiment"""
+        return self._exp_tokens[5]
+
+    @property
+    def experiment_id(self) -> str:
+        """Returns a unique ID for an experiment"""
+        return f"{self.project}_{self.exp}_{self.sample_set}"
+
+    @property
     def atlas(self) -> AtlasName:
         """Atlas identifier (name)"""
         if self.copy_atlas:
