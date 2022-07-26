@@ -44,8 +44,11 @@ repos:
   rev: 1.4.0
   hooks:
   - id: nbqa-black
+    args: ['--nbqa-dont-skip-bad-cells', '--line-length=140']
   - id: nbqa-check-ast
+    args: ['--nbqa-dont-skip-bad-cells']
   - id: nbqa-pylint
+    args: ['--disable=duplicate-code', '--max-line-length=140', '--nbqa-dont-skip-bad-cells']
 - repo: https://github.com/hadolint/hadolint
   rev: v2.10.0
   hooks:

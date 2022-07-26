@@ -121,6 +121,8 @@ nbqa_flags = ["--nbqa-dont-skip-bad-cells"]
 
 nox.options.error_on_external_run = True
 REUSE_LARGE_VENV = True
+# the NB_LINE_LEN value also appears in pre-commit-config.yaml and must be
+# manually updated when this value is changed
 NB_LINE_LEN = 140
 
 # parallel testings doesn't work well on NERSC login nodes
