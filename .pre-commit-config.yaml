@@ -61,6 +61,10 @@ repos:
      stages: [commit-msg]
      # optional: list of Conventional Commits types to allow
      args: ['fix', 'feat', 'build', 'chore', 'ci', 'docs', 'style', 'refactor', 'perf', 'test']
+- repo: https://github.com/commitizen-tools/commitizen
+  rev: v2.29.2
+  hooks:
+  - id: commitizen
 - repo: local
   hooks:
   - id: flake8_diff
