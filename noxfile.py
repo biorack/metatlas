@@ -186,7 +186,14 @@ def pylint_nb(session):
     # dupliate code cannot be disabled on per-cell level https://github.com/PyCQA/pylint/issues/214
     # Some duplicate code is required to setup the notebook and do error handling.
     # So turn off duplicate code for whole session -- not ideal.
-    session.run("nbqa", "pylint", "--disable=duplicate-code", f"--max-line-length={NB_LINE_LEN}", *nbqa_flags, *notebooks)
+    session.run(
+        "nbqa",
+        "pylint",
+        "--disable=duplicate-code",
+        f"--max-line-length={NB_LINE_LEN}",
+        *nbqa_flags,
+        *notebooks,
+    )
 
 
 @nox.session(python=py_versions[0])
