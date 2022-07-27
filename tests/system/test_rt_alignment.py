@@ -86,6 +86,6 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         /out/Remove-done.ipynb
     """
     utils.exec_docker(image, command, tmp_path, utils.PAPERMILL_ENV)
-    assert utils.num_files_in(tmp_path) == 21
+    assert utils.num_files_in(tmp_path) == 20
     utils.assert_files_match(expected)
     utils.assert_dfs_match(expected_df)
