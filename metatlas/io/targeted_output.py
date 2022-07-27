@@ -332,6 +332,7 @@ def archive_outputs(ids: AnalysisIdentifiers, workflow: Workflow, analysis: Anal
 
 def generate_all_outputs(
     data: MetatlasDataset,
+    workflow: Workflow,
     analysis: Analysis,
     overwrite: bool = False,
 ) -> None:
@@ -344,7 +345,7 @@ def generate_all_outputs(
     write_tics(data, overwrite=overwrite, x_min=1.5)
     if analysis.parameters.export_msms_fragment_ions:
         write_msms_fragment_ions(data, overwrite=overwrite)
-    archive_outputs(data.ids)
+    archive_outputs(data.ids, workflow, analysis)
     logger.info("Generation of output files completed sucessfully.")
 
 

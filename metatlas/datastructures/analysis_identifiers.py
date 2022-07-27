@@ -218,7 +218,13 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def output_dir(self) -> PathString:
         """Creates the output directory and returns the path as a string"""
-        sub_dirs = [self.experiment_id, self.rt_alignment_number, "Targeted", self.workflow, self.analysis]
+        sub_dirs = [
+            self.experiment_id,
+            str(self.rt_alignment_number),
+            "Targeted",
+            self.workflow,
+            self.analysis,
+        ]
         out = os.path.join(self.project_directory, *sub_dirs)
         os.makedirs(out, exist_ok=True)
         return PathString(out)

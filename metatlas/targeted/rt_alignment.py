@@ -105,7 +105,7 @@ def generate_rt_alignment_models(
     return (linear, poly)
 
 
-def generate_outputs(data: MetatlasDataset, workflow: Workflow) -> None:
+def generate_outputs(data: MetatlasDataset, workflow: Workflow, analysis: Analysis) -> None:
     """
     Generate the RT alignment models, associated atlases with relative RT values, follow up notebooks
     """
@@ -122,7 +122,7 @@ def generate_outputs(data: MetatlasDataset, workflow: Workflow) -> None:
         for in_file_name in notebook_file_names:
             out_file_name = in_file_name.with_name(in_file_name.stem + "_SLURM.ipynb")
             papermill.execute_notebook(in_file_name, out_file_name, {}, kernel_name="papermill")
-    targeted_output.archive_outputs(ids)
+    targeted_output.archive_outputs(ids, workflow, analysis)
     copy_outputs_to_google_drive(ids)
     logger.info("RT_Alignment notebook complete. Switch to an analysis notebook to continue.")
 
@@ -358,7 +358,9 @@ def create_aligned_atlases(
     out_atlas_names = []
     model = poly if workflow.rt_alignment.parameters.use_poly_model else linear
     for analysis in tqdm(workflow.analyses, unit="atlas"):
-        template_atlas = get_atlas(name=analysis.atlas.name, username=analysis.atlas.username, unique_id=analysis.atlas.unique_id)
+        template_atlas = get_atlas(
+            name=analysis.atlas.name, username=analysis.atlas.username, unique_id=analysis.atlas.unique_id
+        )
         if analysis.atlas.do_alignment:
             out_atlas_names.append(get_atlas_name(ids, workflow, analysis, model))
             logger.info("Creating atlas %s", out_atlas_names[-1])
@@ -393,7 +395,10 @@ def write_notebooks(ids: AnalysisIdentifiers, atlases: Sequence[str], workflow: 
     out = []
     for atlas_name, analysis in zip(atlases, workflow.analyses):
         source = repo_path() / "notebooks" / "reference" / "Targeted.ipynb"
-        dest = Path(ids.output_dir).resolve().parent / f"{ids.experiment_id}_{workflow.name}_{analysis.name}.ipynb"
+        dest = (
+            Path(ids.output_dir).resolve().parent
+            / f"{ids.experiment_id}_{workflow.name}_{analysis.name}.ipynb"
+        )
         parameters = {
             "experiment": ids.experiment,
             "rt_alignment_number": ids.rt_alignment_number,
@@ -437,6 +442,7 @@ def run(
     rt_alignment_number: int,
     configuration: Config,
     workflow: Workflow,
+    analysis: Analysis,
 ) -> MetatlasDataset:
     """Generates RT alignment model, applies to atlases, and generates all outputs"""
     params = workflow.rt_alignment.parameters
@@ -457,5 +463,5 @@ def run(
         workflow=workflow.name,
     )
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
-    generate_outputs(metatlas_dataset, workflow)
+    generate_outputs(metatlas_dataset, workflow, analysis)
     return metatlas_dataset
