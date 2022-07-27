@@ -27,7 +27,7 @@ other_errors = {}  # info with user | list of error messages
 patt = re.compile(r".+\/raw_data\/(?P<username>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
 
 MEMBERS_CMD = "getent group metatlas | cut -d: -f4"
-ALL_USERS = set(sorted(subprocess.check_output(MEMBERS_CMD, shell=True, text=True).strip().split(",")))
+ALL_USERS = set(subprocess.check_output(MEMBERS_CMD, shell=True, text=True).strip().split(","))
 REMOVE_USERS = {
     "msdata",
     "jaws",
@@ -129,9 +129,9 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> None:
                 acquisition_time=get_acqtime_from_mzml(mzml_file_name),
             )
             store(run)
-    except Exception as e:
-        logger.error("During file conversion: %s", str(e))
-        if "exists but it can not be written" in str(e):
+    except Exception as err:
+        logger.error("During file conversion: %s", str(err))
+        if "exists but it can not be written" in str(err):
             dirname = os.path.dirname(mzml_file_name)
             logger.error("Cannot write to file within directory %s", dirname)
         else:
@@ -140,7 +140,7 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> None:
             move_file(mzml_file_name, fail_path)
         try:
             os.remove(hdf5_file)
-        except:
+        except Exception:
             pass
 
 
@@ -184,9 +184,9 @@ def convert(ind, fname):
                 acquisition_time=get_acqtime_from_mzml(fname),
             )
             store(run)
-    except Exception as e:
-        logger.error("During file conversion: %s", str(e))
-        if "exists but it can not be written" in str(e):
+    except Exception as err:
+        logger.error("During file conversion: %s", str(err))
+        if "exists but it can not be written" in str(err):
             logger.error("Cannot write to file within directory %s", dirname)
             if username not in readonly_files:
                 readonly_files[username] = set()
@@ -203,11 +203,12 @@ def convert(ind, fname):
             move_file(fname, fail_path)
         try:
             os.remove(hdf5_file)
-        except:
+        except Exception:
             pass
 
 
 def get_email_address(username: str) -> str:
+    """username to email address conversion"""
     return f"{username}@nersc.gov"
 
 
@@ -233,7 +234,7 @@ def update_metatlas(directory: os.PathLike) -> None:
                 logger.info("Sending email to %s about inaccessible files.", email_address)
                 body = (
                     "Please log in to NERSC and run 'chmod g+rwXs' on the "
-                    "following directories:\n%s" % ("\n".join(dirnames))
+                    "following directories:" '\n'.join([''] + dirnames)
                 )
                 send_mail("Metatlas Files are Inaccessible", email_address, body)
         if other_errors:
@@ -241,8 +242,8 @@ def update_metatlas(directory: os.PathLike) -> None:
                 email_address = get_email_address(username)
                 logger.info("Sending email to %s about conversion error.", email_address)
                 body = (
-                    "Errored files found while loading in Metatlas files:\n\n%s"
-                    % "\n********************************\n".join(errors)
+                    "Errored files found while loading in Metatlas files:\n\n"
+                    "\n********************************\n".join(errors)
                 )
                 send_mail("Errors loading Metatlas files", email_address, body)
 

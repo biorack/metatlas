@@ -16,7 +16,7 @@ def get_atlas(
     name: Optional[AtlasName] = None, username: Optional[Username] = None, unique_id: Optional[str] = None
 ) -> metob.Atlas:
     """Loads atlas from database, throws error if multiple atlases match query"""
-    args = dict(name=name, username=username, unique_id=unique_id)
+    args = {"name": name, "username": username, "unique_id": unique_id}
     args_no_none = {k: v for k, v in args.items() if v is not None}
     atlases = metob.retrieve("Atlas", **args_no_none)
     try:

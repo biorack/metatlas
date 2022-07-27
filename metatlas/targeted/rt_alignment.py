@@ -11,7 +11,7 @@ from typing import List, Optional, Tuple, Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import papermill
+import papermill  # pylint: disable=wrong-import-order
 
 from matplotlib import gridspec
 from sklearn.base import BaseEstimator
