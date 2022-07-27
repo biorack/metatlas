@@ -53,6 +53,13 @@ repos:
   rev: v2.10.0
   hooks:
   - id: hadolint-docker
+- repo: https://github.com/compilerla/conventional-pre-commit
+  rev: v1.4.0
+  hooks:
+   - id: conventional-pre-commit
+     stages: [commit-msg]
+     # optional: list of Conventional Commits types to allow
+     args: ['fix', 'feat', 'build', 'chore', 'ci', 'docs', 'style', 'refactor', 'perf', 'test']
 - repo: local
   hooks:
   - id: flake8_diff
