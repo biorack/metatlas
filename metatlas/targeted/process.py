@@ -119,5 +119,6 @@ def post_annotation(
         )
         data.ids.set_trait("exclude_groups", analysis.parameters.exclude_groups_for_analysis_outputs)
         generate_all_outputs(data, workflow, analysis)
-    copy_outputs_to_google_drive(data.ids)
+    if not in_papermill():
+        copy_outputs_to_google_drive(data.ids)
     logger.info("DONE - execution of notebook %s is complete.", "in draft mode" if in_papermill() else " ")
