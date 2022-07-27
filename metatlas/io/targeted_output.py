@@ -320,16 +320,6 @@ def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, sca
     return None, None
 
 
-def archive_outputs(ids: AnalysisIdentifiers, workflow: Workflow, analysis: Analysis) -> None:
-    """Creates a .tar.gz file containing all output files"""
-    logger.info("Generating archive of output files.")
-    output_file = f"{ids.experiment_id}_{workflow.name}_{analysis.name}_{ids.rt_alignment_number}.tar.gz"
-    output_path = Path(ids.output_dir).parent / output_file
-    with tarfile.open(output_path, "w:gz") as tar:
-        tar.add(ids.output_dir, arcname=os.path.basename(ids.output_dir))
-    logger.info("Generation of archive completed succesfully: %s", output_path)
-
-
 def generate_all_outputs(
     data: MetatlasDataset,
     workflow: Workflow,
@@ -345,7 +335,6 @@ def generate_all_outputs(
     write_tics(data, overwrite=overwrite, x_min=1.5)
     if analysis.parameters.export_msms_fragment_ions:
         write_msms_fragment_ions(data, overwrite=overwrite)
-    archive_outputs(data.ids, workflow, analysis)
     logger.info("Generation of output files completed sucessfully.")
 
 
