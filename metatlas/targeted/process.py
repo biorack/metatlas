@@ -98,6 +98,7 @@ def annotation_gui(
     )
 
 
+# pylint:disable=unused-argument
 def post_annotation(
     data: MetatlasDataset, configuration: Config, workflow: Workflow, analysis: Analysis
 ) -> None:
