@@ -164,7 +164,7 @@ check_gdrive_authorization() {
   fi
 }
 
-check_analysis_dir_does_not_exist() {
+check_alignment_dir_does_not_exist() {
   if [ -d "$1" ]; then
     >&2 echo "ERROR: Output directory already exists. Not overwriting:"
     >&2 echo "       ${1}"
