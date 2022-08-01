@@ -43,6 +43,7 @@ flock -n "$lock_file" stdbuf -oL \
       --exclude="*/*/" \
       --include="*/" \
       --include="*.raw" \
+      --include="NO_UNTARGETED.TXT" \
       --exclude="*" \
       "--password-file=$password_file" \
       "--log-file=${log_file}" \
