@@ -100,11 +100,11 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> None:
 
     pat = re.compile(r".+\/raw_data\/(?P<sub_dir>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
     mzml_file_name = os.path.abspath(mzml_file_name)
-    try:
-        info = pat.match(mzml_file_name).groupdict()
-    except AttributeError:
+    file_name_match = pat.match(mzml_file_name)
+    if file_name_match is None:
         logger.error("Invalid path name: %s", mzml_file_name)
         return
+    info = file_name_match.groupdict()
     try:
         hdf5_file = mzml_file_name.replace("mzML", "h5")
         logger.info("Generating h5 file: %s", hdf5_file)
