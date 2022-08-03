@@ -4,10 +4,8 @@
 import logging
 import math
 import os
-import tarfile
 
 from collections import namedtuple
-from pathlib import Path
 from typing import List
 
 import matplotlib.pyplot as plt
@@ -20,7 +18,6 @@ from matplotlib.axis import Axis
 from tqdm.notebook import tqdm
 
 from metatlas.datastructures.metatlas_dataset import MetatlasDataset
-from metatlas.datastructures.analysis_identifiers import AnalysisIdentifiers
 from metatlas.io.write_utils import export_dataframe_die_on_diff
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
