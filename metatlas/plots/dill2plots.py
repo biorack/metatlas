@@ -245,7 +245,7 @@ class adjust_rt_for_selected_compound(object):
                  include_groups=None,
                  exclude_groups=None,
                  msms_hits=None,
-                 color_me='',
+                 color_me=None,
                  compound_idx=0,
                  width=10,
                  height=4,
@@ -297,7 +297,7 @@ class adjust_rt_for_selected_compound(object):
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
         self.msms_hits = msms_hits.sort_values('score', ascending=False)
-        self.color_me = color_me if color_me != '' else [['black', '']]
+        self.color_me = or_default(color_me, [('black', '')])
         self.compound_idx = compound_idx
         self.width = width
         self.height = height
