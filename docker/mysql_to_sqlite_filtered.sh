@@ -26,7 +26,7 @@ ssh cori.nersc.gov shifter --image=docker:mysql/mysql-server:5.7.14 mysqldump \
 	--set-gtid-purged=OFF "--result-file=$DUMP_FILE"
 scp "dtn01.nersc.gov:$DUMP_FILE" "dumps/$DUMP_FILE"
 ssh cori.nersc.gov rm "$DUMP_FILE"
-MYSQL_ID="$(docker run -d --rm -e "MYSQL_ROOT_PASSWORD=$2" -v "$(pwd)/dumps:/docker-entrypoint-initdb.d" -v "$(pwd):/script" mysql:5.7)"
+MYSQL_ID="$(docker run -d --rm -e "MYSQL_ROOT_PASSWORD=$2" -v "$(pwd)/dumps:/docker-entrypoint-initdb.d" -v "$(pwd):/script" mysql:5.7-debian)"
 docker exec -it "$MYSQL_ID" /script/internal_extract.sh "$1" "$2"
 docker stop "$MYSQL_ID"
 SQLITE=$(find ~+/dumps -name '*.sqlite3' | head -1)
