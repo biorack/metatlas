@@ -11,7 +11,7 @@ workflows:
     rt_alignment:
         atlas:
           name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
-          username: vrsingan
+          unique_id: e7fba1813272439498405436a28b90b2
         parameters:
           polarity: positive
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
@@ -23,7 +23,7 @@ workflows:
         - name: QC-POS
           atlas:
             name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
-            username: vrsingan
+            unique_id: e7fba1813272439498405436a28b90b2
           parameters:
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
@@ -34,7 +34,7 @@ workflows:
     rt_alignment:
         atlas:
           name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
-          username: vrsingan
+          unique_id: e7fba1813272439498405436a28b90b2
         parameters:
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
           include_groups: ["QC"]
@@ -45,7 +45,7 @@ workflows:
         - name: EMA-POS
           atlas:
             name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS
-            username: vrsingan
+            unique_id: 89694aa326cd46958d38d8e9066de16c
             do_alignment: True
           parameters:
             copy_atlas: True
@@ -63,7 +63,7 @@ workflows:
     rt_alignment:
         atlas:
           name: C18_20220215_TPL_IS_Unlab_POS
-          username: wjholtz
+          unique_id: 322ed4c5fabe49349bcbc2857fbcd0dc
         parameters:
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
           include_groups: ["QC"]
@@ -73,8 +73,8 @@ workflows:
     analyses:
         - name: EMA-NEG
           atlas:
-            name: C18_20220531_TPL_EMA_Unlab_NEG
-            username: wjholtz
+            name: C18_20220531_TPL_EMA_Unlab_POS
+            unique_id: 669b750765634159a7f16645e6cf7758
             do_alignment: True
           parameters:
             copy_atlas: True

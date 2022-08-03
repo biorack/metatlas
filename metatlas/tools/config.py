@@ -12,6 +12,8 @@ import yaml
 
 from pydantic import BaseModel, validator
 
+import metatlas.datastructures.metatlas_objects as metob
+
 from metatlas.datastructures.id_types import Polarity
 from metatlas.tools.util import or_default
 
@@ -46,7 +48,7 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     peak_height: Optional[float] = None
     msms_score: Optional[float] = None
     filter_removed: bool = False
-    line_colors: List[Tuple[str, str]] = []
+    line_colors: Optional[List[Tuple[str, str]]] = None
     require_all_evaluated: bool = False
     generate_analysis_outputs: bool = False
     exclude_groups_for_analysis_outputs: List[str] = []
@@ -64,13 +66,38 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
 
 
 class Atlas(BaseModel):
+    """Atlas specification"""
+
+    unique_id: str
     name: str
-    unique_id: Optional[str] = None
-    username: Optional[str] = None
     do_alignment: bool = False
+
+    @validator("unique_id")
+    @classmethod
+    def single_unique_id(cls, to_check):
+        """Check that unique_id exists in the database"""
+        num_found = len(metob.retrieve("Atlas", unique_id=to_check, username="*"))
+        if num_found == 1:
+            return to_check
+        if num_found == 0:
+            raise ValueError(f"Atlas with unique_id '{to_check}' not found in database.")
+        raise ValueError(f"{num_found} copies of atlas with unique_id '{to_check}' in database.")
+
+    @validator("name")
+    @classmethod
+    def altas_name_unique_it_match(cls, to_check, values):
+        """test that atlas unique_id and name are consistent"""
+        if "unique_id" not in values:
+            raise ValueError("unique_id was not supplied for atlas")
+        unique_id = values["unique_id"]
+        if len(metob.retrieve("Atlas", unique_id=unique_id, name=to_check, username="*")) == 0:
+            raise ValueError(f"Atlas with unique_id '{unique_id}' does not have name '{to_check}'.")
+        return to_check
 
 
 class RTAlignment(BaseModel):
+    """Define an RT-Alingment workflow step"""
+
     name: str = "RT-Alignment"
     atlas: Atlas
     parameters: RTAlignmentNotebookParameters
@@ -83,6 +110,8 @@ class RTAlignment(BaseModel):
 
 
 class Analysis(BaseModel):
+    """Define an analysis workflow step"""
+
     name: str
     atlas: Atlas
     parameters: AnalysisNotebookParameters
@@ -95,6 +124,8 @@ class Analysis(BaseModel):
 
 
 class Workflow(BaseModel):
+    """Define a targeted analysis workflow"""
+
     name: str
     rt_alignment: RTAlignment
     analyses: List[Analysis]
@@ -114,6 +145,8 @@ class Workflow(BaseModel):
 
 
 class Chromatography(BaseModel):
+    """A type of chromotography"""
+
     name: str
     aliases: List[str] = []
 
@@ -125,6 +158,8 @@ class Chromatography(BaseModel):
 
 
 class Config(BaseModel):
+    """This class defines the config file"""
+
     chromatography_types: List[Chromatography] = []
     workflows: List[Workflow]
 

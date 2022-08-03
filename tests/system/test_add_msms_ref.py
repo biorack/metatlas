@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_add_msms_ref_by_line01(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.22"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.0.0"
     expected = {}
     expected[
         str(tmp_path / "updated_refs.tab")

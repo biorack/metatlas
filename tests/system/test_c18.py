@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_c18_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci03:v0.0.8"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.0.0"
     experiment = "20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680"
     expected = {}
     expected[
@@ -50,7 +50,8 @@ short samplename	NEG_ExCtrl_C_Rg80to1200-CE102040-soil-S1	NEG_Neg-D30_C_Rg80to12
                         -p config_file_name /src/test_config.yaml \
                         -p workflow_name Test-C18 \
                         -p analysis_name EMA-NEG \
-                        -p source_atlas C18_20220215_TPL_EMA_Unlab_NEG \
+                        -p source_atlas_name C18_20220215_TPL_EMA_Unlab_NEG \
+                        -p source_atlas_unique_id f74a731c590544aba5c3720b346e508e \
                         -p analysis_number 0 \
                         -p rt_alignment_number 0 \
                         -p experiment {experiment} \
