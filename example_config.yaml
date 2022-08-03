@@ -22,7 +22,7 @@ chromatography_types:
 # Each RT alignment or analysis step contains an atlas definition.
 # The atlas definition contains three fields:
 #   1) name - name of the atlas as stored in the database
-#   2) username - username associated with the atlas in the database
+#   2) unique_id - unique_id field associated with the atlas in the database
 #   3) do_alignment - if True, then the atlas should be copied and RT shifted to
 #                     be in alignment with the experimental data.
 #
@@ -39,7 +39,6 @@ workflows:
         atlas:
           name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
           unique_id: e7fba1813272439498405436a28b90b2
-          username: vrsingan
         parameters:
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
           include_groups: ["QC"]
@@ -51,7 +50,6 @@ workflows:
           atlas:
             name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
             unique_id: e7fba1813272439498405436a28b90b2
-            username: vrsingan
           parameters:
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
@@ -62,7 +60,6 @@ workflows:
           atlas:
             name: HILICz150_ANT20190824_TPL_IS_LabUnlab2_POS
             unique_id: c6db576b879043768125c4e03e6a8f6e
-            username: vrsingan
             do_alignment: True
           parameters:
             copy_atlas: True
@@ -78,7 +75,6 @@ workflows:
           atlas:
             name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS
             unique_id: 89694aa326cd46958d38d8e9066de16c
-            username: vrsingan
             do_alignment: True
           parameters:
             copy_atlas: True
@@ -97,7 +93,6 @@ workflows:
           atlas:
             name: HILICz150_ANT20190824_TPL_QCv3_Unlab_NEG
             unique_id: 5b77242ad9c04e76a745e51e9d6a3c4b
-            username: vrsingan
           parameters:
             polarity: negative
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
@@ -108,7 +103,6 @@ workflows:
           atlas:
             name: HILICz150_ANT20190824_TPL_IS_LabUnlab2_NEG
             unique_id: e299c951fc8b48ea82524a6c9615f418
-            username: vrsingan
             do_alignment: True
           parameters:
             copy_atlas: True
@@ -124,7 +118,6 @@ workflows:
           atlas:
             name: HILICz150_ANT20190824_TPL_EMA_Unlab_NEG
             unique_id: a5f7bc81caa94853bbd6ee4b44e09187
-            username: vrsingan
             do_alignment: True
           parameters:
             copy_atlas: True
@@ -144,7 +137,6 @@ workflows:
         atlas:
           name: C18_20220215_TPL_IS_Unlab_POS
           unique_id: 322ed4c5fabe49349bcbc2857fbcd0dc
-          username: wjholtz
         parameters:
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
           include_groups: ["QC"]
@@ -156,7 +148,6 @@ workflows:
           atlas:
             name: C18_20220215_TPL_IS_Unlab_POS
             unique_id: 322ed4c5fabe49349bcbc2857fbcd0dc
-            username: wjholtz
           parameters:
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
@@ -167,7 +158,6 @@ workflows:
           atlas:
             name: C18_20220215_TPL_IS_Unlab_POS
             unique_id: 322ed4c5fabe49349bcbc2857fbcd0dc
-            username: wjholtz
             do_alignment: True
           parameters:
             copy_atlas: True
@@ -183,7 +173,6 @@ workflows:
           atlas:
             name: C18_20220531_TPL_EMA_Unlab_POS
             unique_id: 669b750765634159a7f16645e6cf7758
-            username: wjholtz
             do_alignment: True
           parameters:
             copy_atlas: True
@@ -203,7 +192,6 @@ workflows:
           atlas:
             name: C18_20220215_TPL_IS_Unlab_NEG
             unique_id: db58154082824230be4f7fee93e4ebd9
-            username: wjholtz
           parameters:
             polarity: negative
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
@@ -214,7 +202,6 @@ workflows:
           atlas:
             name: C18_20220215_TPL_IS_Unlab_NEG
             unique_id: db58154082824230be4f7fee93e4ebd9
-            username: wjholtz
             do_alignment: True
           parameters:
             copy_atlas: True
@@ -230,7 +217,6 @@ workflows:
           atlas:
             name: C18_20220531_TPL_EMA_Unlab_NEG
             unique_id: 19b4c10e304246cbbbe5fd3574770e5d
-            username: wjholtz
             do_alignment: True
           parameters:
             copy_atlas: True
