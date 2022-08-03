@@ -82,9 +82,6 @@ def annotation_gui(
         colors: list (color_id, search_string) for coloring lines on EIC plot
                 based on search_string occuring in LCMS run filename
     """
-    if in_papermill():
-        logger.info("Non-interactive execution of notebook detected. Skipping annotation GUI.")
-        return None
     display(dp.LOGGING_WIDGET)  # surface event handler error messages in UI
     return dp.adjust_rt_for_selected_compound(
         data,
