@@ -18,7 +18,7 @@ password_file="/home/svc-metabolomics__lbl.gov/msdata_pw"
 
 vol="${1:-}"
 
-if [ "$#" -ne 1 ] || ( [ "$vol" != "jgi" ] && [ "$vol" != "egsb" ] ); then
+if [ "$#" -ne 1 ] || { [ "$vol" != "jgi" ] && [ "$vol" != "egsb" ]; }; then
     >&2 echo "Usage $0: vol_name"
     >&2 echo "    where vol_name is one of 'jgi' or 'egsb'"
     exit 128
@@ -43,6 +43,7 @@ flock -n "$lock_file" stdbuf -oL \
       --exclude="*/*/" \
       --include="*/" \
       --include="*.raw" \
+      --include="NO_UNTARGETED.TXT" \
       --exclude="*" \
       "--password-file=$password_file" \
       "--log-file=${log_file}" \
