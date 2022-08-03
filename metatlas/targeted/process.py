@@ -28,7 +28,7 @@ def pre_annotation(
     experiment: Experiment,
     rt_alignment_number: int,
     analysis_number: int,
-    source_atlas: str,
+    source_atlas_unique_id: str,
     configuration: Config,
     workflow: Workflow,
     analysis: Analysis,
@@ -40,7 +40,7 @@ def pre_annotation(
     ids = analysis_ids.AnalysisIdentifiers(
         workflow=workflow.name,
         analysis=analysis.name,
-        source_atlas=source_atlas,
+        source_atlas_unique_id=source_atlas_unique_id,
         copy_atlas=params.copy_atlas,
         polarity=params.polarity,
         analysis_number=analysis_number,

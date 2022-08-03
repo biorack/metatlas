@@ -38,15 +38,16 @@ def assert_files_match(expected: Dict[os.PathLike, str]) -> None:
             expected_lines = contents.split("\n")
             num = None
             for num, line in enumerate(handle.readlines()):
+                assert num < len(expected_lines), "File has more lines than expected."
                 clean_line = line.rstrip("\n")
-                if not compare_strs(expected_lines[num], clean_line):
-                    print("Expected line differss from actual:")
-                    print(f'Expected: "{expected_lines[num]}"')
-                    print(f'Actual:   "{clean_line}"')
-                assert compare_strs(expected_lines[num], clean_line)
+                assert compare_strs(expected_lines[num], clean_line), (
+                    "Expected line differss from actual:\n"
+                    f'Expected: "{expected_lines[num]}"\n'
+                    f'Actual:   "{clean_line}"'
+                )
             if num is None and contents == "":
                 continue
-            assert len(expected_lines) == num + 1
+            assert len(expected_lines) == num + 1, "File has fewer lines than expected."
 
 
 def assert_dfs_match(expected: Dict[os.PathLike, Dict[str, Dict[int, Any]]]) -> None:

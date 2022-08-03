@@ -40,29 +40,35 @@ def fixture_username():
 
 
 @pytest.fixture(name="analysis_ids")
-def fixture_analysis_ids(sqlite_with_atlas, lcmsrun, configuration, mocker):
+def fixture_analysis_ids(sqlite_with_test_config_atlases, lcmsrun, configuration, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     project_directory = str(os.getcwd())
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     polarity = "positive"
     analysis_number = 0
     google_folder = "0B-ZDcHbPi-aqZzE5V3hOZFc0dms"
+    workflow_name = "Test-HILIC"
+    analysis_name = "EMA-POS"
+    workflow = configuration.get_workflow(workflow_name)
+    analysis = workflow.get_analysis(analysis_name)
     return ids.AnalysisIdentifiers(
         project_directory=project_directory,
         experiment=experiment,
         polarity=polarity,
         analysis_number=analysis_number,
         google_folder=google_folder,
-        source_atlas="HILICz150_ANT20190824_PRD_EMA_Unlab_POS",
+        source_atlas_unique_id=analysis.atlas.unique_id,
         copy_atlas=True,
         configuration=configuration,
-        workflow="JGI-HILIC",
-        analysis="EMA-POS",
+        workflow=workflow_name,
+        analysis=analysis_name,
     )
 
 
 @pytest.fixture(name="analysis_ids_with_2_cids")
-def fixture_analysis_ids_with_2_cids(sqlite_with_atlas_with_2_cids, lcmsrun, configuration, mocker):
+def fixture_analysis_ids_with_2_cids(
+    sqlite_with_atlas_with_2_cids, lcmsrun, configuration, mocker, atlas_with_2_cids
+):
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     project_directory = str(os.getcwd())
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
@@ -75,7 +81,7 @@ def fixture_analysis_ids_with_2_cids(sqlite_with_atlas_with_2_cids, lcmsrun, con
         polarity=polarity,
         analysis_number=analysis_number,
         google_folder=google_folder,
-        source_atlas="HILICz150_ANT20190824_PRD_EMA_Unlab_POS",
+        source_atlas_unique_id=atlas_with_2_cids.unique_id,
         copy_atlas=True,
         configuration=configuration,
         workflow="JGI-HILIC",
@@ -103,14 +109,12 @@ def fixture_sqlite(username):
 
 @pytest.fixture(name="sqlite_with_atlas")
 def fixture_sqlite_with_atlas(sqlite, atlas):
-    atlas.name = "HILICz150_ANT20190824_PRD_EMA_Unlab_POS"
     logger.debug("Saving atlas %s", atlas.name)
     metob.store(atlas)
 
 
 @pytest.fixture(name="sqlite_with_atlas_with_2_cids")
-def fixture_sqlite_with_atlas_with_2_cids(sqlite, atlas_with_2_cids):
-    atlas_with_2_cids.name = "HILICz150_ANT20190824_PRD_EMA_Unlab_POS"
+def fixture_sqlite_with_atlas_with_2_cids(sqlite_with_test_config_atlases, atlas_with_2_cids):
     logger.debug("Saving atlas %s", atlas_with_2_cids.name)
     metob.store(atlas_with_2_cids)
 
@@ -565,7 +569,7 @@ def fixture_groups_controlled_vocab():
 
 
 @pytest.fixture(name="metatlas_dataset")
-def fixture_metatlas_dataset(mocker, df_container, analysis_ids, lcmsrun, sqlite_with_atlas):
+def fixture_metatlas_dataset(mocker, df_container, analysis_ids, lcmsrun, sqlite_with_test_config_atlases):
     mocker.patch(
         "metatlas.io.metatlas_get_data_helper_fun.df_container_from_metatlas_file", return_value=df_container
     )
@@ -988,7 +992,9 @@ def fixture_compound_identification(compound, rt_reference, mz_reference, userna
 
 @pytest.fixture(name="atlas")
 def fixture_atlas(compound_identification):
-    small_atlas = metob.Atlas()
+    small_atlas = metob.Atlas(
+        name="HILICz150_ANT20190824_TPL_EMA_Unlab_POS", unique_id="89694aa326cd46958d38d8e9066de16c"
+    )
     small_atlas.compound_identifications = [compound_identification]
     return small_atlas
 
@@ -1109,7 +1115,7 @@ def fixture_compound_identification_2(compound_2, rt_reference_2, mz_reference_2
 
 @pytest.fixture(name="atlas_with_2_cids")
 def fixture_atlas_with_2_cids(compound_identification, compound_identification_2):
-    small_atlas = metob.Atlas()
+    small_atlas = metob.Atlas(name="HILICz150_ANT20190824_PRD_EMA_Unlab_POS")
     small_atlas.compound_identifications = [
         compound_identification,
         compound_identification_2,
@@ -2309,3 +2315,17 @@ def fixture_workflow(analysis_parameters):
 def fixture_analysis(analysis_parameters):
     _, _, analysis = config.get_config(analysis_parameters)
     return analysis
+
+
+@pytest.fixture(name="sqlite_with_test_config_atlases")
+def fixture_sqlite_with_test_config_atlases(sqlite, atlas):
+    atlas_ids_list = [
+        {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "unique_id": "e7fba1813272439498405436a28b90b2"},
+        {"name": "C18_20220215_TPL_IS_Unlab_POS", "unique_id": "322ed4c5fabe49349bcbc2857fbcd0dc"},
+        {"name": "C18_20220531_TPL_EMA_Unlab_POS", "unique_id": "669b750765634159a7f16645e6cf7758"},
+    ]
+    for atlas_ids in atlas_ids_list:
+        new_atlas = metob.Atlas(**atlas_ids)
+        metob.store(new_atlas)
+    # atlas is HILICz150_ANT20190824_TPL_EMA_Unlab_POS w/unique_id 89694aa326cd46958d38d8e9066de16c
+    metob.store(atlas)

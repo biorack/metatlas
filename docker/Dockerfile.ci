@@ -1,0 +1,115 @@
+# syntax=docker/dockerfile:1.4
+
+# https://portal.nersc.gov/cfs/m2650/metatlas/test_data
+# serves from /global/cfs/cdirs/m2650/www/metatlas/test_data
+ARG BASE_DATA_URL=https://portal.nersc.gov/cfs/m2650/metatlas/test_data/ci
+ARG REFS_DIR=/global/cfs/cdirs/metatlas/projects/spectral_libraries
+ARG OAK_DIR=/global/cfs/cdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583
+ARG SOIL_DIR=/global/cfs/cdirs/metatlas/raw_data/akuftin/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680
+ARG NOTES_DIR=/global/cfs/cdirs/m2650/targeted_analysis
+
+FROM curlimages/curl:7.84.0 AS stage_data
+
+# This brings the above ARG values from the top of the file into this stage
+ARG BASE_DATA_URL
+ARG REFS_DIR
+ARG OAK_DIR
+ARG SOIL_DIR
+ARG NOTES_DIR
+
+# hadolint ignore=DL3002
+USER root
+
+ENV FLAGS="--silent --location --create-dirs"
+# the *.mzML files are used in matchms within add_msms_refs
+
+RUN mkdir -p "$OAK_DIR" \
+    && mkdir -p "$SOIL_DIR" \
+    && curl $FLAGS --output-dir "$REFS_DIR" -O "$BASE_DATA_URL/msms_refs_v3.tab" \
+    && curl $FLAGS --output-dir "$NOTES_DIR" -O "$BASE_DATA_URL/instructions_for_analysts.csv" \
+    && curl $FLAGS --output /work/root_workspace.db  "$BASE_DATA_URL/meta_atlas.sqlite3" \
+    && curl $FLAGS -o "/usr/local/bin/jq" "https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64" \
+    && chmod +x /usr/local/bin/jq
+
+WORKDIR "$OAK_DIR"
+RUN curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.mzML" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.mzML" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_65_Cone-S3_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run16.mzML" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_73_Cone-S4_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run31.mzML" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Post_Rg70to1050-CE102040--QC_Run307.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Pre_Rg70to1050-CE102040--QC_Run6.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run309.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run8.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Post_Rg70to1050-CE102040--QC_Run308.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run7.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_53_Cone-S1_5_Rg70to1050-CE102040-QlobataAkingi-S1_Run188.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run41.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_58_Cone-S2_2_Rg70to1050-CE102040-QlobataAkingi-S1_Run56.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_NEG_MSMS_59_Cone-S2_3_Rg70to1050-CE102040-QlobataAkingi-S1_Run87.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_53_Cone-S1_5_Rg70to1050-CE102040-QlobataAkingi-S1_Run187.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_54_Cone-S1_6_Rg70to1050-CE102040-QlobataAkingi-S1_Run221.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_57_Cone-S2_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run40.h5"
+
+WORKDIR "$SOIL_DIR"
+RUN curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_0_QC_Post_Rg80to1200-CE102040--QC_Run241.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_12_S16-D45_C_Rg80to1200-CE102040-soil-S1_Run203.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_18_S32-D45_C_Rg80to1200-CE102040-soil-S1_Run236.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_21_S16-D89_C_Rg80to1200-CE102040-soil-S1_Run221.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_33_S40-D30_C_Rg80to1200-CE102040-soil-S1_Run233.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_36_S53-D30_C_Rg80to1200-CE102040-soil-S1_Run218.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_45_S53-D45_C_Rg80to1200-CE102040-soil-S1_Run212.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_51_S40-D89_C_Rg80to1200-CE102040-soil-S1_Run227.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_54_S53-D89_C_Rg80to1200-CE102040-soil-S1_Run206.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_57_Neg-D30_C_Rg80to1200-CE102040-soil-S1_Run224.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_60_Neg-D45_C_Rg80to1200-CE102040-soil-S1_Run230.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_63_Neg-D89_C_Rg80to1200-CE102040-soil-S1_Run215.h5" \
+    && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_75_ExCtrl_C_Rg80to1200-CE102040-soil-S1_Run209.h5"
+
+FROM python:3.8-slim-bullseye
+
+# This brings the above ARG values from the top of the file into this stage
+ARG BASE_DATA_URL
+ARG REFS_DIR
+ARG OAK_DIR
+ARG SOIL_DIR
+ARG NOTES_DIR
+
+EXPOSE 8888
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+          "libxrender1=1:0.9.10-1" \
+	  "libxext6=2:1.3.3-1.1" \
+	  "git=1:2.30.2-1" \
+    && rm -rf /var/lib/apt/lists/*
+
+# hadolint ignore=DL3021
+COPY --link --from=stage_data /usr/local/bin/jq /usr/local/bin/jq
+# hadolint ignore=DL3021
+COPY --link --from=stage_data "$REFS_DIR/" "$REFS_DIR/"
+# hadolint ignore=DL3021
+COPY --link --from=stage_data "$OAK_DIR/" "$OAK_DIR/"
+# hadolint ignore=DL3021
+COPY --link --from=stage_data "$SOIL_DIR/" "$SOIL_DIR/"
+# hadolint ignore=DL3021
+COPY --link --from=stage_data "$NOTES_DIR/" "$NOTES_DIR/"
+# hadolint ignore=DL3021
+COPY --link --from=stage_data "/work/" "/work/"
+
+COPY requirements.txt /requirements.txt
+RUN pip install --quiet --no-cache-dir -r requirements.txt
+
+COPY papermill.kernel.json /root/.local/share/jupyter/kernels/papermill/kernel.json
+
+WORKDIR /work
+
+ENV METATLAS_LOCAL=True
+ENV METATLAS_TEST=True
+ENV PYTHONPATH=/src
+
+CMD ["/usr/local/bin/jupyter", "lab", "--ip=0.0.0.0", "--allow-root", "--ServerApp.token=''", "--ServerApp.root_dir=/"]
