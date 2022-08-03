@@ -234,7 +234,8 @@ def update_metatlas(directory: os.PathLike) -> None:
                 logger.info("Sending email to %s about inaccessible files.", email_address)
                 body = (
                     "Please log in to NERSC and run 'chmod g+rwXs' on the "
-                    "following directories:" '\n'.join([''] + dirnames)
+                    "following directories:"
+                    "\n".join([""] + dirnames)
                 )
                 send_mail("Metatlas Files are Inaccessible", email_address, body)
         if other_errors:
