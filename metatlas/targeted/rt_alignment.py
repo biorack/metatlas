@@ -11,7 +11,7 @@ from typing import List, Optional, Tuple, Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import papermill
+import papermill  # pylint: disable=wrong-import-order
 
 from matplotlib import gridspec
 from sklearn.base import BaseEstimator
@@ -30,6 +30,7 @@ from metatlas.io.gdrive import copy_outputs_to_google_drive
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import notebook
 from metatlas.tools.config import Config, Workflow, Analysis
+from metatlas.tools.notebook import in_papermill
 from metatlas.tools.util import or_default, repo_path
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,7 @@ def generate_rt_alignment_models(
     return (linear, poly)
 
 
-def generate_outputs(data: MetatlasDataset, workflow: Workflow) -> None:
+def generate_outputs(data: MetatlasDataset, workflow: Workflow, analysis: Analysis) -> None:
     """
     Generate the RT alignment models, associated atlases with relative RT values, follow up notebooks
     """
@@ -122,7 +123,6 @@ def generate_outputs(data: MetatlasDataset, workflow: Workflow) -> None:
         for in_file_name in notebook_file_names:
             out_file_name = in_file_name.with_name(in_file_name.stem + "_SLURM.ipynb")
             papermill.execute_notebook(in_file_name, out_file_name, {}, kernel_name="papermill")
-    targeted_output.archive_outputs(ids)
     copy_outputs_to_google_drive(ids)
     logger.info("RT_Alignment notebook complete. Switch to an analysis notebook to continue.")
 
@@ -345,7 +345,7 @@ def create_aligned_atlases(
     poly: Model,
     ids: AnalysisIdentifiers,
     workflow: Workflow,
-) -> List[str]:
+) -> List[metob.Atlas]:
     """
     input:
         linear_model: instance of class Model with first order model
@@ -355,52 +355,58 @@ def create_aligned_atlases(
     returns a list of the names of atlases
     """
     # pylint: disable=too-many-locals
-    out_atlas_names = []
+    out_atlases = []
     model = poly if workflow.rt_alignment.parameters.use_poly_model else linear
-    for analysis in tqdm(workflow.analyses, unit="atlas"):
-        template_atlas = get_atlas(name=analysis.atlas.name, username=analysis.atlas.username, unique_id=analysis.atlas.unique_id)
+    for analysis in tqdm(workflow.analyses, unit="atlas", disable=in_papermill()):
+        template_atlas = get_atlas(analysis.atlas.unique_id, analysis.atlas.name)
         if analysis.atlas.do_alignment:
-            out_atlas_names.append(get_atlas_name(ids, workflow, analysis, model))
-            logger.info("Creating atlas %s", out_atlas_names[-1])
-            out_atlas_file_name = os.path.join(ids.output_dir, f"{out_atlas_names[-1]}.csv")
+            name = get_atlas_name(ids, workflow, analysis, model)
+            logger.info("Creating atlas %s", name)
+            out_atlas_file_name = os.path.join(ids.output_dir, f"{name}.csv")
             out_atlas_df = align_atlas(template_atlas, model, ids)
             write_utils.export_dataframe_die_on_diff(
                 out_atlas_df, out_atlas_file_name, "RT aligned atlas", index=False, float_format="%.6e"
             )
-            dp.make_atlas_from_spreadsheet(
+            atlas = dp.make_atlas_from_spreadsheet(
                 out_atlas_df,
-                out_atlas_names[-1],
+                name,
                 filetype="dataframe",
                 sheetname="",
                 polarity=analysis.parameters.polarity,
                 store=True,
                 mz_tolerance=10 if ids.chromatography == "C18" else 12,
             )
+            out_atlases.append(atlas)
         else:
-            out_atlas_names.append(template_atlas.name)
-    return out_atlas_names
+            out_atlases.append(template_atlas)
+    return out_atlases
 
 
-def write_notebooks(ids: AnalysisIdentifiers, atlases: Sequence[str], workflow: Workflow) -> List[Path]:
+def write_notebooks(
+    ids: AnalysisIdentifiers, atlases: Sequence[metob.Atlas], workflow: Workflow
+) -> List[Path]:
     """
     Creates Targeted analysis jupyter notebooks with pre-populated parameter sets
     Inputs:
         ids: an AnalysisIds object matching the one used in the main notebook
         workflow: a Workflow object
-        atlases: list of atlas names to use as source atlases
+        atlases: list of atlases to use as source atlases
     Returns a list of Paths to notebooks
     """
     out = []
-    for atlas_name, analysis in zip(atlases, workflow.analyses):
+    for atlas, analysis in zip(atlases, workflow.analyses):
         source = repo_path() / "notebooks" / "reference" / "Targeted.ipynb"
-        dest = Path(ids.output_dir).resolve().parent / f"{ids.project}_{workflow.name}_{analysis.name}.ipynb"
+        dest = (
+            Path(ids.output_dir).resolve().parent
+            / f"{ids.experiment_id}_{workflow.name}_{analysis.name}.ipynb"
+        )
         parameters = {
             "experiment": ids.experiment,
             "rt_alignment_number": ids.rt_alignment_number,
             "analysis_number": 0,
             "workflow_name": workflow.name,
             "analysis_name": analysis.name,
-            "source_atlas": atlas_name,
+            "source_atlas_unique_id": atlas.unique_id,
             "copy_atlas": analysis.parameters.copy_atlas,
             "polarity": analysis.parameters.polarity,
             "include_groups": analysis.parameters.include_groups,
@@ -437,13 +443,13 @@ def run(
     rt_alignment_number: int,
     configuration: Config,
     workflow: Workflow,
+    analysis: Analysis,
 ) -> MetatlasDataset:
     """Generates RT alignment model, applies to atlases, and generates all outputs"""
     params = workflow.rt_alignment.parameters
     ids = AnalysisIdentifiers(
         analysis_number=0,
-        source_atlas=workflow.rt_alignment.atlas.name,
-        source_atlas_username=workflow.rt_alignment.atlas.username,
+        source_atlas_unique_id=workflow.rt_alignment.atlas.unique_id,
         copy_atlas=params.copy_atlas,
         experiment=experiment,
         project_directory=params.project_directory,
@@ -457,5 +463,5 @@ def run(
         workflow=workflow.name,
     )
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
-    generate_outputs(metatlas_dataset, workflow)
+    generate_outputs(metatlas_dataset, workflow, analysis)
     return metatlas_dataset

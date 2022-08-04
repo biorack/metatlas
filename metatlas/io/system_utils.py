@@ -1,3 +1,5 @@
+"""system utility functions"""
+
 import getpass
 import re
 import subprocess

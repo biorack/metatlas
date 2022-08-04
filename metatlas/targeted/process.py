@@ -28,7 +28,7 @@ def pre_annotation(
     experiment: Experiment,
     rt_alignment_number: int,
     analysis_number: int,
-    source_atlas: str,
+    source_atlas_unique_id: str,
     configuration: Config,
     workflow: Workflow,
     analysis: Analysis,
@@ -40,7 +40,7 @@ def pre_annotation(
     ids = analysis_ids.AnalysisIdentifiers(
         workflow=workflow.name,
         analysis=analysis.name,
-        source_atlas=source_atlas,
+        source_atlas_unique_id=source_atlas_unique_id,
         copy_atlas=params.copy_atlas,
         polarity=params.polarity,
         analysis_number=analysis_number,
@@ -82,9 +82,6 @@ def annotation_gui(
         colors: list (color_id, search_string) for coloring lines on EIC plot
                 based on search_string occuring in LCMS run filename
     """
-    if in_papermill():
-        logger.info("Non-interactive execution of notebook detected. Skipping annotation GUI.")
-        return None
     display(dp.LOGGING_WIDGET)  # surface event handler error messages in UI
     return dp.adjust_rt_for_selected_compound(
         data,
@@ -98,6 +95,7 @@ def annotation_gui(
     )
 
 
+# pylint:disable=unused-argument
 def post_annotation(
     data: MetatlasDataset, configuration: Config, workflow: Workflow, analysis: Analysis
 ) -> None:
@@ -117,6 +115,7 @@ def post_annotation(
             str(analysis.parameters.exclude_groups_for_analysis_outputs),
         )
         data.ids.set_trait("exclude_groups", analysis.parameters.exclude_groups_for_analysis_outputs)
-        generate_all_outputs(data, analysis)
-    copy_outputs_to_google_drive(data.ids)
+        generate_all_outputs(data, workflow, analysis)
+    if not in_papermill():
+        copy_outputs_to_google_drive(data.ids)
     logger.info("DONE - execution of notebook %s is complete.", "in draft mode" if in_papermill() else " ")

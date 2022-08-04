@@ -4,7 +4,6 @@
 import logging
 import math
 import os
-import tarfile
 
 from collections import namedtuple
 from typing import List
@@ -22,7 +21,8 @@ from metatlas.datastructures.metatlas_dataset import MetatlasDataset
 from metatlas.io.write_utils import export_dataframe_die_on_diff
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
-from metatlas.tools.config import Analysis
+from metatlas.tools.config import Analysis, Workflow
+from metatlas.tools.notebook import in_papermill
 from metatlas.plots.tic import save_sample_tic_pdf
 
 logger = logging.getLogger(__name__)
@@ -95,7 +95,7 @@ def write_identifications_spreadsheet(
         exclude_lcmsruns=["QC"],
         polarity=ids.short_polarity,
         overwrite=overwrite,
-        data_sheets=False,  # this eliminates output of the legacy 'data_sheets' dir but not '{POL}_data_sheets'
+        data_sheets=False,  # eliminates output of the legacy 'data_sheets' dir but not '{POL}_data_sheets'
     )
 
 
@@ -318,22 +318,9 @@ def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, sca
     return None, None
 
 
-def archive_outputs(ids):
-    """
-    Creates a .tar.gz file containing all output files
-    Inputs:
-        ids: an AnalysisIds object
-    """
-    logger.info("Generating archive of output files.")
-    output_file = f"{ids.atlas}.tar.gz"
-    output_path = os.path.join(ids.project_directory, ids.experiment, output_file)
-    with tarfile.open(output_path, "w:gz") as tar:
-        tar.add(ids.output_dir, arcname=os.path.basename(ids.output_dir))
-    logger.info("Generation of archive completed succesfully: %s", output_path)
-
-
 def generate_all_outputs(
     data: MetatlasDataset,
+    workflow: Workflow,
     analysis: Analysis,
     overwrite: bool = False,
 ) -> None:
@@ -346,7 +333,6 @@ def generate_all_outputs(
     write_tics(data, overwrite=overwrite, x_min=1.5)
     if analysis.parameters.export_msms_fragment_ions:
         write_msms_fragment_ions(data, overwrite=overwrite)
-    archive_outputs(data.ids)
     logger.info("Generation of output files completed sucessfully.")
 
 
@@ -457,7 +443,9 @@ def plot_per_compound(
     rows = int(math.ceil((data.shape[0] + 1) / cols))
     fig = plt.figure()
     grid = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.2, hspace=0.4)
-    for i, (_, row) in tqdm(enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot"):
+    for i, (_, row) in tqdm(
+        enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot", disable=in_papermill()
+    ):
         a_x = fig.add_subplot(grid[i])
         range_columns = list(plot_df.columns[:num_files])
         file_vs_value_plot(a_x, field_name, row, range_columns, fontsize, pad)

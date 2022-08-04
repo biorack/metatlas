@@ -25,7 +25,7 @@ import metatlas.datastructures.analysis_identifiers as analysis_ids
 from metatlas.datastructures.id_types import PathString, Polarity
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
-from metatlas.datastructures.utils import AtlasName, get_atlas, Username
+from metatlas.datastructures.utils import AtlasName, get_atlas
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.tools import parallel
 
@@ -244,10 +244,10 @@ class MetatlasDataset(HasTraits):
         self.atlas = metob.adjust_atlas_rt_range(temp_atlas, self.rt_min_delta, self.rt_max_delta)
 
     def _clone_source_atlas(self) -> metob.Atlas:
-        logger.info("Retriving source atlas: %s", self.ids.source_atlas)
-        source_atlas = get_atlas(cast(AtlasName, self.ids.source_atlas), cast(Username, "*"))
+        logger.info("Retriving source atlas with unique_id: %s", self.ids.source_atlas_unique_id)
+        source_atlas = get_atlas(self.ids.source_atlas_unique_id)
         source_atlas_df = ma_data.make_atlas_df(source_atlas)
-        logger.info("Cloning atlas %s", self.ids.source_atlas)
+        logger.info("Cloning atlas %s", source_atlas.name)
         return dp.make_atlas_from_spreadsheet(
             source_atlas_df,
             self.ids.atlas,

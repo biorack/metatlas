@@ -161,7 +161,7 @@ check_gdrive_authorization() {
   fi
 }
 
-check_analysis_dir_does_not_exist() {
+check_alignment_dir_does_not_exist() {
   if [ -d "$1" ]; then
     >&2 echo "ERROR: Output directory already exists. Not overwriting:"
     >&2 echo "       ${1}"
@@ -267,17 +267,21 @@ exp="${positional_parameters[1]}"
 rt_alignment_number="${positional_parameters[2]:-0}"
 project_dir="${positional_parameters[3]:-$HOME/metabolomics_data}"
 
-script_dir="$(get_script_dir)"
-exp_dir="${project_dir}/$exp"
-analysis_dir="${exp_dir}/${USER}_${rt_alignment_number}_0"
-
 IFS='_' read -ra TOKENS <<< "$exp"
 proposal="${TOKENS[3]:-}"
+exp_token="${TOKENS[4]:-}"
+sample_set="${TOKENS[5]:-}"
 exp_check_len="${TOKENS[8]:-}"
 
+script_dir="$(get_script_dir)"
+short_id="${proposal}_${exp_token}_${sample_set}"
+exp_dir="${project_dir}/${short_id}"
+alignment_dir="${exp_dir}/${rt_alignment_number}"
+
+
 check_exp_id_has_atleast_9_fields "$exp_check_len"
-check_analysis_dir_does_not_exist "$analysis_dir"
 check_project_dir_does_exist "$project_dir"
+check_alignment_dir_does_not_exist "$alignment_dir"
 check_rt_alignment_number_is_non_neg_int "$rt_alignment_number"
 check_yaml_is_valid "$(echo "${YAML_BASE64:-}" | base64 --decode)"
 check_gdrive_authorization
@@ -291,13 +295,14 @@ time="$(get_slurm_time)"
 IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested} --constraint=${constraint} --time=${time}"
 
 IN_FILE="/src/notebooks/reference/RT_Alignment.ipynb"
-OUT_FILE="${analysis_dir}/${proposal}_${workflow_name}_RT_Alignment_SLURM.ipynb"
+notebooks_dir="${alignment_dir}/Targeted/${workflow_name}"
+OUT_FILE="${notebooks_dir}/${short_id}_${workflow_name}_RT-Alignment_SLURM.ipynb"
 
-PARAMETERS+=" -p experiment $exp \
+PARAMETERS+=" -p experiment ${exp} \
 	      -p workflow_name ${workflow_name} \
-	      -p project_directory $project_dir \
-	      -p max_cpus $threads_to_use \
-	      -p rt_alignment_number $rt_alignment_number \
+	      -p project_directory ${project_dir} \
+	      -p max_cpus ${threads_to_use} \
+	      -p rt_alignment_number ${rt_alignment_number} \
 	      -p config_file_name /global/cfs/cdirs/m2650/targeted_analysis/metatlas_config.yaml"
 if [  ${#extra_parameters[@]} -ne 0 ]; then
   for i in "${extra_parameters[@]}"
@@ -313,6 +318,6 @@ export YAML_BASE64
 
 install_jupyter_kernel
 
-mkdir -p "$analysis_dir"
+mkdir -p "$notebooks_dir"
 # shellcheck disable=SC2086
-sbatch $flags -J "${proposal}_RT_Align" "${script_dir}/slurm_template.sh"
+sbatch $flags -J "${short_id}_${workflow_name}" "${script_dir}/slurm_template.sh"

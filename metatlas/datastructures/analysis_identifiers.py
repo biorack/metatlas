@@ -5,6 +5,7 @@ import getpass
 import logging
 import os
 
+from functools import lru_cache
 from typing import cast, Dict, List, Optional, Union
 
 import pandas as pd
@@ -51,8 +52,7 @@ class AnalysisIdentifiers(HasTraits):
     analysis_number: IterationNumber = Int(default_value=0, read_only=True)
     rt_alignment_number: IterationNumber = Int(default_value=0, read_only=True)
     google_folder: str = Unicode(read_only=True)
-    source_atlas: AtlasName = Unicode(read_only=True)
-    source_atlas_username: Username = Unicode(default_value=getpass.getuser(), read_only=True)
+    source_atlas_unique_id: str = Unicode(read_only=True)
     copy_atlas: bool = Bool(default_value=True, read_only=True)
     username: Username = Unicode(default_value=getpass.getuser(), read_only=True)
     exclude_files: FileMatchList = traitlets.List(trait=Unicode(), default_value=[], read_only=True)
@@ -78,8 +78,7 @@ class AnalysisIdentifiers(HasTraits):
         analysis_number,
         google_folder,
         polarity=None,
-        source_atlas=None,
-        source_atlas_username=None,
+        source_atlas_unique_id=None,
         copy_atlas=True,
         username=None,
         exclude_files=None,
@@ -100,9 +99,7 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("analysis_number", analysis_number)
         self.set_trait("rt_alignment_number", rt_alignment_number)
         self.set_trait("google_folder", google_folder)
-        with self.hold_trait_notifications():
-            self.set_trait("source_atlas", source_atlas)
-            self.set_trait("source_atlas_username", or_default(source_atlas_username, getpass.getuser()))
+        self.set_trait("source_atlas_unique_id", source_atlas_unique_id)
         self.set_trait("copy_atlas", copy_atlas)
         self.set_trait("username", or_default(username, getpass.getuser()))
         self.set_trait("exclude_files", or_default(exclude_files, []))
@@ -115,8 +112,8 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("workflow", workflow)
         self.set_trait("analysis", analysis)
         logger.info(
-            "IDs: source_atlas=%s, atlas=%s, output_dir=%s",
-            self.source_atlas,
+            "IDs: source_atlas_unique_id=%s, atlas=%s, output_dir=%s",
+            self.source_atlas_unique_id,
             self.atlas,
             self.output_dir,
         )
@@ -128,16 +125,15 @@ class AnalysisIdentifiers(HasTraits):
             raise TraitError(f"Parameter polarity must be one of {', '.join(POLARITIES)}")
         return cast(Polarity, proposal["value"])
 
-    @validate("source_atlas")
-    def _valid_source_atlas(self, proposal: Proposal) -> Optional[AtlasName]:
+    @validate("source_atlas_unique_id")
+    def _valid_source_atlas_unique_id(self, proposal: Proposal) -> Optional[str]:
         if proposal["value"] is not None:
-            proposed_name = cast(AtlasName, proposal["value"])
             try:
                 # raises error if not found or matches multiple
-                get_atlas(proposed_name, self.source_atlas_username)
+                get_atlas(proposal["value"])
             except ValueError as err:
                 raise TraitError(str(err)) from err
-            return proposed_name
+            return proposal["value"]
         return None
 
     @validate("analysis_number")
@@ -194,10 +190,16 @@ class AnalysisIdentifiers(HasTraits):
         return f"{self.project}_{self.exp}_{self.sample_set}"
 
     @property
+    @lru_cache
+    def source_atlas(self) -> AtlasName:
+        atlas = get_atlas(self.source_atlas_unique_id)
+        return atlas.name
+
+    @property
     def atlas(self) -> AtlasName:
         """Atlas identifier (name)"""
         if self.copy_atlas:
-            return AtlasName(f"{'_'.join(self._exp_tokens[3:6])}_{self.source_atlas}_{self.execution}")
+            return AtlasName(f"{self.experiment_id}_{self.source_atlas}_{self.execution}")
         return self.source_atlas
 
     @property
@@ -218,7 +220,13 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def output_dir(self) -> PathString:
         """Creates the output directory and returns the path as a string"""
-        sub_dirs = [self.experiment, self.execution, "Targeted", self.workflow, self.analysis]
+        sub_dirs = [
+            self.experiment_id,
+            str(self.rt_alignment_number),
+            "Targeted",
+            self.workflow,
+            self.analysis,
+        ]
         out = os.path.join(self.project_directory, *sub_dirs)
         os.makedirs(out, exist_ok=True)
         return PathString(out)
@@ -226,7 +234,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def cache_dir(self) -> PathString:
         """Creates directory for storing cache files and returns the path as a string"""
-        out = os.path.join(self.project_directory, self.experiment, "cache")
+        out = os.path.join(self.project_directory, self.experiment_id, "cache")
         os.makedirs(out, exist_ok=True)
         return PathString(out)
 
