@@ -443,7 +443,9 @@ def plot_per_compound(
     rows = int(math.ceil((data.shape[0] + 1) / cols))
     fig = plt.figure()
     grid = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.2, hspace=0.4)
-    for i, (_, row) in tqdm(enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot", disable=in_papermill()):
+    for i, (_, row) in tqdm(
+        enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot", disable=in_papermill()
+    ):
         a_x = fig.add_subplot(grid[i])
         range_columns = list(plot_df.columns[:num_files])
         file_vs_value_plot(a_x, field_name, row, range_columns, fontsize, pad)
