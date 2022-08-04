@@ -28,8 +28,6 @@ except ImportError:
         HasTraits, CUnicode, List, CInt, Instance, Enum,
         CFloat, CBool)
 
-from .metatlas_objects import MetatlasObject
-
 logger = logging.getLogger(__name__)
 
 # Whether we are running from NERSC
@@ -127,6 +125,7 @@ class Workspace(object):
 
         self.tablename_lut = {}
         self.subclass_lut = {}
+        from .metatlas_objects import MetatlasObject
         for klass in _get_subclasses(MetatlasObject):
             name = klass.__name__.lower()
             self.subclass_lut[name] = klass
