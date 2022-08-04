@@ -28,7 +28,6 @@ except ImportError:
         HasTraits, CUnicode, List, CInt, Instance, Enum,
         CFloat, CBool)
 
-
 logger = logging.getLogger(__name__)
 
 # Whether we are running from NERSC
@@ -121,10 +120,11 @@ class Workspace(object):
     def __init__(self):
         logger.debug('Using database at: %s', self.get_database_path(with_password=False))
         self.path = self.get_database_path(with_password=True)
-        self.engine_kwargs = {} if self.path.startswith("sqlite") else {"pool_recycle": 3600}
+        mysql_kwargs = {"pool_recycle": 3600, "connect_args": {"connect_timeout": 120}}
+        self.engine_kwargs = {} if self.path.startswith("sqlite") else mysql_kwargs
 
-        self.tablename_lut = dict()
-        self.subclass_lut = dict()
+        self.tablename_lut = {}
+        self.subclass_lut = {}
         from .metatlas_objects import MetatlasObject
         for klass in _get_subclasses(MetatlasObject):
             name = klass.__name__.lower()
@@ -136,7 +136,7 @@ class Workspace(object):
                 self.subclass_lut[name + 's'] = klass
                 self.tablename_lut[klass] = name + 's'
         # handle circular references
-        self.seen = dict()
+        self.seen = {}
         Workspace.instance = self
 
     @classmethod
