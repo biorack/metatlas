@@ -30,6 +30,7 @@ from metatlas.io.gdrive import copy_outputs_to_google_drive
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import notebook
 from metatlas.tools.config import Config, Workflow, Analysis
+from metatlas.tools.notebook import in_papermill
 from metatlas.tools.util import or_default, repo_path
 
 logger = logging.getLogger(__name__)
@@ -356,7 +357,7 @@ def create_aligned_atlases(
     # pylint: disable=too-many-locals
     out_atlases = []
     model = poly if workflow.rt_alignment.parameters.use_poly_model else linear
-    for analysis in tqdm(workflow.analyses, unit="atlas"):
+    for analysis in tqdm(workflow.analyses, unit="atlas", disable=in_papermill()):
         template_atlas = get_atlas(analysis.atlas.unique_id, analysis.atlas.name)
         if analysis.atlas.do_alignment:
             name = get_atlas_name(ids, workflow, analysis, model)
