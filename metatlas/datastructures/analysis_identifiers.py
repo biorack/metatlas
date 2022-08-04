@@ -6,6 +6,7 @@ import logging
 import os
 
 from functools import lru_cache
+from pathlib import Path
 from typing import cast, Dict, List, Optional, Union
 
 import pandas as pd
@@ -222,7 +223,9 @@ class AnalysisIdentifiers(HasTraits):
         """Creates the output directory and returns the path as a string"""
         sub_dirs = [
             self.experiment_id,
+            self.workflow,
             str(self.rt_alignment_number),
+            str(self.analysis_number),
             "Targeted",
             self.workflow,
             self.analysis,
@@ -230,6 +233,11 @@ class AnalysisIdentifiers(HasTraits):
         out = os.path.join(self.project_directory, *sub_dirs)
         os.makedirs(out, exist_ok=True)
         return PathString(out)
+
+    @property
+    def notebook_dir(self) -> PathString:
+        """Directoy where notebooks are saved"""
+        return PathString(str(Path(self.output_dir).resolve().parent.parent.parent.parent))
 
     @property
     def cache_dir(self) -> PathString:
