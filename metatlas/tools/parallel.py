@@ -4,6 +4,8 @@ import logging
 import multiprocessing
 from tqdm.notebook import tqdm
 
+from metatlas.tools.notebook import in_papermill
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,6 +23,6 @@ def parallel_process(function, data, max_cpus, unit="it"):
     if max_cpus > 1 and len(data) > 1:
         logger.debug("Starting parallel processing of %s with %d cpus.", function.__name__, max_cpus)
         with multiprocessing.Pool(processes=min(max_cpus, len(data))) as pool:
-            return list(tqdm(pool.imap_unordered(function, data), total=len(data), unit=unit))
+            return list(tqdm(pool.imap_unordered(function, data), total=len(data), unit=unit, disable=in_papermill()))
     logger.debug("Processing of %s with 1 cpu.", function.__name__)
     return list(map(function, data))

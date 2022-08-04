@@ -22,6 +22,7 @@ from metatlas.io.write_utils import export_dataframe_die_on_diff
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
 from metatlas.tools.config import Analysis, Workflow
+from metatlas.tools.notebook import in_papermill
 from metatlas.plots.tic import save_sample_tic_pdf
 
 logger = logging.getLogger(__name__)
@@ -442,7 +443,7 @@ def plot_per_compound(
     rows = int(math.ceil((data.shape[0] + 1) / cols))
     fig = plt.figure()
     grid = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.2, hspace=0.4)
-    for i, (_, row) in tqdm(enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot"):
+    for i, (_, row) in tqdm(enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot", disable=in_papermill()):
         a_x = fig.add_subplot(grid[i])
         range_columns = list(plot_df.columns[:num_files])
         file_vs_value_plot(a_x, field_name, row, range_columns, fontsize, pad)

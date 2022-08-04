@@ -10,6 +10,8 @@ from typing import List, Optional, Tuple
 
 from tqdm.notebook import tqdm
 
+from metatlas.tools.notebook import in_papermill
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,7 +61,7 @@ class RClone:
         try:
             if progress:
                 cmd.append("--progress")
-                with tqdm(total=100, desc="Percentage of total number of files", unit="%") as pbar:
+                with tqdm(total=100, desc="Percentage of total number of files", unit="%", disable=in_papermill()) as pbar:
                     with Popen(cmd, stdout=PIPE, bufsize=1, universal_newlines=True) as proc:
                         for line in proc.stdout or []:
                             line = line.strip()

@@ -21,6 +21,7 @@ from metatlas.plots.utils import pdf_with_text
 from metatlas.tools import fastanalysis
 from metatlas.tools import parallel
 from metatlas.tools import spectralprocessing as sp
+from metatlas.tools.notebook import in_papermill
 
 from tqdm.notebook import tqdm
 from textwrap import fill, TextWrapper
@@ -2236,7 +2237,7 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
                              'inchi_key', 'precursor_mz', 'measured_precursor_mz',
                              'measured_precursor_intensity']
     msms_hits = pd.DataFrame(columns=all_cols).set_index(index_cols)
-    for compound_idx, _ in enumerate(tqdm(compound_names, unit='compound')):
+    for compound_idx, _ in enumerate(tqdm(compound_names, unit='compound', disable=in_papermill())):
         cid = metatlas_dataset[0][compound_idx]['identification']
         name = cid.name.split('///')[0] if cid.name else getattr(cid.compound[-1], 'name', None)
         adduct = ma_data.extract(cid, ['mz_references', 0, 'adduct'], None)
