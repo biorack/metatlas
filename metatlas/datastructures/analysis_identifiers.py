@@ -234,7 +234,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def cache_dir(self) -> PathString:
         """Creates directory for storing cache files and returns the path as a string"""
-        out = os.path.join(self.project_directory, self.experiment, "cache")
+        out = os.path.join(self.project_directory, self.experiment_id, "cache")
         os.makedirs(out, exist_ok=True)
         return PathString(out)
 
