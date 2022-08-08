@@ -78,7 +78,7 @@ is_C18_experiment() {
 
 get_num_cpus() {
   local experiment_name="$1"
-  if is_C18_experiment "$experiment_name"; then
+  if is_perlmutter || is_C18_experiment "$experiment_name"; then
     echo "64"
   else
     echo "8"
