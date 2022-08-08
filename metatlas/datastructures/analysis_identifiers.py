@@ -34,7 +34,7 @@ import metatlas.plots.dill2plots as dp
 
 from metatlas.datastructures.utils import AtlasName, get_atlas, Username
 from metatlas.io import write_utils
-from metatlas.tools.config import Config
+from metatlas.tools.config import BaseNotebookParameters, Config, OutputLists
 from metatlas.tools.util import or_default
 
 
@@ -55,11 +55,10 @@ class AnalysisIdentifiers(HasTraits):
     source_atlas_unique_id: str = Unicode(read_only=True)
     copy_atlas: bool = Bool(default_value=True, read_only=True)
     username: Username = Unicode(default_value=getpass.getuser(), read_only=True)
-    exclude_files: FileMatchList = traitlets.List(trait=Unicode(), default_value=[], read_only=True)
-    include_groups: Optional[GroupMatchList] = traitlets.List(
-        allow_none=True, default_value=None, read_only=True
-    )
-    exclude_groups: GroupMatchList = traitlets.List(default_value=[], read_only=True)
+    include_lcmsruns: FileMatchList = traitlets.List(trait=Unicode(), default_value=[])
+    exclude_lcmsruns: FileMatchList = traitlets.List(trait=Unicode(), default_value=[])
+    include_groups: GroupMatchList = traitlets.List(trait=Unicode(), default_value=[])
+    exclude_groups: GroupMatchList = traitlets.List(trait=Unicode(), default_value=[])
     groups_controlled_vocab: GroupMatchList = traitlets.List(
         trait=Unicode(), default_value=[], read_only=True
     )
@@ -81,7 +80,8 @@ class AnalysisIdentifiers(HasTraits):
         source_atlas_unique_id=None,
         copy_atlas=True,
         username=None,
-        exclude_files=None,
+        include_lcmsruns=None,
+        exclude_lcmsruns=None,
         include_groups=None,
         exclude_groups=None,
         groups_controlled_vocab=None,
@@ -102,8 +102,9 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("source_atlas_unique_id", source_atlas_unique_id)
         self.set_trait("copy_atlas", copy_atlas)
         self.set_trait("username", or_default(username, getpass.getuser()))
-        self.set_trait("exclude_files", or_default(exclude_files, []))
-        self.set_trait("include_groups", include_groups)
+        self.set_trait("include_lcmsruns", or_default(include_lcmsruns, []))
+        self.set_trait("exclude_lcmsruns", or_default(exclude_lcmsruns, []))
+        self.set_trait("include_groups", or_default(include_groups, []))
         self.set_trait("exclude_groups", or_default(exclude_groups, []))
         self.set_trait("groups_controlled_vocab", or_default(groups_controlled_vocab, []))
         self.set_trait("_lcmsruns", lcmsruns)
@@ -244,20 +245,20 @@ class AnalysisIdentifiers(HasTraits):
         if self._lcmsruns is not None:
             return self._lcmsruns
         all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
-        if self.exclude_files is not None and len(self.exclude_files) > 0:
+        if len(self.exclude_lcmsruns) > 0:
             self.set_trait(
                 "_lcmsruns",
                 [
                     r
                     for r in all_lcmsruns
-                    if not any(map(r.name.__contains__, or_default(self.exclude_files, [])))
+                    if not any(map(r.name.__contains__, or_default(self.exclude_lcmsruns, [])))
                 ],
             )
             if self._lcmsruns:
                 logger.info(
                     "Excluding %d LCMS runs containing any of: %s",
                     len(all_lcmsruns) - len(self._lcmsruns),
-                    self.exclude_files,
+                    self.exclude_lcmsruns,
                 )
         else:
             self.set_trait("_lcmsruns", all_lcmsruns)
@@ -338,9 +339,9 @@ class AnalysisIdentifiers(HasTraits):
         if self._groups is not None:
             return self._groups
         out = dp.filter_metatlas_objects_to_most_recent(self.all_groups, "name")
-        if self.include_groups is not None and len(self.include_groups) > 0:
+        if len(self.include_groups) > 0:
             out = dp.filter_metatlas_objects_by_list(out, "name", self.include_groups)
-        if self.exclude_groups is not None and len(self.exclude_groups) > 0:
+        if len(self.exclude_groups) > 0:
             out = dp.remove_metatlas_objects_by_list(out, "name", self.exclude_groups)
         sorted_out = sorted(dp.filter_empty_metatlas_objects(out, "items"), key=lambda x: x.name)
         self.set_trait("_groups", sorted_out)
@@ -370,11 +371,17 @@ class AnalysisIdentifiers(HasTraits):
             self.set_trait("_groups", None)
             logger.debug("Change to exclude_groups invalidates groups")
 
-    @observe("exclude_files")
-    def _observe_exclude_files(self, signal: ObserveHandler) -> None:
+    @observe("include_lcsmruns")
+    def _observe_include_lcmsruns(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
             self.set_trait("_lcmsruns", None)
-            logger.debug("Change to exclude_files invalidates lcmsruns")
+            logger.debug("Change to include_lcmsruns invalidates lcmsruns")
+
+    @observe("exclude_lcsmruns")
+    def _observe_exclude_lcmsruns(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            self.set_trait("_lcmsruns", None)
+            logger.debug("Change to exclude_lcmsruns invalidates lcmsruns")
 
     @observe("_lcmsruns")
     def _observe_lcmsruns(self, signal: ObserveHandler) -> None:
@@ -467,3 +474,9 @@ class AnalysisIdentifiers(HasTraits):
                 raise err
         logger.debug("Storing %d groups in the database", len(self.all_groups))
         metob.store(self.all_groups)
+
+    def set_output_state(self, parameters: BaseNotebookParameters, state: str):
+        """set include/exclude lcmsruns/groups for the given state"""
+        assert state in vars(OutputLists())
+        for out_list in ["include_lcmsruns", "exclude_lcmsruns", "include_groups", "exclude_groups"]:
+            setattr(self, getattr(parameters, out_list), state)

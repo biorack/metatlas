@@ -31,25 +31,47 @@ class OutputLists(BaseModel):
     data_sheets: List[str] = []
     box_plots: List[str] = []
 
+    def update(self, override_parameters: Dict) -> None:
+        """
+        update all parameters with any non-None values in override_parameters
+        Note, the override_parameters input is not the full parameter set,
+        it contains a dict that maps to an OutputList
+        """
+        for name in self.__dict__:
+            if name in override_parameters:
+                override_value = override_parameters[name]
+                if override_value is not None:
+                    setattr(self, name, override_value)
+
 
 class BaseNotebookParameters(BaseModel):
     """Parameters common to both RT_Alignment and Targeted notebooks"""
 
     copy_atlas: bool = False
     source_atlas: Optional[str] = None
-    include_groups: OutputLists
-    exclude_groups: OutputLists
-    include_lcmsruns: OutputLists
-    exclude_lcmsruns: OutputLists
+    include_groups: OutputLists = OutputLists()
+    exclude_groups: OutputLists = OutputLists()
+    include_lcmsruns: OutputLists = OutputLists()
+    exclude_lcmsruns: OutputLists = OutputLists()
     groups_controlled_vocab: List[str] = []
     rt_min_delta: Optional[float] = None
     rt_max_delta: Optional[float] = None
     config_file_name: Optional[str] = None
     source_code_version_id: Optional[str] = None
     project_directory: str = str(Path().home() / "metabolomics_data")
-    google_folder: Optional[str] = None
     max_cpus: int = 4
     log_level: str = "INFO"
+
+    def update(self, override_parameters: Dict) -> None:
+        """update all parameters with any non-None values in override_parameters"""
+        for name, config_value in self.__dict__.items():
+            if name in override_parameters:
+                override_value = override_parameters[name]
+                if override_value is not None:
+                    if isinstance(config_value, OutputLists):
+                        config_value.update(override_value)
+                    else:
+                        setattr(self, name, override_value)
 
 
 class AnalysisNotebookParameters(BaseNotebookParameters):
@@ -66,6 +88,7 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     generate_analysis_outputs: bool = False
     export_msms_fragment_ions: bool = False
     clear_cache: bool = False
+    google_folder: Optional[str] = None
 
 
 class RTAlignmentNotebookParameters(BaseNotebookParameters):
@@ -75,6 +98,7 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
     dependent_data_source: str = "median"
     use_poly_model: bool = False
     stop_before: Optional[str] = None
+    google_folder: str
 
 
 class Atlas(BaseModel):
@@ -120,6 +144,10 @@ class RTAlignment(BaseModel):
         """Only contains letters, digits and dashes"""
         return validate_allowed_chars("RT alignment name", to_check)
 
+    def update(self, override_parameters: Dict) -> None:
+        """update all parameters with any non-None values in override_parameters"""
+        update_analysis(self, override_parameters)
+
 
 class Analysis(BaseModel):
     """Define an analysis workflow step"""
@@ -133,6 +161,10 @@ class Analysis(BaseModel):
     def allowed_name_chars(cls, to_check):
         """Only contains letters, digits and dashes"""
         return validate_allowed_chars("analysis names", to_check)
+
+    def update(self, override_parameters: Dict) -> None:
+        """update all parameters with any non-None values in override_parameters"""
+        update_analysis(self, override_parameters)
 
 
 class Workflow(BaseModel):
@@ -154,6 +186,15 @@ class Workflow(BaseModel):
             if analysis.name == analysis_name:
                 return analysis
         raise ValueError(f"Analysis named '{analysis_name}' was not found within the workflow.")
+
+    def update(self, override_parameters: Dict) -> None:
+        """update all parameters with any non-None values in override_parameters"""
+        self.rt_alignment.update(override_parameters)
+        for analysis in self.analyses:
+            analysis.parameters.google_folder = or_default(
+                analysis.parameters.google_folder, self.rt_alignment.parameters.google_folder
+            )
+            analysis.update(override_parameters)
 
 
 class Chromatography(BaseModel):
@@ -194,23 +235,7 @@ class Config(BaseModel):
     def update(self, override_parameters: Dict) -> None:
         """update all parameters within self.workflows with any non-None values in override_parameters"""
         for flow in self.workflows:
-            for analysis in [flow.rt_alignment] + flow.analyses:
-                if analysis.parameters.source_atlas is not None:
-                    analysis.atlas.name = analysis.parameters.source_atlas
-                    analysis.atlas.username = getpass.getuser()
-                for name, a_value in analysis.parameters.__dict__.items():
-                    if name in override_parameters:
-                        o_value = override_parameters[name]
-                        if isinstance(o_value, OutputLists):
-                            for out_list in analysis.parameters[name].__dict__.keys():
-                                if out_list in o_value and o_value[out_list] is not None:
-                                    setattr(analysis.parameters, name, override_parameters[name])
-                                # TODO - not done!
-                        elif override_parameters[name] is not None:
-                            setattr(analysis.parameters, name, override_parameters[name])
-                analysis.parameters.google_folder = or_default(
-                    analysis.parameters.google_folder, flow.rt_alignment.parameters.google_folder
-                )
+            flow.update(override_parameters)
 
 
 def load_config(file_name: os.PathLike) -> Config:
@@ -251,3 +276,10 @@ def validate_allowed_chars(variable_name, to_check):
     if any(c not in ALLOWED_NAME_CHARS for c in to_check):
         raise ValueError(f"Only letters, numbers, and '-' are allowed in {variable_name}.")
     return to_check
+
+
+def update_analysis(analysis, override_parameters: Dict) -> None:
+    """update all parameters with any non-None values in override_parameters"""
+    if analysis.parameters.source_atlas_unique_id is not None:
+        analysis.atlas.unique_id = analysis.parameters.source_atlas_unique_id
+    analysis.parameters.update(override_parameters)

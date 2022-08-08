@@ -160,3 +160,8 @@ def test_analysis_identifiers_atlas02(analysis_ids, username, sqlite_with_test_c
     assert (
         analysis_ids.atlas == f"505892_OakGall_final_HILICz150_ANT20190824_TPL_EMA_Unlab_POS_{username}_0_0"
     )
+
+
+def test_set_output_state01(analysis, analysis_ids):
+    with pytest.raises(AssertionError):
+        analysis_ids.set_output_state(analysis.parameters, "NOT VALID STATE")

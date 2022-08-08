@@ -45,10 +45,11 @@ def pre_annotation(
         polarity=params.polarity,
         analysis_number=analysis_number,
         experiment=experiment,
-        include_groups=params.include_groups,
-        exclude_groups=params.exclude_groups,
+        include_groups=params.include_groups.gui,
+        exclude_groups=params.exclude_groups.gui,
         groups_controlled_vocab=params.groups_controlled_vocab,
-        exclude_files=params.exclude_files,
+        include_lcmsruns=params.include_lcmsruns.gui,
+        exclude_lcmsruns=params.exclude_lcmsruns.gui,
         rt_alignment_number=rt_alignment_number,
         project_directory=params.project_directory,
         google_folder=params.google_folder,
@@ -100,22 +101,24 @@ def post_annotation(
     data: MetatlasDataset, configuration: Config, workflow: Workflow, analysis: Analysis
 ) -> None:
     """All data processing that needs to occur after the annotation GUI in Targeted notebook"""
-    if analysis.parameters.require_all_evaluated and not in_papermill():
+    params = analysis.params
+    if params.require_all_evaluated and not in_papermill():
         data.error_if_not_all_evaluated()
-    if analysis.parameters.filter_removed:
+    if params.filter_removed:
         data.filter_compounds_ms1_notes_remove()
     data.extra_time = 0.5
     logger.info("extra_time set to 0.5 minutes for output generation.")
     data.update()  # update hits and data if they no longer are based on current rt bounds
-    if analysis.parameters.generate_qc_outputs:
+    if params.generate_qc_outputs:
+        data.ids.set_output_state(params, "qc_outputs")
         generate_qc_outputs(data)
-    if analysis.parameters.generate_analysis_outputs:
+    if params.generate_analysis_outputs:
         logger.info(
             "Setting exclude_groups to %s.",
-            str(analysis.parameters.exclude_groups_for_analysis_outputs),
+            str(params.exclude_groups_for_analysis_outputs),
         )
-        data.ids.set_trait("exclude_groups", analysis.parameters.exclude_groups_for_analysis_outputs)
+        data.ids.set_trait("exclude_groups", params.exclude_groups_for_analysis_outputs)
         generate_all_outputs(data, workflow, analysis)
     if not in_papermill():
         copy_outputs_to_google_drive(data.ids)
-    logger.info("DONE - execution of notebook %s is complete.", "in draft mode" if in_papermill() else " ")
+    logger.info("DONE - execution of notebook%s is complete.", " in draft mode" if in_papermill() else "")

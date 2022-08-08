@@ -325,7 +325,9 @@ def generate_all_outputs(
     overwrite: bool = False,
 ) -> None:
     """Generates the default set of outputs for a targeted experiment"""
+    params = analysis.parameters
     write_atlas_to_csv(data, overwrite=overwrite)
+    data.ids.set_output_state(params, "ids_spreadsheet")
     write_identifications_spreadsheet(data, overwrite=overwrite)
     write_chromatograms(data, overwrite=overwrite, max_cpus=data.max_cpus)
     write_identification_figure(data, overwrite=overwrite)
