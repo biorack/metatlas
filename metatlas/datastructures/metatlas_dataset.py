@@ -572,9 +572,10 @@ class MetatlasDataset(HasTraits):
             "ref_loc": self.msms_refs_loc,
             "extra_mz": self.extra_mz,
             "source_atlas": self.ids.source_atlas,
-            "exclude_files": self.ids.exclude_files,
-            "exclude_groups": self.ids.exclude_groups,
+            "include_lcmsruns": self.ids.include_lcmsruns,
+            "exclude_lcmsruns": self.ids.exclude_lcmsruns,
             "include_groups": self.ids.include_groups,
+            "exclude_groups": self.ids.exclude_groups,
         }
 
     def __len__(self) -> int:

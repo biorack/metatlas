@@ -253,28 +253,34 @@ class AnalysisIdentifiers(HasTraits):
         if self._lcmsruns is not None:
             return self._lcmsruns
         all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
-        if len(self.exclude_lcmsruns) > 0:
-            self.set_trait(
-                "_lcmsruns",
-                [
-                    r
-                    for r in all_lcmsruns
-                    if not any(map(r.name.__contains__, or_default(self.exclude_lcmsruns, [])))
-                ],
+        if len(self.include_lcmsruns) > 0:
+            post_include = [r for r in all_lcmsruns if any(map(r.name.__contains__, self.include_lcmsruns))]
+            logger.info(
+                "Filtered out %d LCMS runs for not matching within include_lcmsruns containing: %s",
+                len(all_lcmsruns) - len(post_include),
+                self.include_lcmsruns,
             )
-            if self._lcmsruns:
-                logger.info(
-                    "Excluding %d LCMS runs containing any of: %s",
-                    len(all_lcmsruns) - len(self._lcmsruns),
-                    self.exclude_lcmsruns,
-                )
         else:
-            self.set_trait("_lcmsruns", all_lcmsruns)
+            post_include = all_lcmsruns
+        if len(self.exclude_lcmsruns) > 0:
+            post_exclude = [
+                r for r in post_include if not any(map(r.name.__contains__, self.exclude_lcmsruns))
+            ]
+            logger.info(
+                "Filtered out %d LCMS runs for matching within exclude_lcmsruns containing: %s",
+                len(post_include) - len(post_exclude),
+                self.exclude_lcmsruns,
+            )
+        else:
+            post_exclude = post_include
+        self.set_trait("_lcmsruns", post_exclude)
         if self._lcmsruns:
             for run in self._lcmsruns:
                 logger.info("Run: %s", run.name)
         logger.info(
-            "Number of LCMS output files matching '%s' is: %d.", self.experiment, len(self._lcmsruns or [])
+            "After filtering, %s LCMS output files are left from experiment '%s'.",
+            self.experiment,
+            len(self._lcmsruns or []),
         )
         return self._lcmsruns or []
 
@@ -379,13 +385,13 @@ class AnalysisIdentifiers(HasTraits):
             self.set_trait("_groups", None)
             logger.debug("Change to exclude_groups invalidates groups")
 
-    @observe("include_lcsmruns")
+    @observe("include_lcmsruns")
     def _observe_include_lcmsruns(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
             self.set_trait("_lcmsruns", None)
             logger.debug("Change to include_lcmsruns invalidates lcmsruns")
 
-    @observe("exclude_lcsmruns")
+    @observe("exclude_lcmsruns")
     def _observe_exclude_lcmsruns(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
             self.set_trait("_lcmsruns", None)
@@ -487,4 +493,8 @@ class AnalysisIdentifiers(HasTraits):
         """set include/exclude lcmsruns/groups for the given state"""
         assert state in vars(OutputLists())
         for out_list in ["include_lcmsruns", "exclude_lcmsruns", "include_groups", "exclude_groups"]:
-            setattr(self, getattr(parameters, out_list), state)
+            current = getattr(self, out_list)
+            new = getattr(getattr(parameters, out_list), state)
+            if new != current:
+                setattr(self, out_list, new)
+                logger.info("Setting %s list to %s.", out_list, new)

@@ -165,3 +165,20 @@ def test_analysis_identifiers_atlas02(analysis_ids, username, sqlite_with_test_c
 def test_set_output_state01(analysis, analysis_ids):
     with pytest.raises(AssertionError):
         analysis_ids.set_output_state(analysis.parameters, "NOT VALID STATE")
+
+
+def test_set_output_state02(analysis, analysis_ids):
+    analysis_ids.set_output_state(analysis.parameters, "ids_spreadsheet")
+    assert analysis_ids.exclude_lcmsruns == ["QC"]
+
+
+def test_exclude_lcmsruns01(analysis, analysis_ids):
+    analysis_ids.exclude_lcmsruns = ["Run34"]
+    runs = analysis_ids.lcmsruns
+    assert len(runs) == 0
+
+
+def test_include_lcmsruns01(analysis, analysis_ids):
+    analysis_ids.include_lcmsruns = ["Run34"]
+    runs = analysis_ids.lcmsruns
+    assert len(runs) == 1

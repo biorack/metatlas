@@ -101,7 +101,7 @@ def post_annotation(
     data: MetatlasDataset, configuration: Config, workflow: Workflow, analysis: Analysis
 ) -> None:
     """All data processing that needs to occur after the annotation GUI in Targeted notebook"""
-    params = analysis.params
+    params = analysis.parameters
     if params.require_all_evaluated and not in_papermill():
         data.error_if_not_all_evaluated()
     if params.filter_removed:
@@ -113,11 +113,6 @@ def post_annotation(
         data.ids.set_output_state(params, "qc_outputs")
         generate_qc_outputs(data)
     if params.generate_analysis_outputs:
-        logger.info(
-            "Setting exclude_groups to %s.",
-            str(params.exclude_groups_for_analysis_outputs),
-        )
-        data.ids.set_trait("exclude_groups", params.exclude_groups_for_analysis_outputs)
         generate_all_outputs(data, workflow, analysis)
     if not in_papermill():
         copy_outputs_to_google_drive(data.ids)

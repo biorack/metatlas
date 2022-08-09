@@ -1,7 +1,6 @@
 """Manage configuration options using a YAML file"""
 # pylint: disable=too-few-public-methods
 
-import getpass
 import os
 
 from pathlib import Path
@@ -48,7 +47,7 @@ class BaseNotebookParameters(BaseModel):
     """Parameters common to both RT_Alignment and Targeted notebooks"""
 
     copy_atlas: bool = False
-    source_atlas: Optional[str] = None
+    source_atlas_unique_id: Optional[str] = None
     include_groups: OutputLists = OutputLists()
     exclude_groups: OutputLists = OutputLists()
     include_lcmsruns: OutputLists = OutputLists()

@@ -37,6 +37,7 @@ def write_atlas_to_csv(metatlas_dataset, overwrite=False):
 
 def write_identifications_spreadsheet(
     metatlas_dataset,
+    analysis_parameters,
     min_intensity=1e4,
     rt_tolerance=0.5,
     mz_tolerance=20,
@@ -66,6 +67,7 @@ def write_identifications_spreadsheet(
         overwrite: if True, will write over existing files
     """
     ids = metatlas_dataset.ids
+    ids.set_output_state(analysis_parameters, "ids_spreadsheet")
     prefix = f"{ids.short_polarity}_"
     scores_path = os.path.join(ids.output_dir, f"{prefix}stats_tables", f"{prefix}compound_scores.csv")
     _ = metatlas_dataset.hits  # regenerate hits if needed before logging about scores
@@ -91,15 +93,13 @@ def write_identifications_spreadsheet(
         use_labels=True,
         min_msms_score=0.01,
         min_num_frag_matches=1,
-        include_lcmsruns=[],
-        exclude_lcmsruns=["QC"],
         polarity=ids.short_polarity,
         overwrite=overwrite,
         data_sheets=False,  # eliminates output of the legacy 'data_sheets' dir but not '{POL}_data_sheets'
     )
 
 
-def write_chromatograms(metatlas_dataset, overwrite=False, max_cpus=1):
+def write_chromatograms(metatlas_dataset, analysis_parameters, overwrite=False, max_cpus=1):
     """
     inputs:
         metatlas_dataset: a MetatlasDataset instance
@@ -107,11 +107,10 @@ def write_chromatograms(metatlas_dataset, overwrite=False, max_cpus=1):
         overwrite: if False raise error if file already exists
     """
     # overwrite checks done within dp.make_chromatograms
+    metatlas_dataset.ids.set_output_state(analysis_parameters, "chromatograms")
     logger.info("Exporting chromatograms with shared Y-axis.")
     params = {
         "input_dataset": metatlas_dataset,
-        "include_lcmsruns": [],
-        "exclude_lcmsruns": ["InjBl", "QC", "Blank", "blank"],
         "share_y": True,
         "output_loc": metatlas_dataset.ids.output_dir,
         "polarity": metatlas_dataset.ids.short_polarity,
@@ -146,16 +145,16 @@ def write_tics(metatlas_dataset, x_min=None, x_max=None, y_min=0, overwrite=Fals
         )
 
 
-def write_identification_figure(metatlas_dataset, overwrite=False):
+def write_identification_figure(metatlas_dataset, analysis_parameters, overwrite=False):
     """Save identification figure. Will not overwrite existing file unless overwrite is True"""
     # overwrite checks done within dp.make_identification_figure_v2
-    logger.info("Exporting indentification figures to %s", metatlas_dataset.ids.output_dir)
+    ids = metatlas_dataset.ids
+    logger.info("Exporting indentification figures to %s", ids.output_dir)
+    ids.set_output_state(analysis_parameters, "chromatograms")
     dp.make_identification_figure_v2(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
         use_labels=True,
-        include_lcmsruns=[],
-        exclude_lcmsruns=["InjBl", "QC", "Blank", "blank"],
         output_loc=metatlas_dataset.ids.output_dir,
         short_names_df=metatlas_dataset.ids.lcmsruns_short_names,
         polarity=metatlas_dataset.ids.short_polarity,
@@ -163,7 +162,7 @@ def write_identification_figure(metatlas_dataset, overwrite=False):
     )
 
 
-def write_metrics_and_boxplots(metatlas_dataset, overwrite=False, max_cpus=1):
+def write_metrics_and_boxplots(metatlas_dataset, analysis_parameters, overwrite=False, max_cpus=1):
     """
     Save metrics dataframes as csv and boxplots as PDF.
     Will not overwrite existing file unless overwrite is True
@@ -176,22 +175,26 @@ def write_metrics_and_boxplots(metatlas_dataset, overwrite=False, max_cpus=1):
         {"name": "mz_centroid", "label": "MZ Centroid"},
         {"name": "rt_centroid", "label": None},
     ]
+    ids = metatlas_dataset.ids
     prefix = f"{metatlas_dataset.ids.short_polarity}_"
+    ids.set_output_state(analysis_parameters, "data_sheets")
     for fields in config:
-        df_dir = os.path.join(metatlas_dataset.ids.output_dir, f"{prefix}data_sheets")
+        df_dir = os.path.join(ids.output_dir, f"{prefix}data_sheets")
         dataframe = dp.make_output_dataframe(
             fieldname=fields["name"],
             input_dataset=metatlas_dataset,
             output_loc=df_dir,
-            short_names_df=metatlas_dataset.ids.lcmsruns_short_names,
-            polarity=metatlas_dataset.ids.short_polarity,
+            short_names_df=ids.lcmsruns_short_names,
+            polarity=ids.short_polarity,
             use_labels=True,
             overwrite=overwrite,
         )
+    ids.set_output_state(analysis_parameters, "box_plots")
+    for fields in config:
         if fields["label"] is not None:
             for logy in [False, True]:
                 plot_dir = os.path.join(
-                    metatlas_dataset.ids.output_dir,
+                    ids.output_dir,
                     f"{prefix}boxplot_{fields['name']}{'_log' if logy else ''}",
                 )
                 dp.make_boxplot_plots(
@@ -326,13 +329,13 @@ def generate_all_outputs(
 ) -> None:
     """Generates the default set of outputs for a targeted experiment"""
     params = analysis.parameters
+    data.ids.set_output_state(params, "gui")
     write_atlas_to_csv(data, overwrite=overwrite)
-    data.ids.set_output_state(params, "ids_spreadsheet")
-    write_identifications_spreadsheet(data, overwrite=overwrite)
-    write_chromatograms(data, overwrite=overwrite, max_cpus=data.max_cpus)
-    write_identification_figure(data, overwrite=overwrite)
-    write_metrics_and_boxplots(data, overwrite=overwrite, max_cpus=data.max_cpus)
     write_tics(data, overwrite=overwrite, x_min=1.5)
+    write_identifications_spreadsheet(data, params, overwrite=overwrite)
+    write_chromatograms(data, params, overwrite=overwrite, max_cpus=data.max_cpus)
+    write_identification_figure(data, params, overwrite=overwrite)
+    write_metrics_and_boxplots(data, params, overwrite=overwrite, max_cpus=data.max_cpus)
     if analysis.parameters.export_msms_fragment_ions:
         write_msms_fragment_ions(data, overwrite=overwrite)
     logger.info("Generation of output files completed sucessfully.")

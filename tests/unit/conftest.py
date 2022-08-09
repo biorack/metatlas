@@ -2300,19 +2300,19 @@ def fixture_analysis_parameters():
 
 
 @pytest.fixture(name="configuration")
-def fixture_configuration(analysis_parameters):
+def fixture_configuration(analysis_parameters, sqlite_with_test_config_atlases):
     configuration, _, _ = config.get_config(analysis_parameters)
     return configuration
 
 
 @pytest.fixture(name="workflow")
-def fixture_workflow(analysis_parameters):
+def fixture_workflow(analysis_parameters, sqlite_with_test_config_atlases):
     _, workflow, _ = config.get_config(analysis_parameters)
     return workflow
 
 
 @pytest.fixture(name="analysis")
-def fixture_analysis(analysis_parameters):
+def fixture_analysis(analysis_parameters, sqlite_with_test_config_atlases):
     _, _, analysis = config.get_config(analysis_parameters)
     return analysis
 
