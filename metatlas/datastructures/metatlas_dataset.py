@@ -144,7 +144,7 @@ class MetatlasDataset(HasTraits):
 
     extra_time: float = Float()
     extra_mz: float = Float(default_value=0)
-    frag_mz_tolerance: float = Float(default_value=0.01)
+    frag_mz_tolerance: float = Float(default_value=0.02)
     max_cpus: int = Int(default_value=1)
     save_metadata: bool = Bool(default_value=True)
     keep_nonmatches: bool = Bool(default_value=True)
