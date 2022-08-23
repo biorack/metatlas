@@ -20,16 +20,18 @@ assert validate_file_name(Path('${raw_file}'), minimal=True)"
 # the above "minimal=True" should be set to False once raw file names are expected to
 # be fully in agreement with the SOP
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
         python -c "$validation" 2>&1 | \
-	ts "%Y-%m-%d %H:%M:%.S, "
+	"${SCRIPT_DIR}/ts.py"
 
 # ThermoRawFileParser.sh should return non-zero exit code on error, but it doesn't
 # https://github.com/compomics/ThermoRawFileParser/issues/140
 # But the mzML to h5 conversion will fail nicely if the mzML files does not exist
 shifter "--image=${raw_image}" ThermoRawFileParser.sh \
 	"-i=${raw_file}" "-o=$(dirname "$raw_file")" -f=1 2>&1 | \
-	ts "%Y-%m-%d %H:%M:%.S, "
+	"${SCRIPT_DIR}/ts.py"
 
 mzml_file="${raw_file%.raw}.mzML"
 
