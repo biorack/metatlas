@@ -2,7 +2,8 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-raw_image='quay.io/biocontainers/thermorawfileparser:1.3.4--ha8f3691_0'
+# this is version 1.4.0 of ThermoRawFileParser:
+raw_image='quay.io/biocontainers/thermorawfileparser@sha256:76c17e3124b723f271bc3d5cf0555650288676bb1a827bd1bae9bb684444a404'
 
 if [ "$#" -ne 1 ]; then
     >&2 echo "Usage $0: raw_ms_file"
