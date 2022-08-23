@@ -20,16 +20,23 @@ assert validate_file_name(Path('${raw_file}'), minimal=True)"
 # the above "minimal=True" should be set to False once raw file names are expected to
 # be fully in agreement with the SOP
 
+add_timestamp() {
+  perl -MPOSIX -MTime::HiRes='time' -lne '
+    my $t=time;
+    my $fractional_second = sprintf(".%06d", ($t-int($t))*1000000);
+    print strftime("%F %T", localtime($t)), $fractional_second, ", $_";'
+}
+
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
         python -c "$validation" 2>&1 | \
-	ts "%Y-%m-%d %H:%M:%.S, "
+	add_timestamp
 
 # ThermoRawFileParser.sh should return non-zero exit code on error, but it doesn't
 # https://github.com/compomics/ThermoRawFileParser/issues/140
 # But the mzML to h5 conversion will fail nicely if the mzML files does not exist
 shifter "--image=${raw_image}" ThermoRawFileParser.sh \
 	"-i=${raw_file}" "-o=$(dirname "$raw_file")" -f=1 2>&1 | \
-	ts "%Y-%m-%d %H:%M:%.S, "
+	add_timestamp
 
 mzml_file="${raw_file%.raw}.mzML"
 
