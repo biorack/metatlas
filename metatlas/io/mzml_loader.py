@@ -17,7 +17,7 @@ import tables
 
 import warnings
 warnings.filterwarnings("ignore", module="plotly")
-# pymzml has plotly in it and if you don't have a setup in your 
+# pymzml has plotly in it and if you don't have a setup in your
 # home directory, you get a warning.
 from pymzml.run import Reader
 
@@ -68,14 +68,14 @@ def read_spectrum(spectrum):
     out : list of tuples
         List of values associated with each peak in the spectrum.
     """
-    if spectrum['negative scan'] is True: 
+    if spectrum['negative scan'] is True:
         polarity = 0
     elif spectrum['positive scan'] is True:
-        polarity = 1 
+        polarity = 1
     else:
         raise('EXITING: polarity is unknown')
-        
-          
+
+
     ms_level = spectrum.ms_level
     rt = spectrum.scan_time_in_minutes()
 
@@ -93,7 +93,7 @@ def read_spectrum(spectrum):
             raise('EXITING: Not only one precursor ion selected')
         else:
             prec = prec[0]
-        
+
         collision_energy = spectrum['collision energy']
         precursor_intensity = prec['i']
         precursor_mz = prec['mz']
@@ -186,7 +186,7 @@ def mzml_to_hdf(in_file_name, out_file=None, debug=False):
         sys.stderr.flush()
         raise TypeError('Not a valid mzML file: "%s"' % in_file_name)
 
-    if out_file is not None:
+    if out_file is None:
         out_file = in_file_name.replace('.mzML', '.h5')
 
     try:
@@ -265,7 +265,7 @@ def _convert(mzml_reader, out_file=None,debug=None):
                 k = 'ms2_pos'
             out_dict[k].append(data)
 
-            
+
     if out_file is not None:
         for name in ['ms1_neg', 'ms2_neg', 'ms1_pos', 'ms2_pos']:
             table = out_file.get_node('/' + name)
