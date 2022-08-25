@@ -32,6 +32,7 @@ shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
 # But the mzML to h5 conversion will fail nicely if the mzML files does not exist
 shifter "--image=${raw_image}" ThermoRawFileParser.sh \
 	"-i=${raw_file}" "-o=$(dirname "$raw_file")" -f=1 2>&1 | \
+	sed 's%^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} INFO%INFO ThermoRawFileParser:%' | \
 	"${SCRIPT_DIR}/ts.py"
 
 mzml_file="${raw_file%.raw}.mzML"
