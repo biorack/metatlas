@@ -39,6 +39,7 @@ mzml_file="${raw_file%.raw}.mzML"
 
 mzml_to_h5="\
 from metatlas.io.file_converter import mzml_to_h5_and_add_to_db
+logging.basicConfig(format='%(levelname)s, %(message)s', level=logging.INFO)
 mzml_to_h5_and_add_to_db('${mzml_file}')"
 
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
