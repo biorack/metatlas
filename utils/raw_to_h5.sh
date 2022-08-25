@@ -41,4 +41,5 @@ from metatlas.io.file_converter import mzml_to_h5_and_add_to_db
 mzml_to_h5_and_add_to_db('${mzml_file}')"
 
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
-        python -c "$mzml_to_h5"
+        python -c "$mzml_to_h5" | \
+	"${SCRIPT_DIR}/ts.py"
