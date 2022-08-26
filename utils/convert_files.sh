@@ -21,7 +21,8 @@ log="/global/cfs/cdirs/m2650/file_converter_logs/${1}.log"
 
 converter='/global/common/software/m2650/metatlas-repo/utils/raw_to_h5.sh'
 
-find "$base_dir" -mindepth 2 -maxdepth 2 -type f \( -name '*.raw' -o -name '*.h5' \) | \
+find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
+     \( -name '*.raw' -o -name '*.h5' -o -name '*.failed' \) | \
   sed 's%.h5$%.raw%' | \
   sort | \
   uniq -u | \
