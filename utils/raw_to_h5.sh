@@ -13,10 +13,10 @@ if [ "$#" -ne 1 ]; then
 fi
 
 raw_file="$(realpath "$1")"
+failure_file="${raw_file%.raw}.failed"
+mzml_file="${raw_file%.raw}.mzML"
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-
-failure_file="${raw_file%.raw}.failed"
 
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
 	"${SCRIPT_DIR}/validate_file_name.py" "$raw_file" 2>&1 | \
@@ -32,16 +32,8 @@ shifter "--image=${raw_image}" ThermoRawFileParser.sh \
 	"${SCRIPT_DIR}/ts.py" | \
 	tee -a "${failure_file}"
 
-mzml_file="${raw_file%.raw}.mzML"
-
-mzml_to_h5="\
-import logging
-from metatlas.io.file_converter import mzml_to_h5_and_add_to_db
-logging.basicConfig(format='%(levelname)s, %(message)s', level=logging.INFO)
-mzml_to_h5_and_add_to_db('${mzml_file}')"
-
 shifter "--env=PYTHONPATH=/src" "--image=doejgi/metatlas_shifter:latest" \
-        python -c "$mzml_to_h5" | \
+	"${SCRIPT_DIR}/mzml_to_h5.py" "${mzml_file}" | \
 	"${SCRIPT_DIR}/ts.py" | \
 	tee -a "${failure_file}"
 
