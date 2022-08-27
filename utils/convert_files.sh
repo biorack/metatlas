@@ -24,6 +24,7 @@ converter='/global/common/software/m2650/metatlas-repo/utils/raw_to_h5.sh'
 find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
      \( -name '*.raw' -o -name '*.h5' -o -name '*.failed' \) | \
   sed 's%.h5$%.raw%' | \
+  sed 's%.failed$%.raw%' | \
   sort | \
   uniq -u | \
   sed "s%^%${converter} %" | \
