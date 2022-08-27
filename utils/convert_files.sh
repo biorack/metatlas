@@ -27,5 +27,5 @@ find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
   sed 's%.failed$%.raw%' | \
   sort | \
   uniq -u | \
-  sed "s%^%${converter} %" | \
+  sed "s%^\(.*\)$%${converter} '\1'%" | \
   parallel  >> "$log" 2>&1
