@@ -39,13 +39,10 @@ failed_exp="$(printf '%s\n' "$failed" | \
 
 formated_failed="$(printf '%s\n' "$failed" | sed "s%${base_dir}/%    %")"
 
-addresses="$(cat "/global/cfs/cdirs/metatlas/raw_data/email_${1}_reports")"
-
 { printf 'File conversion report for %s data.\n' "$1"; \
   printf 'In the past %s days...\n' "$days"; \
   printf 'successfull conversions: %s\n' "$num_converted"; \
   printf 'failed conversions: %s\n\n' "$num_failed"; \
   printf 'successfull conversions per experiment:\n%s\n\n' "$converted_exp"; \
   printf 'failed conversions per experiment:\n%s\n\n' "$failed_exp"; \
-  printf 'Failed files:\n%s\n' "$formated_failed"; } | \
-  mailx -s "${1} file conversion report"  -R "wjholtz@lbl.gov" ${addresses}
+  printf 'Failed files:\n%s\n' "$formated_failed"; }
