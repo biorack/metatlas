@@ -2,7 +2,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-if [ "$#" -ne 1 ] || { [ "$1" != "jgi" ] && [ "$1" != "egsb" ]; }; then
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ] || { [ "$1" != "jgi" ] && [ "$1" != "egsb" ]; }; then
     >&2 echo "Usage $0 search_directory [days]"
     >&2 echo "    search_directory is one of 'jgi' or 'egsb'"
     >&2 echo "    days is how many days back to report on (default 7)"
