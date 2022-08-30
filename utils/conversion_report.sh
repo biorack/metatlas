@@ -3,13 +3,14 @@ set -euo pipefail
 IFS=$'\n\t'
 
 if [ "$#" -ne 1 ] || { [ "$1" != "jgi" ] && [ "$1" != "egsb" ]; }; then
-    >&2 echo "Usage $0: search_directory"
-    >&2 echo "    where search_directory is one of 'jgi' or 'egsb'"
+    >&2 echo "Usage $0 search_directory [days]"
+    >&2 echo "    search_directory is one of 'jgi' or 'egsb'"
+    >&2 echo "    days is how many days back to report on (default 7)"
     exit 128
 fi
 
 base_dir="/global/cfs/cdirs/metatlas/raw_data/$1"
-days="7"
+days="${2:-7}"
 
 converted="$(find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
 	          -mtime "-${days}" -name '*.h5' | \
