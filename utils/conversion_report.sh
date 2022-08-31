@@ -24,7 +24,8 @@ function parent_dir {
 }
 
 num_converted="$(get_filenames '*.h5' -printf '.' | wc -c)"
-num_failed="$(get_filenames '*.failed' -printf '.' | wc -c)"
+# Don't count .failed files less than 5 mintues old
+num_failed="$(get_filenames '*.failed' -mmin +5 -printf '.' | wc -c)"
 
 printf 'File conversion report for %s data.\n' "$1"
 printf 'In the past %s days...\n' "$days"
@@ -39,7 +40,7 @@ printf 'successfull conversions per experiment:\n%s\n\n' "$converted_exp"
 
 [ "$num_failed" = "0" ] && exit 0
 
-failed="$(get_filenames '*failed' | sed 's%.failed$%.raw%' | sort)"
+failed="$(get_filenames '*failed' -mmin +5 | sed 's%.failed$%.raw%' | sort)"
 failed_exp="$(printf '%s\n' "$failed" | parent_dir | uniq -c)"
 formated_failed="$(printf '%s\n' "$failed" | sed "s%${base_dir}/%    %")"
 printf 'failed conversions per experiment:\n%s\n\n' "$failed_exp"
