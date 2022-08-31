@@ -12,38 +12,35 @@ fi
 base_dir="/global/cfs/cdirs/metatlas/raw_data/$1"
 days="${2:-7}"
 
-converted="$(find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
-	          -mtime "-${days}" -name '*.h5' | \
-             sed 's%.h5$%.raw%' | \
-	     sort)"
+function get_filenames {
+  # shellcheck disable=SC2048,SC2086
+  find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
+	          -mtime "-${days}" -name $*
+}
 
-failed="$(find "$base_dir" -mindepth 2 -maxdepth 2 -type f -mtime "-${days}" \
-	       -name '*.failed' | \
-          sed 's%.failed$%.raw%' | \
-          sort)"
+function parent_dir {
+  xargs --no-run-if-empty -l dirname | \
+  xargs --no-run-if-empty -l basename
+}
 
-num_failed="$(printf '%s\n' "$failed" | wc -l)"
+num_converted="$(get_filenames '*.h5' -printf '.' | wc -c)"
+num_failed="$(get_filenames '*.failed' -printf '.' | wc -c)"
 
-num_converted="$(find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
-	              -mtime "-${days}" -name '*.h5' | \
-	         wc -l)"
+printf 'File conversion report for %s data.\n' "$1"
+printf 'In the past %s days...\n' "$days"
+printf 'successfull conversions: %s\n' "$num_converted"
+printf 'failed conversions: %s\n\n' "$num_failed"
 
-converted_exp="$(printf '%s\n' "$converted" | \
-	         xargs -l dirname | \
-	         xargs -l basename | \
-	         uniq -c)"
+[ "$num_converted" = "0" ] && [ "$num_failed" = "0" ] && exit 0
 
-failed_exp="$(printf '%s\n' "$failed" | \
-	      xargs -l dirname | \
-	      xargs -l basename | \
-	      uniq -c)"
+converted="$(get_filenames '*.h5' | sed 's%.h5$%.raw%'| sort)"
+converted_exp="$(printf '%s\n' "$converted" | parent_dir | uniq -c)"
+printf 'successfull conversions per experiment:\n%s\n\n' "$converted_exp"
 
+[ "$num_failed" = "0" ] && exit 0
+
+failed="$(get_filenames '*failed' | sed 's%.failed$%.raw%' | sort)"
+failed_exp="$(printf '%s\n' "$failed" | parent_dir | uniq -c)"
 formated_failed="$(printf '%s\n' "$failed" | sed "s%${base_dir}/%    %")"
-
-{ printf 'File conversion report for %s data.\n' "$1"; \
-  printf 'In the past %s days...\n' "$days"; \
-  printf 'successfull conversions: %s\n' "$num_converted"; \
-  printf 'failed conversions: %s\n\n' "$num_failed"; \
-  printf 'successfull conversions per experiment:\n%s\n\n' "$converted_exp"; \
-  printf 'failed conversions per experiment:\n%s\n\n' "$failed_exp"; \
-  printf 'Failed files:\n%s\n' "$formated_failed"; }
+printf 'failed conversions per experiment:\n%s\n\n' "$failed_exp"
+printf 'Failed files:\n%s\n' "$formated_failed"
