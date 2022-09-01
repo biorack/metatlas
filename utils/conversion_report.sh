@@ -45,7 +45,9 @@ printf '    failed conversions: %s\n\n' "$num_failed"
 
 converted="$(get_filenames '*.h5' | sed 's%.h5$%.raw%'| sort)"
 converted_exp="$(printf '%s\n' "$converted" | parent_dir | uniq -c)"
-printf 'successfull conversions per experiment:\n%s\n\n' "$converted_exp"
+if [ "$num_converted" -ne "0" ]; then
+  printf 'successfull conversions per experiment:\n%s\n\n' "$converted_exp"
+fi
 
 [ "$num_failed" = "0" ] && exit 0
 
