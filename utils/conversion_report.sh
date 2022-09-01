@@ -51,8 +51,16 @@ fi
 
 [ "$num_failed" = "0" ] && exit 0
 
-failed="$(get_filenames '*failed' -mmin +5 | sed 's%.failed$%.raw%' | sort)"
+failed="$(get_filenames '*failed' -mmin +5 | sort)"
 failed_exp="$(printf '%s\n' "$failed" | parent_dir | uniq -c)"
-formated_failed="$(printf '%s\n' "$failed" | sed "s%${base_dir}/%    %")"
+formated_failed="$(printf '%s\n' "$failed" | sed 's%.failed$%.raw%' | sed "s%${base_dir}/%    %")"
+# shellcheck disable=SC2086
+errors="$(grep 'ERROR' $failed | sed 's%^%    %' | \
+	  sed "s%${base_dir}/%%" | \
+	  sed -E 's%\.failed.*ERROR(,|)%.raw:\n        %' | \
+	  sed -E "s%([-: ]*|)${base_dir}/[^[:space:]].*%%" )"
+
 printf 'failed conversions per experiment:\n%s\n\n' "$failed_exp"
-printf 'Failed files:\n%s\n' "$formated_failed"
+printf 'Failed files:\n%s\n\n' "$formated_failed"
+
+printf 'Extracted ERROR lines from .failed files:\n%s\n' "$errors"
