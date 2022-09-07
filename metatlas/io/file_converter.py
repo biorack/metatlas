@@ -94,8 +94,11 @@ def get_acqtime_from_mzml(mzml_file):
     return utc_timestamp
 
 
-def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> None:
-    """converts a single file and inserts a record in lcmsruns table"""
+def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> bool:
+    """
+    converts a single file and inserts a record in lcmsruns table
+    return True if sucuessful, else False
+    """
     logger.info("Converting mzML file %s", mzml_file_name)
 
     pat = re.compile(r".+\/raw_data\/(?P<sub_dir>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
@@ -103,7 +106,7 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> None:
     file_name_match = pat.match(mzml_file_name)
     if file_name_match is None:
         logger.error("Invalid path name: %s", mzml_file_name)
-        return
+        return False
     info = file_name_match.groupdict()
     try:
         hdf5_file = mzml_file_name.replace("mzML", "h5")
@@ -129,6 +132,7 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> None:
                 acquisition_time=get_acqtime_from_mzml(mzml_file_name),
             )
             store(run)
+            return True
     except Exception as err:
         logger.error("During file conversion: %s", str(err))
         if "exists but it can not be written" in str(err):
@@ -142,6 +146,7 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> None:
             os.remove(hdf5_file)
         except Exception:
             pass
+        return False
 
 
 def convert(ind, fname):
