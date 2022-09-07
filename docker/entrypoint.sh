@@ -27,7 +27,7 @@ export OMP_PLACES="threads"
 export OMP_PROC_BIND="spread"
 
 if [ -n "$SOURCE_CODE_VERSION_ID" ]; then
-   git checkout -C "$METATLAS_WORKING_SOURCE_DIR" "$SOURCE_CODE_VERSION_ID"
+   git -C "$METATLAS_WORKING_SOURCE_DIR" checkout "$SOURCE_CODE_VERSION_ID"
 fi
 
 # don't do the usual 'exec "$@"' here as that will break the trap
