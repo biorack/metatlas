@@ -242,7 +242,7 @@ constraint="$(get_slurm_constraint)"
 time="$(get_slurm_time)"
 IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested} --constraint=${constraint} --time=${time}"
 
-IN_FILE="/src/notebooks/reference/RT_Prediction.ipynb"
+IN_FILE='${METATLAS_WORKING_SOURCE_DIR}/notebooks/reference/RT_Prediction.ipynb'
 OUT_FILE="${analysis_dir}/${proposal}_RT_Prediction_papermill.ipynb"
 
 PARAMETERS+=" -p experiment $exp \

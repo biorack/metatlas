@@ -6,7 +6,8 @@
 
 set -euo pipefail
 
-shifter_flags="--module=none --clearenv"
+shifter_flags="--module=none --clearenv \
+   --env=SOURCE_CODE_VERSION_ID=${SOURCE_CODE_VERSION_ID:-2.x}"
 
 log_dir="/global/cfs/projectdirs/m2650/jupyter_logs/slurm"
 
@@ -32,11 +33,11 @@ output "yaml parameters: $(echo "$YAML_BASE64" | base64 --decode)"
 
 # this creates the cache black uses and prevents some error messages
 # doesn't need --entrypoint and is faster to leave it off
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086,SC2016
 shifter $shifter_flags /bin/bash -c \
   'black --quiet --check /metatlas_image_version && \
    papermill \
-     /src/notebooks/reference/RT_Prediction.ipynb \
+     "${METATLAS_WORKING_SOURCE_DIR}/notebooks/reference/RT_Prediction.ipynb" \
      - \
      -p model_only True \
      --prepare-only \
