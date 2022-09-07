@@ -15,6 +15,7 @@ from datetime import datetime
 import pytest
 import numpy as np
 import pandas as pd
+import yaml
 
 from sklearn.linear_model import RANSACRegressor
 
@@ -2329,3 +2330,9 @@ def fixture_sqlite_with_test_config_atlases(sqlite, atlas):
         metob.store(new_atlas)
     # atlas is HILICz150_ANT20190824_TPL_EMA_Unlab_POS w/unique_id 89694aa326cd46958d38d8e9066de16c
     metob.store(atlas)
+
+
+@pytest.fixture(name="config")
+def fixture_config(sqlite_with_test_config_atlases):
+    with open(repo_path() / "test_config.yaml", "r", encoding="utf-8") as yaml_fh:
+        return config.Config.parse_obj(yaml.safe_load(yaml_fh))

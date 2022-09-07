@@ -66,6 +66,7 @@ workflows:
               gui: ["InjBl", "QC", "Blank", "blank"]
               ids_spreadsheet: ["QC"]
               chromatograms: ["InjBl", "QC", "Blank", "blank"]
+              data_sheets: ["InjBl", "QC", "Blank", "blank"]
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             filter_removed: True
             num_points: 5

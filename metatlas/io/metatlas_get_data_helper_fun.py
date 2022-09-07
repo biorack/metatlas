@@ -177,6 +177,8 @@ def extract(data, ids, default=None):
     as: ('attribute_name',). If you want to make it more explict to the reader, you can add a
     second member to the tuple, which will not be used, such as ('attribute_name', 'as attribute')
     """
+    if data is None:
+        return default
     if len(ids) == 0:
         return data
     try:

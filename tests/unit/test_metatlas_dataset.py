@@ -86,7 +86,7 @@ def test_filter_compounds04(mocker, metatlas_dataset, compound):
         metatlas_dataset.filter_compounds(remove_idxs=[999])
 
 
-def test_filter_compounds05(mocker, metatlas_dataset_with_2_cids, username):
+def test_filter_compounds05(metatlas_dataset_with_2_cids, username):
     original_rt_min = metatlas_dataset_with_2_cids.rts[1].rt_min
     print([r.rt_min for r in metatlas_dataset_with_2_cids.rts])
     updated_rt_min = 9.99
@@ -95,6 +95,17 @@ def test_filter_compounds05(mocker, metatlas_dataset_with_2_cids, username):
     atlas = metob.retrieve("Atlas", name=metatlas_dataset_with_2_cids.atlas.name, username=username)[0]
     assert atlas.compound_identifications[0].rt_references[0].rt_min != original_rt_min
     assert atlas.compound_identifications[0].rt_references[0].rt_min == updated_rt_min
+
+
+def test_filter_compounds06(metatlas_dataset):
+    metatlas_dataset.filter_compounds(keep_idxs=[])
+    # when there are no compounds left, no files get kept either
+    assert metatlas_dataset.data == ()
+
+
+def test_filter_compounds07(metatlas_dataset_with_2_cids):
+    metatlas_dataset_with_2_cids.filter_compounds(remove_idxs=[0])
+    assert len(metatlas_dataset_with_2_cids[0]) == 1
 
 
 def test_filter_hits_by_atlas01(mocker, metatlas_dataset_with_2_cids, hits, compound):
@@ -110,6 +121,7 @@ def test_filter_hits_by_atlas01(mocker, metatlas_dataset_with_2_cids, hits, comp
 
 def test_polarity(metatlas_dataset):
     assert metatlas_dataset.polarity == "positive"
+    assert len(metatlas_dataset[0]) == 1
     metatlas_dataset.filter_compounds(remove_idxs=[0])
     assert len(metatlas_dataset[0]) == 0
     assert metatlas_dataset.polarity == "positive"
@@ -172,9 +184,9 @@ def test_set_note02(metatlas_dataset):
 
 
 def test_compound_indices_marked_remove01(sqlite, metatlas_dataset):
-    assert len(metatlas_dataset.compound_indices_marked_remove()) == 0
+    assert len(metatlas_dataset.compound_indices_marked_remove) == 0
     metatlas_dataset.set_note(0, "ms1_notes", "REMOVE")
-    assert len(metatlas_dataset.compound_indices_marked_remove()) == 1
+    assert len(metatlas_dataset.compound_indices_marked_remove) == 1
 
 
 def test_set_nested01():
@@ -619,3 +631,24 @@ def test_chromatography04(metatlas_dataset, caplog):
     chrom_type = metatlas_dataset.ids.chromatography
     assert chrom_type == "foobar"
     assert "Unknown chromatography field 'foobar'" in caplog.text
+
+
+def test_rt_change_then_filter(metatlas_dataset_with_2_cids):
+    original_rt_min = metatlas_dataset_with_2_cids.rts[1].rt_min
+    updated_rt_min = 9.99
+    metatlas_dataset_with_2_cids.set_rt(1, "rt_min", updated_rt_min)
+    metatlas_dataset_with_2_cids.invalidate_data()
+    assert metatlas_dataset_with_2_cids.rts[1].rt_min != original_rt_min
+    assert metatlas_dataset_with_2_cids.rts[1].rt_min == updated_rt_min
+
+
+def test_remove_compound_id(metatlas_dataset_with_2_cids):
+    assert len(metatlas_dataset_with_2_cids[0]) == 2
+    metatlas_dataset_with_2_cids._remove_compound_id(0)
+    assert len(metatlas_dataset_with_2_cids[0]) == 1
+
+
+def test_filter_data(metatlas_dataset_with_2_cids):
+    assert len(metatlas_dataset_with_2_cids[0]) == 2
+    metatlas_dataset_with_2_cids._filter_data([0])
+    assert len(metatlas_dataset_with_2_cids[0]) == 1

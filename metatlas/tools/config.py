@@ -22,6 +22,7 @@ ALLOWED_NAME_CHARS = ascii_letters + digits + "-"
 class OutputLists(BaseModel):
     """Lists that are used to configure outputs"""
 
+    always: List[str] = []
     rt_alignment: List[str] = []
     qc_outputs: List[str] = []
     gui: List[str] = []
@@ -41,6 +42,14 @@ class OutputLists(BaseModel):
                 override_value = override_parameters[name]
                 if override_value is not None:
                     setattr(self, name, override_value)
+
+    def distribute_always_values(self) -> None:
+        """Append self.always to all other attributes, set self.always to []"""
+        if self.always:
+            non_always_attribute_names = set(self.__dict__.keys()) - set("always")
+            for attribute_name in non_always_attribute_names:
+                getattr(self, attribute_name).extend(self.always)
+            self.always = []
 
 
 class BaseNotebookParameters(BaseModel):
@@ -71,6 +80,14 @@ class BaseNotebookParameters(BaseModel):
                         config_value.update(override_value)
                     else:
                         setattr(self, name, override_value)
+
+    def distribute_always_values(self) -> None:
+        """distribute always values within each OutputLists attribute"""
+        attribute_names = set(self.__dict__.keys())
+        for name in attribute_names:
+            attribute_object = getattr(self, name)
+            if isinstance(attribute_object, OutputLists):
+                attribute_object.distribute_always_values()
 
 
 class AnalysisNotebookParameters(BaseNotebookParameters):
@@ -195,6 +212,15 @@ class Workflow(BaseModel):
             )
             analysis.update(override_parameters)
 
+    def distribute_always_values(self) -> None:
+        """
+        distribute always values within each
+        OutputLists attribute within parameters
+        """
+        self.rt_alignment.parameters.distribute_always_values()
+        for analysis in self.analyses:
+            analysis.parameters.distribute_always_values()
+
 
 class Chromatography(BaseModel):
     """A type of chromotography"""
@@ -235,6 +261,14 @@ class Config(BaseModel):
         """update all parameters within self.workflows with any non-None values in override_parameters"""
         for flow in self.workflows:
             flow.update(override_parameters)
+
+    def distribute_always_values(self) -> None:
+        """
+        distribute always values within each
+        OutputLists attribute within parameters
+        """
+        for flow in self.workflows:
+            flow.distribute_always_values()
 
 
 def load_config(file_name: os.PathLike) -> Config:

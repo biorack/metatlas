@@ -63,7 +63,7 @@ extension-pkg-allow-list = [
 # first two are for black compatibility
 # duplicate-code cannot be disabled on per file/block/line
 #                https://github.com/PyCQA/pylint/issues/214
-disable = "bad-continuation, bad-whitespace, duplicate-code"
+disable = "bad-continuation, duplicate-code"
 
 [tool.pylint.format]
 max-line-length = "110"

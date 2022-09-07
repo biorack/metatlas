@@ -279,8 +279,8 @@ class AnalysisIdentifiers(HasTraits):
                 logger.info("Run: %s", run.name)
         logger.info(
             "After filtering, %s LCMS output files are left from experiment '%s'.",
-            self.experiment,
             len(self._lcmsruns or []),
+            self.experiment,
         )
         return self._lcmsruns or []
 
