@@ -43,11 +43,15 @@ shifter $shifter_flags /bin/bash -c \
      --prepare-only \
      -k papermill > /dev/null'
 
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086,SC2016
 shifter --entrypoint $shifter_flags \
-  /usr/local/bin/papermill \
-  -k "papermill" \
-  "$IN_FILE" \
-  "$OUT_FILE" \
-  --parameters_base64 "$YAML_BASE64" \
-  $PARAMETERS 2>&1 | tee --append "$log"
+        "--env=PARAMETERS=$PARAMETERS" \
+	"--env=YAML_BASE64=$YAML_BASE64" \
+	"--env=log=$log" \
+	/bin/bash -c \
+          '/usr/local/bin/papermill \
+             -k "papermill" \
+             "$IN_FILE" \
+             "$OUT_FILE" \
+             --parameters_base64 "$YAML_BASE64" \
+             $PARAMETERS 2>&1 | tee --append "$log"'
