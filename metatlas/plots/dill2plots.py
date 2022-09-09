@@ -2841,11 +2841,11 @@ def get_metatlas_files(experiment: Union[str, Sequence[str]] = '%', name: str = 
     """
     batches = [experiment] if isinstance(experiment, str) else experiment
     files = list(itertools.chain.from_iterable(
-        [metob.retrieve('LcmsRun', experiment=f"{batch}%", name=name, username='*') for batch in batches]
+        [metob.retrieve('LcmsRun', experiment=f"{batch.rstrip('%')}%", name=name, username='*') for batch in batches]
     ))
     if most_recent:
         files = filter_metatlas_objects_to_most_recent(files, 'mzml_file')
-    return files
+    return sorted(files, key=lambda x: x.name)
 
 
 def make_prefilled_fileinfo_sheet(groups, filename):
