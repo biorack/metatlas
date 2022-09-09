@@ -31,5 +31,4 @@ if [ -n "$SOURCE_CODE_VERSION_ID" ]; then
 fi
 
 # don't do the usual 'exec "$@"' here as that will break the trap
-# shellcheck disable=SC2068
-$@
+"$@"
