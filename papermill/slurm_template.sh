@@ -43,7 +43,9 @@ shifter $shifter_flags /bin/bash -c \
      --prepare-only \
      -k papermill > /dev/null'
 
-# shellcheck disable=SC2086,SC2016
+# IN_FILE contains an environmental variable that should be evaluated
+# in the context of the new shifter shell.
+# shellcheck disable=SC2086,SC2016,SC2116
 shifter --entrypoint $shifter_flags \
         "--env=PARAMETERS=$PARAMETERS" \
 	"--env=YAML_BASE64=$YAML_BASE64" \
@@ -51,7 +53,7 @@ shifter --entrypoint $shifter_flags \
 	/bin/bash -c \
           '/usr/local/bin/papermill \
              -k "papermill" \
-             "$IN_FILE" \
+	     "'"$(echo $IN_FILE)"'" \
              "$OUT_FILE" \
              --parameters_base64 "$YAML_BASE64" \
              $PARAMETERS 2>&1 | tee --append "$log"'
