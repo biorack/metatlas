@@ -15,7 +15,7 @@ days="${2:-7}"
 function get_filenames {
   # shellcheck disable=SC2048,SC2086
   find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
-	          -mtime "-${days}" -name $*
+	          -mtime "-${days}" -name "$@"
 }
 
 function parent_dir {
