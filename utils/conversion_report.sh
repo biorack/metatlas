@@ -39,7 +39,11 @@ num_to_convert="$(find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
   wc -l)"
 
 readarray -t failed < <(get_filenames '*failed' -mmin +5 | sort)
-readarray -t failed_without_error < <(grep -l -v 'ERROR' "${failed[@]}" | format_runs || true)
+if [ "${#failed[@]}" -eq 0 ]; then
+  failed_without_error=()
+else
+  readarray -t failed_without_error < <(grep -l -v 'ERROR' "${failed[@]}" | format_runs || true)
+fi
 num_failed_without_error="${#failed_without_error[@]}"
 
 printf 'File conversion report for %s data. Ran on %s\n\n' "$1" "$(date)"
@@ -53,7 +57,8 @@ if [ "$num_failed_without_error" -gt 0 ]; then
 fi
 printf '\n'
 
-[ "$num_converted" = "0" ] && [ "$num_failed" = "0" ] && exit 0
+[ "$num_converted" = "0" ] && [ "$num_failed" = "0" ] && \
+  [ "$num_failed_without_error" = "0" ] && exit 0
 
 converted="$(get_filenames '*.h5' | sed 's%.h5$%.raw%'| sort)"
 converted_exp="$(printf '%s\n' "$converted" | parent_dir | uniq -c)"
@@ -61,7 +66,7 @@ if [ "$num_converted" -ne "0" ]; then
   printf 'Successful conversions per experiment:\n%s\n\n' "$converted_exp"
 fi
 
-[ "$num_failed" = "0" ] && exit 0
+[ "$num_failed" = "0" ] && [ "$num_failed_without_error" = "0" ] && exit 0
 
 failed_exp="$(printf '%s\n' "${failed[@]}" | parent_dir | uniq -c)"
 formated_failed="$(printf '%s\n' "${failed[@]}" | format_runs)"
