@@ -143,7 +143,7 @@ def generate_rt_correction_models(
     rts_df = get_rts(metatlas_dataset)
     actual, pred = subset_data_for_model_input(selected_col, rts_df, qc_atlas_df, inchi_keys_not_in_model)
     linear, poly = generate_models(actual, pred)
-    out_dir = Path(ids.output_dir).parent
+    out_dir = Path(ids.output_dir)
     actual_rts, pred_rts = actual_and_predicted_rts(rts_df, qc_atlas_df, inchi_keys_not_in_model)
     actual_vs_pred_file_name = out_dir / "Actual_vs_Predicted_RTs.pdf"
     plot_actual_vs_pred_rts(pred_rts, actual_rts, rts_df, str(actual_vs_pred_file_name), linear, poly)
