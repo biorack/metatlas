@@ -48,6 +48,7 @@ shifter --entrypoint $shifter_flags /bin/bash -c \
 shifter --entrypoint $shifter_flags \
         "--env=PARAMETERS=$PARAMETERS" \
 	"--env=YAML_BASE64=$YAML_BASE64" \
+	"--env=OUT_FILE=$OUT_FILE" \
 	"--env=log=$log" \
 	/bin/bash -c \
           '/usr/local/bin/papermill \
