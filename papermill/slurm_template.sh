@@ -52,7 +52,7 @@ shifter --entrypoint $shifter_flags \
 	/bin/bash -c \
           '/usr/local/bin/papermill \
              -k "papermill" \
-	     "'"$(echo $IN_FILE)"'" \
+	     "'"$IN_FILE"'" \
              "$OUT_FILE" \
              --parameters_base64 "$YAML_BASE64" \
              $PARAMETERS 2>&1 | tee --append "$log"'
