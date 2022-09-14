@@ -34,7 +34,8 @@ output "yaml parameters: $(echo "$YAML_BASE64" | base64 --decode)"
 # this creates the cache black uses and prevents some error messages
 # shellcheck disable=SC2086,SC2016
 shifter --entrypoint $shifter_flags /bin/bash -c \
-  'black --quiet --check /metatlas_image_version && \
+  'set -euo pipefail && \
+   black --quiet --check /metatlas_image_version && \
    papermill \
      "${METATLAS_WORKING_SOURCE_DIR}/notebooks/reference/RT_Prediction.ipynb" \
      - \
@@ -51,7 +52,8 @@ shifter --entrypoint $shifter_flags \
 	"--env=OUT_FILE=$OUT_FILE" \
 	"--env=log=$log" \
 	/bin/bash -c \
-          '/usr/local/bin/papermill \
+          'set -euo pipefail && \
+           /usr/local/bin/papermill \
              -k "papermill" \
 	     "'"$IN_FILE"'" \
              "$OUT_FILE" \
