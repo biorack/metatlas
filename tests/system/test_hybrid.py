@@ -31,7 +31,25 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
 0000_2deoxyadenosine_positive_M+H252p1091_2p20	2.277504444e+00	2.280636311e+00	2.283326864e+00	2.292241573e+00
 0001_adenine_positive_M+H136p0618_2p52	2.616474867e+00	2.639369249e+00	2.618291378e+00	2.657374620e+00
 0002_adenosine_positive_M+H268p1041_3p02	3.098848820e+00	3.125092983e+00	3.117606878e+00	3.139331818e+00"""
-    command = """papermill -k papermill \
+    command = """\
+                    jq -M '(.cells[] | select(.source[] | contains("compound_idx=0")).source) \
+                               += ["\\n", \
+                                   "agui.compound_idx = 0\\n", \
+                                   "agui.set_msms_flag(\\"1, co-isolated precursor but all reference ions are in sample spectrum\\")\\n", \
+                                   "agui.data.set_rt(0, \\"rt_min\\", 2.1245)\\n", \
+                                   "agui.data.set_rt(0, \\"rt_max\\", 2.4439)\\n", \
+                                   "agui.compound_idx = 1\\n", \
+                                   "agui.set_peak_flag(\\"remove\\")\\n", \
+                                   "agui.compound_idx = 2\\n", \
+                                   "agui.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
+                                   "agui.data.set_rt(2, \\"rt_min\\", 2.4361)\\n", \
+                                   "agui.data.set_rt(2, \\"rt_max\\", 2.8608)\\n", \
+                                   "agui.compound_idx = 3\\n", \
+                                   "agui.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
+                                   "agui.data.set_rt(3, \\"rt_min\\", 2.8428)\\n", \
+                                   "agui.data.set_rt(3, \\"rt_max\\", 3.3081)\\n" \
+                                  ]' /src/notebooks/reference/Targeted_hybrid.ipynb > /out/Targeted_hybrid_mod.ipynb &&  \
+                papermill -k papermill \
                    -p source_atlas HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
                    -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
                    -p polarity positive \
@@ -41,8 +59,8 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                    -p project_directory /out \
                    -p max_cpus 2 \
                    -y "exclude_files: ['20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_53_Cone-S1_5_Rg70to1050-CE102040-QlobataAkingi-S1_Run187.mzML', '20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_54_Cone-S1_6_Rg70to1050-CE102040-QlobataAkingi-S1_Run221.mzML']" \
-                   /src/notebooks/reference/Targeted_hybrid.ipynb \
-                   /out/Targeted_hybrid-done.ipynb"""
+                   /out/Targeted_hybrid_mod.ipynb \
+                   /out/Targeted_hybrid_mod-done.ipynb"""
     utils.exec_docker(image, command, tmp_path, {})
     assert utils.num_files_in(tmp_path) == 130
     utils.assert_files_match(expected)
