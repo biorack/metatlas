@@ -106,7 +106,7 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait(
             "groups_controlled_vocab", or_default(groups_controlled_vocab, DEFAULT_GROUPS_CONTROLLED_VOCAB)
         )
-        self.set_trait("_lcmsruns", lcmsruns)
+        self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
         self.set_trait("_all_groups", all_groups)
         logger.info(
             "IDs: source_atlas=%s, atlas=%s, short_experiment_analysis=%s, output_dir=%s",
@@ -244,31 +244,31 @@ class AnalysisIdentifiers(HasTraits):
         """Get LCMS runs from DB matching experiment"""
         if self._lcmsruns is not None:
             return self._lcmsruns
-        all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
+        self.set_trait('_lcmsruns', self._get_lcmsruns())
+        return self._lcmsruns or []
+
+    def _get_lcmsruns(self, all_lcmsruns: Optional[List[metob.LcmsRun]] = None) -> List[metob.LcmsRun]:
+        if all_lcmsruns is None:
+            all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
         if self.exclude_files is not None and len(self.exclude_files) > 0:
-            self.set_trait(
-                "_lcmsruns",
-                [
+            out = [
                     r
                     for r in all_lcmsruns
                     if not any(map(r.name.__contains__, or_default(self.exclude_files, [])))
-                ],
+            ]
+            logger.info(
+                "Excluding %d LCMS runs containing any of: %s",
+                len(all_lcmsruns) - len(out),
+                self.exclude_files,
             )
-            if self._lcmsruns:
-                logger.info(
-                    "Excluding %d LCMS runs containing any of: %s",
-                    len(all_lcmsruns) - len(self._lcmsruns),
-                    self.exclude_files,
-                )
         else:
-            self.set_trait("_lcmsruns", all_lcmsruns)
-        if self._lcmsruns:
-            for run in self._lcmsruns:
-                logger.info("Run: %s", run.name)
+            out = all_lcmsruns
+        for run in out:
+            logger.info("Run: %s", run.name)
         logger.info(
-            "Number of LCMS output files matching '%s' is: %d.", self.experiment, len(self._lcmsruns or [])
+            "Number of LCMS output files matching '%s' is: %d.", self.experiment, len(out)
         )
-        return self._lcmsruns or []
+        return out
 
     @property
     def lcmsruns_dataframe(self) -> pd.DataFrame:
