@@ -343,6 +343,11 @@ class AnalysisIdentifiers(HasTraits):
             out = dp.filter_metatlas_objects_by_list(out, "name", self.include_groups)
         if self.exclude_groups is not None and len(self.exclude_groups) > 0:
             out = dp.remove_metatlas_objects_by_list(out, "name", self.exclude_groups)
+        if self.exclude_files is not None and len(self.exclude_files) > 0:
+            for grp in out:
+                for idx, item in enumerate(grp.items):
+                    if any(map(item.name.__contains__, self.exclude_files)):
+                        del grp.items[idx]
         self.set_trait("_groups", dp.filter_empty_metatlas_objects(out, "items"))
         return self._groups or []
 
@@ -381,6 +386,8 @@ class AnalysisIdentifiers(HasTraits):
         if signal.type == "change":
             self.set_trait("_lcmsruns", None)
             logger.debug("Change to exclude_files invalidates lcmsruns")
+            self.set_trait("_groups", None)
+            logger.debug("Change to exclude_files invalidates groups")
 
     @observe("_lcmsruns")
     def _observe_lcmsruns(self, signal: ObserveHandler) -> None:
