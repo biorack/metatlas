@@ -54,7 +54,6 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                    -p experiment 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583 \
                    -p polarity positive \
                    -p output_type FinalEMA-HILIC \
-                   -p output_subfolder HILICZ \
                    -p source_code_version_id 2.x \
                    -p project_directory /out \
                    -p max_cpus 2 \
