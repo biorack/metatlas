@@ -66,5 +66,5 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                    /out/Targeted_hybrid_mod.ipynb \
                    /out/Targeted_hybrid_mod-done.ipynb"""
     utils.exec_docker(image, command, tmp_path, {})
-    assert utils.num_files_in(tmp_path) == 114
     utils.assert_files_match(expected)
+    assert utils.num_files_in(tmp_path) == 100
