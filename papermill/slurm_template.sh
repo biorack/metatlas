@@ -36,7 +36,8 @@ output "yaml parameters: $(echo "$YAML_BASE64" | base64 --decode)"
 # doesn't need --entrypoint and is faster to leave it off
 # shellcheck disable=SC2086
 shifter $shifter_flags /bin/bash -c \
-  'black --quiet --check /metatlas_image_version && \
+  'set -euo pipefail && \
+   black --quiet --check /metatlas_image_version && \
    papermill \
      /src/notebooks/reference/RT_Alignment.ipynb \
      - \

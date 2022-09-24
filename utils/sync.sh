@@ -40,6 +40,8 @@ flock -n "$lock_file" stdbuf -oL \
       --exclude=\$RECYCLE.BIN/ \
       --exclude=filechecks/ \
       --exclude=Robo_copy_test/ \
+      --include="*/[Oo]ther/*" \
+      --include="*/[Oo]ther/*/*" \
       --exclude="*/*/" \
       --include="*/" \
       --include="*.raw" \
