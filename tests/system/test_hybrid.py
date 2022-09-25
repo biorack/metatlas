@@ -3,7 +3,7 @@
 from . import utils
 
 
-def test_targeted_by_line01_with_remove(tmp_path):
+def test_hybrid_by_line01_with_remove(tmp_path):
     image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.0.0"
     expected = {}
     expected[
