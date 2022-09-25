@@ -2285,7 +2285,7 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
                     scan_df['score'] = precursor['precursor_intensity'].values[0]
                     scan_df['msv_query_aligned'] = [msv_sample]
                     scan_df['msv_ref_aligned'] = [np.full_like(msv_sample, np.nan)]
-                msms_hits = msms_hits.append(scan_df)
+                msms_hits = pd.concat([msms_hits, scan_df])
     return msms_hits
 
 
