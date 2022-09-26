@@ -59,3 +59,13 @@ jobs:
       uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_c18
+  system_test5:
+    name: Run system test 5 - HILIC Targeted_hybrid
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+    - name: Run system tests
+      run: nox -s system_tests-3.8 -- -k test_hybrid
