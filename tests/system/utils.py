@@ -73,8 +73,6 @@ def exec_docker(image: str, command: str, out_path: os.PathLike, env: Dict) -> N
             "--rm",
             "-v",
             f"{os.getcwd()}:/src",
-            "-w",
-            "/src",
             "-v",
             f"{out_path}:/out",
             *env_flags,
