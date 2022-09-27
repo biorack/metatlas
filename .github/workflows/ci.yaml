@@ -65,6 +65,8 @@ jobs:
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
     - name: Setup nox
       uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
     - name: Run system tests
