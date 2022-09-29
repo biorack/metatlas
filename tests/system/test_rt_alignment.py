@@ -9,7 +9,9 @@ def test_rt_alignment_by_line01(tmp_path):
     image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.0.0"
     expected = {}
     expected[
-        str(tmp_path / "505892_OakGall_final/Test-QC/0/0/Targeted/Test-QC/RT_Alignment/rt_alignment_model.txt")
+        str(
+            tmp_path / "505892_OakGall_final/Test-QC/0/0/Targeted/Test-QC/RT_Alignment/rt_alignment_model.txt"
+        )
     ] = """RANSACRegressor(random_state=42)
 Linear model with intercept=0.430 and slope=0.95574
 groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root_0_0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root_0_0_QC
@@ -92,7 +94,9 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
         },
     }
 
-    expected_df[str(tmp_path / "505892_OakGall_final/Test-QC/0/0/Targeted/Test-QC/QC-POS/POS_QC_Measured_RTs.csv")] = {
+    expected_df[
+        str(tmp_path / "505892_OakGall_final/Test-QC/0/0/Targeted/Test-QC/QC-POS/POS_QC_Measured_RTs.csv")
+    ] = {
         "Unnamed: 0": {
             0: "0000_uracil_unlabeled_positive_M+H113p0346_1p39",
             1: "0001_2deoxyadenosine_unlabeled_positive_M+H252p1091_2p23",
