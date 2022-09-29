@@ -37,14 +37,15 @@ flock -n "$lock_file" stdbuf -oL \
       --no-group \
       --chmod=ugo=rwX \
       --prune-empty-dirs \
-      --exclude=\$RECYCLE.BIN/ \
-      --exclude=filechecks/ \
-      --exclude=Robo_copy_test/ \
-      --exclude="*/*/" \
-      --include="*/" \
-      --include="*.raw" \
-      --include="NO_UNTARGETED.TXT" \
-      --exclude="*" \
+      "--exclude=\$RECYCLE.BIN/" \
+      "--exclude=filechecks/" \
+      "--exclude=Robo_copy_test/" \
+      "--include=*/[Oo]ther/***" \
+      "--exclude=*/*/" \
+      "--include=*/" \
+      "--include=*.raw" \
+      "--include=NO_UNTARGETED.TXT" \
+      "--exclude=*" \
       "--password-file=$password_file" \
       "--log-file=${log_file}" \
       "$src" "$dest" 2>&1 | ts >> "$log_error_file"

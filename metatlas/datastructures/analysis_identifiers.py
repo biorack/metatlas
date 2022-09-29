@@ -108,7 +108,7 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("include_groups", or_default(include_groups, []))
         self.set_trait("exclude_groups", or_default(exclude_groups, []))
         self.set_trait("groups_controlled_vocab", or_default(groups_controlled_vocab, []))
-        self.set_trait("_lcmsruns", lcmsruns)
+        self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
         self.set_trait("_all_groups", all_groups)
         self.set_trait("configuration", configuration)
         self.set_trait("workflow", workflow)
@@ -252,8 +252,14 @@ class AnalysisIdentifiers(HasTraits):
         """Get LCMS runs from DB matching experiment"""
         if self._lcmsruns is not None:
             return self._lcmsruns
-        all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
-        if len(self.include_lcmsruns) > 0:
+        self.set_trait("_lcmsruns", self._get_lcmsruns())
+        return self._lcmsruns or []
+
+    def _get_lcmsruns(self, all_lcmsruns: Optional[List[metob.LcmsRun]] = None) -> List[metob.LcmsRun]:
+        """Get the set of lcmsruns that are currently selected"""
+        if all_lcmsruns is None:
+            all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
+        if self.include_lcmsruns is not None and len(self.include_lcmsruns) > 0:
             post_include = [r for r in all_lcmsruns if any(map(r.name.__contains__, self.include_lcmsruns))]
             logger.info(
                 "Filtered out %d LCMS runs for not matching within include_lcmsruns containing: %s",
@@ -262,7 +268,7 @@ class AnalysisIdentifiers(HasTraits):
             )
         else:
             post_include = all_lcmsruns
-        if len(self.exclude_lcmsruns) > 0:
+        if self.exclude_lcmsruns is not None and len(self.exclude_lcmsruns) > 0:
             post_exclude = [
                 r for r in post_include if not any(map(r.name.__contains__, self.exclude_lcmsruns))
             ]
@@ -273,16 +279,14 @@ class AnalysisIdentifiers(HasTraits):
             )
         else:
             post_exclude = post_include
-        self.set_trait("_lcmsruns", post_exclude)
-        if self._lcmsruns:
-            for run in self._lcmsruns:
-                logger.info("Run: %s", run.name)
+        for run in post_exclude:
+            logger.info("Run: %s", run.name)
         logger.info(
             "After filtering, %s LCMS output files are left from experiment '%s'.",
-            len(self._lcmsruns or []),
+            len(post_exclude),
             self.experiment,
         )
-        return self._lcmsruns or []
+        return post_exclude
 
     @property
     def lcmsruns_dataframe(self) -> pd.DataFrame:

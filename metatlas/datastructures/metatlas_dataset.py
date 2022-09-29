@@ -297,7 +297,7 @@ class MetatlasDataset(HasTraits):
         cid_id = self.atlas.compound_identifications[idx].unique_id
         del self.atlas.compound_identifications[idx]
         if self._data is not None and len(self._data) > 0:
-            self._filter_data(list(set(range(len(extract(self._data, [0], []))))-{idx}))
+            self._filter_data(list(set(range(len(extract(self._data, [0], [])))) - {idx}))
         if self._atlas_df is not None:
             self._atlas_df.drop(index=idx, inplace=True)
         atlas_id = self.atlas.unique_id

@@ -47,7 +47,7 @@ class OutputLists(BaseModel):
         """Append self.always to all other attributes, set self.always to []"""
         if self.always:
             for attribute_name in self.__dict__:
-                if attribute_name != 'always':
+                if attribute_name != "always":
                     getattr(self, attribute_name).extend(self.always)
             self.always = []
 

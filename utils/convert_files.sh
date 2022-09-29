@@ -13,17 +13,21 @@ function finish {
 }
 trap finish EXIT
 
+script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 module load parallel
 
 base_dir="/global/cfs/cdirs/metatlas/raw_data/$1"
 
 log="/global/cfs/cdirs/m2650/file_converter_logs/${1}.log"
 
-converter='/global/common/software/m2650/metatlas-repo/utils/raw_to_h5.sh'
+converter="${script_dir}/raw_to_h5.sh"
 
-find "$base_dir" -mindepth 2 -maxdepth 2 -type f \( -name '*.raw' -o -name '*.h5' \) | \
+find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
+     \( -name '*.raw' -o -name '*.h5' -o -name '*.failed' \) | \
   sed 's%.h5$%.raw%' | \
+  sed 's%.failed$%.raw%' | \
   sort | \
   uniq -u | \
-  sed "s%^%${converter} %" | \
+  sed "s%^\(.*\)$%${converter} '\1'%" | \
   parallel  >> "$log" 2>&1
