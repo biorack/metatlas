@@ -110,20 +110,17 @@ def has_exactly_num_fields(file_name: Path) -> List[str]:
     return [f"Filename contains {num_fields} fields but should have {FILE_NUM_FIELDS}."]
 
 
-def num_sub_fields(file_name: Path, field_num: int, min_num: int, max_num: Optional[int]) -> List[str]:
-    """Test for range of number of sub-fields"""
-    prefix = get_message_prefix(field_num)
+def field_exists(file_name: Path, field_num: int) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """ Output tuple is (prefix, field, error_message)"""
+    try:
+        prefix = get_message_prefix(field_num)
+    except IndexError:
+        return (None, None, f"Invalid field number: {field_num}.")
     try:
         field = file_name.stem.split("_")[field_num]
     except IndexError:
-        return [f"{prefix} not found"]
-    out = []
-    sub_fields = field.split("-")
-    if (field == "" and min_num > 0) or (min_num > len(sub_fields)):
-        out.append("number of sub-fields is too small.")
-    if max_num is not None and max_num < len(sub_fields):
-        out.append("number of sub-fields is too large.")
-    return [f"{prefix}: {message}" for message in out]
+        return (None, None, f"{prefix} not found")
+    return (prefix, field, None)
 
 
 def valid_string(
@@ -142,11 +139,9 @@ def valid_string(
     if allow dashes is True, then the presence of dashes does not invalidate
     the constraints from the *_only inputs
     """
-    prefix = get_message_prefix(field_num)
-    try:
-        field = file_name.stem.split("_")[field_num]
-    except IndexError:
-        return [f"{prefix} not found"]
+    prefix, field, err_msg = field_exists(file_name, field_num)
+    if prefix is None or not field:
+        return [err_msg] if err_msg else []
     if sub_field_num is not None:
         prefix = f"{prefix}, sub field {sub_field_num}"
         try:
@@ -159,7 +154,10 @@ def valid_string(
     if len(field) < min_len:
         out.append(f"contains less than {max_len} characters.")
     if allow_dashes:
-        field = "".join(field.split("-"))
+        sub_fields = field.split("-")
+        if '' in sub_fields:
+            out.append("contains empty sub field.")
+        field = "".join(sub_fields)
     if not field.isascii():
         out.append("contains non-ascii characters.")
     if alpha_only and not field.isalpha():
@@ -182,16 +180,14 @@ def get_alpha_prefix(text: str) -> str:
 def valid_int(
     file_name: Path,
     field_num: int,
-    min_int: int,
+    min_int: int = 0,
     max_int: Optional[int] = None,
     allowed_prefixes: Optional[List[str]] = None,
 ) -> List[str]:
     """Only integer with optional prefix"""
-    message_prefix = get_message_prefix(field_num)
-    try:
-        field = file_name.stem.split("_")[field_num]
-    except IndexError:
-        return [f"{message_prefix} not found"]
+    message_prefix, field, err_msg = field_exists(file_name, field_num)
+    if message_prefix is None or not field:
+        return [err_msg] if err_msg else []
     out = []
     prefix = get_alpha_prefix(field)
     if prefix:
@@ -216,31 +212,30 @@ def valid_int(
 def valid_field0(file_name: Path) -> List[str]:
     """Date of LCMS run in YYYYMMDD format"""
     field_num = 0
-    try:
-        field = file_name.stem.split("_")[field_num]
-    except IndexError:
-        return [f"Field {field_num} not found"]
+    prefix, field, err_msg = field_exists(file_name, field_num)
+    if prefix is None or field is None or field == '':
+        return [err_msg] if err_msg else []
     if len(field) > 8:
-        return ["Date (field 0) contains more than 8 characters."]
+        return [f"{prefix} contains more than 8 characters."]
     if len(field) < 8:
-        return ["Date (field 0) contains less than 8 characters."]
+        return [f"{prefix} contains less than 8 characters."]
     out = []
     year = int(field[:4])
     month = int(field[4:6])
     day = int(field[6:8])
     current_time = datetime.now()
     if year < 2000:
-        out.append("Year (in field 0) cannot be before 2000.")
+        out.append(f"Year (in field {field_num}) cannot be before 2000.")
     elif year > current_time.year:
-        out.append("Year (in field 0) cannot be in the future.")
+        out.append(f"Year (in field {field_num}) cannot be in the future.")
     if month < 1 or month > 12:
-        out.append("Month (in field 0) must be in range 01-12.")
+        out.append(f"Month (in field {field_num}) must be in range 01-12.")
     if day < 1 or day > 31:
-        out.append("Day (in field 0) must be in range 01-31.")
+        out.append(f"Day (in field {field_num}) must be in range 01-31.")
     try:
         datetime.strptime(field, "%Y%m%d")
     except ValueError:
-        out.append("Day (in field 0) is not consistent with the year and month.")
+        out.append(f"Day (in field {field_num}) is not consistent with the year and month.")
     return out
 
 
@@ -254,11 +249,9 @@ def valid_field2(file_name: Path) -> List[str]:
     field_num = 2
     max_len = 5
     min_len = 2
-    prefix = get_message_prefix(field_num)
-    try:
-        field = file_name.stem.split("_")[field_num]
-    except IndexError:
-        return [f"{prefix} not found"]
+    prefix, field, err_msg = field_exists(file_name, field_num)
+    if prefix is None or not field:
+        return [err_msg] if err_msg else []
     out = []
     if len(field) > max_len:
         out.append(f"{prefix} contains more than {max_len} characters")
@@ -290,11 +283,9 @@ def valid_field5(file_name: Path) -> List[str]:
 def valid_field6(file_name: Path) -> List[str]:
     """System"""
     field_num = 6
-    prefix = get_message_prefix(field_num)
-    try:
-        field = file_name.stem.split("_")[field_num]
-    except IndexError:
-        return [f"{prefix} not found"]
+    prefix, field, err_msg = field_exists(file_name, field_num)
+    if prefix is None or not field:
+        return [err_msg] if err_msg else []
     if field not in SYSTEMS:
         return [f"{prefix} must be one of {','.join(SYSTEMS)}."]
     return []
@@ -305,11 +296,9 @@ def valid_field7(file_name: Path) -> List[str]:
     # This could be updated to test for the known chromatography types
     field_num = 7
     max_len = 15
-    prefix = get_message_prefix(field_num)
-    try:
-        field = file_name.stem.split("_")[field_num]
-    except IndexError:
-        return [f"{prefix} not found"]
+    prefix, field, err_msg = field_exists(file_name, field_num)
+    if prefix is None or not field:
+        return [err_msg] if err_msg else []
     out = []
     if len(field) > max_len:
         out.append(f"{prefix} contains more than {max_len} characters")
@@ -332,11 +321,9 @@ def valid_field8(file_name: Path) -> List[str]:
 def valid_field9(file_name: Path) -> List[str]:
     """Polarity"""
     field_num = 9
-    prefix = get_message_prefix(field_num)
-    try:
-        field = file_name.stem.split("_")[field_num]
-    except IndexError:
-        return [f"{prefix} not found"]
+    prefix, field, err_msg = field_exists(file_name, field_num)
+    if prefix is None or not field:
+        return [err_msg] if err_msg else []
     # This could be improved to test that the chromatography type matches with the polarity
     if field not in POLARITIES:
         return [f"{prefix} must be one of {','.join(POLARITIES)}."]
@@ -348,11 +335,9 @@ def valid_field10(file_name: Path) -> List[str]:
     field_num = 10
     min_len = 3
     max_len = 15
-    prefix = get_message_prefix(field_num)
-    try:
-        field = file_name.stem.split("_")[field_num]
-    except IndexError:
-        return [f"{prefix} not found"]
+    prefix, field, err_msg = field_exists(file_name, field_num)
+    if prefix is None or not field:
+        return [err_msg] if err_msg else []
     out = []
     if len(field) > max_len:
         out.append(f"{prefix} contains more than {max_len} characters")
@@ -394,11 +379,9 @@ def valid_field15(file_name: Path) -> List[str]:
     field_num = 15
     min_len = 1
     max_len = 7
-    prefix = get_message_prefix(field_num)
-    try:
-        field = file_name.stem.split("_")[field_num]
-    except IndexError:
-        return [f"{prefix} not found"]
+    prefix, field, err_msg = field_exists(file_name, field_num)
+    if prefix is None or not field:
+        return [err_msg] if err_msg else []
     out = []
     if len(field) > max_len:
         out.append(f"{prefix} contains more than {max_len} characters")
