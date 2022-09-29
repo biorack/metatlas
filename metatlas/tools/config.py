@@ -46,9 +46,9 @@ class OutputLists(BaseModel):
     def distribute_always_values(self) -> None:
         """Append self.always to all other attributes, set self.always to []"""
         if self.always:
-            non_always_attribute_names = set(self.__dict__.keys()) - set("always")
-            for attribute_name in non_always_attribute_names:
-                getattr(self, attribute_name).extend(self.always)
+            for attribute_name in self.__dict__:
+                if attribute_name != 'always':
+                    getattr(self, attribute_name).extend(self.always)
             self.always = []
 
 
