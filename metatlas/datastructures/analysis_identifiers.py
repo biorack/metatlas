@@ -132,10 +132,10 @@ class AnalysisIdentifiers(HasTraits):
         if proposal["value"] is not None:
             try:
                 # raises error if not found or matches multiple
-                get_atlas(proposal["value"])
+                get_atlas(str(proposal["value"]))
             except ValueError as err:
                 raise TraitError(str(err)) from err
-            return proposal["value"]
+            return str(proposal["value"])
         return None
 
     @validate("analysis_number")
@@ -194,6 +194,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     @lru_cache
     def source_atlas(self) -> AtlasName:
+        """Returns name of atlas"""
         atlas = get_atlas(self.source_atlas_unique_id)
         return atlas.name
 
