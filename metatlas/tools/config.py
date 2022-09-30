@@ -281,6 +281,7 @@ def get_config(override_parameters: Dict) -> Tuple[Config, Workflow, Analysis]:
     """loads configuration from file and updates workflow parameters with override_parameters"""
     config = load_config(override_parameters["config_file_name"])
     config.update(override_parameters)
+    config.distribute_always_values()
     workflow = config.get_workflow(override_parameters["workflow_name"])
     if "analysis_name" in override_parameters:
         analysis = workflow.get_analysis(override_parameters["analysis_name"])
