@@ -5,7 +5,7 @@ set -euf -o pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 REPO_DIR=$(dirname "$SCRIPT_DIR")
 OUT_DIR="${SCRIPT_DIR}/out"
-IMAGE='registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.0.0'
+IMAGE='registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.1.0'
 PORT=8888
 
 while [[ "$#" -gt 0 ]]; do
@@ -30,6 +30,7 @@ mkdir -p "$OUT_DIR"
 
 docker run \
    --rm \
+   --name "jupyter" \
    -p "${PORT}:${PORT}" \
    -v "${REPO_DIR}:/src" \
    -v "${OUT_DIR}:/out" \
