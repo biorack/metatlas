@@ -300,6 +300,7 @@ class MetatlasDataset(HasTraits):
             self._filter_data(list(set(range(len(extract(self._data, [0], [])))) - {idx}))
         if self._atlas_df is not None:
             self._atlas_df.drop(index=idx, inplace=True)
+            self._atlas_df.reset_index(drop=True, inplace=True)
         atlas_id = self.atlas.unique_id
         link_table = "atlases_compound_identifications"
         target = f"target_id='{cid_id}'"
