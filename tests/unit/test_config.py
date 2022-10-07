@@ -1,4 +1,5 @@
 """Test configuration"""
+import json
 import pytest
 
 from metatlas.tools.config import Config, OutputLists, Workflow
@@ -57,3 +58,25 @@ def test_config_distribute_always_values03(config):
     params.distribute_always_values()
     assert params.exclude_groups.always == []
     assert params.exclude_groups.chromatograms == ["QC", "NEG", "FPS", "x", "y"]
+
+
+def test_output_list_json01():
+    out = OutputLists(rt_alignment=["foo", "bar"], gui=["zoop"])
+    assert (
+        json.dumps(out, default=vars, sort_keys=True, indent=4)
+        == """{
+    "always": [],
+    "box_plots": [],
+    "chromatograms": [],
+    "data_sheets": [],
+    "gui": [
+        "zoop"
+    ],
+    "ids_spreadsheet": [],
+    "qc_outputs": [],
+    "rt_alignment": [
+        "foo",
+        "bar"
+    ]
+}"""
+    )

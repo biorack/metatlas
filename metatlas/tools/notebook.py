@@ -101,21 +101,24 @@ def get_metadata_tags(cell: dict) -> List[str]:
         return []
 
 
-def create_notebook(source: PathLike, dest: PathLike, parameters: dict) -> None:
+def create_notebook(
+    input_file_name: PathLike, output_file_name: PathLike, parameters: dict, injection_cell: int = 2
+) -> None:
     """
-    Copies source notebook to dest and updates parameters (as defined by papermill)
+    Copies from input_file_name to output_file_name and then places the parameters into a
+    cell of the output notebook.
     inputs:
-        source: path of input notebook
-        dest: path of destination notebook
+        input_file_name: source notebook
+        output_file_name: destination notebook
         parameters: dict where keys are LHS of assignment and values are RHS of assignment
+        injection_cell: zero-indexed number of cell to overwrite with the parameters
     """
-    with open(source, encoding="utf8") as source_fh:
-        data = json.load(source_fh)
-    param_cell_idx = cells_matching_tags(data, ["parameters"])[0]
-    param_source = data["cells"][param_cell_idx]["source"]
-    data["cells"][param_cell_idx]["source"] = replace_parameters(param_source, parameters)
-    with open(dest, "w", encoding="utf8") as out_fh:
-        json.dump(data, out_fh, indent=1)
+    with open(input_file_name, "r", encoding="utf8") as in_fh:
+        notebook = json.load(in_fh)
+    notebook["cells"][injection_cell]["source"] = [assignment_string(k, v) for k, v in parameters.items()]
+    with open(output_file_name, "w", encoding="utf-8") as out_fh:
+        json.dump(notebook, out_fh, ensure_ascii=False, indent=4)
+    logger.info("Created jupyter notebook %s", output_file_name)
 
 
 def replace_parameters(source: Sequence[str], parameters: dict) -> List[str]:
@@ -147,10 +150,12 @@ def assignment_string(lhs: str, rhs: Any) -> str:
         rhs: python object that will be assigned
     returns a string
     """
-    if isinstance(rhs, bool):
+    if rhs is None:
+        rhs_str = "None"
+    elif isinstance(rhs, bool):
         rhs_str = "True" if rhs else "False"
     else:
-        rhs_str = json.dumps(rhs)
+        rhs_str = json.dumps(rhs, default=vars, sort_keys=True, indent=4)
     return f"{lhs} = {rhs_str}\n"
 
 

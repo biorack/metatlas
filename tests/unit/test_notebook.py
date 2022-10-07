@@ -2,10 +2,12 @@
 # pylint: disable=missing-function-docstring
 
 import json
+import pytest
 
 from metatlas.tools import notebook
 
 
+@pytest.mark.xfail(reason="in-place parameter updating has been removed")
 def test_create_notebook_with_parameters01():
     orig_data = {
         "cells": [
@@ -33,6 +35,7 @@ def test_create_notebook_with_parameters01():
     assert data["cells"][0]["source"][4] == "param3 = 'My_Exp_Name'\n"
 
 
+@pytest.mark.xfail(reason="in-place parameter updating has been removed")
 def test_create_notebook_with_parameters02():
     orig_data = {
         "cells": [
@@ -58,6 +61,7 @@ def test_create_notebook_with_parameters02():
     assert data["cells"][0]["source"][4] == 'param3 = "REPLACE ME"\n'
 
 
+@pytest.mark.xfail(reason="in-place parameter updating has been removed")
 def test_create_notebook_with_parameters03():
     orig_data = {
         "cells": [

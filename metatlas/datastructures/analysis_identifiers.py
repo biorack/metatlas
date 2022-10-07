@@ -12,7 +12,7 @@ from typing import cast, Dict, List, Optional, Union
 import pandas as pd
 import traitlets
 
-from traitlets import observe, validate, Bool, HasTraits, Int, Instance, TraitError, Unicode
+from traitlets import observe, validate, Callable, Bool, HasTraits, Int, Instance, TraitError, Unicode
 from traitlets.traitlets import ObserveHandler
 
 from metatlas.datastructures.id_types import (
@@ -69,6 +69,7 @@ class AnalysisIdentifiers(HasTraits):
     _lcmsruns: LcmsRunsList = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _all_groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
+    groups_invalidation_callbacks: List[Callable] = traitlets.List(trait=Callable(), default_value=[])
 
     # pylint: disable=no-self-use,too-many-arguments,too-many-locals
     def __init__(
@@ -364,49 +365,58 @@ class AnalysisIdentifiers(HasTraits):
             out = dp.remove_metatlas_objects_by_list(out, "name", self.exclude_groups)
         sorted_out = sorted(dp.filter_empty_metatlas_objects(out, "items"), key=lambda x: x.name)
         self.set_trait("_groups", sorted_out)
-        return self._groups
-
-    @observe("_all_groups")
-    def _observe_all_groups(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            self.set_trait("_groups", None)
-            logger.debug("Change to all_groups invalidates groups")
+        return self._groups or []
 
     @observe("groups_controlled_vocab")
     def _observe_groups_controlled_vocab(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self.set_trait("_lcmsruns", None)
             logger.debug("Change to groups_controlled_vocab invalidates lcmsruns")
-
-    @observe("include_groups")
-    def _observe_include_groups(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            self.set_trait("_groups", None)
-            logger.debug("Change to include_groups invalidates groups")
-
-    @observe("exclude_groups")
-    def _observe_exclude_groups(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            self.set_trait("_groups", None)
-            logger.debug("Change to exclude_groups invalidates groups")
+            self.set_trait("_lcmsruns", None)
 
     @observe("include_lcmsruns")
     def _observe_include_lcmsruns(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self.set_trait("_lcmsruns", None)
             logger.debug("Change to include_lcmsruns invalidates lcmsruns")
+            self.set_trait("_lcmsruns", None)
 
     @observe("exclude_lcmsruns")
     def _observe_exclude_lcmsruns(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self.set_trait("_lcmsruns", None)
             logger.debug("Change to exclude_lcmsruns invalidates lcmsruns")
+            self.set_trait("_lcmsruns", None)
 
     @observe("_lcmsruns")
     def _observe_lcmsruns(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self.set_trait("_all_groups", None)
             logger.debug("Change to lcmsruns invalidates all_groups")
+            self.set_trait("_all_groups", None)
+
+    @observe("_all_groups")
+    def _observe_all_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            logger.debug("Change to all_groups invalidates groups")
+            self.set_trait("_groups", None)
+
+    @observe("include_groups")
+    def _observe_include_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            logger.debug("Change to include_groups invalidates groups")
+            self.set_trait("_groups", None)
+
+    @observe("exclude_groups")
+    def _observe_exclude_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            logger.debug("Change to exclude_groups invalidates groups")
+            self.set_trait("_groups", None)
+
+    @observe("_groups")
+    def _observe_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            for callback in self.groups_invalidation_callbacks:
+                logger.debug(
+                    "Change to groups triggers invalidation callback function %s()", callback.__name__
+                )
+                callback()
 
     @property
     def existing_groups(self) -> List[metob.Group]:
@@ -503,3 +513,7 @@ class AnalysisIdentifiers(HasTraits):
             if new != current:
                 setattr(self, out_list, new)
                 logger.info("Setting %s list to %s.", out_list, new)
+
+    def register_groups_invalidation_callback(self, func: Callable) -> None:
+        """Register a function to call when groups get invalidated"""
+        self.groups_invalidation_callbacks.append(func)

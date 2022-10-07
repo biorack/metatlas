@@ -106,14 +106,19 @@ def post_annotation(
         data.error_if_not_all_evaluated()
     if params.filter_removed:
         data.filter_compounds_ms1_notes_remove()
+    data._assert_consistent_num_compounds()
     data.extra_time = 0.5
     logger.info("extra_time set to 0.5 minutes for output generation.")
+    data._assert_consistent_num_compounds()
     data.update()  # update hits and data if they no longer are based on current rt bounds
+    data._assert_consistent_num_compounds()
     if params.generate_qc_outputs:
         data.ids.set_output_state(params, "qc_outputs")
         generate_qc_outputs(data)
+    data._assert_consistent_num_compounds()
     if params.generate_analysis_outputs:
         generate_all_outputs(data, workflow, analysis)
+    data._assert_consistent_num_compounds()
     if not in_papermill():
         copy_outputs_to_google_drive(data.ids)
     logger.info("DONE - execution of notebook%s is complete.", " in draft mode" if in_papermill() else "")
