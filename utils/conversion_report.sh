@@ -27,18 +27,16 @@ function format_runs {
   sed 's%.failed$%.raw%' | sed "s%${base_dir}/%    %"
 }
 num_converted="$(get_filenames '*.h5' -printf '.' | wc -c)"
-# Don't count .failed files less than 5 mintues old
-# as the .failed file gets created for all raw files during
-# conversion and then deleted on sucess.
-num_failed="$(get_filenames '*.failed' -mmin +5 -printf '.' | wc -c)"
+num_failed="$(get_filenames '*.failed' -printf '.' | wc -c)"
+num_in_progress="$(get_filenames '*.progress' -printf '.' | wc -c)"
 num_to_convert="$(find "$base_dir" -mindepth 2 -maxdepth 2 -type f \
-     \( -name '*.raw' -o -name '*.h5' -o -name '*.failed' \) | \
-  sed -E 's%.(h5|failed)$%.raw%' | \
+     \( -name '*.raw' -o -name '*.h5' -o -name '*.failed' -o -name '*.progress' \) | \
+  sed -E 's%.(h5|failed|progress)$%.raw%' | \
   sort | \
   uniq -u | \
   wc -l)"
 
-readarray -t failed < <(get_filenames '*failed' -mmin +5 | sort)
+readarray -t failed < <(get_filenames '*failed' | sort)
 if [ "${#failed[@]}" -eq 0 ]; then
   failed_without_error=()
 else
@@ -48,7 +46,9 @@ num_failed_without_error="${#failed_without_error[@]}"
 
 printf 'File conversion report for %s data. Ran on %s\n\n' "$1" "$(date)"
 
-printf 'Files not yet attempted: %s\n\n' "$num_to_convert"
+printf 'Conversions not yet attempted: %s\n' "$num_to_convert"
+printf 'Conversions currently in progress: %s\n' "$num_in_progress"
+printf '\n'
 printf 'In the past %s days...\n' "$days"
 printf '    successfull conversions: %s\n' "$num_converted"
 printf '    failed conversions: %s\n' "$num_failed"
