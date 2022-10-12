@@ -23,8 +23,11 @@ function finish {
   if [ "$done" = "true" ]; then
     rm "${progress_file}"
   else
+    rm "${mzml_file}" "${h5_file}"
     mv "${progress_file}" "${failure_file}"
   fi
+   printf "INFO: Reached end of finish function.\n" | \
+     process_output
 }
 trap finish EXIT
 
