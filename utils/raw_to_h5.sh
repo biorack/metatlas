@@ -25,16 +25,16 @@ function finish {
   else
     rm "${mzml_file}" "${h5_file}"
     mv "${progress_file}" "${failure_file}"
+    printf "INFO: Reached end of finish function.\n" | \
+       process_output "${failure_file}"
   fi
-   printf "INFO: Reached end of finish function.\n" | \
-     process_output
 }
 trap finish EXIT
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 function process_output {
-  "${script_dir}/ts.py" | tee -a "${progress_file}"
+  "${script_dir}/ts.py" | tee -a "${1:-${progress_file}}"
 }
 
 rm -rf "${progress_file}"
