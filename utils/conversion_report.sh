@@ -81,7 +81,8 @@ printf 'Failed conversions per experiment:\n%s\n\n' "$failed_exp"
 printf 'Failed files:\n%s\n\n' "$formated_failed"
 
 if [ "$num_failed_without_error" -gt 0 ]; then
-  printf 'Failed files without error messages:\n%s\n\n' "${failed_without_error[@]}"
+  printf 'Failed files without error messages:\n'
+  printf '    %s\n' "${failed_without_error[@]}"
 fi
 
 if [ -n "$errors" ]; then
