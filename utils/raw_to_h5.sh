@@ -12,7 +12,6 @@ if [ "$#" -ne 1 ]; then
     exit 128
 fi
 
-shifter_flags=("--clearenv" "--module=none")
 raw_file="$(realpath "$1")"
 mzml_file="${raw_file%.raw}.mzML"
 h5_file="${raw_file%.raw}.h5"
@@ -53,13 +52,16 @@ function metatlas {
   shifter "--image=doejgi/metatlas_shifter:latest" \
           "--env=HDF5_USE_FILE_LOCKING=FALSE" \
           "--env=PYTHONPATH=/src" \
-	  "${shifter_flags[@]@Q}" "$@" 2>&1 | \
+	  "--clearenv" \
+	  "--module=none" \
+	  "$@" 2>&1 | \
   process_output
 }
 
 metatlas "${script_dir}/validate_file_name.py" "$raw_file"
 
-shifter "${shifter_flags[@]@Q}" \
+shifter "--clearenv" \
+        "--module=none" \
 	"--image=${raw_image}" \
 	ThermoRawFileParser.sh "-i=${raw_file}" "-o=$(dirname "$raw_file")" -f=1 2>&1 | \
   sed 's%^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \([A-Z]+\)%\1, ThermoRawFileParser:%' | \
