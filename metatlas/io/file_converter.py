@@ -132,7 +132,7 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> bool:
                 acquisition_time=get_acqtime_from_mzml(mzml_file_name),
             )
             store(run)
-            return True
+        return True
     except Exception as err:
         logger.error("During file conversion: %s", str(err))
         if "exists but it can not be written" in str(err):
@@ -146,7 +146,7 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> bool:
             os.remove(hdf5_file)
         except Exception:
             pass
-        return False
+    return False
 
 
 def convert(ind, fname):
