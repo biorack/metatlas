@@ -40,7 +40,7 @@ readarray -t failed < <(get_filenames '*failed' | sort)
 if [ "${#failed[@]}" -eq 0 ]; then
   failed_without_error=()
 else
-  readarray -t failed_without_error < <(grep -l -v 'ERROR' "${failed[@]}" | format_runs || true)
+  readarray -t failed_without_error < <(grep -L -i 'ERROR' "${failed[@]}" | format_runs || true)
 fi
 num_failed_without_error="${#failed_without_error[@]}"
 
