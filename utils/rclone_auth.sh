@@ -12,7 +12,7 @@ fi
 # authorize connections to Google Drive and add a folder mapping
 "$cmd" config create --all rclone_test drive \
         config_change_team_drive false \
-        config_is_local false \
+        config_is_local true \
         config_fs_advanced false \
         client_id "" \
         client_secret "" \
