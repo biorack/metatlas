@@ -49,7 +49,7 @@ SSH server, only an SSH client.
        /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls rclone_test:sub
    ```
 
-   Which should yield:
+   The last line of the output should be:
    ```
    119 If_you_see_this_then_RClone_has_been_properly_configured.txt
    ```
@@ -59,7 +59,8 @@ SSH server, only an SSH client.
    by copying and pasting the following command into the terminal:
 
    ```
-   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd JGI_Metabolomics_Projects:Analysis_uploads
+   ssh NERSC_USERID@perlmutter-p1.nersc.gov \
+       /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd JGI_Metabolomics_Projects:Analysis_uploads
    ```
 
    Which should yield a listing of metabolomics experiment names similar to:
@@ -83,6 +84,37 @@ SSH server, only an SSH client.
    [JGI_Metabolomics_Projects Google Drive folder](https://drive.google.com/drive/folders/0B-ZDcHbPi-aqZzE5V3hOZFc0dms).
    Please repeat step 10 after you have been granted access.
 
+1. If you will be working on EGSB data, then check that you have access to the
+   [EGSB Data outputs Google Drive folder](https://drive.google.com/drive/folders/178Qs5KXuyPayTbz6YaZkplIvwqeVZbKa)
+   by copying and pasting the following command into the terminal:
+
+   ```
+   ssh NERSC_USERID@perlmutter-p1.nersc.gov \
+       /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd EGSB_Data_outputs:
+   ```
+
+   Which should yield a listing of metabolomics experiment names similar to:
+   ```
+          -1 2022-05-06 01:02:42        -1 20190503b_JJ_YH_Niyogi_CZmedxTS_0412Supern_QE144_HILICZ_USHXG01160
+          -1 2022-05-23 18:23:19        -1 20190603c_AK_YH_Niyogi_CZmedxTS_0412Pel_QEHF_HILICZ_USHXG01263
+          -1 2022-05-23 11:38:54        -1 20210610_AG_YW_Buckley_xfeedrrn_20210211set1_QE119_Ag683775-924_USHXG01244
+          -1 2022-05-23 15:26:16        -1 20210622_AG_YW_Buckley_xfeedrrn_20210211set2_QE119_Ag683775-924_USHXG01244
+          -1 2022-05-24 15:10:26        -1 20210708_AG_VN_UCSDcrop_plantN01_20210325_QE119_Ag683775-924_USHXG01244-correctednames
+          -1 2022-04-25 19:09:59        -1 20210825_AG_YH_UCSD_DiurRhi_20210501set1_QE119_Ag683775-924_USHXG01489
+          -1 2022-05-04 16:25:28        -1 20210909_LZH_YH_UCSD_DiurRhi_20210501set2_QE119_Ag683775-924_USHXG01489-reupload
+          -1 2022-04-25 20:21:55        -1 20210927_AG_QZ_ENIGMA_Sorption_20210801_QE119_Ag683775-924_USHXG01489
+          -1 2022-04-25 23:15:39        -1 20211028_AG_QZ_ECRP_HostBSC_20210301_Exp1_Ag683775-924_USHXG01601
+   ```
+
+   If instead you see:
+   ```
+   ERROR : : error listing: directory not found
+   Failed to lsd with 2 errors: last error was: directory not found
+   ```
+
+   then you need to request access to the
+   [EGSB Data outputs Google Drive folder](https://drive.google.com/drive/folders/178Qs5KXuyPayTbz6YaZkplIvwqeVZbKa)
+   Please repeat step 10 after you have been granted access.
 
 ### Make a directory to store work in progress
 
