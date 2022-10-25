@@ -59,7 +59,7 @@ SSH server, only an SSH client.
    by copying and pasting the following command into the terminal:
 
    ```
-   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd metabolomics:Analysis_uploads
+   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd JGI_Metabolomics_Projects:Analysis_uploads
    ```
 
    Which should yield a listing of metabolomics experiment names similar to:
