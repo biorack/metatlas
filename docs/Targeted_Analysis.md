@@ -9,24 +9,44 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
 
 ### RClone configuration
 
-1. Go to [jupyter.nersc.gov](https://jupyter.nersc.gov/) and login using your NERSC account.
-2. Click the 'start' button for a Cori 'Shared CPU Node' and wait for the JupyterLab interface to load.
-3. From the menu bar, select 'File' -> 'New' -> 'Terminal'.
-4. Copy and paste the following command into the terminal:
-   ```
-   /global/common/software/m2650/metatlas-repo/utils/rclone_auth.sh
-   ```
-5. The output from step 4 will include a URL that you should copy into and open with a web browser that is logged in to your LBL Google account.
-6. You will be prompted to authorize RClone to have edit access to Google Drive. Select your lbl.gov Google Account and then click the 'Allow' button.
-7. Click the clipboard icon to copy the authorization code.
+#### Install SSH client
 
-![clipboard icon screen shot](google_auth_copy_button.png)
+If your local computer is running macOS or Linux, then you already have an ssh client
+installed. If you are on a Windows computer, then follow [Microsoft's instructions for
+installing an SSH client](https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse?tabs=gui#install-openssh-for-windows). You don't want to install an
+SSH server, only an SSH client.
 
-8. Go back to the JupyterLab page and paste the authorization code into the terminal and hit 'Enter'.
-9. To verify you RClone configuration was successful, copy and paste the following command into the terminal:
+#### Run `rclone_auth.sh`
+
+1. On your local computer open a terminal.
+1. Copy and paste the following command into the terminal:
+   ```bash
+   ssh -L localhost:53682:localhost:53682 NERSC_USERID@perlmutter-p1.nersc.gov \
+          /global/common/software/m2650/metatlas-repo/utils/rclone_auth.sh
 
    ```
-   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls rclone_test:sub
+
+   Where NERSC_USERID should be replaced with your NERSC username.
+1. If prompted, enter your NERSC password and multi-factor authentication code.
+1. In the output, look for the message 'If your browser doesn't open
+   automatically go to the following link:' and copy the URL directly after
+   that message.
+1. Paste the URL into a local web browser where you are authenticated to your
+   LBL Gmail account.
+1. You will be prompted to authorize RClone to have edit access to Google Drive.
+   Select your lbl.gov Google Account and then click the 'Allow' button.
+1. Go to [jupyter.nersc.gov](https://jupyter.nersc.gov/) and login using your
+   NERSC account.
+1. Click the 'start' button for a Perlmutter 'Shared CPU Node' and wait for
+   the JupyterLab interface to load.
+1. From the menu bar, select 'File' -> 'New' -> 'Terminal'.
+1. Copy and paste the following command into the terminal:
+1. To verify you RClone configuration was successful, copy and paste the
+   following command into the terminal on jupyter.nersc.gov:
+
+   ```
+   ssh NERSC_USERID@perlmutter-p1.nersc.gov \
+       /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls rclone_test:sub
    ```
 
    Which should yield:
@@ -34,7 +54,7 @@ Analysts need to be in the metatlas group at NERSC. You can check if you are in 
    119 If_you_see_this_then_RClone_has_been_properly_configured.txt
    ```
 
-10. If you will be working on JGI data, then check that you have access to the
+1. If you will be working on JGI data, then check that you have access to the
    [JGI_Metabolomics_Projects Google Drive folder](https://drive.google.com/drive/folders/0B-ZDcHbPi-aqZzE5V3hOZFc0dms)
    by copying and pasting the following command into the terminal:
 
