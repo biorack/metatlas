@@ -7,6 +7,9 @@ IFS=$'\n\t'
 threads_to_use=8
 
 rclone='/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone'
+raw_data='/global/cfs/cdirs/metatlas/raw_data'
+jgi_dir="${raw_data}/jgi"
+egsb_dir="${raw_data}/egsb"
 
 trap "exit 1" TERM
 export TOP_PID=$$
@@ -181,6 +184,25 @@ check_project_dir_does_exist() {
   fi
 }
 
+check_experiment_dir_does_exist() {
+  if [ ! -d "${jgi_dir}/${1}" ] && [ ! -d "${egsb_dir}/${1}" ]; then
+    >&2 echo "ERROR: directory for experiment '${1}' was not found."
+    die
+  fi
+}
+
+check_experiment_contains_h5_file() {
+  local experiment_dir
+  experiment_dir="${jgi_dir}/${1}"
+  if [ ! -d "$experiment_dir" ]; then
+    experiment_dir="${egsb_dir}/${1}"
+  fi
+  if ! find "${experiment_dir}" -name '*.h5' -quit > /dev/null 2>&1; then
+    >&2 echo "ERROR: directory for experiment '${experiment_dir}' contains no .h5 files."
+    die
+  fi
+}
+
 check_exp_id_has_atleast_9_fields() {
   # inputs: the 9th field (1-indexed) of the experiment_name split on '_'
   if [[ $1 == "" ]]; then
@@ -273,8 +295,9 @@ short_id="${proposal}_${exp_token}_${sample_set}"
 exp_dir="${project_dir}/${short_id}"
 alignment_dir="${exp_dir}/${rt_alignment_number}"
 
-
 check_exp_id_has_atleast_9_fields "$exp_check_len"
+check_experiment_dir_does_exist "$experiment_name"
+check_experiment_contains_h5_file "$experiment_name"
 check_project_dir_does_exist "$project_dir"
 check_alignment_dir_does_not_exist "$alignment_dir"
 check_rt_alignment_number_is_non_neg_int "$rt_alignment_number"
