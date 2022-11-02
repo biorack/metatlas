@@ -275,6 +275,12 @@ class AnalysisIdentifiers(HasTraits):
         logger.info(
             "Number of LCMS output files matching '%s' is: %d.", self.experiment, len(out)
         )
+        try:
+            if len(out) == 0:
+                raise ValueError("At least 1 LCMS run is required for analysis.")
+        except ValueError as err:
+            logger.exception(err)
+            raise err
         return out
 
     @property
