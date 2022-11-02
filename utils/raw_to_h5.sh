@@ -21,9 +21,9 @@ done="false"
 
 function finish {
   if [ "$done" = "true" ]; then
-    rm "${progress_file}"
+    rm -rf "${progress_file}"
   else
-    rm "${mzml_file}" "${h5_file}"
+    rm -rf "${mzml_file}" "${h5_file}"
     mv "${progress_file}" "${failure_file}"
     printf "INFO: Reached end of finish function.\n" | \
        process_output "${failure_file}"
@@ -60,6 +60,8 @@ function metatlas {
 	  "$@" 2>&1 | \
   process_output
 }
+
+shifterimg pull "${raw_image}"
 
 metatlas "${script_dir}/validate_file_name.py" "$raw_file"
 
