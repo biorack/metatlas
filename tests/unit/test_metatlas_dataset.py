@@ -531,8 +531,9 @@ def test_project01(analysis_ids):
 
 def test_exclude_files01(analysis_ids):
     analysis_ids.set_trait("exclude_files", ["POS"])
-    assert len(analysis_ids.lcmsruns) == 0
-    assert analysis_ids.lcmsruns_short_names.empty
+    # Error due to 0 LCMS runs remain
+    with pytest.raises(ValueError):
+        _ = analysis_ids.lcmsruns
 
 
 def test_invlidate_groups_controlled_vocab01(analysis_ids):
