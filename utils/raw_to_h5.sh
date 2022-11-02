@@ -3,8 +3,8 @@ set -euo pipefail
 IFS=$'\n\t'
 
 raw_image_base_name='quay.io/biocontainers/thermorawfileparser'
-# this is version 1.4.0 of ThermoRawFileParser:
-hash='sha256:76c17e3124b723f271bc3d5cf0555650288676bb1a827bd1bae9bb684444a404'
+# this is version 1.4.1 of ThermoRawFileParser:
+hash='sha256:2aa0ea0aa2c5f43e5244ed7eaad4a14e6ed6319b91a9d917850ac2b5ff73741c'
 raw_image="${raw_image_base_name}@${hash}"
 
 if [ "$#" -ne 1 ]; then
@@ -70,8 +70,6 @@ shifter "--clearenv" \
   sed 's%^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \([A-Z]+\)%\1, ThermoRawFileParser:%' | \
   process_output
 
-# ThermoRawFileParser.sh should return non-zero exit code on error, but it doesn't
-# https://github.com/compomics/ThermoRawFileParser/issues/140
 if [ ! -f "${mzml_file}" ] || [ ! -s "${mzml_file}" ]; then
    printf "ERROR: raw to mzml conversion failed for %s, but return code was still 0.\n" "$raw_file" \
      process_output
