@@ -445,21 +445,17 @@ def run(
     """Generates RT alignment model, applies to atlases, and generates all outputs"""
     params = workflow.rt_alignment.parameters
     ids = AnalysisIdentifiers(
-        analysis_number=0,
-        source_atlas_unique_id=workflow.rt_alignment.atlas.unique_id,
-        copy_atlas=params.copy_atlas,
-        experiment=experiment,
         project_directory=params.project_directory,
+        experiment=experiment,
+        analysis_number=0,
         google_folder=params.google_folder,
-        rt_alignment_number=rt_alignment_number,
-        include_lcmsruns=params.include_lcmsruns.rt_alignment,
-        exclude_lcmsruns=params.exclude_lcmsruns.rt_alignment,
-        include_groups=params.include_groups.rt_alignment,
-        exclude_groups=params.exclude_groups.rt_alignment,
-        groups_controlled_vocab=params.groups_controlled_vocab,
         configuration=configuration,
         workflow=workflow.name,
+        source_atlas_unique_id=workflow.rt_alignment.atlas.unique_id,
+        copy_atlas=params.copy_atlas,
+        rt_alignment_number=rt_alignment_number,
     )
+    ids.set_output_state(params, "rt_alignment")
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
     generate_outputs(metatlas_dataset, workflow, analysis)
     return metatlas_dataset

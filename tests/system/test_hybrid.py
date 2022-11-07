@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_hybrid_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.0.0"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.1.0"
     expected = {}
     expected[
         str(

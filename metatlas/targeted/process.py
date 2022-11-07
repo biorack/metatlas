@@ -38,23 +38,17 @@ def pre_annotation(
     """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
     params = analysis.parameters
     ids = analysis_ids.AnalysisIdentifiers(
+        project_directory=params.project_directory,
+        experiment=experiment,
+        analysis_number=analysis_number,
+        google_folder=params.google_folder,
+        configuration=configuration,
         workflow=workflow.name,
         analysis=analysis.name,
         source_atlas_unique_id=source_atlas_unique_id,
         copy_atlas=params.copy_atlas,
-        polarity=params.polarity,
-        analysis_number=analysis_number,
-        experiment=experiment,
-        include_groups=params.include_groups.gui,
-        exclude_groups=params.exclude_groups.gui,
-        groups_controlled_vocab=params.groups_controlled_vocab,
-        include_lcmsruns=params.include_lcmsruns.gui,
-        exclude_lcmsruns=params.exclude_lcmsruns.gui,
-        rt_alignment_number=rt_alignment_number,
-        project_directory=params.project_directory,
-        google_folder=params.google_folder,
         username=getpass.getuser() if username is None else username,
-        configuration=configuration,
+        rt_alignment_number=rt_alignment_number,
     )
     if clear_cache:
         logger.info("Clearing cache.")
@@ -106,19 +100,14 @@ def post_annotation(
         data.error_if_not_all_evaluated()
     if params.filter_removed:
         data.filter_compounds_ms1_notes_remove()
-    data._assert_consistent_num_compounds()
     data.extra_time = 0.5
     logger.info("extra_time set to 0.5 minutes for output generation.")
-    data._assert_consistent_num_compounds()
     data.update()  # update hits and data if they no longer are based on current rt bounds
-    data._assert_consistent_num_compounds()
     if params.generate_qc_outputs:
         data.ids.set_output_state(params, "qc_outputs")
         generate_qc_outputs(data)
-    data._assert_consistent_num_compounds()
     if params.generate_analysis_outputs:
         generate_all_outputs(data, workflow, analysis)
-    data._assert_consistent_num_compounds()
     if not in_papermill():
         copy_outputs_to_google_drive(data.ids)
     logger.info("DONE - execution of notebook%s is complete.", " in draft mode" if in_papermill() else "")

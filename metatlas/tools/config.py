@@ -110,6 +110,7 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
 class RTAlignmentNotebookParameters(BaseNotebookParameters):
     """Parameters used in RT Alignment notebooks"""
 
+    polarity: Polarity = Polarity("positive")
     inchi_keys_not_in_model: List[str] = []
     dependent_data_source: str = "median"
     use_poly_model: bool = False
@@ -137,7 +138,7 @@ class Atlas(BaseModel):
 
     @validator("name")
     @classmethod
-    def altas_name_unique_it_match(cls, to_check, values):
+    def altas_name_unique_id_match(cls, to_check, values):
         """test that atlas unique_id and name are consistent"""
         if "unique_id" not in values:
             raise ValueError("unique_id was not supplied for atlas")
@@ -198,6 +199,8 @@ class Workflow(BaseModel):
 
     def get_analysis(self, analysis_name: str) -> Analysis:
         """Returns Analysis with analysis_name or ValueError"""
+        if analysis_name == "RT_Alignment":
+            return self.rt_alignment
         for analysis in self.analyses:
             if analysis.name == analysis_name:
                 return analysis

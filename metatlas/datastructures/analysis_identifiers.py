@@ -71,44 +71,34 @@ class AnalysisIdentifiers(HasTraits):
     _groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
     groups_invalidation_callbacks: List[Callable] = traitlets.List(trait=Callable(), default_value=[])
 
-    # pylint: disable=no-self-use,too-many-arguments,too-many-locals
+    # pylint: disable=too-many-arguments,too-many-locals
     def __init__(
         self,
         project_directory,
         experiment,
         analysis_number,
         google_folder,
-        polarity=None,
+        configuration,
+        workflow,
+        analysis="RT_Alignment",
         source_atlas_unique_id=None,
         copy_atlas=True,
         username=None,
-        include_lcmsruns=None,
-        exclude_lcmsruns=None,
-        include_groups=None,
-        exclude_groups=None,
-        groups_controlled_vocab=None,
         lcmsruns=None,
         all_groups=None,
         rt_alignment_number=0,
-        configuration=None,
-        workflow=None,
-        analysis="RT_Alignment",
     ) -> None:
         super().__init__()
+        analysis_obj = configuration.get_workflow(workflow).get_analysis(analysis)
         self.set_trait("project_directory", project_directory)
         self.set_trait("experiment", experiment)
-        self.set_trait("polarity", Polarity(or_default(polarity, "positive")))
+        self.set_trait("polarity", Polarity(analysis_obj.parameters.polarity))
         self.set_trait("analysis_number", analysis_number)
         self.set_trait("rt_alignment_number", rt_alignment_number)
         self.set_trait("google_folder", google_folder)
-        self.set_trait("source_atlas_unique_id", source_atlas_unique_id)
+        self.set_trait("source_atlas_unique_id", or_default(source_atlas_unique_id, analysis_obj.atlas.unique_id))
         self.set_trait("copy_atlas", copy_atlas)
         self.set_trait("username", or_default(username, getpass.getuser()))
-        self.set_trait("include_lcmsruns", or_default(include_lcmsruns, []))
-        self.set_trait("exclude_lcmsruns", or_default(exclude_lcmsruns, []))
-        self.set_trait("include_groups", or_default(include_groups, []))
-        self.set_trait("exclude_groups", or_default(exclude_groups, []))
-        self.set_trait("groups_controlled_vocab", or_default(groups_controlled_vocab, []))
         self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
         self.set_trait("_all_groups", all_groups)
         self.set_trait("configuration", configuration)

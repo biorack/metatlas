@@ -89,18 +89,18 @@ workflows:
     analyses:
         - name: EMA-NEG
           atlas:
-            name: C18_20220531_TPL_EMA_Unlab_POS
-            unique_id: 669b750765634159a7f16645e6cf7758
+            name: C18_20220215_TPL_EMA_Unlab_NEG
+            unique_id: f74a731c590544aba5c3720b346e508e
             do_alignment: True
           parameters:
             copy_atlas: True
             polarity: negative
             exclude_groups:
-              gui: ["QC", "NEG", "FPS"]
-              ids_spreadsheet: ["QC", "NEG", "FPS"]
-              chromatograms: ["QC", "NEG", "FPS"]
-              data_sheets: ["QC", "NEG", "FPS"]
-              box_plots: ["QC", "NEG", "FPS"]
+              gui: ["QC", "POS", "FPS"]
+              ids_spreadsheet: ["QC", "POS", "FPS"]
+              chromatograms: ["QC", "POS", "FPS"]
+              data_sheets: ["QC", "POS", "FPS"]
+              box_plots: ["QC", "POS", "FPS"]
             exclude_lcmsruns:
               gui: ["InjBl", "QC", "Blank", "blank"]
               ids_spreadsheet: ["QC"]

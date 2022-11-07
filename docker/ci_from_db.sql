@@ -1,6 +1,6 @@
 -- Use this file to generate a near-minimal database for testing
 -- to generate an sqlite3 database run:
--- mysql_to_sqlite_filtered.sh c18_test_case_from_db.sql <mysql_password>
+-- mysql_to_sqlite_filtered.sh ci_from_db.sql <mysql_password>
 
 SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
 
@@ -97,6 +97,48 @@ WHERE inchi_key NOT IN (
 	'BDJRBEYXGGNYIS-UHFFFAOYSA-N',
 	'FBBCSYADXYILEH-UHFFFAOYSA-N',
 	'OMZRMXULWNMRAE-BMRADRMJSA-N'
+);
+
+DELETE FROM atlases_compound_identifications
+WHERE source_id IN (
+   SELECT aci.source_id
+   FROM atlases_compound_identifications AS aci
+   JOIN atlases as a
+   ON a.unique_id = aci.source_id
+   JOIN compoundidentifications AS ci
+   ON aci.target_id = ci.unique_id
+   JOIN compoundidentifications_compound AS cic
+   ON ci.unique_id = cic.source_id
+   JOIN compounds AS c
+   ON cic.target_id = c.unique_id
+   WHERE
+      a.name = 'C18_20220215_TPL_EMA_Unlab_NEG'
+      AND a.unique_id = 'f74a731c590544aba5c3720b346e508e'
+      AND c.inchi_key = 'FBBCSYADXYILEH-UHFFFAOYSA-N'
+);
+
+DELETE FROM atlases_compound_identifications
+WHERE source_id IN (
+   SELECT aci.source_id
+   FROM atlases_compound_identifications AS aci
+   JOIN atlases as a
+   ON a.unique_id = aci.source_id
+   JOIN compoundidentifications AS ci
+   ON aci.target_id = ci.unique_id
+   JOIN compoundidentifications_compound AS cic
+   ON ci.unique_id = cic.source_id
+   JOIN compounds AS c
+   ON cic.target_id = c.unique_id
+   WHERE
+         a.name = 'HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0'
+           AND a.unique_id = '4b05837a53494dd8b680e6b5059e1934'
+      AND c.inchi_key IN (
+      'ISAKRJDGNUQOIC-UHFFFAOYSA-N',
+      'LRFVTYWOQMYALW-UHFFFAOYSA-N',
+      'HXACOUQIXZGNBF-UHFFFAOYSA-N',
+      'OPTASPLRGRRNAP-UHFFFAOYSA-N',
+      'CZMRCDWAGMRECN-UGDNZRGBSA-N'
+   )
 );
 
 -- work from compounds up to atlases_compound_identifications

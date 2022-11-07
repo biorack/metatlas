@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_c18_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.0.0"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.1.0"
     experiment = "20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680"
     expected = {}
     expected[
@@ -64,5 +64,5 @@ short samplename	NEG_ExCtrl_C_Rg80to1200-CE102040-soil-S1	NEG_Neg-D30_C_Rg80to12
                         /out/Remove-done.ipynb
                    """
     utils.exec_docker(image, command, tmp_path, {})
-    assert utils.num_files_in(tmp_path) == 45
     utils.assert_files_match(expected)
+    assert utils.num_files_in(tmp_path) == 47

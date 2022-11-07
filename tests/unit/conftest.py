@@ -45,7 +45,6 @@ def fixture_analysis_ids(sqlite_with_test_config_atlases, lcmsrun, configuration
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     project_directory = str(os.getcwd())
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
-    polarity = "positive"
     analysis_number = 0
     google_folder = "0B-ZDcHbPi-aqZzE5V3hOZFc0dms"
     workflow_name = "Test-HILIC"
@@ -55,7 +54,6 @@ def fixture_analysis_ids(sqlite_with_test_config_atlases, lcmsrun, configuration
     return ids.AnalysisIdentifiers(
         project_directory=project_directory,
         experiment=experiment,
-        polarity=polarity,
         analysis_number=analysis_number,
         google_folder=google_folder,
         source_atlas_unique_id=analysis.atlas.unique_id,
@@ -73,19 +71,17 @@ def fixture_analysis_ids_with_2_cids(
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     project_directory = str(os.getcwd())
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
-    polarity = "positive"
     analysis_number = 0
     google_folder = "0B-ZDcHbPi-aqZzE5V3hOZFc0dms"
     return ids.AnalysisIdentifiers(
         project_directory=project_directory,
         experiment=experiment,
-        polarity=polarity,
         analysis_number=analysis_number,
         google_folder=google_folder,
         source_atlas_unique_id=atlas_with_2_cids.unique_id,
         copy_atlas=True,
         configuration=configuration,
-        workflow="JGI-HILIC",
+        workflow="Test-HILIC",
         analysis="EMA-POS",
     )
 
@@ -2343,7 +2339,7 @@ def fixture_sqlite_with_test_config_atlases(sqlite, atlas):
     atlas_ids_list = [
         {"name": "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS", "unique_id": "e7fba1813272439498405436a28b90b2"},
         {"name": "C18_20220215_TPL_IS_Unlab_POS", "unique_id": "322ed4c5fabe49349bcbc2857fbcd0dc"},
-        {"name": "C18_20220531_TPL_EMA_Unlab_POS", "unique_id": "669b750765634159a7f16645e6cf7758"},
+        {"name": "C18_20220215_TPL_EMA_Unlab_NEG", "unique_id": "f74a731c590544aba5c3720b346e508e"},
     ]
     for atlas_ids in atlas_ids_list:
         new_atlas = metob.Atlas(**atlas_ids)
