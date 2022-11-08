@@ -57,16 +57,12 @@ workflows:
             copy_atlas: True
             polarity: positive
             exclude_groups:
-              gui: ["QC", "NEG", "FPS"]
-              ids_spreadsheet: ["QC", "NEG", "FPS"]
-              chromatograms: ["QC", "NEG", "FPS"]
-              data_sheets: ["QC", "NEG", "FPS"]
-              box_plots: ["QC", "NEG", "FPS"]
+              always: ["QC", "NEG", "FPS"]
             exclude_lcmsruns:
-              gui: ["InjBl", "QC", "Blank", "blank"]
-              ids_spreadsheet: ["QC"]
-              chromatograms: ["InjBl", "QC", "Blank", "blank"]
-              data_sheets: ["InjBl", "QC", "Blank", "blank"]
+              always: ["QC"]
+              gui: ["InjBl", "Blank", "blank"]
+              chromatograms: ["InjBl", "Blank", "blank"]
+              data_sheets: ["InjBl", "Blank", "blank"]
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             filter_removed: True
             num_points: 5
@@ -96,15 +92,11 @@ workflows:
             copy_atlas: True
             polarity: negative
             exclude_groups:
-              gui: ["QC", "POS", "FPS"]
-              ids_spreadsheet: ["QC", "POS", "FPS"]
-              chromatograms: ["QC", "POS", "FPS"]
-              data_sheets: ["QC", "POS", "FPS"]
-              box_plots: ["QC", "POS", "FPS"]
+              always: ["QC", "POS", "FPS"]
             exclude_lcmsruns:
-              gui: ["InjBl", "QC", "Blank", "blank"]
-              ids_spreadsheet: ["QC"]
-              chromatograms: ["InjBl", "QC", "Blank", "blank"]
+              always: ["QC"]
+              gui: ["InjBl", "Blank", "blank"]
+              chromatograms: ["InjBl", "Blank", "blank"]
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             num_points: 3
             peak_height: 1e6
