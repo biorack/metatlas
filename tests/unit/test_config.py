@@ -35,29 +35,21 @@ def test_distribute_always_values_double():
 
 
 def test_config_distribute_always_values01(config):
-    config.workflows[0].rt_alignment.parameters.include_groups.always = ["all-a", "all-b"]
-    config.distribute_always_values()
     params = config.workflows[0].rt_alignment.parameters
+    assert params.include_groups.always == ["QC"]
+    params.include_groups.rt_alignment = ["qc-a", "qc-b"]
+    config.distribute_always_values()
     assert params.include_groups.always == []
-    assert params.include_groups.rt_alignment == ["QC", "all-a", "all-b"]
+    assert params.include_groups.rt_alignment == ["qc-a", "qc-b", "QC"]
 
 
 def test_config_distribute_always_values02(config):
-    config.workflows[1].analyses[0].parameters.exclude_groups.always = ["x", "y"]
     params = config.workflows[1].analyses[0].parameters
-    assert params.exclude_groups.chromatograms == ["QC", "NEG", "FPS"]
+    params.exclude_groups.chromatograms = ["x", "y"]
+    assert params.exclude_groups.always == ["QC", "NEG", "FPS"]
     config.distribute_always_values()
     assert params.exclude_groups.always == []
-    assert params.exclude_groups.chromatograms == ["QC", "NEG", "FPS", "x", "y"]
-
-
-def test_config_distribute_always_values03(config):
-    config.workflows[1].analyses[0].parameters.exclude_groups.always = ["x", "y"]
-    params = config.workflows[1].analyses[0].parameters
-    assert params.exclude_groups.chromatograms == ["QC", "NEG", "FPS"]
-    params.distribute_always_values()
-    assert params.exclude_groups.always == []
-    assert params.exclude_groups.chromatograms == ["QC", "NEG", "FPS", "x", "y"]
+    assert params.exclude_groups.chromatograms == ["x", "y", "QC", "NEG", "FPS"]
 
 
 def test_output_list_json01():

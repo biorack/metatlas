@@ -16,9 +16,9 @@ workflows:
           polarity: positive
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
           include_groups:
-            rt_alignment: ["QC"]
+            always: ["QC"]
           exclude_groups:
-            rt_alignment: ["NEG"]
+            always: ["NEG"]
           use_poly_model: True
           google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
     analyses:
@@ -30,9 +30,9 @@ workflows:
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             include_groups:
-              qc_outputs: ["QC"]
+              always: ["QC"]
             exclude_groups:
-              qc_outputs: ["NEG"]
+              always: ["NEG"]
             generate_qc_outputs: True
   - name: Test-HILIC
     rt_alignment:
