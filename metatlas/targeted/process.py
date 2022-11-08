@@ -104,8 +104,7 @@ def post_annotation(
     logger.info("extra_time set to 0.5 minutes for output generation.")
     data.update()  # update hits and data if they no longer are based on current rt bounds
     if params.generate_qc_outputs:
-        data.ids.set_output_state(params, "qc_outputs")
-        generate_qc_outputs(data)
+        generate_qc_outputs(data, analysis)
     if params.generate_analysis_outputs:
         generate_all_outputs(data, workflow, analysis)
     if not in_papermill():

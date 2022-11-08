@@ -355,9 +355,10 @@ def generate_qc_plots(data: MetatlasDataset) -> None:
     plot_compound_atlas_peak_heights(len(data), peak_heights_df, peak_heights_plot_file_name)
 
 
-def generate_qc_outputs(data: MetatlasDataset) -> None:
+def generate_qc_outputs(data: MetatlasDataset, analysis: Analysis) -> None:
     """Write outputs that can be used to QC the experiment"""
     ids = data.ids
+    ids.set_output_state(analysis.parameters, "ids_spreadsheet")
     save_rt_peak(data, os.path.join(ids.output_dir, f"{ids.short_polarity}_rt_peak.tab"))
     save_measured_rts(data, os.path.join(ids.output_dir, f"{ids.short_polarity}_QC_Measured_RTs.csv"))
     generate_qc_plots(data)

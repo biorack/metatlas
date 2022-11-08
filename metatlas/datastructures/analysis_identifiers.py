@@ -111,6 +111,7 @@ class AnalysisIdentifiers(HasTraits):
             self.output_dir,
         )
         self.store_all_groups(exist_ok=True)
+        self.set_output_state(analysis_obj.parameters, "gui")
 
     @validate("polarity")
     def _valid_polarity(self, proposal: Proposal) -> Polarity:
