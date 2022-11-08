@@ -102,9 +102,7 @@ def test_analysis_identifiers08(sqlite_with_test_config_atlases, caplog, mocker,
     assert "Parameter 'experiment' should contains 9 fields when split on '_', but has 10." in caplog.text
 
 
-def test_analysis_identifiers09(
-    sqlite_with_test_config_atlases, mocker, lcmsrun, configuration
-):
+def test_analysis_identifiers09(sqlite_with_test_config_atlases, mocker, lcmsrun, configuration):
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     analysis_number = 0

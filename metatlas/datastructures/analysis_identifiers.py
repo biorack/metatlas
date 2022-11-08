@@ -96,7 +96,9 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("analysis_number", analysis_number)
         self.set_trait("rt_alignment_number", rt_alignment_number)
         self.set_trait("google_folder", google_folder)
-        self.set_trait("source_atlas_unique_id", or_default(source_atlas_unique_id, analysis_obj.atlas.unique_id))
+        self.set_trait(
+            "source_atlas_unique_id", or_default(source_atlas_unique_id, analysis_obj.atlas.unique_id)
+        )
         self.set_trait("copy_atlas", copy_atlas)
         self.set_trait("username", or_default(username, getpass.getuser()))
         self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
