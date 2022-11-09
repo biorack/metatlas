@@ -13,18 +13,11 @@ proceed until you have been added to the metatlas group.
 
 ### RClone configuration
 
-#### Install SSH client
-
-If your local computer is running macOS or Linux, then you already have an ssh
-client installed. If you are on a Windows computer, then follow
-[Microsoft's instructions for installing an SSH client](
-https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse?tabs=gui#install-openssh-for-windows
-). You don't want to install an SSH server, only an SSH client.
-
 #### Run `rclone_auth.sh`
 
 1. On your local computer open a terminal.
-1. Copy and paste the following command into the terminal:
+1. Copy and paste the following command into the terminal,
+   where NERSC_USERID should be replaced with your NERSC username:
 
    ```bash
    ssh -L localhost:53682:localhost:53682 NERSC_USERID@perlmutter-p1.nersc.gov \
@@ -32,7 +25,6 @@ https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_
 
    ```
 
-   Where NERSC_USERID should be replaced with your NERSC username.
 1. If prompted, enter your NERSC password and multi-factor authentication code.
 1. In the output, look for the message 'If your browser doesn't open
    automatically go to the following link:' and copy the URL directly after
@@ -41,6 +33,8 @@ https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_
    LBL Gmail account.
 1. You will be prompted to authorize RClone to have edit access to Google Drive.
    Select your lbl.gov Google Account and then click the 'Allow' button.
+1. In your web browser you should then see a message, "Success! All done.
+   Please go back to rclone".
 1. Go to [jupyter.nersc.gov](https://jupyter.nersc.gov/) and login using your
    NERSC account.
 1. Click the 'start' button for a Perlmutter 'Shared CPU Node' and wait for
@@ -50,10 +44,8 @@ https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_
 1. To verify you RClone configuration was successful, copy and paste the
    following command into the terminal on jupyter.nersc.gov:
 
-   ```
-   ssh NERSC_USERID@perlmutter-p1.nersc.gov \
-       /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls \
-       rclone_test:sub
+   ```bash
+   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls rclone_test:sub
    ```
 
    The last line of the output should be:
@@ -67,27 +59,26 @@ https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_
    https://drive.google.com/drive/folders/0B-ZDcHbPi-aqZzE5V3hOZFc0dms)
    by copying and pasting the following command into the terminal:
 
-   ```
-   ssh NERSC_USERID@perlmutter-p1.nersc.gov \
-       /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd \
+   ```bash
+   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd \
        JGI_Metabolomics_Projects:Analysis_uploads
    ```
 
    Which should yield a listing of metabolomics experiment names similar to:
 
-   ```
-             -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
-             -1 2021-08-30 12:32:39        -1 20210518_JGI-AK_IG-SS_503256_BETO_Pceleri_QE-HF_HILICZ_USHXG01602
-             -1 2021-09-13 16:39:15        -1 20210721_JGI-AK_JB_504782_PseudoOphi_final_QE-139_HILICZ_USHXG01490
-             -1 2021-09-13 17:40:55        -1 20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494
-             -1 2021-09-13 16:39:15        -1 20210728_JGI-AK_MD_507130_Bioscales_pilot2_QE-139_HILICZ_USHXG01490
-             -1 2021-09-10 16:05:18        -1 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490
-             -1 2021-09-13 16:34:45        -1 20210819_JGI-AK_MK_506588_SoilWaterRep_final_QE-139_HILICZ_USHXG01490
+   ```bash
+   -1 2021-08-30 10:01:06        -1 20210323_JGI-AK_SS_504264_GEBA_Pantoea-final_QE-HF_HILICZ_USHXG01602
+   -1 2021-08-30 12:32:39        -1 20210518_JGI-AK_IG-SS_503256_BETO_Pceleri_QE-HF_HILICZ_USHXG01602
+   -1 2021-09-13 16:39:15        -1 20210721_JGI-AK_JB_504782_PseudoOphi_final_QE-139_HILICZ_USHXG01490
+   -1 2021-09-13 17:40:55        -1 20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494
+   -1 2021-09-13 16:39:15        -1 20210728_JGI-AK_MD_507130_Bioscales_pilot2_QE-139_HILICZ_USHXG01490
+   -1 2021-09-10 16:05:18        -1 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490
+   -1 2021-09-13 16:34:45        -1 20210819_JGI-AK_MK_506588_SoilWaterRep_final_QE-139_HILICZ_USHXG01490
    ```
 
    If instead you see:
 
-   ```
+   ```bash
    ERROR : : error listing: directory not found
    Failed to lsd with 2 errors: last error was: directory not found
    ```
@@ -102,29 +93,28 @@ https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_
    https://drive.google.com/drive/folders/178Qs5KXuyPayTbz6YaZkplIvwqeVZbKa)
    by copying and pasting the following command into the terminal:
 
-   ```
-   ssh NERSC_USERID@perlmutter-p1.nersc.gov \
-       /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd \
+   ```bash
+   /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsd \
        EGSB_Data_outputs:
    ```
 
    Which should yield a listing of metabolomics experiment names similar to:
 
-   ```
-          -1 2022-05-06 01:02:42        -1 20190503b_JJ_YH_Niyogi_CZmedxTS_0412Supern_QE144_HILICZ_USHXG01160
-          -1 2022-05-23 18:23:19        -1 20190603c_AK_YH_Niyogi_CZmedxTS_0412Pel_QEHF_HILICZ_USHXG01263
-          -1 2022-05-23 11:38:54        -1 20210610_AG_YW_Buckley_xfeedrrn_20210211set1_QE119_Ag683775-924_USHXG01244
-          -1 2022-05-23 15:26:16        -1 20210622_AG_YW_Buckley_xfeedrrn_20210211set2_QE119_Ag683775-924_USHXG01244
-          -1 2022-05-24 15:10:26        -1 20210708_AG_VN_UCSDcrop_plantN01_20210325_QE119_Ag683775-924_USHXG01244-correctednames
-          -1 2022-04-25 19:09:59        -1 20210825_AG_YH_UCSD_DiurRhi_20210501set1_QE119_Ag683775-924_USHXG01489
-          -1 2022-05-04 16:25:28        -1 20210909_LZH_YH_UCSD_DiurRhi_20210501set2_QE119_Ag683775-924_USHXG01489-reupload
-          -1 2022-04-25 20:21:55        -1 20210927_AG_QZ_ENIGMA_Sorption_20210801_QE119_Ag683775-924_USHXG01489
-          -1 2022-04-25 23:15:39        -1 20211028_AG_QZ_ECRP_HostBSC_20210301_Exp1_Ag683775-924_USHXG01601
+   ```bash
+   -1 2022-05-06 01:02:42        -1 20190503b_JJ_YH_Niyogi_CZmedxTS_0412Supern_QE144_HILICZ_USHXG01160
+   -1 2022-05-23 18:23:19        -1 20190603c_AK_YH_Niyogi_CZmedxTS_0412Pel_QEHF_HILICZ_USHXG01263
+   -1 2022-05-23 11:38:54        -1 20210610_AG_YW_Buckley_xfeedrrn_20210211set1_QE119_Ag683775-924_USHXG01244
+   -1 2022-05-23 15:26:16        -1 20210622_AG_YW_Buckley_xfeedrrn_20210211set2_QE119_Ag683775-924_USHXG01244
+   -1 2022-05-24 15:10:26        -1 20210708_AG_VN_UCSDcrop_plantN01_20210325_QE119_Ag683775-924_USHXG01244-correctednames
+   -1 2022-04-25 19:09:59        -1 20210825_AG_YH_UCSD_DiurRhi_20210501set1_QE119_Ag683775-924_USHXG01489
+   -1 2022-05-04 16:25:28        -1 20210909_LZH_YH_UCSD_DiurRhi_20210501set2_QE119_Ag683775-924_USHXG01489-reupload
+   -1 2022-04-25 20:21:55        -1 20210927_AG_QZ_ENIGMA_Sorption_20210801_QE119_Ag683775-924_USHXG01489
+   -1 2022-04-25 23:15:39        -1 20211028_AG_QZ_ECRP_HostBSC_20210301_Exp1_Ag683775-924_USHXG01601
    ```
 
    If instead you see:
 
-   ```
+   ```bash
    ERROR : : error listing: directory not found
    Failed to lsd with 2 errors: last error was: directory not found
    ```
