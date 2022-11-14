@@ -125,5 +125,5 @@ workflows:
             copy_atlas: True
             polarity: positive
             filter_removed: True
-            generate_qc_outputs: True
+            generate_qc_outputs: False
             generate_analysis_outputs: True
