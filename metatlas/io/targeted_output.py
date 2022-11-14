@@ -321,7 +321,7 @@ def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, sca
     return None, None
 
 
-def generate_all_outputs(
+def generate_standard_outputs(
     data: MetatlasDataset,
     workflow: Workflow,
     analysis: Analysis,
@@ -336,9 +336,7 @@ def generate_all_outputs(
     write_chromatograms(data, params, overwrite=overwrite, max_cpus=data.max_cpus)
     write_identification_figure(data, params, overwrite=overwrite)
     write_metrics_and_boxplots(data, params, overwrite=overwrite, max_cpus=data.max_cpus)
-    if analysis.parameters.export_msms_fragment_ions:
-        write_msms_fragment_ions(data, overwrite=overwrite)
-    logger.info("Generation of output files completed sucessfully.")
+    logger.info("Generation of standard output files completed sucessfully.")
 
 
 def generate_qc_plots(data: MetatlasDataset) -> None:

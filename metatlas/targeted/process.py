@@ -15,10 +15,13 @@ from metatlas.datastructures.id_types import Experiment
 from metatlas.datastructures.metatlas_dataset import MetatlasDataset
 from metatlas.datastructures.utils import Username
 from metatlas.io.gdrive import copy_outputs_to_google_drive
-from metatlas.io.targeted_output import generate_all_outputs
+from metatlas.io.targeted_output import generate_standard_outputs, write_msms_fragment_ions
 from metatlas.tools.config import Config, Workflow, Analysis
 from metatlas.tools.notebook import in_papermill
 from metatlas.io.targeted_output import generate_qc_outputs
+
+from metatlas.datastructures.id_types import GroupList, LcmsRunsList
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,8 @@ def pre_annotation(
     analysis: Analysis,
     clear_cache: bool = False,
     username: Optional[Username] = None,
+    lcmsruns: Optional[LcmsRunsList] = None,
+    all_groups: Optional[GroupList] = None,
 ) -> MetatlasDataset:
     """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
     params = analysis.parameters
@@ -41,14 +46,14 @@ def pre_annotation(
         project_directory=params.project_directory,
         experiment=experiment,
         analysis_number=analysis_number,
-        google_folder=params.google_folder,
         configuration=configuration,
         workflow=workflow.name,
         analysis=analysis.name,
         source_atlas_unique_id=source_atlas_unique_id,
-        copy_atlas=params.copy_atlas,
         username=getpass.getuser() if username is None else username,
         rt_alignment_number=rt_alignment_number,
+        lcmsruns=lcmsruns,
+        all_groups=all_groups,
     )
     if clear_cache:
         logger.info("Clearing cache.")
@@ -106,7 +111,9 @@ def post_annotation(
     if params.generate_qc_outputs:
         generate_qc_outputs(data, analysis)
     if params.generate_analysis_outputs:
-        generate_all_outputs(data, workflow, analysis)
+        generate_standard_outputs(data, workflow, analysis)
+    if analysis.parameters.export_msms_fragment_ions:
+        write_msms_fragment_ions(data)
     if not in_papermill():
         copy_outputs_to_google_drive(data.ids)
     logger.info("DONE - execution of notebook%s is complete.", " in draft mode" if in_papermill() else "")

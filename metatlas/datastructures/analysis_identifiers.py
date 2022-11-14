@@ -76,36 +76,34 @@ class AnalysisIdentifiers(HasTraits):
         self,
         project_directory,
         experiment,
-        analysis_number,
-        google_folder,
         configuration,
         workflow,
         analysis="RT_Alignment",
+        rt_alignment_number=0,
+        analysis_number=0,
         source_atlas_unique_id=None,
-        copy_atlas=True,
         username=None,
         lcmsruns=None,
         all_groups=None,
-        rt_alignment_number=0,
     ) -> None:
         super().__init__()
         analysis_obj = configuration.get_workflow(workflow).get_analysis(analysis)
         self.set_trait("project_directory", project_directory)
         self.set_trait("experiment", experiment)
-        self.set_trait("polarity", Polarity(analysis_obj.parameters.polarity))
-        self.set_trait("analysis_number", analysis_number)
-        self.set_trait("rt_alignment_number", rt_alignment_number)
-        self.set_trait("google_folder", google_folder)
-        self.set_trait(
-            "source_atlas_unique_id", or_default(source_atlas_unique_id, analysis_obj.atlas.unique_id)
-        )
-        self.set_trait("copy_atlas", copy_atlas)
-        self.set_trait("username", or_default(username, getpass.getuser()))
-        self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
-        self.set_trait("_all_groups", all_groups)
         self.set_trait("configuration", configuration)
         self.set_trait("workflow", workflow)
         self.set_trait("analysis", analysis)
+        self.set_trait("rt_alignment_number", rt_alignment_number)
+        self.set_trait("analysis_number", analysis_number)
+        self.set_trait(
+            "source_atlas_unique_id", or_default(source_atlas_unique_id, analysis_obj.atlas.unique_id)
+        )
+        self.set_trait("username", or_default(username, getpass.getuser()))
+        self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
+        self.set_trait("_all_groups", all_groups)
+        self.set_trait("polarity", Polarity(analysis_obj.parameters.polarity))
+        self.set_trait("google_folder", analysis_obj.parameters.google_folder)
+        self.set_trait("copy_atlas", analysis_obj.parameters.copy_atlas)
         logger.info(
             "IDs: source_atlas_unique_id=%s, atlas=%s, output_dir=%s",
             self.source_atlas_unique_id,

@@ -448,11 +448,9 @@ def run(
         project_directory=params.project_directory,
         experiment=experiment,
         analysis_number=0,
-        google_folder=params.google_folder,
         configuration=configuration,
         workflow=workflow.name,
         source_atlas_unique_id=workflow.rt_alignment.atlas.unique_id,
-        copy_atlas=params.copy_atlas,
         rt_alignment_number=rt_alignment_number,
     )
     ids.set_output_state(params, "rt_alignment")

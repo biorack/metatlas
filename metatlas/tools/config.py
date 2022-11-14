@@ -66,7 +66,7 @@ class BaseNotebookParameters(BaseModel):
     rt_max_delta: Optional[float] = None
     config_file_name: Optional[str] = None
     source_code_version_id: Optional[str] = None
-    project_directory: str = str(Path().home() / "metabolomics_data")
+    project_directory: Path = Path().home() / "metabolomics_data"
     max_cpus: int = 4
     log_level: str = "INFO"
 
@@ -104,7 +104,9 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     generate_analysis_outputs: bool = False
     export_msms_fragment_ions: bool = False
     clear_cache: bool = False
+    # these are populated from the workflow's RTAlignment if None
     google_folder: Optional[str] = None
+    msms_refs: Optional[Path] = None
 
 
 class RTAlignmentNotebookParameters(BaseNotebookParameters):
@@ -116,6 +118,7 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
     use_poly_model: bool = False
     stop_before: Optional[str] = None
     google_folder: str
+    msms_refs: Path
 
 
 class Atlas(BaseModel):
@@ -212,6 +215,9 @@ class Workflow(BaseModel):
         for analysis in self.analyses:
             analysis.parameters.google_folder = or_default(
                 analysis.parameters.google_folder, self.rt_alignment.parameters.google_folder
+            )
+            analysis.parameters.msms_refs = or_default(
+                analysis.parameters.msms_refs, self.rt_alignment.parameters.msms_refs
             )
             analysis.update(override_parameters)
 

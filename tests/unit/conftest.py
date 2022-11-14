@@ -46,7 +46,6 @@ def fixture_analysis_ids(sqlite_with_test_config_atlases, lcmsrun, configuration
     project_directory = str(os.getcwd())
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     analysis_number = 0
-    google_folder = "0B-ZDcHbPi-aqZzE5V3hOZFc0dms"
     workflow_name = "Test-HILIC"
     analysis_name = "EMA-POS"
     workflow = configuration.get_workflow(workflow_name)
@@ -55,9 +54,7 @@ def fixture_analysis_ids(sqlite_with_test_config_atlases, lcmsrun, configuration
         project_directory=project_directory,
         experiment=experiment,
         analysis_number=analysis_number,
-        google_folder=google_folder,
         source_atlas_unique_id=analysis.atlas.unique_id,
-        copy_atlas=True,
         configuration=configuration,
         workflow=workflow_name,
         analysis=analysis_name,
@@ -72,14 +69,11 @@ def fixture_analysis_ids_with_2_cids(
     project_directory = str(os.getcwd())
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     analysis_number = 0
-    google_folder = "0B-ZDcHbPi-aqZzE5V3hOZFc0dms"
     return ids.AnalysisIdentifiers(
         project_directory=project_directory,
         experiment=experiment,
         analysis_number=analysis_number,
-        google_folder=google_folder,
         source_atlas_unique_id=atlas_with_2_cids.unique_id,
-        copy_atlas=True,
         configuration=configuration,
         workflow="Test-HILIC",
         analysis="EMA-POS",
