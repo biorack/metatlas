@@ -548,7 +548,7 @@ def test_project01(analysis_ids):
 
 
 def test_exclude_files01(analysis_ids):
-    analysis_ids.set_trait("exclude_files", ["POS"])
+    analysis_ids.set_trait("exclude_lcmsruns", ["POS"])
     # Error due to 0 LCMS runs remain
     with pytest.raises(ValueError):
         _ = analysis_ids.lcmsruns

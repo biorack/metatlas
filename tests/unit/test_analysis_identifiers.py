@@ -136,9 +136,9 @@ def test_set_output_state02(analysis, analysis_ids):
 
 
 def test_exclude_lcmsruns01(analysis, analysis_ids):
-    analysis_ids.exclude_lcmsruns = ["Run34"]
-    runs = analysis_ids.lcmsruns
-    assert len(runs) == 0
+    with pytest.raises(ValueError, match="At least 1 LCMS run is required for analysis."):
+        analysis_ids.exclude_lcmsruns = ["Run34"]
+        _ = analysis_ids.lcmsruns
 
 
 def test_include_lcmsruns01(analysis, analysis_ids):
