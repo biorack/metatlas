@@ -1,6 +1,7 @@
 """Manage configuration options using a YAML file"""
 # pylint: disable=too-few-public-methods
 
+import logging
 import os
 
 from pathlib import Path
@@ -17,6 +18,8 @@ from metatlas.datastructures.id_types import Polarity
 from metatlas.tools.util import or_default
 
 ALLOWED_NAME_CHARS = ascii_letters + digits + "-"
+
+logger = logging.getLogger(__name__)
 
 
 class OutputLists(BaseModel):
@@ -268,6 +271,7 @@ class Config(BaseModel):
 
     def update(self, override_parameters: Dict) -> None:
         """update all parameters within self.workflows with any non-None values in override_parameters"""
+        logging.info("Applying override parameters to configuration")
         for flow in self.workflows:
             flow.update(override_parameters)
 
@@ -276,12 +280,14 @@ class Config(BaseModel):
         distribute always values within each
         OutputLists attribute within parameters
         """
+        logging.info("Distributing 'always' values across include/exclude dicts")
         for flow in self.workflows:
             flow.distribute_always_values()
 
 
 def load_config(file_name: os.PathLike) -> Config:
     """Return configuration from file"""
+    logging.info("Loading configuration from %s", file_name)
     with open(file_name, "r", encoding="utf-8") as yaml_fh:
         return Config.parse_obj(yaml.safe_load(yaml_fh))
 
@@ -291,11 +297,14 @@ def get_config(override_parameters: Dict) -> Tuple[Config, Workflow, Analysis]:
     config = load_config(override_parameters["config_file_name"])
     config.update(override_parameters)
     config.distribute_always_values()
+    workflow_name = override_parameters["workflow_name"]
     workflow = config.get_workflow(override_parameters["workflow_name"])
     if "analysis_name" in override_parameters:
-        analysis = workflow.get_analysis(override_parameters["analysis_name"])
+        analysis_name = override_parameters["analysis_name"]
     else:
-        analysis = workflow.rt_alignment
+        analysis_name = 'RT_Alignment'
+    logging.info("Using workflow/analysis: %s/%s", workflow_name, analysis_name)
+    analysis = workflow.get_analysis(analysis_name)
     return (config, workflow, analysis)
 
 
