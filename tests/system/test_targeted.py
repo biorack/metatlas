@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_targeted_by_line01_with_remove(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.0.0"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.1.0"
     expected = {}
     expected[
         str(
@@ -36,6 +36,9 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
 0001_adenine_positive_M+H136p0618_2p52	2.616474867e+00	2.639369249e+00	2.618291378e+00	2.657374620e+00
 0002_adenosine_positive_M+H268p1041_3p02	3.098848820e+00	3.125092983e+00	3.117606878e+00	3.139331818e+00
 0003_sucrose_positive_M+Na365p1054_13p41	1.339970875e+01	1.339875221e+01	1.342395210e+01	1.340112782e+01"""
+    # remvoing compounds at index 0, 4, 6 is not because the peaks are bad or incorrect,
+    # but strictly to make the test results match to before these compounds were added
+    # to the test atlas.
     command = """\
                     jq -M '(.cells[] | select(.source[] | contains("compound_idx=0")).source) \
                                += ["\\n", \
@@ -44,11 +47,11 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                                    "agui.data.set_rt(0, \\"rt_min\\", 2.1245)\\n", \
                                    "agui.data.set_rt(0, \\"rt_max\\", 2.4439)\\n", \
                                    "agui.compound_idx = 1\\n", \
-                                   "agui.set_peak_flag(\\"remove\\")\\n", \
-                                   "agui.compound_idx = 2\\n", \
                                    "agui.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
-                                   "agui.data.set_rt(2, \\"rt_min\\", 2.4361)\\n", \
-                                   "agui.data.set_rt(2, \\"rt_max\\", 2.8608)\\n", \
+                                   "agui.data.set_rt(1, \\"rt_min\\", 2.4361)\\n", \
+                                   "agui.data.set_rt(1, \\"rt_max\\", 2.8608)\\n", \
+                                   "agui.compound_idx = 2\\n", \
+                                   "agui.set_peak_flag(\\"remove\\")\\n", \
                                    "agui.compound_idx = 3\\n", \
                                    "agui.set_msms_flag(\\"1, perfect match to internal reference library\\")\\n", \
                                    "agui.data.set_rt(3, \\"rt_min\\", 2.8428)\\n", \
@@ -70,10 +73,10 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                         -p analysis_name EMA-POS \
                         -p rt_alignment_number 0 \
                         -p analysis_number 0 \
-                        -y "exclude_files: ['20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_53_Cone-S1_5_Rg70to1050-CE102040-QlobataAkingi-S1_Run187', '20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_54_Cone-S1_6_Rg70to1050-CE102040-QlobataAkingi-S1_Run221']" \
+                        -y "exclude_lcmsruns: {"always": ['20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_53_Cone-S1_5_Rg70to1050-CE102040-QlobataAkingi-S1_Run187', '20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_54_Cone-S1_6_Rg70to1050-CE102040-QlobataAkingi-S1_Run221']}" \
                         /out/Remove.ipynb \
                         /out/Remove-done.ipynb
                    """
     utils.exec_docker(image, command, tmp_path, {})
-    assert utils.num_files_in(tmp_path) == 63
     utils.assert_files_match(expected)
+    assert utils.num_files_in(tmp_path) == 65

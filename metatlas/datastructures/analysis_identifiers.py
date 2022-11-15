@@ -12,7 +12,7 @@ from typing import cast, Dict, List, Optional, Union
 import pandas as pd
 import traitlets
 
-from traitlets import observe, validate, Bool, HasTraits, Int, Instance, TraitError, Unicode
+from traitlets import observe, validate, Callable, Bool, HasTraits, Int, Instance, TraitError, Unicode
 from traitlets.traitlets import ObserveHandler
 
 from metatlas.datastructures.id_types import (
@@ -35,7 +35,7 @@ import metatlas.plots.dill2plots as dp
 
 from metatlas.datastructures.utils import AtlasName, get_atlas, Username
 from metatlas.io import write_utils
-from metatlas.tools.config import Config
+from metatlas.tools.config import BaseNotebookParameters, Config, OutputLists
 from metatlas.tools.util import or_default
 
 
@@ -56,11 +56,10 @@ class AnalysisIdentifiers(HasTraits):
     source_atlas_unique_id: str = Unicode(read_only=True)
     copy_atlas: bool = Bool(default_value=True, read_only=True)
     username: Username = Unicode(default_value=getpass.getuser(), read_only=True)
-    exclude_files: FileMatchList = traitlets.List(trait=Unicode(), default_value=[], read_only=True)
-    include_groups: Optional[GroupMatchList] = traitlets.List(
-        allow_none=True, default_value=None, read_only=True
-    )
-    exclude_groups: GroupMatchList = traitlets.List(default_value=[], read_only=True)
+    include_lcmsruns: FileMatchList = traitlets.List(trait=Unicode(), default_value=[])
+    exclude_lcmsruns: FileMatchList = traitlets.List(trait=Unicode(), default_value=[])
+    include_groups: GroupMatchList = traitlets.List(trait=Unicode(), default_value=[])
+    exclude_groups: GroupMatchList = traitlets.List(trait=Unicode(), default_value=[])
     groups_controlled_vocab: GroupMatchList = traitlets.List(
         trait=Unicode(), default_value=[], read_only=True
     )
@@ -70,48 +69,41 @@ class AnalysisIdentifiers(HasTraits):
     _lcmsruns: LcmsRunsList = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _all_groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
+    groups_invalidation_callbacks: List[Callable] = traitlets.List(trait=Callable(), default_value=[])
 
-    # pylint: disable=no-self-use,too-many-arguments,too-many-locals
+    # pylint: disable=too-many-arguments,too-many-locals
     def __init__(
         self,
         project_directory,
         experiment,
-        analysis_number,
-        google_folder,
-        polarity=None,
+        configuration,
+        workflow,
+        analysis="RT_Alignment",
+        rt_alignment_number=0,
+        analysis_number=0,
         source_atlas_unique_id=None,
-        copy_atlas=True,
         username=None,
-        exclude_files=None,
-        include_groups=None,
-        exclude_groups=None,
-        groups_controlled_vocab=None,
         lcmsruns=None,
         all_groups=None,
-        rt_alignment_number=0,
-        configuration=None,
-        workflow=None,
-        analysis="RT_Alignment",
     ) -> None:
         super().__init__()
+        analysis_obj = configuration.get_workflow(workflow).get_analysis(analysis)
         self.set_trait("project_directory", project_directory)
         self.set_trait("experiment", experiment)
-        self.set_trait("polarity", Polarity(or_default(polarity, "positive")))
-        self.set_trait("analysis_number", analysis_number)
-        self.set_trait("rt_alignment_number", rt_alignment_number)
-        self.set_trait("google_folder", google_folder)
-        self.set_trait("source_atlas_unique_id", source_atlas_unique_id)
-        self.set_trait("copy_atlas", copy_atlas)
-        self.set_trait("username", or_default(username, getpass.getuser()))
-        self.set_trait("exclude_files", or_default(exclude_files, []))
-        self.set_trait("include_groups", include_groups)
-        self.set_trait("exclude_groups", or_default(exclude_groups, []))
-        self.set_trait("groups_controlled_vocab", or_default(groups_controlled_vocab, []))
-        self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
-        self.set_trait("_all_groups", all_groups)
         self.set_trait("configuration", configuration)
         self.set_trait("workflow", workflow)
         self.set_trait("analysis", analysis)
+        self.set_trait("rt_alignment_number", rt_alignment_number)
+        self.set_trait("analysis_number", analysis_number)
+        self.set_trait(
+            "source_atlas_unique_id", or_default(source_atlas_unique_id, analysis_obj.atlas.unique_id)
+        )
+        self.set_trait("username", or_default(username, getpass.getuser()))
+        self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
+        self.set_trait("_all_groups", all_groups)
+        self.set_trait("polarity", Polarity(analysis_obj.parameters.polarity))
+        self.set_trait("google_folder", analysis_obj.parameters.google_folder)
+        self.set_trait("copy_atlas", analysis_obj.parameters.copy_atlas)
         logger.info(
             "IDs: source_atlas_unique_id=%s, atlas=%s, output_dir=%s",
             self.source_atlas_unique_id,
@@ -119,6 +111,7 @@ class AnalysisIdentifiers(HasTraits):
             self.output_dir,
         )
         self.store_all_groups(exist_ok=True)
+        self.set_output_state(analysis_obj.parameters, "gui")
 
     @validate("polarity")
     def _valid_polarity(self, proposal: Proposal) -> Polarity:
@@ -131,10 +124,10 @@ class AnalysisIdentifiers(HasTraits):
         if proposal["value"] is not None:
             try:
                 # raises error if not found or matches multiple
-                get_atlas(proposal["value"])
+                get_atlas(str(proposal["value"]))
             except ValueError as err:
                 raise TraitError(str(err)) from err
-            return proposal["value"]
+            return str(proposal["value"])
         return None
 
     @validate("analysis_number")
@@ -193,6 +186,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     @lru_cache
     def source_atlas(self) -> AtlasName:
+        """Returns name of atlas"""
         atlas = get_atlas(self.source_atlas_unique_id)
         return atlas.name
 
@@ -251,37 +245,47 @@ class AnalysisIdentifiers(HasTraits):
         """Get LCMS runs from DB matching experiment"""
         if self._lcmsruns is not None:
             return self._lcmsruns
-        self.set_trait('_lcmsruns', self._get_lcmsruns())
+        self.set_trait("_lcmsruns", self._get_lcmsruns())
         return self._lcmsruns or []
 
     def _get_lcmsruns(self, all_lcmsruns: Optional[List[metob.LcmsRun]] = None) -> List[metob.LcmsRun]:
+        """Get the set of lcmsruns that are currently selected"""
         if all_lcmsruns is None:
             all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
-        if self.exclude_files is not None and len(self.exclude_files) > 0:
-            out = [
-                    r
-                    for r in all_lcmsruns
-                    if not any(map(r.name.__contains__, or_default(self.exclude_files, [])))
-            ]
+        if self.include_lcmsruns is not None and len(self.include_lcmsruns) > 0:
+            post_include = [r for r in all_lcmsruns if any(map(r.name.__contains__, self.include_lcmsruns))]
             logger.info(
-                "Excluding %d LCMS runs containing any of: %s",
-                len(all_lcmsruns) - len(out),
-                self.exclude_files,
+                "Filtered out %d LCMS runs for not matching within include_lcmsruns containing: %s",
+                len(all_lcmsruns) - len(post_include),
+                self.include_lcmsruns,
             )
         else:
-            out = all_lcmsruns
-        for run in out:
+            post_include = all_lcmsruns
+        if self.exclude_lcmsruns is not None and len(self.exclude_lcmsruns) > 0:
+            post_exclude = [
+                r for r in post_include if not any(map(r.name.__contains__, self.exclude_lcmsruns))
+            ]
+            logger.info(
+                "Filtered out %d LCMS runs for matching within exclude_lcmsruns containing: %s",
+                len(post_include) - len(post_exclude),
+                self.exclude_lcmsruns,
+            )
+        else:
+            post_exclude = post_include
+        for run in post_exclude:
             logger.info("Run: %s", run.name)
         logger.info(
-            "Number of LCMS output files matching '%s' is: %d.", self.experiment, len(out)
+            "After filtering, %s LCMS output files are left from experiment '%s'.",
+            len(post_exclude),
+            self.experiment,
         )
         try:
-            if len(out) == 0:
+            if len(post_exclude) == 0:
                 raise ValueError("At least 1 LCMS run is required for analysis.")
         except ValueError as err:
             logger.exception(err)
             raise err
-        return out
+        return post_exclude
 
     @property
     def lcmsruns_dataframe(self) -> pd.DataFrame:
@@ -352,49 +356,64 @@ class AnalysisIdentifiers(HasTraits):
         if self._groups is not None:
             return self._groups
         out = dp.filter_metatlas_objects_to_most_recent(self.all_groups, "name")
-        if self.include_groups is not None and len(self.include_groups) > 0:
+        if len(self.include_groups) > 0:
             out = dp.filter_metatlas_objects_by_list(out, "name", self.include_groups)
-        if self.exclude_groups is not None and len(self.exclude_groups) > 0:
+        if len(self.exclude_groups) > 0:
             out = dp.remove_metatlas_objects_by_list(out, "name", self.exclude_groups)
         sorted_out = sorted(dp.filter_empty_metatlas_objects(out, "items"), key=lambda x: x.name)
         self.set_trait("_groups", sorted_out)
-        return self._groups
-
-    @observe("_all_groups")
-    def _observe_all_groups(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            self.set_trait("_groups", None)
-            logger.debug("Change to all_groups invalidates groups")
+        return self._groups or []
 
     @observe("groups_controlled_vocab")
     def _observe_groups_controlled_vocab(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self.set_trait("_lcmsruns", None)
             logger.debug("Change to groups_controlled_vocab invalidates lcmsruns")
-
-    @observe("include_groups")
-    def _observe_include_groups(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            self.set_trait("_groups", None)
-            logger.debug("Change to include_groups invalidates groups")
-
-    @observe("exclude_groups")
-    def _observe_exclude_groups(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            self.set_trait("_groups", None)
-            logger.debug("Change to exclude_groups invalidates groups")
-
-    @observe("exclude_files")
-    def _observe_exclude_files(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
             self.set_trait("_lcmsruns", None)
-            logger.debug("Change to exclude_files invalidates lcmsruns")
+
+    @observe("include_lcmsruns")
+    def _observe_include_lcmsruns(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            logger.debug("Change to include_lcmsruns invalidates lcmsruns")
+            self.set_trait("_lcmsruns", None)
+
+    @observe("exclude_lcmsruns")
+    def _observe_exclude_lcmsruns(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            logger.debug("Change to exclude_lcmsruns invalidates lcmsruns")
+            self.set_trait("_lcmsruns", None)
 
     @observe("_lcmsruns")
     def _observe_lcmsruns(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self.set_trait("_all_groups", None)
             logger.debug("Change to lcmsruns invalidates all_groups")
+            self.set_trait("_all_groups", None)
+
+    @observe("_all_groups")
+    def _observe_all_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            logger.debug("Change to all_groups invalidates groups")
+            self.set_trait("_groups", None)
+
+    @observe("include_groups")
+    def _observe_include_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            logger.debug("Change to include_groups invalidates groups")
+            self.set_trait("_groups", None)
+
+    @observe("exclude_groups")
+    def _observe_exclude_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            logger.debug("Change to exclude_groups invalidates groups")
+            self.set_trait("_groups", None)
+
+    @observe("_groups")
+    def _observe_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            for callback in self.groups_invalidation_callbacks:
+                logger.debug(
+                    "Change to groups triggers invalidation callback function %s()", callback.__name__
+                )
+                callback()
 
     @property
     def existing_groups(self) -> List[metob.Group]:
@@ -481,3 +500,17 @@ class AnalysisIdentifiers(HasTraits):
                 raise err
         logger.debug("Storing %d groups in the database", len(self.all_groups))
         metob.store(self.all_groups)
+
+    def set_output_state(self, parameters: BaseNotebookParameters, state: str):
+        """set include/exclude lcmsruns/groups for the given state"""
+        assert state in vars(OutputLists())
+        for out_list in ["include_lcmsruns", "exclude_lcmsruns", "include_groups", "exclude_groups"]:
+            current = getattr(self, out_list)
+            new = getattr(getattr(parameters, out_list), state)
+            if new != current:
+                setattr(self, out_list, new)
+                logger.info("Setting %s list to %s.", out_list, new)
+
+    def register_groups_invalidation_callback(self, func: Callable) -> None:
+        """Register a function to call when groups get invalidated"""
+        self.groups_invalidation_callbacks.append(func)

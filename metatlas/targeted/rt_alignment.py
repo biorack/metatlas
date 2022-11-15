@@ -409,7 +409,8 @@ def write_notebooks(
             "include_groups": analysis.parameters.include_groups,
             "exclude_groups": analysis.parameters.exclude_groups,
             "groups_controlled_vocab": analysis.parameters.groups_controlled_vocab,
-            "exclude_files": analysis.parameters.exclude_files,
+            "include_lcmsruns": analysis.parameters.include_lcmsruns,
+            "exclude_lcmsruns": analysis.parameters.exclude_lcmsruns,
             "generate_qc_outputs": analysis.parameters.generate_qc_outputs,
             "num_points": analysis.parameters.num_points,
             "peak_height": analysis.parameters.peak_height,
@@ -418,7 +419,6 @@ def write_notebooks(
             "line_colors": analysis.parameters.line_colors,
             "require_all_evaluated": analysis.parameters.require_all_evaluated,
             "generate_analysis_outputs": analysis.parameters.generate_analysis_outputs,
-            "exclude_groups_for_analysis_outputs": analysis.parameters.exclude_groups_for_analysis_outputs,
             "export_msms_fragment_ions": analysis.parameters.export_msms_fragment_ions,
             "clear_cache": analysis.parameters.clear_cache,
             "config_file_name": analysis.parameters.config_file_name,
@@ -445,20 +445,15 @@ def run(
     """Generates RT alignment model, applies to atlases, and generates all outputs"""
     params = workflow.rt_alignment.parameters
     ids = AnalysisIdentifiers(
-        analysis_number=0,
-        source_atlas_unique_id=workflow.rt_alignment.atlas.unique_id,
-        copy_atlas=params.copy_atlas,
-        experiment=experiment,
         project_directory=params.project_directory,
-        google_folder=params.google_folder,
-        rt_alignment_number=rt_alignment_number,
-        exclude_files=params.exclude_files,
-        include_groups=params.include_groups,
-        exclude_groups=params.exclude_groups,
-        groups_controlled_vocab=params.groups_controlled_vocab,
+        experiment=experiment,
+        analysis_number=0,
         configuration=configuration,
         workflow=workflow.name,
+        source_atlas_unique_id=workflow.rt_alignment.atlas.unique_id,
+        rt_alignment_number=rt_alignment_number,
     )
+    ids.set_output_state(params, "rt_alignment")
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
     generate_outputs(metatlas_dataset, workflow, analysis)
     return metatlas_dataset

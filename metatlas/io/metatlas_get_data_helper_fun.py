@@ -71,6 +71,8 @@ def get_data_for_atlas_df_and_file(input_tuple):
     df_container = remove_ms1_data_not_in_atlas(atlas_df, df_container_from_metatlas_file(my_file))
     dict_ms1_summary, dict_eic, dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df, df_container,
                                                                           extra_time, extra_mz)
+    if atlas.compound_identifications == []:
+        return tuple([])
     row = []
     for i in range(atlas_df.shape[0]):
         result = {'atlas_name': atlas.name, 'atlas_unique_id': atlas.unique_id, 'lcmsrun': my_file,
@@ -177,6 +179,8 @@ def extract(data, ids, default=None):
     as: ('attribute_name',). If you want to make it more explict to the reader, you can add a
     second member to the tuple, which will not be used, such as ('attribute_name', 'as attribute')
     """
+    if data is None:
+        return default
     if len(ids) == 0:
         return data
     try:

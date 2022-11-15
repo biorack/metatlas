@@ -9,7 +9,7 @@ import shutil
 import uuid
 
 from pathlib import Path
-from typing import cast, Any, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import cast, Any, Dict, List, Optional, Sequence, Tuple, TypedDict, Union
 
 import humanize
 import pandas as pd
@@ -27,6 +27,7 @@ from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
 from metatlas.datastructures.utils import AtlasName, get_atlas
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
+from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.tools import parallel
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,9 @@ class MetatlasSample:
         return len(self.compounds)
 
 
+SampleSet = Tuple[MetatlasSample, ...]
+
+
 class MetatlasDataset(HasTraits):
     """
     Like the non-object oriented metatlas_dataset, you can index into this class by file_idx and compound_idx:
@@ -143,7 +147,10 @@ class MetatlasDataset(HasTraits):
     rt_min_delta = Int(allow_none=True, default_value=None)
     rt_max_delta = Int(allow_none=True, default_value=None)
     _atlas_df: Optional[pd.DataFrame] = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
-    _data: Optional[Tuple[MetatlasSample, ...]] = traitlets.Tuple(allow_none=True, default_value=None)
+    # _all_data contanis all data in experiement before any filtering
+    _all_data: Optional[SampleSet] = traitlets.Tuple(allow_none=True, default_value=None)
+    # _data contains the post-filtering data that is current being utilized
+    _data: Optional[SampleSet] = traitlets.Tuple(allow_none=True, default_value=None)
     _hits: Optional[pd.DataFrame] = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
 
     # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-public-methods, no-self-use
@@ -158,6 +165,7 @@ class MetatlasDataset(HasTraits):
             logger.debug("Writing MetatlasDataset metadata files")
             self.write_data_source_files()
             self.ids.write_lcmsruns_short_names()
+        self.ids.register_groups_invalidation_callback(self.invalidate_data)
 
     def _save_to_cache(self, data: Any, metadata: dict) -> None:
         assert "_variable_name" in metadata.keys()
@@ -258,35 +266,58 @@ class MetatlasDataset(HasTraits):
             mz_tolerance=source_atlas.compound_identifications[0].mz_references[0].mz_tolerance,
         )
 
-    def _build(self) -> None:
-        """Populate self._data from database and h5 files."""
+    def _get_all_data(self) -> SampleSet:
+        """Populate self._all_data from database and h5 files."""
         start_time = datetime.datetime.now()
         files = [
             (h5_file, group, self.atlas_df, self.atlas, self.extra_time, self.extra_mz)
-            for group in self.ids.groups
+            for group in self.ids.all_groups
             for h5_file in group.items
         ]
         if len(files) == 0:
             logger.warning("No matching h5 files were found!")
-        logger.info("Generating MetatlasDataset by reading MSMS data from h5 files")
+        logger.info("Reading MSMS data from h5 files...")
         samples = parallel.parallel_process(
             ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample"
         )
-        self._data = tuple(MetatlasSample(x) for x in samples)
         logger.info(
-            "MetatlasDataset with %d files built in %s.",
+            "Loaded MS data from %d h5 files in %s.",
             len(files),
             _duration_since(start_time),
+        )
+        return tuple(MetatlasSample(x) for x in samples)
+
+    def _get_data(self) -> SampleSet:
+        """Generate _data from _all_data based on current attributes"""
+
+        def contains(inchi_key: str, adduct: str) -> bool:
+            adf = self.atlas_df
+            return len(adf[(adf["inchi_key"] == inchi_key) & (adf["adduct"] == adduct)]) > 0
+
+        adduct_indexes = ["compounds", 0, "identification", "mz_references", 0, "adduct"]
+        inchi_key_indexes = ["compounds", 0, "identification", "compound", 0, "inchi_key"]
+        h5_files = {run.hdf5_file for group in self.ids.groups for run in group.items}
+        return tuple(
+            x
+            for x in self.all_data
+            if (
+                extract(x, [0, "lcmsrun", "hdf5_file"]) in h5_files
+                and contains(extract(x, inchi_key_indexes), extract(x, adduct_indexes))
+            )
         )
 
     def _remove_compound_id(self, idx: int) -> None:
         """
-        Remove compound identification at index idx from both in db and self.atlas
+        Remove compound identification at index idx from db, self.atlas, and self._data
         Does not invalidate _data or _hits or _atlas_df
         This bypasses several ORM layers and therefore is a hack, but I couldn't get it to work with the ORM.
         """
         cid_id = self.atlas.compound_identifications[idx].unique_id
         del self.atlas.compound_identifications[idx]
+        self._filter_data(list(set(range(len(extract(self._data, [0], [])))) - {idx}))
+        if self._atlas_df is not None:
+            self._atlas_df.drop(index=idx, inplace=True)
+            self._atlas_df.reset_index(drop=True, inplace=True)
         atlas_id = self.atlas.unique_id
         link_table = "atlases_compound_identifications"
         target = f"target_id='{cid_id}'"
@@ -305,19 +336,25 @@ class MetatlasDataset(HasTraits):
         finally:
             metoh.close_db_connection(db_conn)
 
-    def _filter_data(self, keep_idxs: List[int]) -> None:
-        """Removes any compounds from _data that do not have their index in keep_idxs"""
+    def _filter_data(self, keep_idxs: Sequence[int]) -> None:
+        """Removes any compounds from _all_data and _data that do not have their index in keep_idxs"""
         if self._data is None:
             return
-        self._data = tuple(
-            MetatlasSample(
-                tuple(compound for idx, compound in enumerate(sample.compounds) if idx in keep_idxs)
+        for sample in self.data:
+            sample.compounds = tuple(
+                compound for idx, compound in enumerate(sample.compounds) if idx in keep_idxs
             )
-            for sample in self._data
-        )
+
+    def _assert_consistent_num_compounds(self):
+        """Test that internal data structures are in sync"""
+        atlas_len = len(self.atlas.compound_identifications)
+        assert len(self.atlas_df) == atlas_len
+        assert len(self.rts) == atlas_len
+        if self._data is not None and len(self._data) > 0:
+            assert len(self[0]) == atlas_len
 
     def filter_compounds(
-        self, keep_idxs: Optional[List[int]] = None, remove_idxs: Optional[List[int]] = None
+        self, keep_idxs: Optional[Sequence[int]] = None, remove_idxs: Optional[Sequence[int]] = None
     ) -> None:
         """
         inputs:
@@ -334,6 +371,7 @@ class MetatlasDataset(HasTraits):
         if (keep_idxs is None) == (remove_idxs is None):
             raise ValueError("Exactly one of keep_idxs and remove_idxs should be None")
         _error_if_bad_idxs(self.atlas_df, cast(List[int], remove_idxs if keep_idxs is None else keep_idxs))
+        self._assert_consistent_num_compounds()
         start_len = len(self.atlas_df)
         in_idxs = cast(
             List[int], keep_idxs if remove_idxs is None else self.atlas_df.index.difference(remove_idxs)
@@ -342,8 +380,6 @@ class MetatlasDataset(HasTraits):
             out_idxs = cast(
                 List[int], remove_idxs if keep_idxs is None else self.atlas_df.index.difference(keep_idxs)
             )
-            self._atlas_df = self.atlas_df.iloc[in_idxs].copy().reset_index(drop=True)
-            self._filter_data(in_idxs)
             for i in sorted(out_idxs, reverse=True):
                 self._remove_compound_id(i)
         logger.info(
@@ -355,6 +391,7 @@ class MetatlasDataset(HasTraits):
         if len(in_idxs) != start_len and self._hits is not None:
             self.filter_hits_by_atlas()
             self._save_to_cache(self._hits, self._get_hits_metadata())
+        self._assert_consistent_num_compounds()
 
     def filter_hits_by_atlas(self) -> None:
         """Remove any hits that do not have a corresponding inchi_key-adduct pair in atlas_df"""
@@ -384,7 +421,7 @@ class MetatlasDataset(HasTraits):
             get their value from self.atlas.compound_identifications[0].mz_references[0].mz_tolerance
         """
         logger.debug("Filtering atlas to exclude ms1_notes=='remove'.")
-        self.filter_compounds(remove_idxs=self.compound_indices_marked_remove())
+        self.filter_compounds(remove_idxs=self.compound_indices_marked_remove)
 
     def filter_compounds_by_signal(
         self,
@@ -451,15 +488,36 @@ class MetatlasDataset(HasTraits):
 
     @default("extra_time")
     def get_extra_time_default(self) -> float:
+        """set extra_time based on chromatography type"""
+        # TODO this should get moved into the config file
         return 0.2 if self.ids.chromatography == "C18" else 0.75
 
     @property
-    def data(self) -> Tuple[MetatlasSample, ...]:
+    def all_data(self) -> SampleSet:
+        """all_dat getter, update ._all_data if necessary"""
+        if self._all_data is None:
+            self._all_data = self._get_all_data()
+        return self._all_data
+
+    @property
+    def data(self) -> SampleSet:
         """data getter, update ._data if necessary"""
         if self._data is None:
-            self._build()
+            self._data = self._get_data()
             self._data_valid_for_rt_bounds = True
-        return cast(Tuple[MetatlasSample, ...], self._data)
+        return self._data
+
+    @property
+    def polarity(self) -> Polarity:
+        """
+        polarity getter assumes all polarities within class are the same
+        returns 'positive' if there are no samples or no compound identifications
+        """
+        try:
+            cid = self.data[0][0]["identification"]
+        except IndexError:
+            return Polarity("positive")
+        return Polarity(cid.mz_references[0].detected_polarity)
 
     @property
     def atlas_df(self) -> pd.DataFrame:
@@ -479,8 +537,8 @@ class MetatlasDataset(HasTraits):
     def _observe_atlas(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
             self._atlas_df = None
-            self._data = None
-            logger.debug("Change to atlas invalidates atlas_df, data")
+            self._all_data = None
+            logger.debug("Change to atlas invalidates atlas_df, all_data")
 
     @observe("_atlas_df")
     def _observe_atlas_df(self, signal: ObserveHandler) -> None:
@@ -488,31 +546,30 @@ class MetatlasDataset(HasTraits):
             self._data = None
             logger.debug("Change to atlas_df invalidates data")
 
-    @property
-    def polarity(self) -> Polarity:
-        """
-        polarity getter assumes all polarities within class are the same
-        returns 'positive' if there are no samples or no compound identifications
-        """
-        try:
-            cid = self.data[0][0]["identification"]
-        except IndexError:
-            return Polarity("positive")
-        return Polarity(cid.mz_references[0].detected_polarity)
-
     @observe("extra_time")
     def _observe_extra_time(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
             self._hits = None
+            self._all_data = None
+            logger.debug("Change to extra_time invalidates hits, all_data")
+
+    @observe("_data")
+    def _observe_data(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            self._hits = None
+            logger.debug("Change to data invalidates hits")
+
+    @observe("_all_data")
+    def _observe_all_data(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
             self._data = None
-            logger.debug("Change to extra_time invalidates hits, data")
+            logger.debug("Change to all_data invalidates data")
 
     @observe("extra_mz")
     def _observe_extra_mz(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            self._hits = None
-            self._data = None
-            logger.debug("Change to extra_mz invalidates hits, data")
+            self._all_data = None
+            logger.debug("Change to extra_mz invalidates all_data")
 
     @observe("keep_nonmatches")
     def _observe_keep_nonmatches(self, signal: ObserveHandler) -> None:
@@ -542,7 +599,6 @@ class MetatlasDataset(HasTraits):
         if self._hits is not None:
             self._hits_valid_for_rt_bounds = False  # unsure, so assume False
             return self._hits
-        _ = self.atlas_df  # regenerate if needed before logging hits generation
         _ = self.data  # regenerate if needed before logging hits generation
         logger.info(
             "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs_loc=%s.",
@@ -572,9 +628,10 @@ class MetatlasDataset(HasTraits):
             "ref_loc": self.msms_refs_loc,
             "extra_mz": self.extra_mz,
             "source_atlas": self.ids.source_atlas,
-            "exclude_files": self.ids.exclude_files,
-            "exclude_groups": self.ids.exclude_groups,
+            "include_lcmsruns": self.ids.include_lcmsruns,
+            "exclude_lcmsruns": self.ids.exclude_lcmsruns,
             "include_groups": self.ids.include_groups,
+            "exclude_groups": self.ids.exclude_groups,
         }
 
     def __len__(self) -> int:
@@ -640,6 +697,7 @@ class MetatlasDataset(HasTraits):
         self.atlas_df.loc[compound_idx, which] = value
         metob.store(atlas_cid)
 
+    @property
     def compound_indices_marked_remove(self) -> List[int]:
         """
         outputs:
@@ -648,6 +706,7 @@ class MetatlasDataset(HasTraits):
         ids = ["identification", "ms1_notes"]
         return [i for i, j in enumerate(self.data[0].compounds) if _is_remove(ma_data.extract(j, ids))]
 
+    @property
     def compound_idxs_not_evaluated(self) -> List[int]:
         """
         Returns list of compound indices where ms1 note is not 'remove' and
@@ -663,7 +722,7 @@ class MetatlasDataset(HasTraits):
 
     def error_if_not_all_evaluated(self) -> None:
         """Raises ValueError if there are compounds that have not been evaluated"""
-        not_evaluated = self.compound_idxs_not_evaluated()
+        not_evaluated = self.compound_idxs_not_evaluated
         try:
             if len(not_evaluated) != 0:
                 raise ValueError(
@@ -681,7 +740,12 @@ class MetatlasDataset(HasTraits):
         if not self._hits_valid_for_rt_bounds:
             self._hits = None  # force hits to be regenerated
         if not self._data_valid_for_rt_bounds:
-            self._data = None  # force data to be regenerated
+            self._all_data = None
+            self._data = None
+
+    def invalidate_data(self) -> None:
+        """Force data to be reloaded from disk on next usage"""
+        self._data = None
 
 
 def _duration_since(start: datetime.datetime) -> str:
@@ -706,7 +770,7 @@ def _has_selection(obj: object) -> bool:
     return obj.lower() not in ["", "no selection"]
 
 
-def _set_nested(data: Any, ids: List[Union[int, str, Tuple[str]]], value: Any):
+def _set_nested(data: Any, ids: Sequence[Union[int, str, Tuple[str]]], value: Any):
     """
     inputs:
         data: hierarchical data structure consisting of lists, dicts, and objects with attributes.
@@ -743,7 +807,7 @@ def _set_nested(data: Any, ids: List[Union[int, str, Tuple[str]]], value: Any):
             _set_nested(data[ids[0]], ids[1:], value)
 
 
-def _error_if_bad_idxs(dataframe: pd.DataFrame, test_idx_list: List[int]) -> None:
+def _error_if_bad_idxs(dataframe: pd.DataFrame, test_idx_list: Sequence[int]) -> None:
     """Raise IndexError if any members of of test_idx_list are not in dataframe's index"""
     bad = set(test_idx_list) - set(dataframe.index)
     try:
@@ -754,6 +818,19 @@ def _error_if_bad_idxs(dataframe: pd.DataFrame, test_idx_list: List[int]) -> Non
         raise err
 
 
-def quoted_string_list(strings: List[str]) -> str:
+def quoted_string_list(strings: Sequence[str]) -> str:
     """Adds double quotes around each string and seperates with ', '."""
     return ", ".join([f'"{x}"' for x in strings])
+
+
+def _filter_data_by_atlas_df(data: SampleSet, atlas_df: pd.DataFrame) -> SampleSet:
+    """Remove compounds-adduct pairs from data that are not in atlas_df"""
+
+    def contains(adf: pd.DataFrame, inchi_key: str, adduct: str) -> bool:
+        return len(adf[(adf["inchi_key"] == inchi_key) & (adf["adduct"] == adduct)]) > 0
+
+    adduct_indexes = [0, "compounds", 0, "identification", "mz_references", 0, "adduct"]
+    inchi_key_indexes = [0, "compounds", 0, "identification", "compound", 0, "inchi_key"]
+    return tuple(
+        x for x in data if contains(atlas_df, extract(x, inchi_key_indexes), extract(x, adduct_indexes))
+    )

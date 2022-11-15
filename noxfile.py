@@ -96,7 +96,7 @@ mypy_deps = [
 
 pylint_deps = [
     "nox==2022.1.7",
-    "pylint==2.11.1",
+    "pylint==2.14.5",
     "pytest==6.2.5",  # so "import pytest" doesn't get reported
 ]
 

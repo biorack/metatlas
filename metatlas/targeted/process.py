@@ -15,10 +15,13 @@ from metatlas.datastructures.id_types import Experiment
 from metatlas.datastructures.metatlas_dataset import MetatlasDataset
 from metatlas.datastructures.utils import Username
 from metatlas.io.gdrive import copy_outputs_to_google_drive
-from metatlas.io.targeted_output import generate_all_outputs
+from metatlas.io.targeted_output import generate_standard_outputs, write_msms_fragment_ions
 from metatlas.tools.config import Config, Workflow, Analysis
 from metatlas.tools.notebook import in_papermill
 from metatlas.io.targeted_output import generate_qc_outputs
+
+from metatlas.datastructures.id_types import GroupList, LcmsRunsList
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,26 +37,23 @@ def pre_annotation(
     analysis: Analysis,
     clear_cache: bool = False,
     username: Optional[Username] = None,
+    lcmsruns: Optional[LcmsRunsList] = None,
+    all_groups: Optional[GroupList] = None,
 ) -> MetatlasDataset:
     """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
     params = analysis.parameters
     ids = analysis_ids.AnalysisIdentifiers(
+        project_directory=params.project_directory,
+        experiment=experiment,
+        analysis_number=analysis_number,
+        configuration=configuration,
         workflow=workflow.name,
         analysis=analysis.name,
         source_atlas_unique_id=source_atlas_unique_id,
-        copy_atlas=params.copy_atlas,
-        polarity=params.polarity,
-        analysis_number=analysis_number,
-        experiment=experiment,
-        include_groups=params.include_groups,
-        exclude_groups=params.exclude_groups,
-        groups_controlled_vocab=params.groups_controlled_vocab,
-        exclude_files=params.exclude_files,
-        rt_alignment_number=rt_alignment_number,
-        project_directory=params.project_directory,
-        google_folder=params.google_folder,
         username=getpass.getuser() if username is None else username,
-        configuration=configuration,
+        rt_alignment_number=rt_alignment_number,
+        lcmsruns=lcmsruns,
+        all_groups=all_groups,
     )
     if clear_cache:
         logger.info("Clearing cache.")
@@ -100,22 +100,20 @@ def post_annotation(
     data: MetatlasDataset, configuration: Config, workflow: Workflow, analysis: Analysis
 ) -> None:
     """All data processing that needs to occur after the annotation GUI in Targeted notebook"""
-    if analysis.parameters.require_all_evaluated and not in_papermill():
+    params = analysis.parameters
+    if params.require_all_evaluated and not in_papermill():
         data.error_if_not_all_evaluated()
-    if analysis.parameters.filter_removed:
+    if params.filter_removed:
         data.filter_compounds_ms1_notes_remove()
     data.extra_time = 0.5
     logger.info("extra_time set to 0.5 minutes for output generation.")
     data.update()  # update hits and data if they no longer are based on current rt bounds
-    if analysis.parameters.generate_qc_outputs:
-        generate_qc_outputs(data)
-    if analysis.parameters.generate_analysis_outputs:
-        logger.info(
-            "Setting exclude_groups to %s.",
-            str(analysis.parameters.exclude_groups_for_analysis_outputs),
-        )
-        data.ids.set_trait("exclude_groups", analysis.parameters.exclude_groups_for_analysis_outputs)
-        generate_all_outputs(data, workflow, analysis)
+    if params.generate_qc_outputs:
+        generate_qc_outputs(data, analysis)
+    if params.generate_analysis_outputs:
+        generate_standard_outputs(data, workflow, analysis)
+    if analysis.parameters.export_msms_fragment_ions:
+        write_msms_fragment_ions(data)
     if not in_papermill():
         copy_outputs_to_google_drive(data.ids)
-    logger.info("DONE - execution of notebook %s is complete.", "in draft mode" if in_papermill() else " ")
+    logger.info("DONE - execution of notebook%s is complete.", " in draft mode" if in_papermill() else "")

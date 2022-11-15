@@ -232,3 +232,35 @@ workflows:
             msms_score: 0.6
             generate_analysis_outputs: True
             msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+  - name: Hybrid
+    rt_alignment:
+        atlas:
+          name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+          unique_id: e7fba1813272439498405436a28b90b2
+        parameters:
+          use_poly_model: True
+          msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+          google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
+    analyses:
+        - name: EMA-POS
+          atlas:
+            name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS
+            unique_id: 89694aa326cd46958d38d8e9066de16c
+            do_alignment: True
+          parameters:
+            copy_atlas: True
+            polarity: positive
+            filter_removed: True
+            generate_qc_outputs: True
+            generate_analysis_outputs: True
+        - name: EMA-NEG
+          atlas:
+            name: HILICz150_ANT20190824_TPL_EMA_Unlab_NEG
+            unique_id: a5f7bc81caa94853bbd6ee4b44e09187
+            do_alignment: True
+          parameters:
+            copy_atlas: True
+            polarity: negative
+            filter_removed: True
+            generate_qc_outputs: True
+            generate_analysis_outputs: True

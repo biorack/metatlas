@@ -60,7 +60,6 @@ def test_filter_compounds01(metatlas_dataset_with_2_cids):
     assert len(metatlas_dataset.atlas.compound_identifications) == 2
     assert metatlas_dataset.atlas_df.shape[0] == 2
     metatlas_dataset.filter_compounds(keep_idxs=[])
-    assert len(metatlas_dataset[0]) == 0
     assert len(metatlas_dataset.atlas.compound_identifications) == 0
     assert metatlas_dataset.atlas_df.shape[0] == 0
     with pytest.raises(ValueError):
@@ -86,7 +85,7 @@ def test_filter_compounds04(mocker, metatlas_dataset, compound):
         metatlas_dataset.filter_compounds(remove_idxs=[999])
 
 
-def test_filter_compounds05(mocker, metatlas_dataset_with_2_cids, username):
+def test_filter_compounds05(metatlas_dataset_with_2_cids, username):
     original_rt_min = metatlas_dataset_with_2_cids.rts[1].rt_min
     print([r.rt_min for r in metatlas_dataset_with_2_cids.rts])
     updated_rt_min = 9.99
@@ -97,21 +96,39 @@ def test_filter_compounds05(mocker, metatlas_dataset_with_2_cids, username):
     assert atlas.compound_identifications[0].rt_references[0].rt_min == updated_rt_min
 
 
+def test_filter_compounds06(metatlas_dataset):
+    metatlas_dataset.filter_compounds(keep_idxs=[])
+    assert len(metatlas_dataset) == 0
+
+
+def test_filter_compounds07(metatlas_dataset_with_2_cids):
+    metatlas_dataset_with_2_cids.filter_compounds(remove_idxs=[0])
+    assert len(metatlas_dataset_with_2_cids[0]) == 1
+
+
 def test_filter_hits_by_atlas01(mocker, metatlas_dataset_with_2_cids, hits, compound):
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[compound])
     hits = metatlas_dataset_with_2_cids.hits
     start_num = len(hits)
-    metatlas_dataset_with_2_cids.filter_compounds(keep_idxs=[0])
+    metatlas_dataset_with_2_cids.filter_compounds(keep_idxs=[1])
     assert start_num > len(metatlas_dataset_with_2_cids.hits)
     metatlas_dataset_with_2_cids.filter_compounds(remove_idxs=[0])
     assert len(metatlas_dataset_with_2_cids.hits) == 0
 
 
+def test_filter_hits_by_atlas02(mocker, metatlas_dataset_with_2_cids, hits, compound):
+    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
+    mocker.patch("metatlas.datastructures.metatlas_objects.retrieve", return_value=[compound])
+    start_num = len(metatlas_dataset_with_2_cids.hits)
+    metatlas_dataset_with_2_cids.filter_hits_by_atlas()
+    assert start_num > len(metatlas_dataset_with_2_cids.hits)
+
+
 def test_polarity(metatlas_dataset):
     assert metatlas_dataset.polarity == "positive"
+    assert len(metatlas_dataset[0]) == 1
     metatlas_dataset.filter_compounds(remove_idxs=[0])
-    assert len(metatlas_dataset[0]) == 0
     assert metatlas_dataset.polarity == "positive"
 
 
@@ -172,9 +189,9 @@ def test_set_note02(metatlas_dataset):
 
 
 def test_compound_indices_marked_remove01(sqlite, metatlas_dataset):
-    assert len(metatlas_dataset.compound_indices_marked_remove()) == 0
+    assert len(metatlas_dataset.compound_indices_marked_remove) == 0
     metatlas_dataset.set_note(0, "ms1_notes", "REMOVE")
-    assert len(metatlas_dataset.compound_indices_marked_remove()) == 1
+    assert len(metatlas_dataset.compound_indices_marked_remove) == 1
 
 
 def test_set_nested01():
@@ -230,7 +247,7 @@ def test_filter_compounds_by_signal01(mocker, metatlas_dataset_with_2_cids, df_c
     metatlas_dataset_with_2_cids.filter_compounds_by_signal(73, 2.30e6)
     assert len(metatlas_dataset_with_2_cids[0]) == 1
     metatlas_dataset_with_2_cids.filter_compounds_by_signal(73, 2.36e6)
-    assert len(metatlas_dataset_with_2_cids[0]) == 0
+    assert metatlas_dataset_with_2_cids[0].compounds == ()
 
 
 def test_filter_compounds_by_signal02(mocker, metatlas_dataset_with_2_cids, df_container):
@@ -239,7 +256,7 @@ def test_filter_compounds_by_signal02(mocker, metatlas_dataset_with_2_cids, df_c
     )
     assert len(metatlas_dataset_with_2_cids[0]) == 2
     metatlas_dataset_with_2_cids.filter_compounds_by_signal(74, 1e5)
-    assert len(metatlas_dataset_with_2_cids[0]) == 0
+    assert metatlas_dataset_with_2_cids[0].compounds == ()
 
 
 def test_export_atlas_to_csv01(metatlas_dataset, tmp_path):
@@ -321,6 +338,7 @@ def test_set_extra_mz_setter(metatlas_dataset, mocker, hits):
     metatlas_dataset.data  # pylint: disable=pointless-statement
     metatlas_dataset.hits  # pylint: disable=pointless-statement
     metatlas_dataset.extra_mz = 0.43
+    assert metatlas_dataset._all_data is None
     assert metatlas_dataset._data is None
     assert metatlas_dataset._hits is None
     assert metatlas_dataset.extra_mz == 0.43
@@ -521,7 +539,7 @@ def test_load_atlas03(sqlite_with_atlas, atlas, username):
 def test_invalidation01(analysis_ids):
     _ = analysis_ids.groups
     assert analysis_ids._groups is not None
-    analysis_ids.set_trait("exclude_files", ["Cone-S1"])
+    analysis_ids.set_trait("exclude_lcmsruns", ["Cone-S1"])
     assert analysis_ids._groups is None
 
 
@@ -530,7 +548,7 @@ def test_project01(analysis_ids):
 
 
 def test_exclude_files01(analysis_ids):
-    analysis_ids.set_trait("exclude_files", ["POS"])
+    analysis_ids.set_trait("exclude_lcmsruns", ["POS"])
     # Error due to 0 LCMS runs remain
     with pytest.raises(ValueError):
         _ = analysis_ids.lcmsruns
@@ -619,3 +637,50 @@ def test_chromatography04(metatlas_dataset, caplog):
     chrom_type = metatlas_dataset.ids.chromatography
     assert chrom_type == "foobar"
     assert "Unknown chromatography field 'foobar'" in caplog.text
+
+
+def test_rt_change_then_filter(metatlas_dataset_with_2_cids):
+    original_rt_min = metatlas_dataset_with_2_cids.rts[1].rt_min
+    updated_rt_min = 9.99
+    metatlas_dataset_with_2_cids.set_rt(1, "rt_min", updated_rt_min)
+    metatlas_dataset_with_2_cids.invalidate_data()
+    assert metatlas_dataset_with_2_cids.rts[1].rt_min != original_rt_min
+    assert metatlas_dataset_with_2_cids.rts[1].rt_min == updated_rt_min
+
+
+def test_remove_compound_id01(metatlas_dataset_with_2_cids):
+    assert len(metatlas_dataset_with_2_cids[0]) == 2
+    metatlas_dataset_with_2_cids._remove_compound_id(0)
+    assert len(metatlas_dataset_with_2_cids[0]) == 1
+    assert len(metatlas_dataset_with_2_cids._all_data[0]) == 1
+
+
+def test_remove_compound_id02(metatlas_dataset_with_2_cids):
+    assert len(metatlas_dataset_with_2_cids[0]) == 2
+    metatlas_dataset_with_2_cids._remove_compound_id(1)
+    assert len(metatlas_dataset_with_2_cids[0]) == 1
+
+
+def test_filter_data01(metatlas_dataset_with_2_cids):
+    assert len(metatlas_dataset_with_2_cids[0]) == 2
+    metatlas_dataset_with_2_cids._filter_data([0])
+    assert len(metatlas_dataset_with_2_cids[0]) == 1
+    assert len(metatlas_dataset_with_2_cids._all_data[0]) == 1
+
+
+def test_filter_data02(metatlas_dataset_with_2_cids):
+    assert len(metatlas_dataset_with_2_cids[0]) == 2
+    metatlas_dataset_with_2_cids._filter_data([1])
+    assert len(metatlas_dataset_with_2_cids[0]) == 1
+
+
+def test_filter_data03(metatlas_dataset_with_2_cids):
+    assert len(metatlas_dataset_with_2_cids[0]) == 2
+    metatlas_dataset_with_2_cids._filter_data([])
+    assert len(metatlas_dataset_with_2_cids._data[0]) == 0
+
+
+def test_filter_data04(metatlas_dataset_with_2_cids):
+    assert len(metatlas_dataset_with_2_cids[0]) == 2
+    metatlas_dataset_with_2_cids._filter_data([1, 0])
+    assert len(metatlas_dataset_with_2_cids[0]) == 2

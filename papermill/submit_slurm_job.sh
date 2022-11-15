@@ -20,19 +20,16 @@ die() {
 
 usage() {
   >&2 echo "Usage:
-  $(basename "$0") workflow_name experiment_name
-                   [rt_alignment_number] [project_directory]
-                   [-p notebook_parameter=value] [-y yaml_string]
+  $(basename "$0") workflow_name experiment_name [rt_predict_number] [project_directory] [-p notebook_parameter=value] [-y yaml_string]
 
      where:
-        workflow_name:       name associated with a workflow definition in the configuration file
-        experiment_name:     experiment identifier
-        rt_alignment_number: integer, use 0 the first time generating an RT correction for an experiment
-	                     and increment if re-generating an RT correction (default: 0)
-	project_directory:   output directory will be created within this directory
-	                     (default: $HOME/metabolomics_data)
-        -p:                  optional notebook parameters, can use multiple times
-        -y:                  optional notebook parameters in YAML or JSON string
+        workflow_name:     name associated with a workflow definition in the configuration file
+        experiment_name:   experiment identifier
+        rt_predict_number: integer, use 0 the first time generating an RT correction for an experiment
+	                   and increment if re-generating an RT correction (default: 0)
+	project_directory: output directory will be created within this directory (default: $HOME/metabolomics_data)
+        -p:                optional notebook parameters, can use multiple times
+        -y:                optional notebook parameters in YAML or JSON string
 
   for more information see:
   https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md
