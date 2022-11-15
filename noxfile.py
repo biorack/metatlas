@@ -238,6 +238,7 @@ def cov_report(session):
     session.install("-r", "docker/requirements.txt", *pytest_deps)
     session.run(
         "pytest",
+        *pytest_flags,
         *session.posargs,
         "--cov",
         "metatlas",

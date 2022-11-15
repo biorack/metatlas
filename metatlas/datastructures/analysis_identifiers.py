@@ -279,6 +279,12 @@ class AnalysisIdentifiers(HasTraits):
             len(post_exclude),
             self.experiment,
         )
+        try:
+            if len(post_exclude) == 0:
+                raise ValueError("At least 1 LCMS run is required for analysis.")
+        except ValueError as err:
+            logger.exception(err)
+            raise err
         return post_exclude
 
     @property
