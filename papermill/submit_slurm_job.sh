@@ -290,7 +290,7 @@ exp_check_len="${TOKENS[8]:-}"
 script_dir="$(get_script_dir)"
 short_id="${proposal}_${exp_token}_${sample_set}"
 exp_dir="${project_dir}/${short_id}"
-alignment_dir="${exp_dir}/${rt_alignment_number}"
+alignment_dir="${exp_dir}/${workflow_name}"
 
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_experiment_dir_does_exist "$exp"
@@ -310,8 +310,7 @@ time="$(get_slurm_time)"
 IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested} --constraint=${constraint} --time=${time}"
 
 IN_FILE="/src/notebooks/reference/RT_Alignment.ipynb"
-notebooks_dir="${alignment_dir}/Targeted/${workflow_name}"
-OUT_FILE="${notebooks_dir}/${short_id}_${workflow_name}_RT-Alignment_SLURM.ipynb"
+OUT_FILE="${alignment_dir}/${short_id}_${workflow_name}_RT-Alignment_SLURM.ipynb"
 
 PARAMETERS+=" -p experiment ${exp} \
 	      -p workflow_name ${workflow_name} \
@@ -333,6 +332,6 @@ export YAML_BASE64
 
 install_jupyter_kernel
 
-mkdir -p "$notebooks_dir"
+mkdir -p "$alignment_dir"
 # shellcheck disable=SC2086
 sbatch $flags -J "${short_id}_${workflow_name}" "${script_dir}/slurm_template.sh"
