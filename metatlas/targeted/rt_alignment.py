@@ -106,7 +106,7 @@ def generate_rt_alignment_models(
     return (linear, poly)
 
 
-def generate_outputs(data: MetatlasDataset, workflow: Workflow, analysis: Analysis) -> None:
+def generate_outputs(data: MetatlasDataset, workflow: Workflow) -> None:
     """
     Generate the RT alignment models, associated atlases with relative RT values, follow up notebooks
     """
@@ -120,9 +120,10 @@ def generate_outputs(data: MetatlasDataset, workflow: Workflow, analysis: Analys
     if params.stop_before in ["notebook_execution", None]:
         notebook_file_names = write_notebooks(ids, atlases, workflow)
     if params.stop_before is None:
-        for in_file_name in notebook_file_names:
-            out_file_name = in_file_name.with_name(in_file_name.stem + "_SLURM.ipynb")
-            papermill.execute_notebook(in_file_name, out_file_name, {}, kernel_name="papermill")
+        for in_file_name, analysis in zip(notebook_file_names, workflow.analyses):
+            if analysis.parameters.slurm_execute:
+                out_file_name = in_file_name.with_name(in_file_name.stem + "_SLURM.ipynb")
+                papermill.execute_notebook(in_file_name, out_file_name, {}, kernel_name="papermill")
     copy_outputs_to_google_drive(ids)
     logger.info("RT_Alignment notebook complete. Switch to an analysis notebook to continue.")
 
@@ -440,7 +441,6 @@ def run(
     rt_alignment_number: int,
     configuration: Config,
     workflow: Workflow,
-    analysis: Analysis,
 ) -> MetatlasDataset:
     """Generates RT alignment model, applies to atlases, and generates all outputs"""
     params = workflow.rt_alignment.parameters
@@ -455,5 +455,5 @@ def run(
     )
     ids.set_output_state(params, "rt_alignment")
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
-    generate_outputs(metatlas_dataset, workflow, analysis)
+    generate_outputs(metatlas_dataset, workflow)
     return metatlas_dataset

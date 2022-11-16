@@ -106,6 +106,7 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     require_all_evaluated: bool = False
     generate_analysis_outputs: bool = False
     export_msms_fragment_ions: bool = False
+    slurm_execute: bool = False
     clear_cache: bool = False
     # these are populated from the workflow's RTAlignment if None
     google_folder: Optional[str] = None
