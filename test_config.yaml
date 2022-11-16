@@ -35,6 +35,7 @@ workflows:
             exclude_groups:
               always: ["NEG"]
             generate_qc_outputs: True
+            slurm_execute: True
   - name: Test-HILIC
     rt_alignment:
         atlas:
@@ -70,6 +71,7 @@ workflows:
             num_points: 5
             peak_height: 4e5
             generate_analysis_outputs: True
+            slurm_execute: True
   - name: Test-C18
     rt_alignment:
         atlas:
@@ -105,7 +107,7 @@ workflows:
             msms_score: 0.6
             filter_removed: True
             generate_analysis_outputs: True
-            msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+            slurm_execute: True
   - name: Hybrid
     rt_alignment:
         atlas:
