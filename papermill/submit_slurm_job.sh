@@ -84,7 +84,7 @@ get_num_cpus() {
   if is_perlmutter || is_C18_experiment "$experiment_name"; then
     echo "64"
   else
-    echo "8"
+    echo "32"
   fi
 }
 
