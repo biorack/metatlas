@@ -90,8 +90,8 @@ mypy_deps = [
 ]
 
 pylint_deps = [
-    "nox==2022.1.7",
-    "pylint==2.14.5",
+    "nox==2022.8.7",
+    "pylint==2.15.5",
     "pytest==6.2.5",  # so "import pytest" doesn't get reported
 ]
 
@@ -99,7 +99,7 @@ nbqa_deps = [
     "nbqa==1.4.0",
     "tokenize-rt==4.1.0",
     "importlib-metadata==4.0.1",
-    "astroid==2.8.0",
+    "astroid==2.12.12",
     "wrapt==1.12.1",
     "lazy_object_proxy==1.6.0",
     "isort==5.8.0",
