@@ -57,6 +57,10 @@ more_checks = [
     "metatlas/tools/util.py",
     "metatlas/tools/validate_filenames.py",
     "noxfile.py",
+    "utils/mzml_to_h5.py",
+    "utils/ts.py",
+    "utils/validate_config.py",
+    "utils/validate_file_name.py",
     "tests",
 ]
 
