@@ -111,7 +111,7 @@ def has_exactly_num_fields(file_name: Path) -> List[str]:
 
 
 def field_exists(file_name: Path, field_num: int) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """ Output tuple is (prefix, field, error_message)"""
+    """Output tuple is (prefix, field, error_message)"""
     try:
         prefix = get_message_prefix(field_num)
     except IndexError:
@@ -155,7 +155,7 @@ def valid_string(
         out.append(f"contains less than {max_len} characters.")
     if allow_dashes:
         sub_fields = field.split("-")
-        if '' in sub_fields:
+        if "" in sub_fields:
             out.append("contains empty sub field.")
         field = "".join(sub_fields)
     if not field.isascii():
@@ -213,7 +213,7 @@ def valid_field0(file_name: Path) -> List[str]:
     """Date of LCMS run in YYYYMMDD format"""
     field_num = 0
     prefix, field, err_msg = field_exists(file_name, field_num)
-    if prefix is None or field is None or field == '':
+    if prefix is None or field is None or field == "":
         return [err_msg] if err_msg else []
     if len(field) > 8:
         return [f"{prefix} contains more than 8 characters."]
