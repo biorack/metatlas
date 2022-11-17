@@ -3181,10 +3181,8 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
     rows_removed = initial_row_count - len(atlas_df)
     if rows_removed > 0:
-        logger.warning(
-            'Removed %d rows from atlas due to missing values in required columns (%s).',
-            rows_removed,
-            ', '.join(required_columns)
+        raise ValueError(
+            f"Required columns ({', '.join(required_columns)}) missing in {rows_removed} rows."
         )
     if store:
         logger.info('Saving atlas named %s to DB.', atlas_name)
