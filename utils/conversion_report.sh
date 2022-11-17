@@ -19,8 +19,8 @@ function get_filenames {
 }
 
 function parent_dir {
-  xargs --no-run-if-empty -l dirname | \
-  xargs --no-run-if-empty -l basename
+  xargs -d '\n'  --no-run-if-empty -l dirname \
+  |  xargs -d '\n' --no-run-if-empty -l basename
 }
 
 function format_runs {
