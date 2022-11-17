@@ -70,7 +70,13 @@ def test_valid_int():
     assert valid.valid_int(path, field_num=2, min_int=0, max_int=99, allowed_prefixes=["c"]) == []
     assert valid.valid_int(path, field_num=2, min_int=0, max_int=99, allowed_prefixes=["foo"]) != []
     assert valid.valid_int(path, field_num=2, min_int=0, max_int=99, allowed_prefixes=[]) != []
-    assert valid.valid_int(path, field_num=2,) != []
+    assert (
+        valid.valid_int(
+            path,
+            field_num=2,
+        )
+        != []
+    )
     assert valid.valid_int(path, field_num=3, min_int=0, max_int=999, allowed_prefixes=[]) == []
     assert valid.valid_int(path, field_num=3, min_int=0, max_int=2, allowed_prefixes=[]) != []
     assert valid.valid_int(path, field_num=3, min_int=9999) != []
@@ -172,112 +178,178 @@ def test_valid_field7():
 def test_valid_field8():
     path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw")
     assert valid.valid_field8(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col*_9_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col*_9_10_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field8(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field8(path) != []
 
 
 def test_parent_dir_is_prefix():
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw"
+    )
     assert valid.parent_dir_is_prefix(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_extra/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_extra/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw"
+    )
     assert valid.parent_dir_is_prefix(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_DIFFERENT_IDX_HILICZ-foo_a-x99-col_extra/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_DIFFERENT_IDX_HILICZ-foo_a-x99-col_extra/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw"
+    )
     assert valid.parent_dir_is_prefix(path) != []
 
 
 def test_parent_dir_num_fields():
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw"
+    )
     assert valid.parent_dir_num_fields(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_extra/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_extra/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw"
+    )
     assert valid.parent_dir_num_fields(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_extra_too_many/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_extra_too_many/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw"
+    )
     assert valid.parent_dir_num_fields(path) != []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_9_10_11_12_13_14_15_16.raw"
+    )
     assert valid.parent_dir_num_fields(path) != []
 
 
 def test_valid_field9():
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_10_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field9(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_NEG_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_NEG_10_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field9(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_POS_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_POS_10_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field9(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_pos_10_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_pos_10_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field9(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field9(path) != []
 
 
 def test_valid_field10():
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field10(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS2-a745_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS2-a745_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field10(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS10-t123_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS10-t123_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field10(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MSn_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MSn_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field10(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS3-t1-a2_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS3-t1-a2_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field10(path) != []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_ms1_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_ms1_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field10(path) != []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS2-01234567890123456789_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS2-01234567890123456789_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field10(path) != []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_x_11_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_x_11_12_13_14_15_16.raw"
+    )
     assert valid.valid_field10(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field10(path) != []
 
 
 def test_valid_field11():
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_12_13_14_15_16.raw"
+    )
     assert valid.valid_field11(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01234567890123456789234567890123456789_12_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01234567890123456789234567890123456789_12_13_14_15_16.raw"
+    )
     assert valid.valid_field11(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field11(path) != []
 
 
 def test_valid_field12():
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_13_14_15_16.raw"
+    )
     assert valid.valid_field12(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp#01_13_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp#01_13_14_15_16.raw"
+    )
     assert valid.valid_field12(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field12(path) != []
 
 
 def test_valid_field13():
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_14_15_16.raw"
+    )
     assert valid.valid_field13(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_thisiswaytoolong_14_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_thisiswaytoolong_14_15_16.raw"
+    )
     assert valid.valid_field13(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field13(path) != []
 
 
 def test_valid_field14():
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_15_16.raw"
+    )
     assert valid.valid_field14(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_emptysubfields--_15_16.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_emptysubfields--_15_16.raw"
+    )
     assert valid.valid_field14(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field14(path) != []
 
 
 def test_valid_field15():
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw"
+    )
     assert valid.valid_field15(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_000.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_000.raw"
+    )
     assert valid.valid_field15(path) == []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_run0.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_run0.raw"
+    )
     assert valid.valid_field15(path) != []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_R0001.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_R0001.raw"
+    )
     assert valid.valid_field15(path) != []
-    path = Path("/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_12345678900123456.raw")
+    path = Path(
+        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_12345678900123456.raw"
+    )
     assert valid.valid_field15(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field15(path) != []
@@ -304,18 +376,26 @@ def test_field_not_found():
 
 
 def test_validate_file_name():
-    path = Path("/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw")
+    path = Path(
+        "/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw"
+    )
     assert valid.validate_file_name(path, minimal=False)
 
 
 def test_get_validation_messages():
-    path = Path("/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw")
+    path = Path(
+        "/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw"
+    )
     assert valid.get_validation_messages(path, minimal=False) == ([], [])
 
 
 def test_is_valid_file_name():
-    path = Path("/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw")
-    assert valid.is_valid_file_name(path, [valid.valid_field0], [lambda x: ['warn message']])
+    path = Path(
+        "/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw"
+    )
+    assert valid.is_valid_file_name(path, [valid.valid_field0], [lambda x: ["warn message"]])
     assert valid.is_valid_file_name(path, [valid.valid_field0], [])
-    path = Path("/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_foo_bar/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw")
+    path = Path(
+        "/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_foo_bar/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_Run0.raw"
+    )
     assert not valid.is_valid_file_name(path, [valid.parent_dir_num_fields], [])

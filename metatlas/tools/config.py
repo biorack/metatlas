@@ -303,7 +303,7 @@ def get_config(override_parameters: Dict) -> Tuple[Config, Workflow, Analysis]:
     if "analysis_name" in override_parameters:
         analysis_name = override_parameters["analysis_name"]
     else:
-        analysis_name = 'RT_Alignment'
+        analysis_name = "RT_Alignment"
     logging.info("Using workflow/analysis: %s/%s", workflow_name, analysis_name)
     analysis = workflow.get_analysis(analysis_name)
     return (config, workflow, analysis)
