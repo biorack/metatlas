@@ -60,13 +60,8 @@ more_checks = [
     "tests",
 ]
 
-# notebooks we can run all the checks on, as they don't contain legacy code that
-# has not yet been updated to pass all checks.
 notebooks = [
-    "notebooks/reference/Add_MSMS_Reference.ipynb",
-    "notebooks/reference/RT_Alignment.ipynb",
-    "notebooks/reference/Targeted.ipynb",
-    "notebooks/reference/Targeted_hybrid.ipynb",
+    "notebooks/reference/",
 ]
 
 pytest_deps = [
