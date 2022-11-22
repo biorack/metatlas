@@ -92,6 +92,7 @@ workflows:
             name: C18_20220215_TPL_EMA_Unlab_NEG
             unique_id: f74a731c590544aba5c3720b346e508e
             do_alignment: True
+            rt_offset: 0.2
           parameters:
             copy_atlas: True
             polarity: negative
