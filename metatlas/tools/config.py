@@ -131,6 +131,7 @@ class Atlas(BaseModel):
     unique_id: str
     name: str
     do_alignment: bool = False
+    rt_offset: float = 0.5
 
     @validator("unique_id")
     @classmethod

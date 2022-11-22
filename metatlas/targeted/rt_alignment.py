@@ -331,12 +331,11 @@ def get_atlas_name(ids: AnalysisIdentifiers, workflow: Workflow, analysis: Analy
     )
 
 
-def align_atlas(atlas: metob.Atlas, model: Model, ids: AnalysisIdentifiers) -> pd.DataFrame:
+def align_atlas(atlas: metob.Atlas, model: Model, ids: AnalysisIdentifiers, rt_offset: float) -> pd.DataFrame:
     """use model to align RTs within atlas"""
     atlas_df = ma_data.make_atlas_df(atlas)
     atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
     atlas_df["rt_peak"] = model.predict(atlas_df["rt_peak"].to_numpy())
-    rt_offset = 0.2 if ids.chromatography == "C18" else 0.5
     atlas_df["rt_min"] = atlas_df["rt_peak"].apply(lambda rt: rt - rt_offset)
     atlas_df["rt_max"] = atlas_df["rt_peak"].apply(lambda rt: rt + rt_offset)
     return atlas_df
@@ -365,7 +364,7 @@ def create_aligned_atlases(
             name = get_atlas_name(ids, workflow, analysis, model)
             logger.info("Creating atlas %s", name)
             out_atlas_file_name = os.path.join(ids.output_dir, f"{name}.csv")
-            out_atlas_df = align_atlas(template_atlas, model, ids)
+            out_atlas_df = align_atlas(template_atlas, model, ids, analysis.atlas.rt_offset)
             write_utils.export_dataframe_die_on_diff(
                 out_atlas_df, out_atlas_file_name, "RT aligned atlas", index=False, float_format="%.6e"
             )
