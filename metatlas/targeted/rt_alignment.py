@@ -6,7 +6,7 @@ import math
 import os
 
 from pathlib import Path
-from typing import List, Optional, Tuple, Sequence
+from typing import Any, Dict, List, Optional, Tuple, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -106,9 +106,10 @@ def generate_rt_alignment_models(
     return (linear, poly)
 
 
-def generate_outputs(data: MetatlasDataset, workflow: Workflow) -> None:
+def generate_outputs(data: MetatlasDataset, workflow: Workflow, set_parameters: dict) -> None:
     """
     Generate the RT alignment models, associated atlases with relative RT values, follow up notebooks
+    set_parameters contains the parameters set in the RT_Alignment notebook, before config file processing
     """
     # pylint: disable=too-many-locals
     params = workflow.rt_alignment.parameters
@@ -118,7 +119,7 @@ def generate_outputs(data: MetatlasDataset, workflow: Workflow) -> None:
     if params.stop_before in ["notebook_generation", "notebook_execution", None]:
         atlases = create_aligned_atlases(linear, poly, ids, workflow)
     if params.stop_before in ["notebook_execution", None]:
-        notebook_file_names = write_notebooks(ids, atlases, workflow)
+        notebook_file_names = write_notebooks(ids, atlases, workflow, set_parameters)
     if params.stop_before is None:
         for in_file_name, analysis in zip(notebook_file_names, workflow.analyses):
             if analysis.parameters.slurm_execute:
@@ -384,54 +385,34 @@ def create_aligned_atlases(
 
 
 def write_notebooks(
-    ids: AnalysisIdentifiers, atlases: Sequence[metob.Atlas], workflow: Workflow
+    ids: AnalysisIdentifiers, atlases: Sequence[metob.Atlas], workflow: Workflow, set_parameters: dict
 ) -> List[Path]:
     """
     Creates Targeted analysis jupyter notebooks with pre-populated parameter sets
     Inputs:
         ids: an AnalysisIds object matching the one used in the main notebook
-        workflow: a Workflow object
         atlases: list of atlases to use as source atlases
+        workflow: a Workflow object
+        set_parameters: dict of parameters set by the user in the RT_Alignment notebook
+                        before processing of the config file
     Returns a list of Paths to notebooks
     """
     out = []
     for atlas, analysis in zip(atlases, workflow.analyses):
         source = repo_path() / "notebooks" / "reference" / "Targeted.ipynb"
         dest = Path(ids.notebook_dir) / f"{ids.experiment_id}_{workflow.name}_{analysis.name}.ipynb"
-        parameters = {
-            "experiment": ids.experiment,
-            "rt_alignment_number": ids.rt_alignment_number,
-            "analysis_number": 0,
-            "workflow_name": workflow.name,
-            "analysis_name": analysis.name,
-            "source_atlas_unique_id": atlas.unique_id,
-            "copy_atlas": analysis.parameters.copy_atlas,
-            "polarity": analysis.parameters.polarity,
-            "include_groups": analysis.parameters.include_groups,
-            "exclude_groups": analysis.parameters.exclude_groups,
-            "groups_controlled_vocab": analysis.parameters.groups_controlled_vocab,
-            "include_lcmsruns": analysis.parameters.include_lcmsruns,
-            "exclude_lcmsruns": analysis.parameters.exclude_lcmsruns,
-            "generate_qc_outputs": analysis.parameters.generate_qc_outputs,
-            "num_points": analysis.parameters.num_points,
-            "peak_height": analysis.parameters.peak_height,
-            "msms_score": analysis.parameters.msms_score,
-            "filter_removed": analysis.parameters.filter_removed,
-            "line_colors": analysis.parameters.line_colors,
-            "require_all_evaluated": analysis.parameters.require_all_evaluated,
-            "generate_analysis_outputs": analysis.parameters.generate_analysis_outputs,
-            "export_msms_fragment_ions": analysis.parameters.export_msms_fragment_ions,
-            "clear_cache": analysis.parameters.clear_cache,
-            "config_file_name": analysis.parameters.config_file_name,
-            "source_code_version_id": analysis.parameters.source_code_version_id,
-            "project_directory": or_default(analysis.parameters.project_directory, ids.project_directory),
-            "google_folder": or_default(
-                analysis.parameters.google_folder, workflow.rt_alignment.parameters.google_folder
-            ),
-            "max_cpus": analysis.parameters.max_cpus,
-            "log_level": analysis.parameters.log_level,
-        }
-        notebook.create_notebook(source, dest, parameters)
+        out_parameters: Dict[str, Any] = {"analysis_number": 0}
+        for key, set_value in set_parameters.items():
+            if isinstance(set_value, dict):
+                reduced_dict = {k: v for k, v in set_value.items() if v is not None}
+                if reduced_dict != {}:
+                    out_parameters[key] = reduced_dict
+            elif set_value is not None:
+                out_parameters[key] = set_value
+        # set these after the for loop to ensure they are not overwritten
+        out_parameters["analysis_name"] = analysis.name
+        out_parameters["source_atlas_unique_id"] = atlas.unique_id
+        notebook.create_notebook(source, dest, out_parameters)
         out.append(dest)
     return out
 
@@ -441,6 +422,7 @@ def run(
     rt_alignment_number: int,
     configuration: Config,
     workflow: Workflow,
+    set_parameters: dict,
 ) -> MetatlasDataset:
     """Generates RT alignment model, applies to atlases, and generates all outputs"""
     params = workflow.rt_alignment.parameters
@@ -455,5 +437,5 @@ def run(
     )
     ids.set_output_state(params, "rt_alignment")
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
-    generate_outputs(metatlas_dataset, workflow)
+    generate_outputs(metatlas_dataset, workflow, set_parameters)
     return metatlas_dataset
