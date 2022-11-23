@@ -67,6 +67,7 @@ class BaseNotebookParameters(BaseModel):
     groups_controlled_vocab: List[str] = []
     rt_min_delta: Optional[float] = None
     rt_max_delta: Optional[float] = None
+    frag_mz_tolerance: Optional[float] = 0.02  # units of Daltons
     config_file_name: Optional[str] = None
     source_code_version_id: Optional[str] = None
     project_directory: Path = Path().home() / "metabolomics_data"
@@ -91,6 +92,9 @@ class BaseNotebookParameters(BaseModel):
             attribute_object = getattr(self, name)
             if isinstance(attribute_object, OutputLists):
                 attribute_object.distribute_always_values()
+
+
+NotebookParameters_co = TypeVar('NotebookParameters_co', bound=BaseNotebookParameters, covariant=True)
 
 
 class AnalysisNotebookParameters(BaseNotebookParameters):
