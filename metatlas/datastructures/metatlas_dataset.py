@@ -253,17 +253,11 @@ class MetatlasDataset(HasTraits):
     def _clone_source_atlas(self) -> metob.Atlas:
         logger.info("Retriving source atlas with unique_id: %s", self.ids.source_atlas_unique_id)
         source_atlas = get_atlas(self.ids.source_atlas_unique_id)
-        source_atlas_df = ma_data.make_atlas_df(source_atlas)
         logger.info("Cloning atlas %s", source_atlas.name)
-        return dp.make_atlas_from_spreadsheet(
-            source_atlas_df,
-            self.ids.atlas,
-            filetype="dataframe",
-            sheetname="",
-            polarity=self.ids.polarity,
-            store=True,
-            mz_tolerance=source_atlas.compound_identifications[0].mz_references[0].mz_tolerance,
-        )
+        new_atlas = source_atlas.clone(recursive=True)
+        new_atlas.name = self.ids.atlas
+        metob.store(new_atlas)
+        return new_atlas
 
     def _get_all_data(self) -> SampleSet:
         """Populate self._all_data from database and h5 files."""
