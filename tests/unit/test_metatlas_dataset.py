@@ -360,14 +360,6 @@ def test_set_frag_mz_tolerance_setter(metatlas_dataset, mocker, hits):
     assert metatlas_dataset.frag_mz_tolerance == 1e-4
 
 
-def test_set_msms_refs_loc_setter(metatlas_dataset, mocker, hits):
-    mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
-    metatlas_dataset.hits  # pylint: disable=pointless-statement
-    metatlas_dataset.msms_refs_loc = "/tmp/some_file.tab"
-    assert metatlas_dataset._hits is None
-    assert metatlas_dataset.msms_refs_loc == "/tmp/some_file.tab"
-
-
 def test_store_atlas01(atlas, sqlite, username):
     atlas.name = "test_store_atlas01"
     atlas_list = metob.retrieve("Atlas", name=atlas.name, username=username)

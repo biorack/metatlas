@@ -29,6 +29,7 @@ from metatlas.datastructures.utils import AtlasName, get_atlas
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.tools import parallel
+from metatlas.tools.config import NotebookParameters_co
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +142,6 @@ class MetatlasDataset(HasTraits):
     max_cpus: int = Int(default_value=1)
     save_metadata: bool = Bool(default_value=True)
     keep_nonmatches: bool = Bool(default_value=True)
-    msms_refs_loc: PathString = Unicode(default_value=analysis_ids.MSMS_REFS_PATH)
     ids: analysis_ids.AnalysisIdentifiers = Instance(klass=analysis_ids.AnalysisIdentifiers)
     atlas: metob.Atlas = Instance(klass=metob.Atlas)
     rt_min_delta = Int(allow_none=True, default_value=None)
@@ -153,7 +153,7 @@ class MetatlasDataset(HasTraits):
     _data: Optional[SampleSet] = traitlets.Tuple(allow_none=True, default_value=None)
     _hits: Optional[pd.DataFrame] = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
 
-    # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-public-methods, no-self-use
+    # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-public-methods
     def __init__(self, **kwargs) -> None:
         """Constructor"""
         super().__init__(**kwargs)
@@ -583,12 +583,6 @@ class MetatlasDataset(HasTraits):
             self._hits = None
             logger.debug("Change to frag_mz_tolerance invalidates hits")
 
-    @observe("msms_refs_loc")
-    def _observe_msms_refs_loc(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            self._hits = None
-            logger.debug("Change to msms_refs_loc invalidates hits")
-
     @property
     def hits(self) -> pd.DataFrame:
         """get msms hits DataFrame"""
@@ -601,10 +595,10 @@ class MetatlasDataset(HasTraits):
             return self._hits
         _ = self.data  # regenerate if needed before logging hits generation
         logger.info(
-            "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs_loc=%s.",
+            "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs=%s.",
             self.extra_time,
             self.frag_mz_tolerance,
-            self.msms_refs_loc,
+            self.parameters.msms_refs,
         )
         start_time = datetime.datetime.now()
         self._hits = dp.get_msms_hits(
@@ -612,7 +606,7 @@ class MetatlasDataset(HasTraits):
             extra_time=self.extra_time > 0,
             keep_nonmatches=self.keep_nonmatches,
             frag_mz_tolerance=self.frag_mz_tolerance,
-            ref_loc=self.msms_refs_loc,
+            ref_loc=self.parameters.msms_refs,
         )
         logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
         self._hits_valid_for_rt_bounds = True
@@ -625,7 +619,7 @@ class MetatlasDataset(HasTraits):
             "extra_time": self.extra_time,
             "keep_nonmatches": self.keep_nonmatches,
             "frag_mz_tolerance": self.frag_mz_tolerance,
-            "ref_loc": self.msms_refs_loc,
+            "ref_loc": self.parameters.msms_refs,
             "extra_mz": self.extra_mz,
             "source_atlas": self.ids.source_atlas,
             "include_lcmsruns": self.ids.include_lcmsruns,
@@ -719,6 +713,11 @@ class MetatlasDataset(HasTraits):
             if (not _is_remove(ms1_note)) and (not _has_selection(ms2_note)):
                 out.append(i)
         return out
+
+    @property
+    def parameters(self) -> NotebookParameters_co:
+        workflow = self.ids.configuration.get_workflow(self.ids.workflow)
+        return workflow.get_analysis(self.ids.analysis).parameters
 
     def error_if_not_all_evaluated(self) -> None:
         """Raises ValueError if there are compounds that have not been evaluated"""
