@@ -218,11 +218,9 @@ class MetatlasDataset(HasTraits):
 
     def _get_atlas(self) -> None:
         """
-        Copy source atlas from database into current analysis atlas
-        If the atlas does not yet exist, it will be copied from source_atlas and there will be an
-        an additional side effect that all mz_tolerances in the resulting atlas
-        get their value from source_atlas' atlas.compound_identifications[0].mz_references[0].mz_tolerance
-        Adjusts rt_min and rt_max if rt_min_delta or rt_max_delta are not None
+        Copy source atlas from database into current analysis atlas.
+        If the atlas does not yet exist, it will be copied from source_atlas.
+        Adjusts rt_min and rt_max if rt_min_delta or rt_max_delta are not None.
         """
         atlases = metob.retrieve("Atlas", name=self.ids.atlas, username=self.ids.username)
         if len(atlases) == 1:
@@ -410,8 +408,6 @@ class MetatlasDataset(HasTraits):
         output:
             updates self.atlas to contain only the compound_identifications that do not have ms1_notes
             starting with 'remove' (case insensitive)
-            There is an additional side effect that all mz_tolerances in the returned atlas
-            get their value from self.atlas.compound_identifications[0].mz_references[0].mz_tolerance
         """
         logger.debug("Filtering atlas to exclude ms1_notes=='remove'.")
         self.filter_compounds(remove_idxs=self.compound_indices_marked_remove)

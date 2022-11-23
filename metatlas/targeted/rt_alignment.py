@@ -331,14 +331,17 @@ def get_atlas_name(ids: AnalysisIdentifiers, workflow: Workflow, analysis: Analy
     )
 
 
-def align_atlas(atlas: metob.Atlas, model: Model, ids: AnalysisIdentifiers, rt_offset: float) -> pd.DataFrame:
+def align_atlas(atlas: metob.Atlas, model: Model, rt_offset: float) -> metob.Atlas:
     """use model to align RTs within atlas"""
-    atlas_df = ma_data.make_atlas_df(atlas)
-    atlas_df["label"] = [cid.name for cid in atlas.compound_identifications]
-    atlas_df["rt_peak"] = model.predict(atlas_df["rt_peak"].to_numpy())
-    atlas_df["rt_min"] = atlas_df["rt_peak"].apply(lambda rt: rt - rt_offset)
-    atlas_df["rt_max"] = atlas_df["rt_peak"].apply(lambda rt: rt + rt_offset)
-    return atlas_df
+    aligned = atlas.clone(recursive=True)
+    old_peaks = [cid[0].rt_references[0].rt_peak for cid in aligned.compound_identifications]
+    new_peaks = model.predict(np.array(old_peaks, dtype=float))
+    for peak, cid in zip(new_peaks, aligned.compound_identifications):
+        rt_ref = cid[0].rt_references[0]
+        rt_ref.rt_peak = peak
+        rt_ref.rt_min = peak - rt_offset
+        rt_ref.rt_max = peak + rt_offset
+    return aligned
 
 
 def create_aligned_atlases(
@@ -364,20 +367,14 @@ def create_aligned_atlases(
             name = get_atlas_name(ids, workflow, analysis, model)
             logger.info("Creating atlas %s", name)
             out_atlas_file_name = os.path.join(ids.output_dir, f"{name}.csv")
-            out_atlas_df = align_atlas(template_atlas, model, ids, analysis.atlas.rt_offset)
+            aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset)
+            aligned_atlas.name = metob.MetUnicode(name)
+            metob.store(aligned_atlas)
+            aligned_atlas_df = ma_data.make_atlas_df(aligned_atlas)
             write_utils.export_dataframe_die_on_diff(
-                out_atlas_df, out_atlas_file_name, "RT aligned atlas", index=False, float_format="%.6e"
+                aligned_atlas_df, out_atlas_file_name, "RT aligned atlas", index=False, float_format="%.6e"
             )
-            atlas = dp.make_atlas_from_spreadsheet(
-                out_atlas_df,
-                name,
-                filetype="dataframe",
-                sheetname="",
-                polarity=analysis.parameters.polarity,
-                store=True,
-                mz_tolerance=10 if ids.chromatography == "C18" else 12,
-            )
-            out_atlases.append(atlas)
+            out_atlases.append(aligned_atlas)
         else:
             out_atlases.append(template_atlas)
     return out_atlases
