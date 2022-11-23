@@ -138,7 +138,6 @@ class MetatlasDataset(HasTraits):
 
     extra_time: float = Float()
     extra_mz: float = Float(default_value=0)
-    frag_mz_tolerance: float = Float(default_value=0.01)
     max_cpus: int = Int(default_value=1)
     save_metadata: bool = Bool(default_value=True)
     keep_nonmatches: bool = Bool(default_value=True)
@@ -577,12 +576,6 @@ class MetatlasDataset(HasTraits):
             self._hits = None
             logger.debug("Change to keep_nonmatches invalidates hits")
 
-    @observe("frag_mz_tolerance")
-    def _observe_frag_mz_tolerance(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            self._hits = None
-            logger.debug("Change to frag_mz_tolerance invalidates hits")
-
     @property
     def hits(self) -> pd.DataFrame:
         """get msms hits DataFrame"""
@@ -597,7 +590,7 @@ class MetatlasDataset(HasTraits):
         logger.info(
             "Generating hits with extra_time=%.3f, frag_mz_tolerance=%.4f, msms_refs=%s.",
             self.extra_time,
-            self.frag_mz_tolerance,
+            self.parameters.frag_mz_tolerance,
             self.parameters.msms_refs,
         )
         start_time = datetime.datetime.now()
@@ -605,7 +598,7 @@ class MetatlasDataset(HasTraits):
             self.data,
             extra_time=self.extra_time > 0,
             keep_nonmatches=self.keep_nonmatches,
-            frag_mz_tolerance=self.frag_mz_tolerance,
+            frag_mz_tolerance=self.parameters.frag_mz_tolerance,
             ref_loc=self.parameters.msms_refs,
         )
         logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
@@ -618,7 +611,7 @@ class MetatlasDataset(HasTraits):
             "_variable_name": "hits",
             "extra_time": self.extra_time,
             "keep_nonmatches": self.keep_nonmatches,
-            "frag_mz_tolerance": self.frag_mz_tolerance,
+            "frag_mz_tolerance": self.parameters.frag_mz_tolerance,
             "ref_loc": self.parameters.msms_refs,
             "extra_mz": self.extra_mz,
             "source_atlas": self.ids.source_atlas,
