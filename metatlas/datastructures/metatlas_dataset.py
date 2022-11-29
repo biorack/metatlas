@@ -16,16 +16,16 @@ import pandas as pd
 import traitlets
 
 from traitlets import default, observe
-from traitlets import Bool, Float, HasTraits, Instance, Int, Unicode
+from traitlets import Bool, Float, HasTraits, Instance, Int
 from traitlets.traitlets import ObserveHandler
 
 import metatlas.plots.dill2plots as dp
 import metatlas.datastructures.analysis_identifiers as analysis_ids
 
-from metatlas.datastructures.id_types import PathString, Polarity
+from metatlas.datastructures.id_types import Polarity
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.datastructures import object_helpers as metoh
-from metatlas.datastructures.utils import AtlasName, get_atlas
+from metatlas.datastructures.utils import AtlasName, get_atlas, set_atlas_mz_tolerance
 from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.tools import parallel
@@ -221,6 +221,7 @@ class MetatlasDataset(HasTraits):
         Copy source atlas from database into current analysis atlas.
         If the atlas does not yet exist, it will be copied from source_atlas.
         Adjusts rt_min and rt_max if rt_min_delta or rt_max_delta are not None.
+        Sets mz_tolerance based on parameters mz_tolerance_override and mz_tolerance_default
         """
         atlases = metob.retrieve("Atlas", name=self.ids.atlas, username=self.ids.username)
         if len(atlases) == 1:
@@ -247,6 +248,10 @@ class MetatlasDataset(HasTraits):
         else:
             temp_atlas = self._clone_source_atlas()
         self.atlas = metob.adjust_atlas_rt_range(temp_atlas, self.rt_min_delta, self.rt_max_delta)
+        if self.parameters.mz_tolerance_override is not None:
+            set_atlas_mz_tolerance(self.atlas, self.parameters.mz_tolerance_override, True)
+        else:
+            set_atlas_mz_tolerance(self.atlas, self.parameters.mz_tolerance_default)
 
     def _clone_source_atlas(self) -> metob.Atlas:
         logger.info("Retriving source atlas with unique_id: %s", self.ids.source_atlas_unique_id)

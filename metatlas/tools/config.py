@@ -67,6 +67,8 @@ class BaseNotebookParameters(BaseModel):
     groups_controlled_vocab: List[str] = []
     rt_min_delta: Optional[float] = None
     rt_max_delta: Optional[float] = None
+    mz_tolerance_default: float = 10  # units of ppm
+    mz_tolerance_override: Optional[float] = None  # units of ppm
     frag_mz_tolerance: Optional[float] = 0.02  # units of Daltons
     config_file_name: Optional[str] = None
     source_code_version_id: Optional[str] = None
@@ -94,7 +96,7 @@ class BaseNotebookParameters(BaseModel):
                 attribute_object.distribute_always_values()
 
 
-NotebookParameters_co = TypeVar('NotebookParameters_co', bound=BaseNotebookParameters, covariant=True)
+NotebookParameters_co = TypeVar("NotebookParameters_co", bound=BaseNotebookParameters, covariant=True)
 
 
 class AnalysisNotebookParameters(BaseNotebookParameters):
