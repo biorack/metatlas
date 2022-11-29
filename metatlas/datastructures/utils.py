@@ -30,3 +30,16 @@ def get_atlas(unique_id: str, name: Optional[AtlasName] = None) -> metob.Atlas:
         logger.exception(err)
         raise err
     return atlases[0]
+
+
+def set_atlas_mz_tolerance(atlas: metob.Atlas, value: float, override=False) -> None:
+    """
+    if override is True, then all mz_tolerance values get replaced with value
+    if override is False, then mz_tolerance values that are None get replaced with value
+    modifies atlas in place
+    """
+    for cid in atlas.compound_identifications:
+        for mzr in cid.mz_references:
+            if override or mzr.mz_tolerance is None:
+                mzr.mz_tolerance = value
+                mzr.mz_tolerance_units = "ppm"

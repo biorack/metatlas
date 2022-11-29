@@ -393,6 +393,7 @@ def write_notebooks(
                         before processing of the config file
     Returns a list of Paths to notebooks
     """
+    parameters_not_to_forward = ["rt_min_delta", "rt_max_delta"]
     out = []
     for atlas, analysis in zip(atlases, workflow.analyses):
         source = repo_path() / "notebooks" / "reference" / "Targeted.ipynb"
@@ -403,7 +404,7 @@ def write_notebooks(
                 reduced_dict = {k: v for k, v in set_value.items() if v is not None}
                 if reduced_dict != {}:
                     out_parameters[key] = reduced_dict
-            elif set_value is not None:
+            elif set_value is not None and key not in parameters_not_to_forward:
                 out_parameters[key] = set_value
         # set these after the for loop to ensure they are not overwritten
         out_parameters["analysis_name"] = analysis.name
