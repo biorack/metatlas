@@ -17,19 +17,21 @@ mzml_file="${raw_file%.raw}.mzML"
 h5_file="${raw_file%.raw}.h5"
 progress_file="${raw_file%.raw}.progress"
 failure_file="${raw_file%.raw}.failed"
-done="false"
 
-function finish {
-  if [ "$done" = "true" ]; then
-    rm -rf "${progress_file}"
-  else
-    rm -rf "${mzml_file}" "${h5_file}"
-    mv "${progress_file}" "${failure_file}"
-    printf "INFO: Reached end of finish function.\n" | \
-       process_output "${failure_file}"
-  fi
+function on_error {
+  rm -rf "${mzml_file}" "${h5_file}"
+  mv "${progress_file}" "${failure_file}"
+  printf "INFO: Reached end of on_error function.\n" | \
+    process_output "${failure_file}"
 }
-trap finish EXIT
+trap on_error ERR
+
+function on_term {
+  printf "INFO: recieved TERM signal, cleaning up.\n" | \
+       process_output "${progress_file}"
+  rm -rf "${mzml_file}" "${h5_file}" "${progress_file}"
+}
+trap on_term SIGTERM
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
@@ -80,5 +82,6 @@ fi
 
 metatlas "${script_dir}/mzml_to_h5.py" "${mzml_file}"
 
-# if we made it here, none of the commands failed and the conversion is complete
-done="true"
+printf "INFO: raw to h5 conversion sucessfully completed.\n" | \
+       process_output "${progress_file}"
+rm -rf "${progress_file}"

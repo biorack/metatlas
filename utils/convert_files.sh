@@ -11,7 +11,10 @@ fi
 function finish {
   module unload parallel
   # kill child processes as well
-  kill -TERM "$(jobs -p)"
+  pids="$(jobs -p)"
+  if [ "$pids" != "" ]; then
+    kill -TERM "$pids"
+  fi
 }
 trap finish EXIT SIGHUP SIGINT SIGTERM
 
