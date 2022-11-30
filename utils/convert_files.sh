@@ -10,8 +10,10 @@ fi
 
 function finish {
   module unload parallel
+  # kill child processes as well
+  kill -TERM "$(jobs -p)"
 }
-trap finish EXIT
+trap finish EXIT SIGHUP SIGINT SIGTERM
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
