@@ -35,7 +35,6 @@ def pre_annotation(
     configuration: Config,
     workflow: Workflow,
     analysis: Analysis,
-    clear_cache: bool = False,
     username: Optional[Username] = None,
     lcmsruns: Optional[LcmsRunsList] = None,
     all_groups: Optional[GroupList] = None,
@@ -55,7 +54,7 @@ def pre_annotation(
         lcmsruns=lcmsruns,
         all_groups=all_groups,
     )
-    if clear_cache:
+    if params.clear_cache:
         logger.info("Clearing cache.")
         shutil.rmtree(ids.cache_dir)
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
