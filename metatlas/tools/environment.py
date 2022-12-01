@@ -7,7 +7,6 @@ not correctly report problems with the notebook configuration
 """
 
 import logging
-import os
 import shutil
 import subprocess
 
@@ -16,23 +15,12 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def repo_dir():
+def repo_dir() -> Path:
     """Returns a string with the path to the root of the Metatlas git repo"""
-    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return Path(__file__).resolve().parent.parent.parent
 
 
-def validate_data_dir(base_data_dir, experiment_id):
-    """Raise FileNotFoundError if base_data_dir / experiment_id is not an existing directory"""
-    experiment_dir = os.path.join(base_data_dir, experiment_id)
-    try:
-        if not os.path.isdir(experiment_dir):
-            raise FileNotFoundError(f"Data directory does not exist at {experiment_dir}.")
-    except FileNotFoundError as err:
-        logger.exception(err)
-        raise err
-
-
-def get_repo_hash():
+def get_repo_hash() -> str:
     """
     Returns the full hash for the current git commit or 'git not found, hash unknown'
     """
@@ -40,7 +28,7 @@ def get_repo_hash():
         result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_dir(), capture_output=True, check=True)
     except FileNotFoundError:
         return "git not found, hash unknown"
-    return result.stdout.strip()
+    return str(result.stdout.strip())
 
 
 def set_git_head(source_code_version_id: str) -> None:
@@ -62,4 +50,4 @@ def install_metatlas_kernel() -> None:
     )
     logger.debug("Installing jupyter kernel 'Metatlas Targeted' to %s", kernel_file_name)
     kernel_file_name.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(Path(repo_dir()) / "docker" / "shifter.kernel.json", kernel_file_name)
+    shutil.copy2(repo_dir() / "docker" / "shifter.kernel.json", kernel_file_name)
