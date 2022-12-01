@@ -1,7 +1,7 @@
 """Test of EIC plotting functions"""
 # pylint: disable=missing-function-docstring
 
-import os
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,9 +10,9 @@ from metatlas.plots import compound_eic
 
 
 def test_save_compound_eic_pdf(metatlas_dataset):
-    file_name = "foo.pdf"
+    file_name = Path("foo.pdf")
     compound_eic.save_compound_eic_pdf(metatlas_dataset, 0, file_name, sharey=True, overwrite=True)
-    assert os.path.isfile(file_name)
+    assert file_name.is_file()
 
 
 def test_insert_in_sorted_array():

@@ -6,6 +6,9 @@ import multiprocessing as mp
 import pprint
 import statistics
 
+from pathlib import Path
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -29,9 +32,9 @@ strict_param = {'min_intensity': 1e5,
                 'min_msms_score': .6, 'allow_no_msms': False,
                 'min_num_frag_matches': 3, 'min_relative_frag_intensity': .1}
 
-def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
+def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msms_hits_df = None,
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
-                     output_loc = None,
+                     output_loc: Optional[Path] = None,
                      polarity = '',
                      output_sheetname = 'Draft_Final_Identifications.xlsx',
                      msms_hits = None,
@@ -64,7 +67,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     assert len(dataset) > 0
     metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta',
                'peak_height', 'peak_area', 'num_data_points']
-    ds_dir = os.path.join(output_loc, 'data_sheets') if data_sheets else ""
+    ds_dir = output_loc / 'data_sheets' if data_sheets else None
     dfs = {m: None for m in metrics}
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
         dfs[metric] = dp.make_output_dataframe(input_dataset=dataset,
@@ -332,7 +335,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     output_sheetname = f"{prefix}{output_sheetname}"
     if not output_sheetname.endswith('.xlsx'):
         output_sheetname = output_sheetname + '.xlsx'
-    excel_path = os.path.join(output_loc, output_sheetname)
+    excel_path = output_loc / output_sheetname
     write_utils.check_existing_file(excel_path, overwrite)
     writer = pd.ExcelWriter(excel_path, engine='xlsxwriter')
     final_df.to_excel(writer, sheet_name='Final_Identifications', index=False, startrow=3)
@@ -410,10 +413,10 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     stats_table = pd.concat(stats_table, axis=1)
 
     if output_loc is not None:
-        stats_tables_dir = os.path.join(output_loc, f"{prefix}stats_tables")
-        stats_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.tab")
+        stats_tables_dir = output_loc / f"{prefix}stats_tables"
+        stats_path = stats_tables_dir / f"{prefix}stats_table.tab"
         write_utils.export_dataframe_die_on_diff(stats_table, stats_path, 'stats table', overwrite, sep='\t', float_format="%.8e")
-        readme_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.readme")
+        readme_path = stats_tables_dir / f"{prefix}stats_table.readme"
         write_utils.check_existing_file(readme_path, overwrite)
         with open(readme_path, 'w') as readme:
             for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'ppm_tolerance', 'min_msms_score', 'min_num_frag_matches']:

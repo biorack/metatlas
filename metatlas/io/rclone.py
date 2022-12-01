@@ -5,8 +5,9 @@ import json
 import logging
 import subprocess
 
+from pathlib import Path
 from subprocess import Popen, PIPE
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from tqdm.notebook import tqdm
 
@@ -18,8 +19,8 @@ logger = logging.getLogger(__name__)
 class RClone:
     """Access to Google Drive"""
 
-    def __init__(self, rclone_path: str) -> None:
-        self.rclone_path = rclone_path
+    def __init__(self, rclone_path: Union[Path, str]) -> None:
+        self.rclone_path = Path(rclone_path)
 
     def config_file(self) -> Optional[str]:
         """Returns path to config file or None"""
@@ -48,7 +49,9 @@ class RClone:
                     return name
         return None
 
-    def copy_to_drive(self, source: str, drive: str, dest_path: str = None, progress: bool = False) -> None:
+    def copy_to_drive(
+        self, source: Path, drive: str, dest_path: Optional[Path] = None, progress: bool = False
+    ) -> None:
         """
         Inputs:
             source: file or directory to copy to drive
@@ -56,7 +59,7 @@ class RClone:
             dest_path: location under drive to copy to, will create folders if needed
             progress: display a tqdm progress bar
         """
-        dest = f"{drive}:" if dest_path is None else f"{drive}:{dest_path}"
+        dest = Path(f"{drive}:" if dest_path is None else f"{drive}:{dest_path}")
         cmd = [self.rclone_path, "copy", source, dest]
         try:
             if progress:

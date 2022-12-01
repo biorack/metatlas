@@ -415,7 +415,7 @@ def test_store_atlas07(atlas, sqlite, username):
 
 
 def test_write_data_source_files01(metatlas_dataset, mocker, caplog):
-    mocker.patch("glob.glob", return_value=range(10))
+    mocker.patch("pathlib.Path.glob", return_value=range(10))
     metatlas_dataset.write_data_source_files()
     assert "Data sources directory already populated" in caplog.text
 

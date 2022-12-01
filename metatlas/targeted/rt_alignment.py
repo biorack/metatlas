@@ -98,7 +98,7 @@ def generate_rt_alignment_models(
     plot_actual_vs_aligned_rts(aligned_rts, actual_rts, rts_df, str(actual_vs_pred_file_name), linear, poly)
     rt_comparison_file_name = out_dir / "RT_Alignment_Model_Comparison.csv"
     save_model_comparison(
-        params.dependent_data_source, data.atlas_df, rts_df, linear, poly, str(rt_comparison_file_name)
+        params.dependent_data_source, data.atlas_df, rts_df, linear, poly, rt_comparison_file_name
     )
     models_file_name = out_dir / "rt_alignment_model.txt"
     write_models(str(models_file_name), linear, poly, data.ids.groups, data.atlas)
