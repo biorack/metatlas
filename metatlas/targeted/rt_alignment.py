@@ -3,7 +3,6 @@
 
 import logging
 import math
-import os
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Sequence
@@ -31,7 +30,7 @@ from metatlas.plots import dill2plots as dp
 from metatlas.tools import notebook
 from metatlas.tools.config import Config, Workflow, Analysis
 from metatlas.tools.notebook import in_papermill
-from metatlas.tools.util import or_default, repo_path
+from metatlas.tools.util import repo_path
 
 logger = logging.getLogger(__name__)
 
@@ -366,7 +365,7 @@ def create_aligned_atlases(
         if analysis.atlas.do_alignment:
             name = get_atlas_name(ids, workflow, analysis, model)
             logger.info("Creating atlas %s", name)
-            out_atlas_file_name = os.path.join(ids.output_dir, f"{name}.csv")
+            out_atlas_file_name = ids.output_dir / f"{name}.csv"
             aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset)
             aligned_atlas.name = metob.MetUnicode(name)
             metob.store(aligned_atlas)

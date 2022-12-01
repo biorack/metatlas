@@ -16,7 +16,6 @@ ShortPolarity = NewType("ShortPolarity", str)
 Experiment = NewType("Experiment", str)
 OutputType = NewType("OutputType", str)
 IterationNumber = NewType("IterationNumber", int)
-PathString = NewType("PathString", str)
 
 POLARITIES = [Polarity("positive"), Polarity("negative"), Polarity("fast-polarity-switching")]
 SHORT_POLARITIES = {
