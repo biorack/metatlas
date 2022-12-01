@@ -3,9 +3,9 @@
 
 import logging
 import math
-import os
 
 from collections import namedtuple
+from pathlib import Path
 from typing import List
 
 import matplotlib.pyplot as plt
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 def write_atlas_to_csv(metatlas_dataset, overwrite=False):
     """Save atlas as csv file. Will not overwrite existing file unless overwrite is True"""
-    out_file_name = os.path.join(metatlas_dataset.ids.output_dir, f"{metatlas_dataset.atlas.name}_export.csv")
+    out_file_name = metatlas_dataset.ids.output_dir / f"{metatlas_dataset.atlas.name}_export.csv"
     out_df = dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas)
     export_dataframe_die_on_diff(out_df, out_file_name, "atlas", overwrite=overwrite, float_format="%.6e")
 
@@ -69,7 +69,7 @@ def write_identifications_spreadsheet(
     ids = metatlas_dataset.ids
     ids.set_output_state(analysis_parameters, "ids_spreadsheet")
     prefix = f"{ids.short_polarity}_"
-    scores_path = os.path.join(ids.output_dir, f"{prefix}stats_tables", f"{prefix}compound_scores.csv")
+    scores_path = ids.output_dir / f"{prefix}stats_tables" / f"{prefix}compound_scores.csv"
     _ = metatlas_dataset.hits  # regenerate hits if needed before logging about scores
     logger.info("Calculating scores and exporting them to %s.", scores_path)
     scores_df = fa.make_scores_df(metatlas_dataset, metatlas_dataset.hits)
@@ -132,7 +132,7 @@ def write_tics(metatlas_dataset, x_min=None, x_max=None, y_min=0, overwrite=Fals
     """
     prefix = f"{metatlas_dataset.ids.short_polarity}_"
     for suffix, sharey in [("_independentY", False), ("_sharedY", True)]:
-        file_name = os.path.join(metatlas_dataset.ids.output_dir, f"{prefix}TICs{suffix}.pdf")
+        file_name = metatlas_dataset.ids.output_dir / f"{prefix}TICs{suffix}.pdf"
         save_sample_tic_pdf(
             metatlas_dataset,
             metatlas_dataset.ids.polarity,
@@ -179,7 +179,7 @@ def write_metrics_and_boxplots(metatlas_dataset, analysis_parameters, overwrite=
     prefix = f"{metatlas_dataset.ids.short_polarity}_"
     ids.set_output_state(analysis_parameters, "data_sheets")
     for fields in config:
-        df_dir = os.path.join(ids.output_dir, f"{prefix}data_sheets")
+        df_dir = ids.output_dir / f"{prefix}data_sheets"
         dataframe = dp.make_output_dataframe(
             fieldname=fields["name"],
             input_dataset=metatlas_dataset,
@@ -193,10 +193,7 @@ def write_metrics_and_boxplots(metatlas_dataset, analysis_parameters, overwrite=
     for fields in config:
         if fields["label"] is not None:
             for logy in [False, True]:
-                plot_dir = os.path.join(
-                    ids.output_dir,
-                    f"{prefix}boxplot_{fields['name']}{'_log' if logy else ''}",
-                )
+                plot_dir = ids.output_dir / f"{prefix}boxplot_{fields['name']}{'_log' if logy else ''}"
                 dp.make_boxplot_plots(
                     dataframe,
                     output_loc=plot_dir,
@@ -236,7 +233,7 @@ def write_msms_fragment_ions(
             )
         )
     out_df = pd.DataFrame(out)
-    path = os.path.join(data.ids.output_dir, f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut.csv")
+    path = data.ids.output_dir / f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut.csv"
     export_dataframe_die_on_diff(out_df, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
     return out_df
 
@@ -342,13 +339,11 @@ def generate_standard_outputs(
 def generate_qc_plots(data: MetatlasDataset) -> None:
     """Write plots that can be used to QC the experiment"""
     rts_df = get_rts(data)
-    compound_atlas_rts_file_name = os.path.join(
-        data.ids.output_dir, f"{data.ids.short_polarity}_Compound_Atlas_RTs.pdf"
-    )
+    compound_atlas_rts_file_name = data.ids.output_dir / f"{data.ids.short_polarity}_Compound_Atlas_RTs.pdf"
     plot_compound_atlas_rts(len(data), rts_df, compound_atlas_rts_file_name)
     peak_heights_df = get_peak_heights(data)
-    peak_heights_plot_file_name = os.path.join(
-        data.ids.output_dir, f"{data.ids.short_polarity}_Compound_Atlas_peak_heights.pdf"
+    peak_heights_plot_file_name = (
+        data.ids.output_dir / f"{data.ids.short_polarity}_Compound_Atlas_peak_heights.pdf"
     )
     plot_compound_atlas_peak_heights(len(data), peak_heights_df, peak_heights_plot_file_name)
 
@@ -357,18 +352,18 @@ def generate_qc_outputs(data: MetatlasDataset, analysis: Analysis) -> None:
     """Write outputs that can be used to QC the experiment"""
     ids = data.ids
     ids.set_output_state(analysis.parameters, "ids_spreadsheet")
-    save_rt_peak(data, os.path.join(ids.output_dir, f"{ids.short_polarity}_rt_peak.tab"))
-    save_measured_rts(data, os.path.join(ids.output_dir, f"{ids.short_polarity}_QC_Measured_RTs.csv"))
+    save_rt_peak(data, ids.output_dir / f"{ids.short_polarity}_rt_peak.tab")
+    save_measured_rts(data, ids.output_dir / f"{ids.short_polarity}_QC_Measured_RTs.csv")
     generate_qc_plots(data)
 
 
-def save_measured_rts(data: MetatlasDataset, file_name: str) -> None:
+def save_measured_rts(data: MetatlasDataset, file_name: Path) -> None:
     """Save RT values in csv format file"""
     rts_df = get_rts(data, include_atlas_rt_peak=False)
     export_dataframe_die_on_diff(rts_df, file_name, "measured RT values", float_format="%.6e")
 
 
-def save_rt_peak(data: MetatlasDataset, file_name: str) -> None:
+def save_rt_peak(data: MetatlasDataset, file_name: Path) -> None:
     """Save peak RT values in tsv format file"""
     rts_df = dp.make_output_dataframe(input_dataset=data, fieldname="rt_peak", use_labels=True)
     export_dataframe_die_on_diff(rts_df, file_name, "peak RT values", sep="\t", float_format="%.6e")
@@ -422,7 +417,7 @@ def plot_per_compound(
     field_name: str,
     num_files: int,
     data: pd.DataFrame,
-    file_name: str,
+    file_name: Path,
     fontsize: float = 2,
     pad: float = 0.1,
     cols: int = 8,
@@ -483,7 +478,12 @@ def file_vs_value_plot(
 
 
 def plot_compound_atlas_rts(
-    num_files: int, rts_df: pd.DataFrame, file_name: str, fontsize: float = 2, pad: float = 0.1, cols: int = 8
+    num_files: int,
+    rts_df: pd.DataFrame,
+    file_name: Path,
+    fontsize: float = 2,
+    pad: float = 0.1,
+    cols: int = 8,
 ) -> None:
     """Plot filenames vs peak RT for each compound"""
     plot_per_compound("rt_peak", num_files, rts_df, file_name, fontsize, pad, cols)
@@ -492,7 +492,7 @@ def plot_compound_atlas_rts(
 def plot_compound_atlas_peak_heights(
     num_files: int,
     peak_heights_df: pd.DataFrame,
-    file_name: str,
+    file_name: Path,
     fontsize: float = 2,
     pad: float = 0.1,
     cols: int = 8,

@@ -7,6 +7,7 @@ import warnings
 # curr_ld_lib_path = ''
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Sized, Union
 from enum import Enum
 
@@ -1542,17 +1543,20 @@ def filter_runs(data, include_lcmsruns=None, include_groups=None, exclude_lcmsru
     return data
 
 
-def make_output_dataframe(input_fname='', input_dataset=None, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, output_loc="", fieldname='peak_height', use_labels=False, short_names_df=None, summarize=False, polarity='', overwrite=True):
+def make_output_dataframe(input_fname: Optional[Path] = None, input_dataset=None, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, output_loc: Optional[Path] = None, fieldname='peak_height', use_labels=False, short_names_df=None, summarize=False, polarity='', overwrite=True):
     """
     fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
     """
-    full_data = or_default(input_dataset, ma_data.get_dill_data(os.path.expandvars(input_fname)))
+    assert input_dataset or input_fname
+    if input_dataset:
+        full_data = input_dataset
+    elif input_fname:
+        full_data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     data = filter_runs(full_data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
     compound_names = ma_data.get_compound_names(data, use_labels=use_labels)[0]
     file_names = ma_data.get_file_names(data)
     group_names = ma_data.get_group_names(data)
     group_shortnames = ma_data.get_group_shortnames(data)
-    output_loc = os.path.expandvars(output_loc)
     out = pd.DataFrame(index=compound_names, columns=file_names, dtype=float)
 
     for i, sample in enumerate(data):
@@ -1576,8 +1580,9 @@ def make_output_dataframe(input_fname='', input_dataset=None, include_lcmsruns=N
         out.columns = out.columns.droplevel()
         out = append_stats_columns(out)
     if output_loc:
+        output_loc = Path(os.path.expandvars(output_loc))
         prefix = f"{polarity}_" if polarity != '' else ''
-        df_path = os.path.join(output_loc, f"{prefix}{fieldname}.tab")
+        df_path = output_loc / f"{prefix}{fieldname}.tab"
         write_utils.export_dataframe_die_on_diff(out, df_path, fieldname, overwrite=overwrite, sep="\t", float_format="%.9e")
     return out
 
@@ -1691,9 +1696,9 @@ def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
         plt.close(f)#f.clear()
 
 
-def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="",
-                       overwrite=True, max_cpus=1, logy=False):
-    output_loc = os.path.expandvars(output_loc)
+def make_boxplot_plots(df: pd.DataFrame, output_loc: Path, use_shortnames: bool = True, ylabel: str = "",
+                       overwrite: bool = True, max_cpus: int = 1, logy: bool = False) -> None:
+    output_loc = Path(os.path.expandvars(output_loc))
     logger.info('Exporting box plots of %s to %s.', ylabel, output_loc)
     disable_interactive_plots()
     args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy) for compound in df.index]
@@ -1705,8 +1710,8 @@ def _make_boxplot_single_arg(arg_list):
     make_boxplot(*arg_list)
 
 
-def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
-    fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
+def make_boxplot(compound: int, df: pd.DataFrame, output_loc: Path, use_shortnames: bool, ylabel: str, overwrite: bool, logy: bool) -> None:
+    fig_path = output_loc / f"{compound}{'_log' if logy else ''}_boxplot.pdf"
     write_utils.check_existing_file(fig_path, overwrite)
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     num_points = 0
@@ -2298,12 +2303,12 @@ def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=No
                        "up coming release"), FutureWarning, stacklevel=2)
     data = filter_runs(input_dataset, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
     prefix = f"{polarity}_" if polarity != '' else ''
-    out_dir = os.path.join(output_loc, f"{prefix}compound_EIC_chromatograms{suffix}")
+    out_dir = Path(output_loc) / f"{prefix}compound_EIC_chromatograms{suffix}"
     logger.info('Saving chromatograms to %s.', out_dir)
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     disable_interactive_plots()
     compound_names = ma_data.get_compound_names(data, use_labels=True)[0]
-    args = [(data, i, os.path.join(out_dir, f"{name}.pdf"), overwrite, share_y, max_plots_per_page)
+    args = [(data, i, out_dir / f"{name}.pdf", overwrite, share_y, max_plots_per_page)
             for i, name in enumerate(compound_names)]
     parallel.parallel_process(_save_eic_pdf, args, max_cpus, unit='plot')
 
@@ -2312,17 +2317,16 @@ def _save_eic_pdf(multi_args):
     save_compound_eic_pdf(*multi_args)
 
 
-def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
-                                  include_groups=[], exclude_groups=[], output_loc=[], msms_hits=None,
+def make_identification_figure_v2(input_fname: Optional[Path] = None, input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
+                                  include_groups=[], exclude_groups=[], output_loc: Path = None, msms_hits=None,
                                   use_labels=False, intensity_sorted_matches=False,
                                   short_names_df=pd.DataFrame(), polarity='', overwrite=True):
+    assert output_loc
+    assert input_fname or input_dataset
     prefix = '' if polarity == '' else f"{polarity}_"
-    output_loc = os.path.join(output_loc, f"{prefix}msms_mirror_plots")
+    output_loc = output_loc / f"{prefix}msms_mirror_plots"
     logger.info("Exporting indentification figures to %s", output_loc)
-    if not input_dataset:
-        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
-    else:
-        data = input_dataset
+    data = input_dataset if input_dataset else ma_data.get_dill_data(os.path.expandvars(input_fname))
     data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
 
     if msms_hits is not None:
@@ -2470,12 +2474,12 @@ def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcms
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="tight_layout not applied: number of rows in subplot specifications must be multiples of one another.")
             plt.tight_layout()
-        fig_path = os.path.join(output_loc, compound_names[compound_idx] + '.pdf')
+        fig_path = output_loc / f"{compound_names[compound_idx]}.pdf"
         write_utils.check_existing_file(fig_path, overwrite)
         plt.savefig(fig_path)
         plt.close()
         logger.debug('Exported identification figures for %s to %s.', compound_names[compound_idx], fig_path)
-    match_path = os.path.join(output_loc, 'MatchingMZs.tab')
+    match_path = output_loc / "MatchingMZs.tab"
     write_utils.export_dataframe(match, match_path, 'matching MZs', overwrite, sep='\t', float_format="%.12e")
 
 

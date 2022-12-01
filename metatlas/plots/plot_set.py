@@ -6,6 +6,7 @@ import logging
 import math
 
 from abc import ABC
+from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
 import matplotlib
@@ -138,7 +139,7 @@ class PlotSet(ABC):
                 if sides is not None:
                     _autoscale(ax, axis="y", sides=sides)
 
-    def save_pdf(self, file_name: str, title: str, overwrite: bool = False) -> None:
+    def save_pdf(self, file_name: Path, title: str, overwrite: bool = False) -> None:
         """Create a PDF file containing one figure per page"""
         write_utils.check_existing_file(file_name, overwrite)
         plt.ioff()  # don't display the plots

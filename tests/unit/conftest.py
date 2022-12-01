@@ -11,6 +11,7 @@ import sqlite3
 import threading
 
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 import numpy as np
@@ -43,7 +44,7 @@ def fixture_username():
 @pytest.fixture(name="analysis_ids")
 def fixture_analysis_ids(sqlite_with_test_config_atlases, lcmsrun, configuration, mocker):
     mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
-    project_directory = str(os.getcwd())
+    project_directory = Path(os.getcwd())
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     analysis_number = 0
     workflow_name = "Test-HILIC"

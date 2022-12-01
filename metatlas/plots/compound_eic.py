@@ -77,7 +77,7 @@ def insert_in_sorted_array(a1: np.ndarray, a2: np.ndarray) -> np.ndarray:
 def save_compound_eic_pdf(
     data: MetatlasDataset,
     compound_idx: int,
-    file_name: str,
+    file_name: Path,
     overwrite: bool = False,
     sharey: bool = True,
     max_plots_per_page: int = 30,

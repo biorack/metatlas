@@ -1,7 +1,6 @@
 """Transfer files to Google Drive"""
 
 import logging
-import os
 
 from pathlib import Path
 
@@ -36,10 +35,10 @@ def copy_outputs_to_google_drive(ids: AnalysisIdentifiers) -> None:
         )
         return
     folders = Path(ids.output_dir).parts[-5:]
-    sub_folders_string = os.path.join("Analysis_uploads", *folders)
-    rci.copy_to_drive(ids.output_dir, drive, sub_folders_string, progress=True)
+    sub_folders = Path("Analysis_uploads").joinpath(*folders)
+    rci.copy_to_drive(ids.output_dir, drive, sub_folders, progress=True)
     logger.info("Done copying output files to Google Drive")
-    path_string = f"{drive}:{sub_folders_string}"
+    path_string = f"{drive}:{sub_folders}"
     display(
         HTML(f'Data is now on Google Drive at <a href="{rci.path_to_url(path_string)}">{path_string}</a>')
     )
