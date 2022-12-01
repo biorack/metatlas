@@ -1,9 +1,7 @@
 """ object oriented interface to metatlas_dataset """
 
 import datetime
-import glob
 import logging
-import os
 import pickle
 import shutil
 import uuid
@@ -172,8 +170,8 @@ class MetatlasDataset(HasTraits):
         name = metadata["_variable_name"]
         base_name = f"{name}_{uuid.uuid4()}"
         metadata["_pickle_file_name"] = f"{base_name}.pkl"  # relative to metadata file
-        metadata_file_name = os.path.join(self.ids.cache_dir, f"{base_name}.metadata")
-        pickle_path = os.path.join(self.ids.cache_dir, metadata["_pickle_file_name"])
+        metadata_file_name = self.ids.cache_dir / f"{base_name}.metadata"
+        pickle_path = self.ids.cache_dir / metadata["_pickle_file_name"]
         with open(pickle_path, "wb") as pickle_fh:
             pickle.dump(data, pickle_fh)
         with open(metadata_file_name, "wb") as metadata_fh:
@@ -201,8 +199,8 @@ class MetatlasDataset(HasTraits):
 
     def write_data_source_files(self) -> None:
         """Write the data source files if they don't already exist"""
-        data_sources_dir = os.path.join(self.ids.output_dir, f"{self.ids.short_polarity}_data_sources")
-        if len(glob.glob(os.path.join(data_sources_dir, "*"))) >= 4:
+        data_sources_dir = self.ids.output_dir / f"{self.ids.short_polarity}_data_sources"
+        if len(list(data_sources_dir.glob("*"))) >= 4:
             logger.warning(
                 (
                     "Data sources directory already populated from previous work on this analysis. "

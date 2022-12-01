@@ -3,7 +3,6 @@
 
 import getpass
 import logging
-import os
 
 from functools import lru_cache
 from pathlib import Path
@@ -23,7 +22,6 @@ from metatlas.datastructures.id_types import (
     GroupMatchList,
     LcmsRunDict,
     LcmsRunsList,
-    PathString,
     Polarity,
     POLARITIES,
     Proposal,
@@ -41,13 +39,13 @@ from metatlas.tools.util import or_default
 
 logger = logging.getLogger(__name__)
 
-MSMS_REFS_PATH = PathString("/global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab")
+MSMS_REFS_PATH = Path("/global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab")
 
 
 class AnalysisIdentifiers(HasTraits):
     """Names used in generating an analysis"""
 
-    project_directory: PathString = Unicode(read_only=True)
+    project_directory: Path = Instance(klass=Path, read_only=True)
     experiment: Experiment = Unicode(read_only=True)
     polarity: Polarity = Unicode(default_value="positive", read_only=True)
     analysis_number: IterationNumber = Int(default_value=0, read_only=True)
@@ -88,7 +86,7 @@ class AnalysisIdentifiers(HasTraits):
     ) -> None:
         super().__init__()
         analysis_obj = configuration.get_workflow(workflow).get_analysis(analysis)
-        self.set_trait("project_directory", project_directory)
+        self.set_trait("project_directory", Path(project_directory))
         self.set_trait("experiment", experiment)
         self.set_trait("configuration", configuration)
         self.set_trait("workflow", workflow)
@@ -213,7 +211,7 @@ class AnalysisIdentifiers(HasTraits):
         return list(set(SHORT_POLARITIES.values()) - {self.short_polarity})
 
     @property
-    def output_dir(self) -> PathString:
+    def output_dir(self) -> Path:
         """Creates the output directory and returns the path as a string"""
         sub_dirs = [
             self.experiment_id,
@@ -224,21 +222,21 @@ class AnalysisIdentifiers(HasTraits):
             self.workflow,
             self.analysis,
         ]
-        out = os.path.join(self.project_directory, *sub_dirs)
-        os.makedirs(out, exist_ok=True)
-        return PathString(out)
+        out = self.project_directory.joinpath(*sub_dirs)
+        out.mkdir(parents=True, exist_ok=True)
+        return out
 
     @property
-    def notebook_dir(self) -> PathString:
+    def notebook_dir(self) -> Path:
         """Directoy where notebooks are saved"""
-        return PathString(str(Path(self.output_dir).resolve().parent.parent.parent.parent))
+        return self.output_dir.resolve().parent.parent.parent.parent
 
     @property
-    def cache_dir(self) -> PathString:
-        """Creates directory for storing cache files and returns the path as a string"""
-        out = os.path.join(self.project_directory, self.experiment_id, "cache")
-        os.makedirs(out, exist_ok=True)
-        return PathString(out)
+    def cache_dir(self) -> Path:
+        """Creates directory for storing cache files and returns the path"""
+        out = self.project_directory / self.experiment_id / "cache"
+        out.mkdir(parents=True, exist_ok=True)
+        return out
 
     @property
     def lcmsruns(self) -> List[metob.LcmsRun]:
@@ -332,7 +330,7 @@ class AnalysisIdentifiers(HasTraits):
         short_names["full_filename"] = short_names.index
         write_utils.export_dataframe_die_on_diff(
             short_names,
-            os.path.join(self.output_dir, "short_names.csv"),
+            self.output_dir / "short_names.csv",
             "LCMS runs short names",
             index=False,
         )
