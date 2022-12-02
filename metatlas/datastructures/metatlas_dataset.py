@@ -6,6 +6,7 @@ import pickle
 import shutil
 import uuid
 
+from collections.abc import Iterable
 from pathlib import Path
 from typing import cast, Any, Dict, List, Optional, Sequence, Tuple, TypedDict, Union
 
@@ -100,6 +101,10 @@ class MetatlasSample:
     def __getitem__(self, idx: int) -> CompoundDict:
         """get sample at idx"""
         return self.compounds[idx]
+
+    def __iter__(self) -> Iterable:
+        """allow use as an iterator"""
+        yield from self.compounds
 
     def __len__(self) -> int:
         """len is from data"""
@@ -477,6 +482,10 @@ class MetatlasDataset(HasTraits):
     def __getitem__(self, idx: int) -> MetatlasSample:
         """get sample at idx"""
         return self.data[idx]
+
+    def __iter__(self) -> Iterable:
+        """allow use as an iterator"""
+        yield from self.data
 
     @default("extra_time")
     def get_extra_time_default(self) -> float:

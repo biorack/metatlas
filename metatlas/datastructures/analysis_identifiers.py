@@ -422,9 +422,10 @@ class AnalysisIdentifiers(HasTraits):
         """Returns dict with keys group and short_name corresponding to base_filename"""
         tokens = base_filename.split("_")
         prefix = "_".join(tokens[:11])
+        empty_list: List[str] = []  # to define type for s below
         indices = [
             i
-            for i, s in enumerate(or_default(self.groups_controlled_vocab, []))
+            for i, s in enumerate(or_default(self.groups_controlled_vocab, empty_list))
             if s.lower() in base_filename.lower()
         ]
         suffix = self.groups_controlled_vocab[indices[0]].lstrip("_") if indices else tokens[12]
