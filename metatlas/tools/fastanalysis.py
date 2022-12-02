@@ -43,7 +43,6 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
                      min_msms_score=0, min_num_frag_matches=0,
                      allow_no_msms=False, min_relative_frag_intensity=None,
                      use_labels=False, return_all=False,
-                     msms_refs_loc='/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab',
                      dependencies = {'peak_height': [],
                                      'peak_area': ['peak_height'],
                                      'num_data_points': ['peak_height'],
