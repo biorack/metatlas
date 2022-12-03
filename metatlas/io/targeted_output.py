@@ -177,10 +177,10 @@ def write_metrics_and_boxplots(metatlas_dataset, analysis_parameters, overwrite=
     ]
     ids = metatlas_dataset.ids
     prefix = f"{metatlas_dataset.ids.short_polarity}_"
+    df_dir = ids.output_dir / f"{prefix}data_sheets"
     ids.set_output_state(analysis_parameters, "data_sheets")
-    for fields in config:
-        df_dir = ids.output_dir / f"{prefix}data_sheets"
-        dataframe = dp.make_output_dataframe(
+    dfs = [
+        dp.make_output_dataframe(
             fieldname=fields["name"],
             input_dataset=metatlas_dataset,
             output_loc=df_dir,
@@ -189,8 +189,10 @@ def write_metrics_and_boxplots(metatlas_dataset, analysis_parameters, overwrite=
             use_labels=True,
             overwrite=overwrite,
         )
+        for fields in config
+    ]
     ids.set_output_state(analysis_parameters, "box_plots")
-    for fields in config:
+    for dataframe, fields in zip(dfs, config):
         if fields["label"] is not None:
             for logy in [False, True]:
                 plot_dir = ids.output_dir / f"{prefix}boxplot_{fields['name']}{'_log' if logy else ''}"
