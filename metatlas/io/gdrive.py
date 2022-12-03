@@ -34,7 +34,7 @@ def copy_outputs_to_google_drive(ids: AnalysisIdentifiers) -> None:
             fail_suffix,
         )
         return
-    folders = Path(ids.output_dir).parts[-5:]
+    folders = Path(ids.output_dir).parts[-7:]
     sub_folders = Path("Analysis_uploads").joinpath(*folders)
     rci.copy_to_drive(ids.output_dir, drive, sub_folders, progress=True)
     logger.info("Done copying output files to Google Drive")
