@@ -69,11 +69,11 @@ def get_data_for_atlas_df_and_file(input_tuple):
     my_file, group, atlas_df, atlas = input_tuple[:4]
     extra_time = input_tuple[4] if len(input_tuple) >= 5 else 0.5
     extra_mz = input_tuple[5] if len(input_tuple) == 6 else 0.0
+    if atlas.compound_identifications == []:
+        return tuple([])
     df_container = remove_ms1_data_not_in_atlas(atlas_df, df_container_from_metatlas_file(my_file))
     dict_ms1_summary, dict_eic, dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df, df_container,
                                                                           extra_time, extra_mz)
-    if atlas.compound_identifications == []:
-        return tuple([])
     row = []
     for i in range(atlas_df.shape[0]):
         result = {'atlas_name': atlas.name, 'atlas_unique_id': atlas.unique_id, 'lcmsrun': my_file,
