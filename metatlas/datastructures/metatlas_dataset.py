@@ -29,6 +29,7 @@ from metatlas.io import metatlas_get_data_helper_fun as ma_data
 from metatlas.io.metatlas_get_data_helper_fun import extract
 from metatlas.tools import parallel
 from metatlas.tools.config import NotebookParameters_co
+from metatlas.tools.util import is_atlas_df_subset
 
 logger = logging.getLogger(__name__)
 
@@ -185,13 +186,24 @@ class MetatlasDataset(HasTraits):
 
     def _query_cache(self, required_metadata: dict) -> Optional[Any]:
         assert "_variable_name" in required_metadata.keys()
+        required_metadata = required_metadata.copy()
         name = required_metadata["_variable_name"]
+        if name == "hits" and "atlas_df" in required_metadata:
+            del required_metadata["atlas_df"]
         files_matching_metadata = []
         for metadata_file in Path(self.ids.cache_dir).glob(f"{name}_*.metadata"):
             with open(metadata_file, "rb") as metadata_fh:
                 potential_metadata = pickle.load(metadata_fh)
                 pickle_file_name = Path(self.ids.cache_dir) / potential_metadata["_pickle_file_name"]
-                # require_metadata does not have a '_pickle_file_name' key, so remove before equality test
+                if name == "hits":
+                    if "atlas_df" not in potential_metadata:
+                        continue  # do not use cache files pre-dating atlas_df in metadata
+                    cached_atlas_df = potential_metadata["atlas_df"]
+                    if not is_atlas_df_subset(cached_atlas_df, self.atlas_df):
+                        continue
+                    del potential_metadata["atlas_df"]
+                # require_metadata does not have a '_pickle_file_name' key
+                # so remove before equality test
                 del potential_metadata["_pickle_file_name"]
                 if required_metadata == potential_metadata:
                     files_matching_metadata.append(pickle_file_name)
@@ -621,6 +633,7 @@ class MetatlasDataset(HasTraits):
             "exclude_lcmsruns": self.ids.exclude_lcmsruns,
             "include_groups": self.ids.include_groups,
             "exclude_groups": self.ids.exclude_groups,
+            "atlas_df": self.atlas_df,
         }
 
     def __len__(self) -> int:
