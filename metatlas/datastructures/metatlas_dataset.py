@@ -188,6 +188,8 @@ class MetatlasDataset(HasTraits):
         assert "_variable_name" in required_metadata.keys()
         required_metadata = required_metadata.copy()
         name = required_metadata["_variable_name"]
+        if name == "hits" and "atlas_df" in required_metadata:
+            del required_metadata["atlas_df"]
         files_matching_metadata = []
         for metadata_file in Path(self.ids.cache_dir).glob(f"{name}_*.metadata"):
             with open(metadata_file, "rb") as metadata_fh:
@@ -196,7 +198,6 @@ class MetatlasDataset(HasTraits):
                 if name == "hits":
                     if "atlas_df" not in potential_metadata:
                         continue  # do not use cache files pre-dating atlas_df in metadata
-                    del required_metadata["atlas_df"]
                     cached_atlas_df = potential_metadata["atlas_df"]
                     if not is_atlas_df_subset(cached_atlas_df, self.atlas_df):
                         continue
