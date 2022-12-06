@@ -1,11 +1,11 @@
 """ unit testing of write_utils functions """
 # pylint: disable=missing-function-docstring
 
-import pytest
-
 from pathlib import Path
 
+import pytest
 import pandas
+
 from metatlas.io import write_utils
 
 

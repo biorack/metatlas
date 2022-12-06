@@ -587,6 +587,13 @@ def test_cache03(metatlas_dataset):
     assert metatlas_dataset._query_cache(metadata) == data
 
 
+def test_cache04(metatlas_dataset, atlas_df):
+    data = "foobar"
+    metadata = {"_variable_name": "hits", "atlas_df": atlas_df}
+    metatlas_dataset._save_to_cache(data, metadata)
+    assert metatlas_dataset._query_cache(metadata) == data
+
+
 def test_save_to_cache(metatlas_dataset):
     with pytest.raises(AssertionError):
         metatlas_dataset._save_to_cache("", {})
