@@ -333,10 +333,10 @@ def get_atlas_name(ids: AnalysisIdentifiers, workflow: Workflow, analysis: Analy
 def align_atlas(atlas: metob.Atlas, model: Model, rt_offset: float) -> metob.Atlas:
     """use model to align RTs within atlas"""
     aligned = atlas.clone(recursive=True)
-    old_peaks = [cid[0].rt_references[0].rt_peak for cid in aligned.compound_identifications]
+    old_peaks = [cid.rt_references[0].rt_peak for cid in aligned.compound_identifications]
     new_peaks = model.predict(np.array(old_peaks, dtype=float))
     for peak, cid in zip(new_peaks, aligned.compound_identifications):
-        rt_ref = cid[0].rt_references[0]
+        rt_ref = cid.rt_references[0]
         rt_ref.rt_peak = peak
         rt_ref.rt_min = peak - rt_offset
         rt_ref.rt_max = peak + rt_offset

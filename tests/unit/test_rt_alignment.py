@@ -20,3 +20,13 @@ def test_plot_actual_vs_aligned_rts01(model):
     arrays = [[]]
     rts_df = pd.DataFrame(data={"1": [], "2": [], "3": [], "4": [], "5": [], "6": []})
     rt_alignment.plot_actual_vs_aligned_rts(arrays, arrays, rts_df, "file_name", model, model)
+
+
+def test_align_atlas(atlas_with_2_cids, model):
+    out = rt_alignment.align_atlas(atlas_with_2_cids, model, 0)
+    assert out.name == "HILICz150_ANT20190824_PRD_EMA_Unlab_POS"
+    assert atlas_with_2_cids.compound_identifications[0].rt_references[0].rt_peak != -0.8035359946292822
+    assert out.compound_identifications[0].rt_references[0].rt_peak == -0.8035359946292822
+    assert atlas_with_2_cids.compound_identifications[1].rt_references[0].rt_peak != 0.02331840799266649
+    assert out.compound_identifications[1].rt_references[0].rt_peak == 0.02331840799266649
+    assert len(out.compound_identifications) == 2
