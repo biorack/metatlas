@@ -27,6 +27,7 @@ workflows:
           atlas:
             name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
             unique_id: e7fba1813272439498405436a28b90b2
+            do_alignment: True
           parameters:
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
