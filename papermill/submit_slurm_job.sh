@@ -37,6 +37,20 @@ usage() {
   die
 }
 
+contains_parameter_name() {
+  local array_name="$1[@]"
+  local parameter_name="$2"
+  local parameters=("${!array_name}")
+  for i in "${parameters[@]}"
+  do
+    IFS='=' read -r -a arr <<< "$i"
+    if [ ${#arr[0]} = "${parameter_name}" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 validate_extra_parameters() {
   local array_name="$1[@]"
   local parameters=("${!array_name}")
@@ -316,8 +330,10 @@ PARAMETERS+=" -p experiment ${exp} \
 	      -p workflow_name ${workflow_name} \
 	      -p project_directory ${project_dir} \
 	      -p max_cpus ${threads_to_use} \
-	      -p rt_alignment_number ${rt_alignment_number} \
-	      -p config_file_name /global/cfs/cdirs/m2650/targeted_analysis/metatlas_config.yaml"
+	      -p rt_alignment_number ${rt_alignment_number}"
+if ! contains_parmeter_name extra_parameters 'config_file_name'; then
+  PARAMETERS+=" -p config_file_name /global/cfs/cdirs/m2650/targeted_analysis/metatlas_config.yaml"
+fi
 if [  ${#extra_parameters[@]} -ne 0 ]; then
   for i in "${extra_parameters[@]}"
   do
