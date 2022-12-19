@@ -141,7 +141,7 @@ sheet in either column 'N' or 'O' depending on the type of chromatography
 that was performed. This value will be something like
 `20210723_JGI-AK_DB-TM_506963_LemCreek_final_QE-HF_HILICZ_USHXG01494`.
 
-The `rt_predict_number` parameter is an integer that you'll need to increment
+The `rt_alignment_number` parameter is an integer that you'll need to increment
 if you re-run the RT alignment step. It should be set to 0 initially.
 
 #### Run `submit_slurm_job.sh`
@@ -151,7 +151,7 @@ the 3 parameters described above):
 
 ```
 /global/common/software/m2650/metatlas-repo/papermill/submit_slurm_job.sh \
-   workflow_name experiment_name rt_predict_number
+   workflow_name experiment_name rt_alignment_number
 ```
 
 For example, your command with the parameters substituted in will be something
@@ -164,7 +164,7 @@ like:
 
 This will submit a slurm job. On Cori, you will receive an email when the job
 starts executing and when it has completed. On Perlmutter, the SLRUM job
-notifications emails are currently broken. Typical HILIC jobs take 2 to 5 hours
+notifications emails are currently broken. Typical HILIC jobs take several hours
 to complete.
 
 #### Evaluate Outputs
@@ -174,9 +174,9 @@ the RT correction models look acceptable. You can find the output PDF files at
 `~/metabolomics_data/<short_experiment_id>/<workflow_name>/<rt_alignment_number>/0/Targeted/<workflow_name>/RT_Alignment/`.
 One easy way to view these files is to open them from the
 [Jupyter](https://jupyter.nersc.gov/) file browser. In
-`Actual_vs_Predicted_RTs.pdf`, you want to check that the default model
+`Actual_vs_Aligned_RTs.pdf`, you want to check that the default model
 (median-based RT correction and polynomial model) gives a good fit. At the
-bottom of the `Actual_vs_Predicted_RTs.pdf`, you can find the 'FileIndex'
+bottom of the `Actual_vs_Aligned_RTs.pdf`, you can find the 'FileIndex'
 number that corresponds to the 'median' correction. Once you have determined
 the 'FileIndex' for median, you want to find the plot that has
 'File: \<FileIndex\>' above it. This is the plot showing the models for the
@@ -187,14 +187,14 @@ able to see both of the lines unless you zoom in near the line ends.
 
 If the median-based polynomial model does not give a good fit, then you will
 want to re-run  `submit_slurm_jobs.sh` with additional parameters (and an
-incremented `rt_predict_number`). See
+incremented `rt_alignment_number`). See
 [Passing Additional Notebook Parameters To submit_slurm_jobs.sh](
 #passing-additional-notebook-parameters-to-submit_slurm_jobsh) to learn how to
 pass the parameters. The two most relevant parameters for choosing a different
 model are `use_poly_model` and `dependent_data_source`. Documentation of the
 parameters and their possible values can be found in the first code block of
-the [RT_prediction.ipynb](
-https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Prediction.ipynb
+the [RT_Alignment.ipynb](
+https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Alignment.ipynb
 ) notebook.
 
 ### Perform ISTDsEtc Analysis
@@ -295,7 +295,7 @@ to those of the similar compound-adduct pair
 
 ### Passing Additional Notebook Parameters To `submit_slurm_job.sh`
 
-Any of the parameters in the first code block of the `RT_Prediction.ipynb`
+Any of the parameters in the first code block of the `RT_Alignment.ipynb`
 notebook can be passed to the `submit_slurm_job.sh` script. There are two
 command line options that can be used to supply parameters.
 
