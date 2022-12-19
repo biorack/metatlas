@@ -20,13 +20,13 @@ die() {
 
 usage() {
   >&2 echo "Usage:
-  $(basename "$0") workflow_name experiment_name [rt_predict_number] [project_directory] [-p notebook_parameter=value] [-y yaml_string]
+  $(basename "$0") workflow_name experiment_name [rt_alignment_number] [project_directory] [-p notebook_parameter=value] [-y yaml_string]
 
      where:
         workflow_name:     name associated with a workflow definition in the configuration file
         experiment_name:   experiment identifier
-        rt_predict_number: integer, use 0 the first time generating an RT correction for an experiment
-	                   and increment if re-generating an RT correction (default: 0)
+        rt_alignment_number:  integer, use 0 the first time generating an RT alignment for an experiment
+	                   and increment if re-generating an RT alignment (default: 0)
 	project_directory: output directory will be created within this directory (default: $HOME/metabolomics_data)
         -p:                optional notebook parameters, can use multiple times
         -y:                optional notebook parameters in YAML or JSON string
@@ -304,7 +304,7 @@ exp_check_len="${TOKENS[8]:-}"
 script_dir="$(get_script_dir)"
 short_id="${proposal}_${exp_token}_${sample_set}"
 exp_dir="${project_dir}/${short_id}"
-alignment_dir="${exp_dir}/${workflow_name}"
+alignment_dir="${exp_dir}/${workflow_name}/${rt_alignment_number}"
 
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_experiment_dir_does_exist "$exp"
@@ -329,7 +329,7 @@ OUT_FILE="${alignment_dir}/${short_id}_${workflow_name}_RT-Alignment_SLURM.ipynb
 PARAMETERS+=" -p experiment ${exp} \
 	      -p workflow_name ${workflow_name} \
 	      -p project_directory ${project_dir} \
-	      -p max_cpus ${threads_to_use} \
+	      -p max_cpus ${threads_to_use}
 	      -p rt_alignment_number ${rt_alignment_number}"
 if ! contains_parmeter_name extra_parameters 'config_file_name'; then
   PARAMETERS+=" -p config_file_name /global/cfs/cdirs/m2650/targeted_analysis/metatlas_config.yaml"
