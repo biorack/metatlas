@@ -179,7 +179,7 @@ to complete.
 
 Once the job has completed, you should check the files generated to make sure
 the RT correction models look acceptable. You can find the output PDF files at
-`~/metabolomics_data/<experiment_name>/<user_id>_<rt_predict_number>_0/Targeted/<workflow_name>/RT_Alignment/`.
+`~/metabolomics_data/<short_experiment_id>/<workflow_name>/<rt_alignment_number>/0/Targeted/<workflow_name>/RT_Alignment/`.
 One easy way to view these files is to open them from the
 [Jupyter](https://jupyter.nersc.gov/) file browser. In
 `Actual_vs_Predicted_RTs.pdf`, you want to check that the default model
@@ -210,7 +210,7 @@ https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Prediction.
 1. Launch [jupyter.nersc.gov](https://jupyter.nersc.gov/) in your web browser
    and start a 'Shared CPU Node' on Cori or Perlmutter.
 1. Open
-   `~/metabolomics_data/<experiment_name>/<user_id>_<rt_predict_number>_0/Targeted/<workflow_name>/<project_id>_<workflow_name>_ISTDsEtc-POS.ipynb`
+   `~/metabolomics_data/<short_experiment_id>/<workflow_name>/<rt_alignment_number>/0/Targeted/<workflow_name>/<project_id>_<workflow_name>_ISTDsEtc-POS.ipynb`
    within JupyterLab (you no longer need to use the Classic Notebook interface).
    If you are prompted to select a kernel, select 'Metatlas Targeted'.
 1. The first code cell of the notebook contains descriptions of the parameters
