@@ -124,14 +124,6 @@ proceed until you have been added to the metatlas group.
    https://drive.google.com/drive/folders/178Qs5KXuyPayTbz6YaZkplIvwqeVZbKa)
    Please repeat step 10 after you have been granted access.
 
-### Make a directory to store work in progress
-
-Still within the terminal in JupyterLab, run:
-
-```
-mkdir -p ~/metabolomics_data
-```
-
 ## Per-project workflow
 
 ### Perform RT correction

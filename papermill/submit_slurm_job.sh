@@ -187,14 +187,6 @@ check_alignment_dir_does_not_exist() {
   fi
 }
 
-check_project_dir_does_exist() {
-  if ! [ -d "$1" ]; then
-    >&2 echo "ERROR: project_directory '${1}' does not exist."
-    >&2 echo "       Please run 'mkdir \"${1}\"' first."
-    die
-  fi
-}
-
 check_experiment_dir_does_exist() {
   if [ ! -d "${jgi_dir}/${1}" ] && [ ! -d "${egsb_dir}/${1}" ]; then
     >&2 echo "ERROR: directory for experiment '${1}' was not found."
@@ -309,7 +301,6 @@ alignment_dir="${exp_dir}/${workflow_name}/${rt_alignment_number}"
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_experiment_dir_does_exist "$exp"
 check_experiment_contains_h5_file "$exp"
-check_project_dir_does_exist "$project_dir"
 check_alignment_dir_does_not_exist "$alignment_dir"
 check_rt_alignment_number_is_non_neg_int "$rt_alignment_number"
 check_yaml_is_valid "$(echo "${YAML_BASE64:-}" | base64 --decode)"
