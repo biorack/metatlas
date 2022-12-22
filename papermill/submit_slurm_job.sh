@@ -322,7 +322,7 @@ PARAMETERS+=" -p experiment ${exp} \
 	      -p project_directory ${project_dir} \
 	      -p max_cpus ${threads_to_use}
 	      -p rt_alignment_number ${rt_alignment_number}"
-if [ ${#extra_parameters[@]} -ne 0 ] && \
+if [ ${#extra_parameters[@]} -eq 0 ] || \
    ! contains_parameter_name extra_parameters 'config_file_name'; then
   PARAMETERS+=" -p config_file_name /global/cfs/cdirs/m2650/targeted_analysis/metatlas_config.yaml"
 fi
