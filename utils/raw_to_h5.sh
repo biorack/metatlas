@@ -40,6 +40,9 @@ function process_output {
 }
 
 rm -rf "${progress_file}"
+touch "${progress_file}"
+chgrp metatlas "${progress_file}"
+chmod 640 "${progress_file}"
 
 if [ -f "$h5_file" ]; then
    printf "INFO: .h5 file found for %s - skipping conversion.\n" "$raw_file" \
