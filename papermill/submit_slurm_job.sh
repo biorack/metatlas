@@ -95,20 +95,23 @@ is_C18_experiment() {
 
 get_num_cpus() {
   local experiment_name="$1"
-  if is_perlmutter || is_C18_experiment "$experiment_name"; then
+  if is_C18_experiment "$experiment_name"; then
     echo "64"
   else
-    echo "32"
+    echo "24"
   fi
 }
 
 get_slurm_account() {
   if is_group_member "gtrnd" && ! is_perlmutter; then
     echo "gtrnd"
+  elif is_group_member "m342"; then
+    echo "m342"
   elif is_group_member "m2650"; then
     echo "m2650"
   else
-    >&2 echo "WARNING: ${USER} is not a member of gtrnd or m2650. Attempting to use ${USER}'s default account."
+    >&2 echo "WARNING: ${USER} is not a member of gtrnd, m342, or m2650."
+    >&2 echo "WARNING: Attempting to use ${USER}'s default account."
     echo ""
   fi
 }
@@ -132,7 +135,7 @@ get_slurm_constraint() {
 get_slurm_queue() {
   local experiment_name="$1"
   if is_perlmutter; then
-    echo "regular"
+    echo "shared"
   else  # cori
     if is_C18_experiment "$experiment_name"; then
       if is_group_member "gtrnd"; then
