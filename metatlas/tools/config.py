@@ -75,6 +75,7 @@ class BaseNotebookParameters(BaseModel):
     project_directory: Path = Path().home() / "metabolomics_data"
     max_cpus: int = 4
     log_level: str = "INFO"
+    resolve_msms_matches_by = "distance"
 
     def update(self, override_parameters: Dict) -> None:
         """update all parameters with any non-None values in override_parameters"""
