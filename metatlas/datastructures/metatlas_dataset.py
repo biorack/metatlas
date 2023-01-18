@@ -614,6 +614,7 @@ class MetatlasDataset(HasTraits):
             keep_nonmatches=self.keep_nonmatches,
             frag_mz_tolerance=self.parameters.frag_mz_tolerance,
             ref_loc=self.parameters.msms_refs,
+            resolve_by=self.parameters.resolve_msms_matches_by,
         )
         logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
         self._hits_valid_for_rt_bounds = True

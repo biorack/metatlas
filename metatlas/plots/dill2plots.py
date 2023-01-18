@@ -2171,13 +2171,13 @@ def convert_to_centroid(sample_df):
     return np.zeros((0, 0))
 
 
-def search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes, ref_index, ref_df):
+def search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes, ref_index, ref_df, resolve_by):
     return sp.search_ms_refs(msv_sample, **locals())
 
 
 def get_msms_hits_per_compound(rt_mz_i_df, msms_scan, do_centroid, query, inchi_key, polarity,
                                precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes,
-                               ref_index, ref_df):
+                               ref_index, ref_df, resolve_by):
     msv_sample = rt_mz_i_df.loc[rt_mz_i_df['rt'] == msms_scan,
                                 ['mz', 'i', 'rt', 'precursor_MZ', 'precursor_intensity']]
     precursor_mz_sample = msv_sample['precursor_MZ'].values[0]
@@ -2189,7 +2189,7 @@ def get_msms_hits_per_compound(rt_mz_i_df, msms_scan, do_centroid, query, inchi_
     if msv_sample.size > 0:
         return search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz,
                               pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes,
-                              ref_index, ref_df), msv_sample
+                              ref_index, ref_df, resolve_by), msv_sample
     return pd.DataFrame(), msv_sample
 
 
@@ -2202,18 +2202,18 @@ def get_empty_scan_df(columns):
 def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
                   pre_query='database == "metatlas"', query=None, ref_dtypes=None,
                   ref_loc=None, ref_df=None, frag_mz_tolerance=.005, ref_index=None,
-                  do_centroid=False):
+                  do_centroid=False, resolve_by='shape'):
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Mean of empty slice")
         return get_msms_hits_with_warnings(metatlas_dataset, extra_time, keep_nonmatches, pre_query, query,
                                            ref_dtypes, ref_loc, ref_df, frag_mz_tolerance, ref_index,
-                                           do_centroid)
+                                           do_centroid, resolve_by)
 
 
 def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatches=False,
                                 pre_query='database == "metatlas"', query=None, ref_dtypes=None,
                                 ref_loc=None, ref_df=None, frag_mz_tolerance=.005, ref_index=None,
-                                do_centroid=False):
+                                do_centroid=False, resolve_by='shape'):
     if query is None:
         pre_mz_decimal = ".5*(@pre_mz_ppm**-decimal)/(decimal+1)"
         offset = f".5*(({pre_mz_decimal} + .005 + ({pre_mz_decimal} - .005)**2)**.5)"
@@ -2268,7 +2268,7 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
                                                                  query, inchi_key, polarity,
                                                                  precursor_mz, pre_mz_ppm,
                                                                  frag_mz_tolerance, ref_loc, ref_dtypes,
-                                                                 ref_index, ref_df)
+                                                                 ref_index, ref_df, resolve_by)
                 precursor = rt_mz_i_df.loc[rt_mz_i_df['rt'] == msms_scan, ['precursor_MZ', 'precursor_intensity']]
                 hits = len(scan_df) > 0
                 if not hits and not keep_nonmatches:
