@@ -145,3 +145,23 @@ def test_include_lcmsruns01(analysis, analysis_ids):
     analysis_ids.include_lcmsruns = ["Run34"]
     runs = analysis_ids.lcmsruns
     assert len(runs) == 1
+
+
+def test_set_group_controlled_vocab(sqlite_with_test_config_atlases, mocker, lcmsrun, configuration):
+    mocker.patch("metatlas.plots.dill2plots.get_metatlas_files", return_value=[lcmsrun])
+    experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
+    analysis_number = 0
+    workflow = "Test-HILIC"
+    analysis = "EMA-POS"
+    analysis_obj = configuration.get_workflow(workflow).get_analysis(analysis)
+    analysis_obj.parameters.groups_controlled_vocab = ['Cone']
+    ids = AnalysisIdentifiers(
+        project_directory=str(os.getcwd()),
+        experiment=experiment,
+        analysis_number=analysis_number,
+        source_atlas_unique_id=configuration.workflows[0].rt_alignment.atlas.unique_id,
+        configuration=configuration,
+        workflow=workflow,
+        analysis=analysis,
+    )
+    assert [g.short_name for g in ids.groups] == ['POS_Cone']
