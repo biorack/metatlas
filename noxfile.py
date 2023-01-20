@@ -70,22 +70,22 @@ notebooks = [
 
 pytest_deps = [
     "attrs==21.2.0",
-    "coverage==6.0",
-    "iniconfig==1.1.1",
+    "coverage==7.0.5",
+    "iniconfig==2.0.0",
     "numpy==1.22.4",
-    "packaging==21.0",
+    "packaging==23.0",
     "pandas==1.4.2",
-    "pluggy==0.13.1",
-    "py==1.10.0",
-    "pyparsing==2.4.7",
-    "pytest==6.2.4",
+    "pluggy==1.0.0",
+    "py==1.11.0",
+    "pyparsing==3.0.9",
+    "pytest==7.2.1",
     "pytest-cov==3.0.0",
-    "pytest-mock==3.6.1",
+    "pytest-mock==3.10.0",
     "toml==0.10.2",
 ]
 
 mypy_deps = [
-    "mypy==0.910",
+    "mypy==0.991",
     "types-PyYAML",
     "types-requests",
     "types-simplejson",
@@ -94,26 +94,26 @@ mypy_deps = [
 ]
 
 pylint_deps = [
-    "nox==2022.8.7",
-    "pylint==2.15.5",
-    "pytest==6.2.5",  # so "import pytest" doesn't get reported
+    "nox==2022.11.21",
+    "pylint==2.15.10",
+    "pytest==7.2.1",  # so "import pytest" doesn't get reported
 ]
 
 nbqa_deps = [
-    "nbqa==1.4.0",
-    "tokenize-rt==4.1.0",
-    "importlib-metadata==4.0.1",
-    "astroid==2.12.12",
-    "wrapt==1.12.1",
-    "lazy_object_proxy==1.6.0",
-    "isort==5.8.0",
+    "nbqa==1.6.1",
+    "tokenize-rt==5.0.0",
+    "importlib-metadata==6.0.0",
+    "astroid==2.13.2",
+    "wrapt==1.14.1",
+    "lazy_object_proxy==1.9.0",
+    "isort==5.11.4",
 ]
 
 flake8_deps = [
-    "flake8==3.9.2",
-    "flake8-bugbear==21.9.2",
-    "flake8-builtins==1.5.3",
-    "flake8-comprehensions==3.6.1",
+    "flake8==6.0.0",
+    "flake8-bugbear==23.1.17",
+    "flake8-builtins==2.1.0",
+    "flake8-comprehensions==3.10.1",
 ]
 
 pytest_flags = ["-vv", f"--basetemp={Path.home() / '.pytest_tmp'}"]
@@ -127,7 +127,7 @@ NB_LINE_LEN = 140
 
 # parallel testings doesn't work well on NERSC login nodes
 if "NERSC_HOST" not in os.environ:
-    pytest_deps.append("pytest-xdist[psutil]==2.4.0")
+    pytest_deps.append("pytest-xdist[psutil]==3.1.0")
     pytest_flags.extend(["--numprocesses", "auto"])
 
 
