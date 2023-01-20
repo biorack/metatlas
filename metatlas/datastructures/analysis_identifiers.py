@@ -97,6 +97,7 @@ class AnalysisIdentifiers(HasTraits):
             "source_atlas_unique_id", or_default(source_atlas_unique_id, analysis_obj.atlas.unique_id)
         )
         self.set_trait("username", or_default(username, getpass.getuser()))
+        self.set_trait("groups_controlled_vocab", analysis_obj.parameters.groups_controlled_vocab)
         self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
         self.set_trait("_all_groups", all_groups)
         self.set_trait("polarity", Polarity(analysis_obj.parameters.polarity))
