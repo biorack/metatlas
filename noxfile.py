@@ -9,7 +9,6 @@ import nox
 py_versions = ["3.8", "3.9"]
 
 nox.options.sessions = [
-    "flake8_diff",
     "flake8",
     "black",
     "pylint-3.8",
@@ -129,12 +128,6 @@ NB_LINE_LEN = 140
 if "NERSC_HOST" not in os.environ:
     pytest_deps.append("pytest-xdist[psutil]==3.1.0")
     pytest_flags.extend(["--numprocesses", "auto"])
-
-
-@nox.session(python=py_versions[0])
-def flake8_diff(session):
-    session.install(*flake8_deps)
-    session.run("sh", "-c", "git diff -U0 -w --staged HEAD | flake8 --diff", external=True)
 
 
 @nox.session(python=py_versions[0])
