@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 IFS=$'\n\t'
 
 raw_image_base_name='quay.io/biocontainers/thermorawfileparser'
