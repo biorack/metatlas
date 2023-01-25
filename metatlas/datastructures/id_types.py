@@ -6,8 +6,8 @@ from traitlets import HasTraits, TraitType
 
 import metatlas.datastructures.metatlas_objects as metob
 
-GroupList = Optional[List[metob.Group]]
-LcmsRunsList = Optional[List[metob.LcmsRun]]
+GroupList = List[metob.Group]
+LcmsRunsList = List[metob.LcmsRun]
 FileMatchList = List[str]
 GroupMatchList = List[str]
 

@@ -520,13 +520,6 @@ def test_load_atlas03(sqlite_with_atlas, atlas, username):
     assert results[0].compound_identifications[0].rt_references[0].rt_peak == 2.1964640053707174
 
 
-def test_invalidation01(analysis_ids):
-    _ = analysis_ids.groups
-    assert analysis_ids._groups is not None
-    analysis_ids.set_trait("exclude_lcmsruns", ["Cone-S1"])
-    assert analysis_ids._groups is None
-
-
 def test_project01(analysis_ids):
     assert analysis_ids.project == "505892"
 
@@ -536,13 +529,6 @@ def test_exclude_files01(analysis_ids):
     # Error due to 0 LCMS runs remain
     with pytest.raises(ValueError):
         _ = analysis_ids.lcmsruns
-
-
-def test_invlidate_groups_controlled_vocab01(analysis_ids):
-    _ = analysis_ids.lcmsruns
-    assert analysis_ids._lcmsruns is not None
-    analysis_ids.set_trait("groups_controlled_vocab", ["FOOBAR"])
-    assert analysis_ids._lcmsruns is None
 
 
 def test_has_selection01():

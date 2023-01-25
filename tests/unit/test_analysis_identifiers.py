@@ -154,7 +154,7 @@ def test_set_group_controlled_vocab(sqlite_with_test_config_atlases, mocker, lcm
     workflow = "Test-HILIC"
     analysis = "EMA-POS"
     analysis_obj = configuration.get_workflow(workflow).get_analysis(analysis)
-    analysis_obj.parameters.groups_controlled_vocab = ['Cone']
+    analysis_obj.parameters.groups_controlled_vocab = ["Cone"]
     ids = AnalysisIdentifiers(
         project_directory=str(os.getcwd()),
         experiment=experiment,
@@ -164,4 +164,4 @@ def test_set_group_controlled_vocab(sqlite_with_test_config_atlases, mocker, lcm
         workflow=workflow,
         analysis=analysis,
     )
-    assert [g.short_name for g in ids.groups] == ['POS_Cone']
+    assert [g.short_name for g in ids.groups] == ["POS_Cone"]

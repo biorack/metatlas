@@ -32,6 +32,7 @@ import metatlas.datastructures.metatlas_objects as metob
 import metatlas.plots.dill2plots as dp
 
 from metatlas.datastructures.utils import AtlasName, get_atlas, Username
+from metatlas.datastructures import groups
 from metatlas.io import write_utils
 from metatlas.tools.config import BaseNotebookParameters, Config, OutputLists
 from metatlas.tools.util import or_default
@@ -64,9 +65,12 @@ class AnalysisIdentifiers(HasTraits):
     configuration: Config = Instance(klass=Config)
     workflow: str = Unicode(read_only=True)
     analysis: str = Unicode(read_only=True)
-    _lcmsruns: LcmsRunsList = traitlets.List(allow_none=True, default_value=None, read_only=True)
-    _all_groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
-    _groups: GroupList = traitlets.List(allow_none=True, default_value=None, read_only=True)
+    all_lcmsruns: Optional[LcmsRunsList] = traitlets.List(
+        allow_none=True, default_value=None, read_only=True
+    )
+    _lcmsruns: Optional[LcmsRunsList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
+    _all_groups: Optional[GroupList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
+    _groups: Optional[GroupList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
     groups_invalidation_callbacks: List[Callable] = traitlets.List(trait=Callable(), default_value=[])
 
     # pylint: disable=too-many-arguments,too-many-locals
@@ -82,7 +86,7 @@ class AnalysisIdentifiers(HasTraits):
         source_atlas_unique_id=None,
         username=None,
         lcmsruns=None,
-        all_groups=None,
+        groups=None,
     ) -> None:
         super().__init__()
         analysis_obj = configuration.get_workflow(workflow).get_analysis(analysis)
@@ -98,8 +102,8 @@ class AnalysisIdentifiers(HasTraits):
         )
         self.set_trait("username", or_default(username, getpass.getuser()))
         self.set_trait("groups_controlled_vocab", analysis_obj.parameters.groups_controlled_vocab)
-        self.set_trait("_lcmsruns", self._get_lcmsruns(lcmsruns))
-        self.set_trait("_all_groups", all_groups)
+        self.set_trait("all_lcmsruns", self._get_lcmsruns(lcmsruns))
+        self.set_trait("_all_groups", groups)
         self.set_trait("polarity", Polarity(analysis_obj.parameters.polarity))
         self.set_trait("google_folder", analysis_obj.parameters.google_folder)
         self.set_trait("copy_atlas", analysis_obj.parameters.copy_atlas)
@@ -242,49 +246,20 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def lcmsruns(self) -> List[metob.LcmsRun]:
         """Get LCMS runs from DB matching experiment"""
-        if self._lcmsruns is not None:
-            return self._lcmsruns
-        self.set_trait("_lcmsruns", self._get_lcmsruns())
-        return self._lcmsruns or []
+        return groups.get_groups_and_runs(
+            self.execution,
+            self.groups_controlled_vocab,
+            or_default(self.include_lcmsruns, []),
+            or_default(self.exclude_lcmsruns, []),
+            or_default(self.include_groups, []),
+            or_default(self.exclude_groups, []),
+            self.all_lcmsruns,
+            self._all_groups,
+        )[1]
 
     def _get_lcmsruns(self, all_lcmsruns: Optional[List[metob.LcmsRun]] = None) -> List[metob.LcmsRun]:
         """Get the set of lcmsruns that are currently selected"""
-        if all_lcmsruns is None:
-            all_lcmsruns = dp.get_metatlas_files(experiment=self.experiment, name="%")
-        if self.include_lcmsruns is not None and len(self.include_lcmsruns) > 0:
-            post_include = [r for r in all_lcmsruns if any(map(r.name.__contains__, self.include_lcmsruns))]
-            logger.info(
-                "Filtered out %d LCMS runs for not matching within include_lcmsruns containing: %s",
-                len(all_lcmsruns) - len(post_include),
-                self.include_lcmsruns,
-            )
-        else:
-            post_include = all_lcmsruns
-        if self.exclude_lcmsruns is not None and len(self.exclude_lcmsruns) > 0:
-            post_exclude = [
-                r for r in post_include if not any(map(r.name.__contains__, self.exclude_lcmsruns))
-            ]
-            logger.info(
-                "Filtered out %d LCMS runs for matching within exclude_lcmsruns containing: %s",
-                len(post_include) - len(post_exclude),
-                self.exclude_lcmsruns,
-            )
-        else:
-            post_exclude = post_include
-        for run in post_exclude:
-            logger.info("Run: %s", run.name)
-        logger.info(
-            "After filtering, %s LCMS output files are left from experiment '%s'.",
-            len(post_exclude),
-            self.experiment,
-        )
-        try:
-            if len(post_exclude) == 0:
-                raise ValueError("At least 1 LCMS run is required for analysis.")
-        except ValueError as err:
-            logger.exception(err)
-            raise err
-        return post_exclude
+        return or_default(all_lcmsruns, dp.get_metatlas_files(experiment=self.experiment, name="%"))
 
     @property
     def lcmsruns_dataframe(self) -> pd.DataFrame:
@@ -337,73 +312,25 @@ class AnalysisIdentifiers(HasTraits):
         )
 
     @property
-    def _files_dict(self) -> Dict[str, LcmsRunDict]:
-        """
-        Queries DB for all lcmsruns matching the class properties.
-        Returns a dict of dicts where keys are filenames minus extensions and values are
-        dicts with keys: object, group, and short_name
-        """
-        file_dict: Dict[str, LcmsRunDict] = {}
-        for lcms_file in self.lcmsruns:
-            base_name: str = lcms_file.name.split(".")[0]
-            file_dict[base_name] = cast(LcmsRunDict, {"object": lcms_file, **self.group_name(base_name)})
-        return file_dict
+    def groups(self) -> GroupList:
+        """Return the currently selected groups"""
+        return groups.get_groups_and_runs(
+            self.execution,
+            self.groups_controlled_vocab,
+            or_default(self.include_lcmsruns, []),
+            or_default(self.exclude_lcmsruns, []),
+            or_default(self.include_groups, []),
+            or_default(self.exclude_groups, []),
+            self.all_lcmsruns,
+            self._all_groups,
+        )[0]
 
     @property
-    def groups(self) -> List[metob.Group]:
-        """Return the currently selected groups"""
-        if self._groups is not None:
-            return self._groups
-        out = dp.filter_metatlas_objects_to_most_recent(self.all_groups, "name")
-        if len(self.include_groups) > 0:
-            out = dp.filter_metatlas_objects_by_list(out, "name", self.include_groups)
-        if len(self.exclude_groups) > 0:
-            out = dp.remove_metatlas_objects_by_list(out, "name", self.exclude_groups)
-        sorted_out = sorted(dp.filter_empty_metatlas_objects(out, "items"), key=lambda x: x.name)
-        self.set_trait("_groups", sorted_out)
-        return self._groups or []
-
-    @observe("groups_controlled_vocab")
-    def _observe_groups_controlled_vocab(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            logger.debug("Change to groups_controlled_vocab invalidates lcmsruns")
-            self.set_trait("_lcmsruns", None)
-
-    @observe("include_lcmsruns")
-    def _observe_include_lcmsruns(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            logger.debug("Change to include_lcmsruns invalidates lcmsruns")
-            self.set_trait("_lcmsruns", None)
-
-    @observe("exclude_lcmsruns")
-    def _observe_exclude_lcmsruns(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            logger.debug("Change to exclude_lcmsruns invalidates lcmsruns")
-            self.set_trait("_lcmsruns", None)
-
-    @observe("_lcmsruns")
-    def _observe_lcmsruns(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            logger.debug("Change to lcmsruns invalidates all_groups")
-            self.set_trait("_all_groups", None)
-
-    @observe("_all_groups")
-    def _observe_all_groups(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            logger.debug("Change to all_groups invalidates groups")
-            self.set_trait("_groups", None)
-
-    @observe("include_groups")
-    def _observe_include_groups(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            logger.debug("Change to include_groups invalidates groups")
-            self.set_trait("_groups", None)
-
-    @observe("exclude_groups")
-    def _observe_exclude_groups(self, signal: ObserveHandler) -> None:
-        if signal.type == "change":
-            logger.debug("Change to exclude_groups invalidates groups")
-            self.set_trait("_groups", None)
+    def all_groups(self) -> GroupList:
+        """Return the all groups"""
+        return groups.get_groups_and_runs(
+            self.execution, self.groups_controlled_vocab, [], [], [], [], self.all_lcmsruns, self._all_groups
+        )[0]
 
     @observe("_groups")
     def _observe_groups(self, signal: ObserveHandler) -> None:
@@ -419,58 +346,11 @@ class AnalysisIdentifiers(HasTraits):
         """Get your own groups that are prefixed by self.experiment"""
         return metob.retrieve("Groups", name=f"{self.experiment}%{self.execution}_%", username=self.username)
 
-    def group_name(self, base_filename: str) -> Dict[str, str]:
-        """Returns dict with keys group and short_name corresponding to base_filename"""
-        tokens = base_filename.split("_")
-        prefix = "_".join(tokens[:11])
-        empty_list: List[str] = []  # to define type for s below
-        indices = [
-            i
-            for i, s in enumerate(or_default(self.groups_controlled_vocab, empty_list))
-            if s.lower() in base_filename.lower()
-        ]
-        suffix = self.groups_controlled_vocab[indices[0]].lstrip("_") if indices else tokens[12]
-        group_name = f"{prefix}_{self.execution}_{suffix}"
-        short_name = f"{tokens[9]}_{suffix}"  # Prepending POL to short_name
-        return {"group": group_name, "short_name": short_name}
-
-    @property
-    def all_groups_dataframe(self) -> pd.DataFrame:
-        """Returns pandas Dataframe with one row per file"""
-        out = pd.DataFrame(self._files_dict).T
-        if out.empty:
-            return out
-        out.drop(columns=["object"], inplace=True)
-        out.index.name = "filename"
-        return out.reset_index()
-
-    @property
-    def all_groups(self) -> List[metob.Group]:
-        """Returns a list of Group objects"""
-        if self._all_groups is not None:
-            return self._all_groups
-        unique_groups = self.all_groups_dataframe[["group", "short_name"]].drop_duplicates()
-        self.set_trait("_all_groups", [])
-        assert self._all_groups is not None  # needed for mypy
-        for values in unique_groups.to_dict("index").values():
-            self._all_groups.append(
-                metob.Group(
-                    name=values["group"],
-                    short_name=values["short_name"],
-                    items=[
-                        file_value["object"]
-                        for file_value in self._files_dict.values()
-                        if file_value["group"] == values["group"]
-                    ],
-                )
-            )
-        return sorted(self._all_groups, key=lambda x: x.name)
-
     @property
     def chromatography(self) -> str:
         """returns the type of chromatography used"""
         alternatives = {t.name: t.aliases for t in self.configuration.chromatography_types}
-        chrom_field = self.lcmsruns[0].name.split("_")[7]
+        chrom_field = self.all_lcmsruns[0].name.split("_")[7]
         chrom_type = chrom_field.split("-")[0]
         for name, alt_list in alternatives.items():
             if chrom_type == name or chrom_type in alt_list:
@@ -487,7 +367,7 @@ class AnalysisIdentifiers(HasTraits):
         """
         if not exist_ok:
             db_names = {group.name for group in self.existing_groups}
-            new_names = set(self.all_groups_dataframe["group"].to_list())
+            new_names = {group.name for group in self.all_groups}
             overlap = db_names.intersection(new_names)
             try:
                 if overlap:

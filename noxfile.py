@@ -34,6 +34,7 @@ more_checks = [
     "metatlas/datastructures/atlas.py",
     "metatlas/datastructures/analysis_identifiers.py",
     "metatlas/datastructures/id_types.py",
+    "metatlas/datastructures/groups.py",
     "metatlas/datastructures/metatlas_dataset.py",
     "metatlas/datastructures/spectrum.py",
     "metatlas/datastructures/utils.py",
