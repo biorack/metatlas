@@ -3239,8 +3239,11 @@ def filter_metatlas_objects_by_list(object_list, field, filter_list):
         field: name of attribute to filter on
         filter_list: strings that are tested to see if they are substrings of the attribute value
     returns filtered list of objects that have a match in filter_list
+    if filter_list is empty, then return object_list
     """
-    return filter_by_list(object_list, lambda x: getattr(x, field), filter_list)
+    if filter_list:
+        return filter_by_list(object_list, lambda x: getattr(x, field), filter_list)
+    return object_list
 
 
 def remove_metatlas_objects_by_list(object_list, field, filter_list):

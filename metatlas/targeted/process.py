@@ -37,7 +37,7 @@ def pre_annotation(
     analysis: Analysis,
     username: Optional[Username] = None,
     lcmsruns: Optional[LcmsRunsList] = None,
-    all_groups: Optional[GroupList] = None,
+    groups: Optional[GroupList] = None,
 ) -> MetatlasDataset:
     """All data processing that needs to occur before the annotation GUI in Targeted notebook"""
     params = analysis.parameters
@@ -52,7 +52,7 @@ def pre_annotation(
         username=getpass.getuser() if username is None else username,
         rt_alignment_number=rt_alignment_number,
         lcmsruns=lcmsruns,
-        all_groups=all_groups,
+        groups=groups,
     )
     if params.clear_cache:
         logger.info("Clearing cache.")
