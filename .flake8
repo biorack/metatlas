@@ -1,4 +1,5 @@
 [flake8]
+ignore = B950
 max-line-length = 110
 max-complexity = 9
 exclude = .nox
