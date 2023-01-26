@@ -332,14 +332,32 @@ class AnalysisIdentifiers(HasTraits):
             self.execution, self.groups_controlled_vocab, [], [], [], [], self.all_lcmsruns, self._all_groups
         )[0]
 
-    @observe("_groups")
-    def _observe_groups(self, signal: ObserveHandler) -> None:
+    @observe("include_lcmsruns")
+    def _observe_include_lcmsruns(self, signal: ObserveHandler) -> None:
         if signal.type == "change":
-            for callback in self.groups_invalidation_callbacks:
-                logger.debug(
-                    "Change to groups triggers invalidation callback function %s()", callback.__name__
-                )
-                callback()
+            self._exec_group_invalidation_callbacks("include_lcmsruns")
+
+    @observe("exclude_lcmsruns")
+    def _observe_exclude_lcmsruns(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            self._exec_group_invalidation_callbacks("exclude_lcmsruns")
+
+    @observe("include_groups")
+    def _observe_include_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            self._exec_group_invalidation_callbacks("include_groups")
+
+    @observe("exclude_groups")
+    def _observe_exclude_groups(self, signal: ObserveHandler) -> None:
+        if signal.type == "change":
+            self._exec_group_invalidation_callbacks("exclude_groups")
+
+    def _exec_group_invalidation_callbacks(self, source: str) -> None:
+        for callback in self.groups_invalidation_callbacks:
+            logger.debug(
+                "Change to %s triggers invalidation callback function %s()", source, callback.__name__
+            )
+            callback()
 
     @property
     def existing_groups(self) -> List[metob.Group]:
