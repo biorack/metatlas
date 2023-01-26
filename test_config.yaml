@@ -52,6 +52,18 @@ workflows:
           msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
           google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
     analyses:
+        - name: QC-POS
+          atlas:
+            name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+            unique_id: e7fba1813272439498405436a28b90b2
+          parameters:
+            polarity: positive
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            include_groups:
+              always: ["QC"]
+            exclude_groups:
+              always: ["NEG"]
+            generate_qc_outputs: True
         - name: EMA-POS
           atlas:
             name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS

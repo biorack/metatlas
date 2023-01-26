@@ -4,7 +4,6 @@ import pytest
 
 from metatlas.tools.config import Config, OutputLists, Workflow
 
-
 def test_duplicate_workflow_names():
     with pytest.raises(ValueError):
         Config.parse_obj({"workflows": [{"name": "foo"}, {"name": "foo"}]})
@@ -44,12 +43,36 @@ def test_config_distribute_always_values01(config):
 
 
 def test_config_distribute_always_values02(config):
-    params = config.workflows[1].analyses[0].parameters
+    params = config.workflows[1].analyses[1].parameters
     params.exclude_groups.chromatograms = ["x", "y"]
     assert params.exclude_groups.always == ["QC", "NEG", "FPS"]
     config.distribute_always_values()
     assert params.exclude_groups.always == []
     assert params.exclude_groups.chromatograms == ["x", "y", "QC", "NEG", "FPS"]
+
+
+def test_config_distribute01(config):
+    overrides = {"exclude_groups": {"gui": ["InjBl"], "always": ["QC"]}}
+    config.update(overrides)
+    config.distribute_always_values()
+    params = config.workflows[1].analyses[1].parameters
+    assert params.exclude_groups.gui == ["InjBl", "QC"]
+
+
+def test_config_distribute02(config):
+    overrides = {"exclude_groups": {"always": ["QC"]}}
+    config.update(overrides)
+    config.distribute_always_values()
+    params = config.workflows[1].analyses[1].parameters
+    assert params.exclude_groups.gui == ["QC"]
+
+
+def test_config_distribute03(config):
+    overrides = {"exclude_groups": {"gui": [], "always": ["QC"]}}
+    config.update(overrides)
+    config.distribute_always_values()
+    params = config.workflows[1].analyses[1].parameters
+    assert params.exclude_groups.gui == ["QC"]
 
 
 def test_output_list_json01():
