@@ -4,6 +4,7 @@
 import logging
 import os
 
+from copy import deepcopy
 from pathlib import Path
 from string import ascii_letters, digits
 from typing import Dict, List, Optional, Sequence, Tuple, TypeVar
@@ -44,7 +45,7 @@ class OutputLists(BaseModel):
             if name in override_parameters:
                 override_value = override_parameters[name]
                 if override_value is not None:
-                    setattr(self, name, override_value)
+                    setattr(self, name, override_value.copy())
 
     def distribute_always_values(self) -> None:
         """Append self.always to all other attributes, set self.always to []"""
@@ -86,7 +87,7 @@ class BaseNotebookParameters(BaseModel):
                     if isinstance(config_value, OutputLists):
                         config_value.update(override_value)
                     else:
-                        setattr(self, name, override_value)
+                        setattr(self, name, deepcopy(override_value))
 
     def distribute_always_values(self) -> None:
         """distribute always values within each OutputLists attribute"""
