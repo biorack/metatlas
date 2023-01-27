@@ -69,11 +69,11 @@ notebooks = [
 ]
 
 pytest_deps = [
-    "attrs==21.2.0",
+    "attrs==22.1.0",
     "coverage==7.0.5",
     "iniconfig==2.0.0",
     "numpy==1.22.4",
-    "packaging==23.0",
+    "packaging==21.3",
     "pandas==1.4.2",
     "pluggy==1.0.0",
     "py==1.11.0",
