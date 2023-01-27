@@ -54,6 +54,8 @@ def pre_annotation(
         lcmsruns=lcmsruns,
         groups=groups,
     )
+    ids.display_lcmsruns()
+    ids.display_groups()
     if params.clear_cache:
         logger.info("Clearing cache.")
         shutil.rmtree(ids.cache_dir)

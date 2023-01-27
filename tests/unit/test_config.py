@@ -4,6 +4,7 @@ import pytest
 
 from metatlas.tools.config import Config, OutputLists, Workflow
 
+
 def test_duplicate_workflow_names():
     with pytest.raises(ValueError):
         Config.parse_obj({"workflows": [{"name": "foo"}, {"name": "foo"}]})
