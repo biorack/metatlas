@@ -1716,6 +1716,7 @@ def make_boxplot(compound: int, df: pd.DataFrame, output_loc: Path, use_shortnam
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     num_points = 0
     g = df.loc[compound].groupby(level=level)
+    plt.rcParams.update({'font.size': 12})
     f, ax = plt.subplots(1, 1, figsize=(max(len(g)*0.5, 12), 12))
     g.apply(pd.DataFrame).plot(kind='box', ax=ax)
     for i, (n, grp) in enumerate(g):
@@ -1736,6 +1737,7 @@ def make_boxplot(compound: int, df: pd.DataFrame, output_loc: Path, use_shortnam
     plt.tight_layout()
     f.savefig(fig_path)
     plt.close(f)
+    plt.rcdefaults()  # reset font size to default value
     logger.debug('Exported box plot of %s for %s at %s.', ylabel, compound, fig_path)
 
 
