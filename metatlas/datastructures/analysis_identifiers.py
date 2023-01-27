@@ -417,12 +417,12 @@ class AnalysisIdentifiers(HasTraits):
         current_groups = self.groups
         total = len(self.all_groups)
         num = len(current_groups)
-        display(HTML(f"<H3>Groups: {num} selected and displayed (total: {total})(</H3>"))
+        display(HTML(f"<H4>Groups: {num} selected and displayed (total: {total})</H4>"))
         display(metob.to_dataframe(current_groups)[["name", "short_name"]])
 
     def display_lcmsruns(self):
         current_runs = self.lcmsruns
         total = len(self.all_lcmsruns)
         num = len(current_runs)
-        display(HTML(f"<H3>LCMS runs: {num} selected and displayed (total: {total})(</H3>"))
+        display(HTML(f"<H4>LCMS runs: {num} selected and displayed (total: {total})</H4>"))
         display(metob.to_dataframe(current_runs)[["name"]])
