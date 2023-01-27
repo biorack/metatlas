@@ -14,6 +14,8 @@ import traitlets
 from traitlets import observe, validate, Callable, Bool, HasTraits, Int, Instance, TraitError, Unicode
 from traitlets.traitlets import ObserveHandler
 
+from IPython.display import display, HTML
+
 from metatlas.datastructures.id_types import (
     IterationNumber,
     Experiment,
@@ -65,9 +67,7 @@ class AnalysisIdentifiers(HasTraits):
     configuration: Config = Instance(klass=Config)
     workflow: str = Unicode(read_only=True)
     analysis: str = Unicode(read_only=True)
-    all_lcmsruns: Optional[LcmsRunsList] = traitlets.List(
-        allow_none=True, default_value=None, read_only=True
-    )
+    all_lcmsruns: Optional[LcmsRunsList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _lcmsruns: Optional[LcmsRunsList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _all_groups: Optional[GroupList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _groups: Optional[GroupList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
@@ -412,3 +412,17 @@ class AnalysisIdentifiers(HasTraits):
     def register_groups_invalidation_callback(self, func: Callable) -> None:
         """Register a function to call when groups get invalidated"""
         self.groups_invalidation_callbacks.append(func)
+
+    def display_groups(self):
+        current_groups = self.groups
+        total = len(self.all_groups)
+        num = len(current_groups)
+        display(HTML(f"<H3>Groups: {num} selected and displayed (total: {total})(</H3>"))
+        display(metob.to_dataframe(current_groups)[["name", "short_name"]])
+
+    def display_lcmsruns(self):
+        current_runs = self.lcmsruns
+        total = len(self.all_lcmsruns)
+        num = len(current_runs)
+        display(HTML(f"<H3>LCMS runs: {num} selected and displayed (total: {total})(</H3>"))
+        display(metob.to_dataframe(current_runs)[["name"]])

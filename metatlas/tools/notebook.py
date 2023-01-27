@@ -36,7 +36,9 @@ def configure_environment(log_level: str) -> None:
     install_metatlas_kernel()
 
 
-def configure_pandas_display(max_rows: int = 5000, max_columns: int = 500, max_colwidth: int = 100) -> None:
+def configure_pandas_display(
+    max_rows: Optional[int] = 5000, max_columns: Optional[int] = 500, max_colwidth: Optional[int] = None
+) -> None:
     """Set pandas display options"""
     logger.debug("Settings pandas display options")
     pd.set_option("display.max_rows", max_rows)

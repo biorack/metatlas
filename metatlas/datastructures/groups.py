@@ -47,7 +47,7 @@ def filter_lcmsruns(
     """filter lcmsruns by include and exclude lists"""
     if include:
         post_include = [r for r in all_lcmsruns if any(map(r.name.__contains__, include))]
-        logger.info(
+        logger.debug(
             "Filtered out %d LCMS runs for not matching within include containing: %s",
             len(all_lcmsruns) - len(post_include),
             include,
@@ -56,7 +56,7 @@ def filter_lcmsruns(
         post_include = all_lcmsruns
     if exclude:
         post_exclude = [r for r in post_include if not any(map(r.name.__contains__, exclude))]
-        logger.info(
+        logger.debug(
             "Filtered out %d LCMS runs for matching within exclude containing: %s",
             len(post_include) - len(post_exclude),
             exclude,
@@ -64,8 +64,8 @@ def filter_lcmsruns(
     else:
         post_exclude = post_include
     for run in post_exclude:
-        logger.info("Run: %s", run.name)
-    logger.info("After filtering, %s LCMS output files remain.", len(post_exclude))
+        logger.debug("Run: %s", run.name)
+    logger.debug("After filtering, %s LCMS output files remain.", len(post_exclude))
     try:
         if len(post_exclude) == 0:
             raise ValueError("At least 1 LCMS run is required for analysis.")
@@ -124,8 +124,26 @@ def filter_groups(groups: GroupList, include: GroupMatchList, exclude: GroupMatc
     """filter and sorts groups"""
     recent = dp.filter_metatlas_objects_to_most_recent(groups, "name")
     post_include = dp.filter_metatlas_objects_by_list(recent, "name", include)
+    if include:
+        logger.debug(
+            "Filtered out %d groups for not matching within include containing: %s",
+            len(recent) - len(post_include),
+            include,
+        )
     post_exclude = dp.remove_metatlas_objects_by_list(post_include, "name", exclude)
-    return sorted(dp.filter_empty_metatlas_objects(post_exclude, "items"), key=lambda x: x.name)
+    if exclude:
+        logger.debug(
+            "Filtered out %d groups for matching within exclude containing: %s",
+            len(post_include) - len(post_exclude),
+            exclude,
+        )
+    not_empty = sorted(dp.filter_empty_metatlas_objects(post_exclude, "items"), key=lambda x: x.name)
+    if include or exclude:
+        logger.debug(
+            "Filtered out %d groups because no LCMS runs remained in them",
+            len(post_exclude) - len(not_empty),
+        )
+    return not_empty
 
 
 def get_lcmsruns(groups: GroupList) -> LcmsRunsList:
