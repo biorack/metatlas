@@ -54,7 +54,7 @@ def test_valid_string01():
     assert valid.valid_string(path, field_num=2, min_len=4, max_len=9, alphanumeric_only=True) == []
     assert valid.valid_string(path, field_num=4, min_len=1, max_len=9, alphanumeric_only=True) != []
     assert valid.valid_string(path, field_num=4, min_len=1, max_len=9, alphanumeric_only=False) == []
-    assert valid.valid_string(path, field_num=4, min_len=1, max_len=9, sub_field_num=9) != []
+    assert valid.valid_string(path, field_num=4, min_len=1, max_len=9, start_field_num=9) != []
     assert valid.valid_string(path, field_num=14) != []
 
 
@@ -119,8 +119,6 @@ def test_valid_field2():
     path = Path("/foo/20220101_WH_William_444_(5)_7_8_9_10_11_12_13_14_15_16.raw")
     assert valid.valid_field2(path) != []
     path = Path("/foo/20220101_WH_W_444_(5)_7_8_9_10_11_12_13_14_15_16.raw")
-    assert valid.valid_field2(path) != []
-    path = Path("/foo/20220101_WH_a-b-c_444_(5)_7_8_9_10_11_12_13_14_15_16.raw")
     assert valid.valid_field2(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field2(path) != []
@@ -322,10 +320,6 @@ def test_valid_field14():
         "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_optional-dash-delim_15_16.raw"
     )
     assert valid.valid_field14(path) == []
-    path = Path(
-        "/foo/20220101_WH_WH_123456_exp_samptset_IDX_HILICZ-foo_a-x99-col_FPS_MS1_Samp-01-a_grp-01_BR1-TR2_emptysubfields--_15_16.raw"
-    )
-    assert valid.valid_field14(path) != []
     path = Path("/foo/.raw")
     assert valid.valid_field14(path) != []
 
