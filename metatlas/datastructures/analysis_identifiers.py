@@ -220,9 +220,7 @@ class AnalysisIdentifiers(HasTraits):
         """Creates the output directory and returns the path as a string"""
         sub_dirs = [
             self.experiment_id,
-            self.workflow,
-            str(self.rt_alignment_number),
-            str(self.analysis_number),
+            f"{self.username}_{self.workflow}_{self.rt_alignment_number}_{self.analysis_number}",
             "Targeted",
             self.workflow,
             self.analysis,
