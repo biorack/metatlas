@@ -132,7 +132,7 @@ def valid_string(
     alphanumeric_only: bool = True,
     numeric_only: bool = False,
     allow_dashes: bool = False,
-    sub_field_num: Optional[int] = None,
+    start_field_num: Optional[int] = None,
 ) -> List[str]:
     """
     Generic validation for string fields and optionally sub-fields
@@ -142,10 +142,10 @@ def valid_string(
     prefix, field, err_msg = field_exists(file_name, field_num)
     if prefix is None or not field:
         return [err_msg] if err_msg else []
-    if sub_field_num is not None:
-        prefix = f"{prefix}, sub field {sub_field_num}"
+    if start_field_num is not None:
+        prefix = f"{prefix}, field {start_field_num}"
         try:
-            field = field.split("-")[sub_field_num]
+            field = "-".join(field.split("-")[start_field_num:])
         except IndexError:
             return [f"{prefix} not found"]
     out = []
@@ -155,8 +155,6 @@ def valid_string(
         out.append(f"contains less than {max_len} characters.")
     if allow_dashes:
         sub_fields = field.split("-")
-        if "" in sub_fields:
-            out.append("contains empty sub field.")
         field = "".join(sub_fields)
     if not field.isascii():
         out.append("contains non-ascii characters.")
@@ -246,28 +244,12 @@ def valid_field1(file_name: Path) -> List[str]:
 
 def valid_field2(file_name: Path) -> List[str]:
     """Initials of sample submitter"""
-    field_num = 2
-    max_len = 5
-    min_len = 2
-    prefix, field, err_msg = field_exists(file_name, field_num)
-    if prefix is None or not field:
-        return [err_msg] if err_msg else []
-    out = []
-    if len(field) > max_len:
-        out.append(f"{prefix} contains more than {max_len} characters")
-    if len(field) < min_len:
-        out.append(f"{prefix} contains fewer than {min_len} characters")
-    sub_fields = field.split("-")
-    if len(sub_fields) > 2:
-        out.append(f"{prefix} contains more than 2 sub fields")
-    for idx, _ in enumerate(sub_fields):
-        out.extend(valid_string(file_name, field_num, min_len=1, max_len=max_len, sub_field_num=idx))
-    return out
+    return valid_string(file_name, field_num=2, min_len=2, max_len=5, allow_dashes=True)
 
 
 def valid_field3(file_name: Path) -> List[str]:
     """Project"""
-    return valid_string(file_name, field_num=3, min_len=4, max_len=10, numeric_only=True)
+    return valid_string(file_name, field_num=3, min_len=4, max_len=10, numeric_only=True, allow_dashes=True)
 
 
 def valid_field4(file_name: Path) -> List[str]:
@@ -305,10 +287,8 @@ def valid_field7(file_name: Path) -> List[str]:
     sub_fields = field.split("-")
     if sub_fields[0] not in COLUMN_TYPES:
         out.append(f"{prefix} first sub field must be one of {','.join(COLUMN_TYPES)}.")
-    if len(sub_fields) > 2:
-        out.append(f"{prefix} contains more than 2 sub fields")
-    if len(sub_fields) == 2:
-        out.extend(valid_string(file_name, field_num, sub_field_num=1))
+    if len(sub_fields) > 1:
+        out.extend(valid_string(file_name, field_num, start_field_num=1))
     return out
 
 
@@ -347,10 +327,8 @@ def valid_field10(file_name: Path) -> List[str]:
     # This could be improved to test that the chromatography type matches with the polarity
     if len(sub_fields) == 0 or sub_fields[0] not in ACQ_TYPES:
         out.append(f"{prefix} must start with one of {','.join(ACQ_TYPES)}.")
-    if len(sub_fields) > 2:
-        out.append(f"{prefix} contains more than 2 sub fields")
-    if len(sub_fields) == 2:
-        out.extend(valid_string(file_name, field_num, sub_field_num=1))
+    if len(sub_fields) > 1:
+        out.extend(valid_string(file_name, field_num, start_field_num=1))
     return out
 
 
