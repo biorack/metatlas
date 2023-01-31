@@ -30,3 +30,11 @@ def test_align_atlas(atlas_with_2_cids, model):
     assert atlas_with_2_cids.compound_identifications[1].rt_references[0].rt_peak != 0.02331840799266649
     assert out.compound_identifications[1].rt_references[0].rt_peak == 0.02331840799266649
     assert len(out.compound_identifications) == 2
+
+
+def test_create_aligned_atlases(atlas_with_2_cids, model, analysis_ids, workflow):
+    atlases = rt_alignment.create_aligned_atlases(model, model, analysis_ids, workflow)
+    assert [a.name for a in atlases] == [
+        "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS",
+        "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_linear_505892_OakGall_final_Test-HILIC_EMA-POS_0",
+    ]

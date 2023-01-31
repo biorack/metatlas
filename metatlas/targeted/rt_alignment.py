@@ -367,7 +367,7 @@ def create_aligned_atlases(
             logger.info("Creating atlas %s", name)
             out_atlas_file_name = ids.output_dir / f"{name}.csv"
             aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset)
-            aligned_atlas.name = metob.MetUnicode(name)
+            aligned_atlas.name = name
             metob.store(aligned_atlas)
             aligned_atlas_df = ma_data.make_atlas_df(aligned_atlas)
             write_utils.export_dataframe_die_on_diff(
