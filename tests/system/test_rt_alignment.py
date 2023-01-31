@@ -10,7 +10,7 @@ def test_rt_alignment_by_line01(tmp_path):
     expected = {}
     expected[
         str(
-            tmp_path / "505892_OakGall_final/Test-QC/0/0/Targeted/Test-QC/RT_Alignment/rt_alignment_model.txt"
+            tmp_path / "505892_OakGall_final/root_Test-QC_0_0/Targeted/Test-QC/RT_Alignment/rt_alignment_model.txt"
         )
     ] = """RANSACRegressor(random_state=42)
 Linear model with intercept=0.430 and slope=0.95574
@@ -26,7 +26,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
     expected_df[
         str(
             tmp_path
-            / "505892_OakGall_final/Test-QC/0/0/Targeted/Test-QC/RT_Alignment/RT_Alignment_Model_Comparison.csv"
+            / "505892_OakGall_final/root_Test-QC_0_0/Targeted/Test-QC/RT_Alignment/RT_Alignment_Model_Comparison.csv"
         )
     ] = {
         "Unnamed: 0": {
@@ -95,7 +95,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
     }
 
     expected_df[
-        str(tmp_path / "505892_OakGall_final/Test-QC/0/0/Targeted/Test-QC/QC-POS/POS_QC_Measured_RTs.csv")
+        str(tmp_path / "505892_OakGall_final/root_Test-QC_0_0/Targeted/Test-QC/QC-POS/POS_QC_Measured_RTs.csv")
     ] = {
         "Unnamed: 0": {
             0: "0000_uracil_unlabeled_positive_M+H113p0346_1p88",
