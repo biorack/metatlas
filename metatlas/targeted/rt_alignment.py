@@ -3,6 +3,7 @@
 
 import logging
 import math
+import shutil
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Sequence
@@ -93,6 +94,9 @@ def generate_rt_alignment_models(
     )
     linear, poly = generate_models(actual, pred)
     out_dir = Path(data.ids.output_dir)
+    excluded_inchi_keys_file_name = out_dir / "inchi_keys_excluded_from_model.csv"
+    inchi_df = pd.DataFrame(data={"excluded_inchi_keys": params.inchi_keys_not_in_model})
+    write_utils.export_dataframe_die_on_diff(inchi_df, excluded_inchi_keys_file_name, "excluded inchi_keys")
     actual_rts, aligned_rts = actual_and_aligned_rts(rts_df, data.atlas_df, params.inchi_keys_not_in_model)
     actual_vs_pred_file_name = out_dir / "Actual_vs_Aligned_RTs.pdf"
     plot_actual_vs_aligned_rts(aligned_rts, actual_rts, rts_df, str(actual_vs_pred_file_name), linear, poly)
@@ -431,6 +435,7 @@ def run(
         source_atlas_unique_id=workflow.rt_alignment.atlas.unique_id,
         rt_alignment_number=rt_alignment_number,
     )
+    shutil.copy2(params.config_file_name, ids.output_dir)
     ids.set_output_state(params, "rt_alignment")
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
     generate_outputs(metatlas_dataset, workflow, set_parameters)
