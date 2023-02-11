@@ -41,7 +41,7 @@ importlib-resources==5.9.0
 ipykernel==6.13.0
 ipympl==0.8.6
 ipysheet==0.5.0
-ipython==8.5.0
+ipython==8.10.0
 ipython-genutils==0.2.0
 ipywidgets==7.7.0
 jedi==0.18.1
