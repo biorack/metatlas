@@ -8,8 +8,6 @@ threads_to_use=8
 
 rclone='/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone'
 raw_data='/global/cfs/cdirs/metatlas/raw_data'
-jgi_dir="${raw_data}/jgi"
-egsb_dir="${raw_data}/egsb"
 
 trap "exit 1" TERM
 export TOP_PID=$$
@@ -199,11 +197,8 @@ check_experiment_dir_does_exist() {
 
 check_experiment_contains_h5_file() {
   local experiment_dir
-  experiment_dir="${jgi_dir}/${1}"
-  if [ ! -d "$experiment_dir" ]; then
-    experiment_dir="${egsb_dir}/${1}"
-  fi
-  if ! find "${experiment_dir}" -name '*.h5' -quit > /dev/null 2>&1; then
+  experiment_dir="$(find "${raw_data}" -type d -name "${1}" -print -quit)"
+  if ! find "${experiment_dir}" -maxdepth 1 -name '*.h5' -print -quit | grep -q '.'; then
     >&2 echo "ERROR: directory for experiment '${experiment_dir}' contains no .h5 files."
     die
   fi
