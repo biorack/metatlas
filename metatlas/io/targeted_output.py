@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 
 def write_atlas_to_csv(metatlas_dataset, overwrite=False):
     """Save atlas as csv file. Will not overwrite existing file unless overwrite is True"""
-    out_file_name = metatlas_dataset.ids.output_dir / f"{metatlas_dataset.atlas.name}_export.csv"
+    prefix = 'CompoundAtlas__'
+    out_file_name = metatlas_dataset.ids.output_dir / f"{prefix}{metatlas_dataset.atlas.name}.csv"
     out_df = dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas)
     export_dataframe_die_on_diff(out_df, out_file_name, "atlas", overwrite=overwrite, float_format="%.6e")
 
