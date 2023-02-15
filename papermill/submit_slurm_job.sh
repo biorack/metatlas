@@ -191,7 +191,7 @@ check_alignment_dir_does_not_exist() {
 }
 
 check_experiment_dir_does_exist() {
-  if [ ! -d "${jgi_dir}/${1}" ] && [ ! -d "${egsb_dir}/${1}" ]; then
+  if ! find "${raw_data}" -type d -name "${1}" -print -quit | grep -q '.'; then
     >&2 echo "ERROR: directory for experiment '${1}' was not found."
     die
   fi
