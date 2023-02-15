@@ -135,7 +135,7 @@ get_slurm_constraint() {
 get_slurm_queue() {
   local experiment_name="$1"
   if is_perlmutter; then
-    echo "regular"  # I'd like to use shared but it has a 6 hour limit
+    echo "shared"
   else  # cori
     if is_C18_experiment "$experiment_name"; then
       if is_group_member "gtrnd"; then
