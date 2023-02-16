@@ -234,7 +234,7 @@ def update_metatlas(directory: os.PathLike) -> None:
         for ind, ffff in enumerate(new_files):
             convert(ind, ffff)
         if readonly_files:
-            for (username, dirnames) in readonly_files.items():
+            for username, dirnames in readonly_files.items():
                 email_address = get_email_address(username)
                 logger.info("Sending email to %s about inaccessible files.", email_address)
                 body = (
@@ -244,7 +244,7 @@ def update_metatlas(directory: os.PathLike) -> None:
                 )
                 send_mail("Metatlas Files are Inaccessible", email_address, body)
         if other_errors:
-            for (username, errors) in other_errors.items():
+            for username, errors in other_errors.items():
                 email_address = get_email_address(username)
                 logger.info("Sending email to %s about conversion error.", email_address)
                 body = (

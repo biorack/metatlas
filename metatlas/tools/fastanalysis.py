@@ -331,7 +331,6 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
     prefix = f"{polarity}_" if polarity != '' else ''
-    output_sheetname = f"{prefix}{output_sheetname}"
     if not output_sheetname.endswith('.xlsx'):
         output_sheetname = output_sheetname + '.xlsx'
     excel_path = output_loc / output_sheetname

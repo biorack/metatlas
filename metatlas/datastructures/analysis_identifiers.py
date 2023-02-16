@@ -230,6 +230,13 @@ class AnalysisIdentifiers(HasTraits):
         return out
 
     @property
+    def additional_output_dir(self) -> Path:
+        """Creates the "Additional_Info" output directory"""
+        out = self.output_dir / "Additional_Info"
+        out.mkdir(parents=True, exist_ok=True)
+        return out
+
+    @property
     def notebook_dir(self) -> Path:
         """Directoy where notebooks are saved"""
         return self.output_dir.resolve().parent.parent.parent.parent
@@ -304,7 +311,7 @@ class AnalysisIdentifiers(HasTraits):
         short_names["full_filename"] = short_names.index
         write_utils.export_dataframe_die_on_diff(
             short_names,
-            self.output_dir / "short_names.csv",
+            self.additional_output_dir / "short_names.csv",
             "LCMS runs short names",
             index=False,
         )
