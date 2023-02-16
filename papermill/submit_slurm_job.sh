@@ -295,6 +295,7 @@ script_dir="$(get_script_dir)"
 short_id="${proposal}_${exp_token}_${sample_set}"
 exp_dir="${project_dir}/${short_id}"
 alignment_dir="${exp_dir}/${workflow_name}/${rt_alignment_number}"
+alignment_dir="${exp_dir}/${USER}_${workflow_name}_${rt_alignment_number}_0"
 
 check_exp_id_has_atleast_9_fields "$exp_check_len"
 check_experiment_dir_does_exist "$exp"
@@ -313,7 +314,7 @@ time="$(get_slurm_time)"
 IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested} --constraint=${constraint} --time=${time}"
 
 IN_FILE="/src/notebooks/reference/RT_Alignment.ipynb"
-OUT_FILE="${alignment_dir}/${short_id}_${workflow_name}_RT-Alignment_SLURM.ipynb"
+OUT_FILE="${exp_dir}/${short_id}_${workflow_name}_RT-Alignment_SLURM.ipynb"
 
 PARAMETERS+=" -p experiment ${exp} \
 	      -p workflow_name ${workflow_name} \
