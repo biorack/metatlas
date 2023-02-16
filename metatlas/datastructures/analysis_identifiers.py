@@ -222,7 +222,7 @@ class AnalysisIdentifiers(HasTraits):
             self.experiment_id,
             f"{self.username}_{self.workflow}_{self.rt_alignment_number}_{self.analysis_number}",
             "Targeted",
-            self.workflow,
+            f"{self.workflow}_{self.experiment}",
             self.analysis,
         ]
         out = self.project_directory.joinpath(*sub_dirs)
