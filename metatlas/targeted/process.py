@@ -54,7 +54,7 @@ def pre_annotation(
         lcmsruns=lcmsruns,
         groups=groups,
     )
-    shutil.copy2(params.config_file_name, ids.output_dir)
+    shutil.copy2(params.config_file_name, ids.additional_output_dir)
     ids.display_lcmsruns()
     ids.display_groups()
     if params.clear_cache:

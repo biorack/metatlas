@@ -216,7 +216,7 @@ class MetatlasDataset(HasTraits):
 
     def write_data_source_files(self) -> None:
         """Write the data source files if they don't already exist"""
-        data_sources_dir = self.ids.output_dir / f"{self.ids.short_polarity}_data_sources"
+        data_sources_dir = self.ids.additional_output_dir / f"{self.ids.short_polarity}_data_sources"
         if len(list(data_sources_dir.glob("*"))) >= 4:
             logger.warning(
                 (
@@ -228,7 +228,7 @@ class MetatlasDataset(HasTraits):
             shutil.rmtree(data_sources_dir, ignore_errors=True)
             logger.info("Writing data source files to %s.", data_sources_dir)
             ma_data.make_data_sources_tables(
-                self.ids.groups, self.atlas, self.ids.output_dir, self.ids.short_polarity
+                self.ids.groups, self.atlas, self.ids.additional_output_dir, self.ids.short_polarity
             )
 
     def _get_atlas(self) -> None:

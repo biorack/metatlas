@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 def write_atlas_to_csv(metatlas_dataset, overwrite=False):
     """Save atlas as csv file. Will not overwrite existing file unless overwrite is True"""
-    prefix = 'CompoundAtlas__'
+    prefix = "CompoundAtlas__"
     out_file_name = metatlas_dataset.ids.output_dir / f"{prefix}{metatlas_dataset.atlas.name}.csv"
     out_df = dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas)
     export_dataframe_die_on_diff(out_df, out_file_name, "atlas", overwrite=overwrite, float_format="%.6e")
@@ -70,7 +70,8 @@ def write_identifications_spreadsheet(
     ids = metatlas_dataset.ids
     ids.set_output_state(analysis_parameters, "ids_spreadsheet")
     prefix = f"{ids.short_polarity}_"
-    scores_path = ids.output_dir / f"{prefix}stats_tables" / f"{prefix}compound_scores.csv"
+    parent = ids.additional_output_dir
+    scores_path = parent / f"{prefix}stats_tables" / f"{prefix}compound_scores.csv"
     _ = metatlas_dataset.hits  # regenerate hits if needed before logging about scores
     logger.info("Calculating scores and exporting them to %s.", scores_path)
     scores_df = fa.make_scores_df(metatlas_dataset, metatlas_dataset.hits)
@@ -85,11 +86,12 @@ def write_identifications_spreadsheet(
         min_relative_frag_intensity,
     )
     export_dataframe_die_on_diff(scores_df, scores_path, "scores", overwrite=overwrite, float_format="%.8e")
+    output_sheetname = f"{ids.project}_{ids.workflow}_{ids.analysis}_Identifications.xlsx"
     fa.make_stats_table(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
-        output_loc=ids.output_dir,
-        output_sheetname=f"{ids.project}_{ids.workflow}_{ids.analysis}_Identifications.xlsx",
+        output_loc=ids.additional_output_dir,
+        output_sheetname=output_sheetname,
         min_peak_height=1e5,
         use_labels=True,
         min_msms_score=0.01,
@@ -98,6 +100,8 @@ def write_identifications_spreadsheet(
         overwrite=overwrite,
         data_sheets=False,  # eliminates output of the legacy 'data_sheets' dir but not '{POL}_data_sheets'
     )
+    xlsx = ids.additional_output_dir / output_sheetname
+    xlsx.rename(ids.output_dir / xlsx.name)
 
 
 def write_chromatograms(metatlas_dataset, analysis_parameters, overwrite=False, max_cpus=1):
@@ -113,7 +117,7 @@ def write_chromatograms(metatlas_dataset, analysis_parameters, overwrite=False, 
     params = {
         "input_dataset": metatlas_dataset,
         "share_y": True,
-        "output_loc": metatlas_dataset.ids.output_dir,
+        "output_loc": metatlas_dataset.ids.additional_output_dir,
         "polarity": metatlas_dataset.ids.short_polarity,
         "overwrite": overwrite,
         "max_cpus": max_cpus,
@@ -131,9 +135,10 @@ def write_tics(metatlas_dataset, x_min=None, x_max=None, y_min=0, overwrite=Fals
     Create PDF files with TIC plot for each sample
     One file with shared Y-axes, one file with independent Y-axes
     """
+    parent = metatlas_dataset.ids.additional_output_dir
     prefix = f"{metatlas_dataset.ids.short_polarity}_"
     for suffix, sharey in [("_independentY", False), ("_sharedY", True)]:
-        file_name = metatlas_dataset.ids.output_dir / f"{prefix}TICs{suffix}.pdf"
+        file_name = parent / f"{prefix}TICs{suffix}.pdf"
         save_sample_tic_pdf(
             metatlas_dataset,
             metatlas_dataset.ids.polarity,
@@ -169,12 +174,12 @@ def write_metrics_and_boxplots(metatlas_dataset, analysis_parameters, overwrite=
     Will not overwrite existing file unless overwrite is True
     """
     config = [
-        {"name": "peak_height", "label": "Peak Height"},
-        {"name": "peak_area", "label": None},
-        {"name": "mz_peak", "label": None},
-        {"name": "rt_peak", "label": "RT Peak"},
-        {"name": "mz_centroid", "label": "MZ Centroid"},
-        {"name": "rt_centroid", "label": None},
+        {"name": "peak_height", "label": "Peak Height", "additional": False},
+        {"name": "peak_area", "label": None, "additional": True},
+        {"name": "mz_peak", "label": None, "additional": True},
+        {"name": "rt_peak", "label": "RT Peak", "additional": True},
+        {"name": "mz_centroid", "label": "MZ Centroid", "additional": True},
+        {"name": "rt_centroid", "label": None, "additional": True},
     ]
     ids = metatlas_dataset.ids
     prefix = f"{metatlas_dataset.ids.short_polarity}_"
@@ -196,7 +201,8 @@ def write_metrics_and_boxplots(metatlas_dataset, analysis_parameters, overwrite=
     for dataframe, fields in zip(dfs, config):
         if fields["label"] is not None:
             for logy in [False, True]:
-                plot_dir = ids.output_dir / f"{prefix}boxplot_{fields['name']}{'_log' if logy else ''}"
+                parent = ids.additional_output_dir if fields["additional"] else ids.output_dir
+                plot_dir = parent / f"{prefix}boxplot_{fields['name']}{'_log' if logy else ''}"
                 dp.make_boxplot_plots(
                     dataframe,
                     output_loc=plot_dir,
