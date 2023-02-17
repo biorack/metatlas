@@ -80,7 +80,7 @@ class AnalysisIdentifiers(HasTraits):
         experiment,
         configuration,
         workflow,
-        analysis="RT_Alignment",
+        analysis="RT-Alignment",
         rt_alignment_number=0,
         analysis_number=0,
         source_atlas_unique_id=None,

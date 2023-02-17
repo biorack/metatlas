@@ -313,7 +313,7 @@ constraint="$(get_slurm_constraint)"
 time="$(get_slurm_time)"
 IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested} --constraint=${constraint} --time=${time}"
 
-IN_FILE="/src/notebooks/reference/RT_Alignment.ipynb"
+IN_FILE="/src/notebooks/reference/RT-Alignment.ipynb"
 OUT_FILE="${exp_dir}/${short_id}_${workflow_name}_RT-Alignment_SLURM.ipynb"
 
 PARAMETERS+=" -p experiment ${exp} \

@@ -12,7 +12,7 @@ def test_rt_alignment_by_line01(tmp_path):
     expected[
         str(
             tmp_path
-            / f"505892_OakGall_final/root_Test-QC_0_0/Targeted/Test-QC_{experiment}/RT_Alignment/rt_alignment_model.txt"
+            / f"505892_OakGall_final/root_Test-QC_0_0/Targeted/Test-QC_{experiment}/RT-Alignment/rt_alignment_model.txt"
         )
     ] = """RANSACRegressor(random_state=42)
 Linear model with intercept=0.430 and slope=0.95574
@@ -28,7 +28,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
     expected_df[
         str(
             tmp_path
-            / f"505892_OakGall_final/root_Test-QC_0_0/Targeted/Test-QC_{experiment}/RT_Alignment/RT_Alignment_Model_Comparison.csv"
+            / f"505892_OakGall_final/root_Test-QC_0_0/Targeted/Test-QC_{experiment}/RT-Alignment/RT-Alignment_Model_Comparison.csv"
         )
     ] = {
         "Unnamed: 0": {
@@ -180,7 +180,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
                         -p workflow_name Test-QC \
                         -p rt_alignment_number 0 \
                         -y "inchi_keys_not_in_model: ['GFFGJBXGBJISGV-UHFFFAOYSA-N', 'LRFVTYWOQMYALW-UHFFFAOYSA-N', 'OIRDTQYFTABQOQ-KQYNXXCUSA-N', 'OLXZPDWKRNYJJZ-RRKCRQDMSA-N']" \
-                        /src/notebooks/reference/RT_Alignment.ipynb \
+                        /src/notebooks/reference/RT-Alignment.ipynb \
                         /out/Remove-done.ipynb
     """
     utils.exec_docker(image, command, tmp_path, utils.PAPERMILL_ENV)
