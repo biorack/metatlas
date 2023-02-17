@@ -37,6 +37,7 @@ from metatlas.datastructures.utils import AtlasName, get_atlas, Username
 from metatlas.datastructures import groups
 from metatlas.io import write_utils
 from metatlas.tools.config import BaseNotebookParameters, Config, OutputLists
+from metatlas.tools.notebook import in_papermill
 from metatlas.tools.util import or_default
 
 
@@ -67,6 +68,7 @@ class AnalysisIdentifiers(HasTraits):
     configuration: Config = Instance(klass=Config)
     workflow: str = Unicode(read_only=True)
     analysis: str = Unicode(read_only=True)
+    draft: bool = Bool(default_value=False, read_only=True)
     all_lcmsruns: Optional[LcmsRunsList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _lcmsruns: Optional[LcmsRunsList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
     _all_groups: Optional[GroupList] = traitlets.List(allow_none=True, default_value=None, read_only=True)
@@ -107,6 +109,7 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("polarity", Polarity(analysis_obj.parameters.polarity))
         self.set_trait("google_folder", analysis_obj.parameters.google_folder)
         self.set_trait("copy_atlas", analysis_obj.parameters.copy_atlas)
+        self.set_trait("draft", analysis_obj.parameter.draft and in_papermill())
         logger.info(
             "IDs: source_atlas_unique_id=%s, atlas=%s, output_dir=%s",
             self.source_atlas_unique_id,
@@ -223,7 +226,7 @@ class AnalysisIdentifiers(HasTraits):
             f"{self.username}_{self.workflow}_{self.rt_alignment_number}_{self.analysis_number}",
             "Targeted",
             f"{self.workflow}_{self.experiment}",
-            self.analysis,
+            f"{self.analysis}{'_draft' if self.draft else ''}",
         ]
         out = self.project_directory.joinpath(*sub_dirs)
         out.mkdir(parents=True, exist_ok=True)

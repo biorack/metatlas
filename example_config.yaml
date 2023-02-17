@@ -68,6 +68,7 @@ workflows:
             do_alignment: True
           parameters:
             copy_atlas: True
+            draft: True
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             exclude_groups:
@@ -86,6 +87,7 @@ workflows:
             do_alignment: True
           parameters:
             copy_atlas: True
+            draft: True
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             exclude_groups:
@@ -119,6 +121,7 @@ workflows:
             do_alignment: True
           parameters:
             copy_atlas: True
+            draft: True
             polarity: negative
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             exclude_groups:
@@ -137,6 +140,7 @@ workflows:
             do_alignment: True
           parameters:
             copy_atlas: True
+            draft: True
             polarity: negative
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             exclude_groups:
@@ -186,6 +190,7 @@ workflows:
             rt_offset: 0.2
           parameters:
             copy_atlas: True
+            draft: True
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             exclude_groups:
@@ -205,6 +210,7 @@ workflows:
             rt_offset: 0.2
           parameters:
             copy_atlas: True
+            draft: True
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             exclude_groups:
@@ -240,6 +246,7 @@ workflows:
             rt_offset: 0.2
           parameters:
             copy_atlas: True
+            draft: True
             polarity: negative
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             exclude_groups:
@@ -259,6 +266,7 @@ workflows:
             rt_offset: 0.2
           parameters:
             copy_atlas: True
+            draft: True
             polarity: negative
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             exclude_groups:
