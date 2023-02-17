@@ -60,6 +60,7 @@ class BaseNotebookParameters(BaseModel):
     """Parameters common to both RT-Alignment and Targeted notebooks"""
 
     copy_atlas: bool = False
+    draft: bool = False
     source_atlas_unique_id: Optional[str] = None
     include_groups: OutputLists = OutputLists()
     exclude_groups: OutputLists = OutputLists()
