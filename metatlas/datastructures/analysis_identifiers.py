@@ -109,7 +109,7 @@ class AnalysisIdentifiers(HasTraits):
         self.set_trait("polarity", Polarity(analysis_obj.parameters.polarity))
         self.set_trait("google_folder", analysis_obj.parameters.google_folder)
         self.set_trait("copy_atlas", analysis_obj.parameters.copy_atlas)
-        self.set_trait("draft", analysis_obj.parameter.draft and in_papermill())
+        self.set_trait("draft", analysis_obj.parameters.draft and in_papermill())
         logger.info(
             "IDs: source_atlas_unique_id=%s, atlas=%s, output_dir=%s",
             self.source_atlas_unique_id,
