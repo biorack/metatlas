@@ -101,6 +101,8 @@ def annotation_gui(
         width=width,
         height=height,
         adjustable_rt_peak=adjustable_rt_peak,
+        peak_flags=peak_flags,
+        msms_flags=msms_flags,
     )
 
 
