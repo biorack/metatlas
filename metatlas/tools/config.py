@@ -57,7 +57,7 @@ class OutputLists(BaseModel):
 
 
 class BaseNotebookParameters(BaseModel):
-    """Parameters common to both RT_Alignment and Targeted notebooks"""
+    """Parameters common to both RT-Alignment and Targeted notebooks"""
 
     copy_atlas: bool = False
     source_atlas_unique_id: Optional[str] = None
@@ -215,7 +215,7 @@ class Workflow(BaseModel):
 
     def get_analysis(self, analysis_name: str) -> Analysis:
         """Returns Analysis with analysis_name or ValueError"""
-        if analysis_name == "RT_Alignment":
+        if analysis_name == "RT-Alignment":
             return self.rt_alignment
         for analysis in self.analyses:
             if analysis.name == analysis_name:
@@ -312,7 +312,7 @@ def get_config(override_parameters: Dict) -> Tuple[Config, Workflow, Analysis]:
     if "analysis_name" in override_parameters:
         analysis_name = override_parameters["analysis_name"]
     else:
-        analysis_name = "RT_Alignment"
+        analysis_name = "RT-Alignment"
     logging.info("Using workflow/analysis: %s/%s", workflow_name, analysis_name)
     analysis = workflow.get_analysis(analysis_name)
     return (config, workflow, analysis)

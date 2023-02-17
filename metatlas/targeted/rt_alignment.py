@@ -100,7 +100,7 @@ def generate_rt_alignment_models(
     actual_rts, aligned_rts = actual_and_aligned_rts(rts_df, data.atlas_df, params.inchi_keys_not_in_model)
     actual_vs_pred_file_name = out_dir / "Actual_vs_Aligned_RTs.pdf"
     plot_actual_vs_aligned_rts(aligned_rts, actual_rts, rts_df, str(actual_vs_pred_file_name), linear, poly)
-    rt_comparison_file_name = out_dir / "RT_Alignment_Model_Comparison.csv"
+    rt_comparison_file_name = out_dir / "RT-Alignment_Model_Comparison.csv"
     save_model_comparison(
         params.dependent_data_source, data.atlas_df, rts_df, linear, poly, rt_comparison_file_name
     )
@@ -112,7 +112,7 @@ def generate_rt_alignment_models(
 def generate_outputs(data: MetatlasDataset, workflow: Workflow, set_parameters: dict) -> None:
     """
     Generate the RT alignment models, associated atlases with relative RT values, follow up notebooks
-    set_parameters contains the parameters set in the RT_Alignment notebook, before config file processing
+    set_parameters contains the parameters set in the RT-Alignment notebook, before config file processing
     """
     # pylint: disable=too-many-locals
     params = workflow.rt_alignment.parameters
@@ -129,7 +129,7 @@ def generate_outputs(data: MetatlasDataset, workflow: Workflow, set_parameters: 
                 out_file_name = in_file_name.with_name(in_file_name.stem + "_SLURM.ipynb")
                 papermill.execute_notebook(in_file_name, out_file_name, {}, kernel_name="papermill")
     copy_outputs_to_google_drive(ids)
-    logger.info("RT_Alignment notebook complete. Switch to an analysis notebook to continue.")
+    logger.info("RT-Alignment notebook complete. Switch to an analysis notebook to continue.")
 
 
 def get_rts(metatlas_dataset: MetatlasDataset, include_atlas_rt_peak: bool = True) -> pd.DataFrame:
@@ -392,7 +392,7 @@ def write_notebooks(
         ids: an AnalysisIds object matching the one used in the main notebook
         atlases: list of atlases to use as source atlases
         workflow: a Workflow object
-        set_parameters: dict of parameters set by the user in the RT_Alignment notebook
+        set_parameters: dict of parameters set by the user in the RT-Alignment notebook
                         before processing of the config file
     Returns a list of Paths to notebooks
     """
