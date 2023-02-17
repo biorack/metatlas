@@ -73,6 +73,8 @@ def annotation_gui(
     alpha: float = 0.5,
     colors="",
     adjustable_rt_peak=False,
+    peak_flags=None,
+    msms_flags=None,
 ) -> Optional[dp.adjust_rt_for_selected_compound]:
     """
     Opens the interactive GUI for setting RT bounds and annotating peaks
@@ -83,6 +85,11 @@ def annotation_gui(
         alpha: (0-1] controls transparency of lines on EIC plot
         colors: list (color_id, search_string) for coloring lines on EIC plot
                 based on search_string occuring in LCMS run filename
+        adjustable_rt_peak: allow RT peak marker to be moved
+        peak_flags: list of strings that define radio buttons for EIC plot
+                    None or '' gets a default set of buttons
+        msms_flags: list of strings that define radio buttons for MSMS plot
+                    None or '' gets a default set of buttons
     """
     display(dp.LOGGING_WIDGET)  # surface event handler error messages in UI
     return dp.adjust_rt_for_selected_compound(
