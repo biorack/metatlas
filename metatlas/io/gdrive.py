@@ -34,11 +34,12 @@ def copy_outputs_to_google_drive(ids: AnalysisIdentifiers) -> None:
             fail_suffix,
         )
         return
-    folders = Path(ids.output_dir).parts[-7:]
-    sub_folders = Path("Analysis_uploads").joinpath(*folders)
-    rci.copy_to_drive(ids.output_dir, drive, sub_folders, progress=True)
+    pre_parts = len(ids.project_directory.parts)
+    upload_folders = ids.output_dir.parts[pre_parts:]
+    dest = Path("Analysis_uploads").joinpath(*upload_folders)
+    rci.copy_to_drive(ids.output_dir, drive, dest, progress=True)
     logger.info("Done copying output files to Google Drive")
-    path_string = f"{drive}:{sub_folders}"
+    path_string = f"{drive}:{dest}"
     display(
         HTML(f'Data is now on Google Drive at <a href="{rci.path_to_url(path_string)}">{path_string}</a>')
     )
