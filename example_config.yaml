@@ -27,10 +27,10 @@ chromatography_types:
 #                     be in alignment with the experimental data.
 #
 # Each RT alignment or analysis step contains a set of parameters.
-# These parameters are substituted into the RT_Alignment.ipynb
+# These parameters are substituted into the RT-Alignment.ipynb
 # or Targeted.ipynb notebook. Please see the notebook files for
 # documentation of the parameters and their values:
-# https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Alignment.ipynb
+# https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT-Alignment.ipynb
 # https://github.com/biorack/metatlas/blob/main/notebooks/reference/Targeted.ipynb
 
 workflows:

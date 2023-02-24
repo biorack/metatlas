@@ -39,7 +39,7 @@ shifter $shifter_flags /bin/bash -c \
   'set -euo pipefail && \
    black --quiet --check /metatlas_image_version && \
    papermill \
-     /src/notebooks/reference/RT_Alignment.ipynb \
+     /src/notebooks/reference/RT-Alignment.ipynb \
      - \
      -p model_only True \
      --prepare-only \
