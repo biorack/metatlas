@@ -171,7 +171,7 @@ to complete.
 
 Once the job has completed, you should check the files generated to make sure
 the RT correction models look acceptable. You can find the output PDF files at
-`~/metabolomics_data/<short_experiment_id>/<workflow_name>/<rt_alignment_number>/0/Targeted/<workflow_name>/RT_Alignment/`.
+`~/metabolomics_data/<short_experiment_id>/<workflow_name>_<rt_alignment_number>_0/Targeted/<workflow_name>/RT-Alignment/`.
 One easy way to view these files is to open them from the
 [Jupyter](https://jupyter.nersc.gov/) file browser. In
 `Actual_vs_Aligned_RTs.pdf`, you want to check that the default model

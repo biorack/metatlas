@@ -222,7 +222,7 @@ class AnalysisIdentifiers(HasTraits):
     def output_dir(self) -> Path:
         """Creates the output directory and returns the path as a string"""
         sub_dirs = [
-            self.experiment_id,
+            self.experiment,
             f"{self.username}_{self.workflow}_{self.rt_alignment_number}_{self.analysis_number}",
             "Targeted",
             f"{self.workflow}_{self.experiment}",

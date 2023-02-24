@@ -293,7 +293,7 @@ exp_check_len="${TOKENS[8]:-}"
 
 script_dir="$(get_script_dir)"
 short_id="${proposal}_${exp_token}_${sample_set}"
-exp_dir="${project_dir}/${short_id}"
+exp_dir="${project_dir}/${exp}"
 alignment_dir="${exp_dir}/${workflow_name}/${rt_alignment_number}"
 alignment_dir="${exp_dir}/${USER}_${workflow_name}_${rt_alignment_number}_0"
 
