@@ -193,8 +193,8 @@ incremented `rt_alignment_number`). See
 pass the parameters. The two most relevant parameters for choosing a different
 model are `use_poly_model` and `dependent_data_source`. Documentation of the
 parameters and their possible values can be found in the first code block of
-the [RT_Alignment.ipynb](
-https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT_Alignment.ipynb
+the [RT-Alignment.ipynb](
+https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT-Alignment.ipynb
 ) notebook.
 
 ### Perform ISTDsEtc Analysis
@@ -295,7 +295,7 @@ to those of the similar compound-adduct pair
 
 ### Passing Additional Notebook Parameters To `submit_slurm_job.sh`
 
-Any of the parameters in the first code block of the `RT_Alignment.ipynb`
+Any of the parameters in the first code block of the `RT-Alignment.ipynb`
 notebook can be passed to the `submit_slurm_job.sh` script. There are two
 command line options that can be used to supply parameters.
 
