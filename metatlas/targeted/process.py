@@ -92,6 +92,8 @@ def annotation_gui(
                     None or '' gets a default set of buttons
     """
     display(dp.LOGGING_WIDGET)  # surface event handler error messages in UI
+    if in_papermill():
+        return None
     return dp.adjust_rt_for_selected_compound(
         data,
         msms_hits=data.hits,
