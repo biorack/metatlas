@@ -247,7 +247,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def cache_dir(self) -> Path:
         """Creates directory for storing cache files and returns the path"""
-        out = self.project_directory / self.experiment_id / "cache"
+        out = self.project_directory / self.experiment / "cache"
         out.mkdir(parents=True, exist_ok=True)
         return out
 
