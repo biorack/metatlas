@@ -126,7 +126,16 @@ def generate_outputs(data: MetatlasDataset, workflow: Workflow, set_parameters: 
     if params.stop_before is None:
         for in_file_name, analysis in zip(notebook_file_names, workflow.analyses):
             if analysis.parameters.slurm_execute:
-                out_dir = ids.output_dir.parent / analysis.name
+                out_dir = write_utils.output_dir(
+                    ids.project_directory,
+                    ids.experiment,
+                    ids.workflow,
+                    analysis.name,
+                    ids.rt_alignment_number,
+                    0,
+                    ids.username,
+                    analysis.parameters.draft,
+                )
                 out_file_name = out_dir.with_name(in_file_name.stem + "_SLURM.ipynb")
                 papermill.execute_notebook(in_file_name, out_file_name, {}, kernel_name="papermill")
     copy_outputs_to_google_drive(ids)
