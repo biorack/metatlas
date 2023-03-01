@@ -235,9 +235,17 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def additional_output_dir(self) -> Path:
         """Creates the "Additional_Info" output directory"""
-        out = self.output_dir / "Additional_Info"
-        out.mkdir(parents=True, exist_ok=True)
-        return out
+        return write_utils.output_dir(
+            self.project_directory,
+            self.experiment,
+            self.workflow,
+            self.analysis,
+            self.rt_alignment_number,
+            self.analysis_number,
+            self.username,
+            self.draft,
+            additional=True,
+        )
 
     @property
     def notebook_dir(self) -> Path:
