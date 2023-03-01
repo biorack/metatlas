@@ -136,7 +136,7 @@ def generate_outputs(data: MetatlasDataset, workflow: Workflow, set_parameters: 
                     ids.username,
                     analysis.parameters.draft,
                 )
-                out_file_name = out_dir.with_name(in_file_name.stem + "_SLURM.ipynb")
+                out_file_name = out_dir / "Additional_info" / (in_file_name.stem + "_SLURM.ipynb")
                 papermill.execute_notebook(in_file_name, out_file_name, {}, kernel_name="papermill")
     copy_outputs_to_google_drive(ids)
     logger.info("RT-Alignment notebook complete. Switch to an analysis notebook to continue.")
