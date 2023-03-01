@@ -101,6 +101,7 @@ def output_dir(
     analysis_num: int,
     username: str,
     draft: bool,
+    additional: bool = False,
 ) -> Path:
     """Creates the output directory and returns the path as a string"""
     sub_dirs = [
@@ -109,7 +110,7 @@ def output_dir(
         "Targeted",
         f"{workflow}_{experiment}",
         f"{analysis}{'_draft' if draft else ''}",
-    ]
+    ] + (["Additional_info"] if additional else [])
     out = base.joinpath(*sub_dirs)
     out.mkdir(parents=True, exist_ok=True)
     return out
