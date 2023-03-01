@@ -90,3 +90,26 @@ def export_dataframe_die_on_diff(dataframe, file_path, description, overwrite=Fa
         raise_on_diff(dataframe, file_path, description, **kwargs)
         if not file_path.exists():
             export_dataframe(dataframe, file_path, description, **kwargs)
+
+
+def output_dir(
+    base: Path,
+    experiment: str,
+    workflow: str,
+    analysis: str,
+    rt_num: int,
+    analysis_num: int,
+    username: str,
+    draft: bool,
+) -> Path:
+    """Creates the output directory and returns the path as a string"""
+    sub_dirs = [
+        experiment,
+        f"{username}_{workflow}_{rt_num}_{analysis_num}",
+        "Targeted",
+        f"{workflow}_{experiment}",
+        f"{analysis}{'_draft' if draft else ''}",
+    ]
+    out = base.joinpath(*sub_dirs)
+    out.mkdir(parents=True, exist_ok=True)
+    return out

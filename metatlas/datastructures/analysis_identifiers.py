@@ -221,16 +221,16 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def output_dir(self) -> Path:
         """Creates the output directory and returns the path as a string"""
-        sub_dirs = [
+        return write_utils.output_dir(
+            self.project_directory,
             self.experiment,
-            f"{self.username}_{self.workflow}_{self.rt_alignment_number}_{self.analysis_number}",
-            "Targeted",
-            f"{self.workflow}_{self.experiment}",
-            f"{self.analysis}{'_draft' if self.draft else ''}",
-        ]
-        out = self.project_directory.joinpath(*sub_dirs)
-        out.mkdir(parents=True, exist_ok=True)
-        return out
+            self.workflow,
+            self.analysis,
+            self.rt_alignment_number,
+            self.analysis_number,
+            self.username,
+            self.draft,
+        )
 
     @property
     def additional_output_dir(self) -> Path:
@@ -242,12 +242,14 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def notebook_dir(self) -> Path:
         """Directoy where notebooks are saved"""
-        return self.output_dir.resolve().parent.parent.parent.parent
+        desired_parts = len(self.project_directory.parts) + 1
+        return Path(*self.output_dir.parts[:desired_parts])
 
     @property
     def cache_dir(self) -> Path:
         """Creates directory for storing cache files and returns the path"""
-        out = self.project_directory / self.experiment / "cache"
+        desired_parts = len(self.project_directory.parts) + 1
+        out = Path(*self.output_dir.parts[:desired_parts]) / "cache"
         out.mkdir(parents=True, exist_ok=True)
         return out
 
