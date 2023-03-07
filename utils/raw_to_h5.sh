@@ -3,8 +3,8 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 raw_image_base_name='quay.io/biocontainers/thermorawfileparser'
-# this is version 1.4.1 of ThermoRawFileParser:
-hash='sha256:2aa0ea0aa2c5f43e5244ed7eaad4a14e6ed6319b91a9d917850ac2b5ff73741c'
+# this is version 1.4.2 of ThermoRawFileParser:
+hash='sha256:3b930ef774b3d4e0d559f38903da2390f9b24b96a016a1761805b88ae78c2b40'
 raw_image="${raw_image_base_name}@${hash}"
 
 if [ "$#" -ne 1 ]; then
