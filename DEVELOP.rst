@@ -8,8 +8,9 @@ Setup
 2. Install `Pip <https://pip.pypa.io/en/stable/installing/>`_
 3. Install `Docker <https://docs.docker.com/get-docker/>`_.
 4. Install Nox with :code:`pip install --user --upgrade nox`
-5. :code:`git clone https://github.com/biorack/metatlas.git`
-6. Install git pre-commit hooks with :code:`cd metatlas && nox -s install_git_hooks`
+5. Install Flake8 with :code:`pip install --user --upgrade flake8`
+6. :code:`git clone https://github.com/biorack/metatlas.git`
+7. Install git pre-commit hooks with :code:`cd metatlas && nox -s install_git_hooks`
 
 Local Development
 #################
