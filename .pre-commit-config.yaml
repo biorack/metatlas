@@ -25,7 +25,7 @@ repos:
   - id: mixed-line-ending
   - id: check-shebang-scripts-are-executable
 - repo: https://github.com/zricethezav/gitleaks
-  rev: v8.15.2
+  rev: v8.16.0
   hooks:
     - id: gitleaks
 - repo: https://github.com/koalaman/shellcheck-precommit
@@ -42,7 +42,7 @@ repos:
   hooks:
   - id: markdownlint_docker
 - repo: https://github.com/nbQA-dev/nbQA
-  rev: 1.6.1
+  rev: 1.6.3
   hooks:
   - id: nbqa-black
     args: ['--nbqa-dont-skip-bad-cells', '--line-length=140']
@@ -62,6 +62,6 @@ repos:
      # optional: list of Conventional Commits types to allow
      args: ['fix', 'feat', 'build', 'chore', 'ci', 'docs', 'style', 'refactor', 'perf', 'test']
 - repo: https://github.com/commitizen-tools/commitizen
-  rev: v2.39.1
+  rev: v2.42.1
   hooks:
   - id: commitizen
