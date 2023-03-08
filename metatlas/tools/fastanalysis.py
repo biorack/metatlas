@@ -146,6 +146,16 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
                     intensities.loc[file_idx, 'file_id'] = file_idx
                     intensities.loc[file_idx, 'intensity'] = dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
 
+        peak_height_values = np.array(intensities.intensity.tolist())
+
+        if len(peak_height_values) > 3:
+            top3_peak_height_idxs = np.argpartition(peak_height_values, -3)[-3:]
+
+            if len(avg_mz_measured) == len(peak_height_values):
+                avg_mz_measured = np.array(avg_mz_measured)[top3_peak_height_idxs]
+            if len(avg_rt_measured) == len(peak_height_values):
+                avg_rt_measured = np.array(avg_rt_measured)[top3_peak_height_idxs]
+
         avg_mz_measured = np.mean(avg_mz_measured)
         avg_rt_measured = np.mean(avg_rt_measured)
 
