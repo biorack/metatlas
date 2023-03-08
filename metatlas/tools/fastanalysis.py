@@ -149,7 +149,7 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
         if 'intensity' in intensities.keys():
             peak_height_values = np.array(intensities.intensity.tolist())
         else:
-            peak_height_values = None
+            peak_height_values = []
 
         if len(peak_height_values) > 3:
             top3_peak_height_idxs = np.argpartition(peak_height_values, -3)[-3:]
