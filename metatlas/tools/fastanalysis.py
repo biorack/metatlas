@@ -146,7 +146,7 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
                     intensities.loc[file_idx, 'file_id'] = file_idx
                     intensities.loc[file_idx, 'intensity'] = dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
 
-        if 'intensity' in intensities.keys():
+        if 'intensity' in intensities.columns:
             peak_height_values = np.array(intensities.intensity.tolist())
         else:
             peak_height_values = []
