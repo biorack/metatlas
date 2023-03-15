@@ -194,6 +194,13 @@ get_rclone_remote() {
   echo "$remote"
 }
 
+check_memory_limit() {
+  if [ "$1" -gt "$(total_mem)" ]; then
+    >&2 echo "ERROR: maximum memory for this system is $(total_mem) GB."
+    die
+  fi
+}
+
 check_yaml_is_valid() {
   if ! is_valid_yaml "$1"; then
     >&2 echo "ERROR: invalid YAML or JSON for -y value."
@@ -336,6 +343,7 @@ check_rt_alignment_number_is_non_neg_int "$rt_alignment_number"
 check_yaml_is_valid "$(echo "${YAML_BASE64:-}" | base64 --decode)"
 check_gdrive_authorization
 check_not_in_commom_software_filesystem
+check_memory_limit "$memory"
 
 account="$(get_slurm_account)"
 cpus_requested="$(get_num_cpus "$memory")"
