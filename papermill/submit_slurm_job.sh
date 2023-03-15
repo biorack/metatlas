@@ -2,12 +2,21 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# fix threads at 8 even when requesting more CPUs,
+rclone='/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone'
+raw_data='/global/cfs/cdirs/metatlas/raw_data'
+
+# fix threads with the notebook even when requesting more CPUs,
 # as the larger jobs need more memory per thread.
 threads_to_use=8
 
-rclone='/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone'
-raw_data='/global/cfs/cdirs/metatlas/raw_data'
+# system definitions
+cori_cpus=64 # hyperthreads per Cori Haswell node
+cori_mem=128 # GB per Cori Haswell node
+perlmutter_cpus=128 # 64 cores per chip, 2 chips per node for CPU nodes
+perlmutter_mem=512 # GB per node
+
+# default memory request for SLURM job
+memory=48 # GB
 
 trap "exit 1" TERM
 export TOP_PID=$$
@@ -18,7 +27,7 @@ die() {
 
 usage() {
   >&2 echo "Usage:
-  $(basename "$0") workflow_name experiment_name [rt_alignment_number] [project_directory] [-p notebook_parameter=value] [-y yaml_string]
+  $(basename "$0") workflow_name experiment_name [rt_alignment_number] [project_directory] [-m memory] [-p notebook_parameter=value] [-y yaml_string]
 
      where:
         workflow_name:     name associated with a workflow definition in the configuration file
@@ -26,6 +35,7 @@ usage() {
         rt_alignment_number:  integer, use 0 the first time generating an RT alignment for an experiment
 	                   and increment if re-generating an RT alignment (default: 0)
 	project_directory: output directory will be created within this directory (default: $HOME/metabolomics_data)
+	-m:                memory in GB to request for the SLURM job (default: ${memory})
         -p:                optional notebook parameters, can use multiple times
         -y:                optional notebook parameters in YAML or JSON string
 
@@ -86,18 +96,42 @@ is_perlmutter() {
   [ "$NERSC_HOST" = "perlmutter" ]
 }
 
-is_C18_experiment() {
-  local experiment_name="$1"
-  [[ $experiment_name == *"_C18_"* ]]
+ceiling_divide() {
+  echo "($1 + $2 - 1)/$2" | bc
+}
+
+total_cpus() {
+  if is_perlmutter; then
+    echo "$perlmutter_cpus"
+  else
+    echo "$cori_cpus"
+  fi
+}
+
+total_mem() {
+  # all values are in GB
+  if is_perlmutter; then
+    echo "$perlmutter_mem"
+  else
+    echo "$cori_mem"
+  fi
 }
 
 get_num_cpus() {
-  local experiment_name="$1"
-  if is_C18_experiment "$experiment_name"; then
-    echo "64"
+  local needed_cpus mem
+  mem="$1"
+  needed_cpus="$(ceiling_divide "$(( "$(total_cpus)" * mem ))" "$(total_mem)")"
+  if [ "$needed_cpus" -gt "$(( "$(total_cpus)" / 2 ))" ]; then
+    # need more than half a node, can't use shared queue, so get full node
+    total_cpus
   else
-    echo "24"
+    echo "$needed_cpus"
   fi
+}
+
+needs_full_node() {
+  # takes memory in GB as an input
+  [ "$(get_num_cpus "$1")" -eq "$(total_cpus)" ]
 }
 
 get_slurm_account() {
@@ -131,25 +165,21 @@ get_slurm_constraint() {
 }
 
 get_slurm_queue() {
-  local experiment_name="$1"
-  if is_perlmutter; then
-    echo "shared"
-  else  # cori
-    if is_C18_experiment "$experiment_name"; then
-      if is_group_member "gtrnd"; then
+  local mem="$1"
+  if ! is_perlmutter; then  # cori
+    if is_group_member "gtrnd"; then
+      if needs_full_node "$mem"; then
         echo "genepool"
       else
-        # could also use 'flex' for lower cost and lower priority
-        echo "regular"
-      fi
-    else
-      if is_group_member "gtrnd"; then
         echo "genepool_shared"
-      else
-        # could also use 'flex' for lower cost and lower priority
-        echo "shared"
       fi
+      return
     fi
+  fi
+  if needs_full_node "$mem"; then
+    echo "regular"
+  else
+    echo "shared"
   fi
 }
 
@@ -252,8 +282,9 @@ declare -a positional_parameters=()
 declare -a extra_parameters=()
 while [ $OPTIND -le "$#" ]
 do
-  if getopts p:y: option; then
+  if getopts m:p:y: option; then
     case $option in
+      m) memory="$OPTARG";;
       p) extra_parameters+=("$OPTARG");;
       y) YAML_BASE64="$(echo "${OPTARG}" | base64 --wrap=0)";;
       \?) usage;;
@@ -307,8 +338,8 @@ check_gdrive_authorization
 check_not_in_commom_software_filesystem
 
 account="$(get_slurm_account)"
-cpus_requested="$(get_num_cpus "$exp")"
-queue="$(get_slurm_queue "$exp")"
+cpus_requested="$(get_num_cpus "$memory")"
+queue="$(get_slurm_queue "$memory")"
 constraint="$(get_slurm_constraint)"
 time="$(get_slurm_time)"
 IFS=$' ' flags="${account:+--account=$account} --qos=${queue} --cpus-per-task=${cpus_requested} --constraint=${constraint} --time=${time}"
