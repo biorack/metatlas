@@ -5,18 +5,18 @@ IFS=$'\n\t'
 rclone='/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone'
 raw_data='/global/cfs/cdirs/metatlas/raw_data'
 
-# fix threads at 8 even when requesting more CPUs,
+# fix threads with the notebook even when requesting more CPUs,
 # as the larger jobs need more memory per thread.
 threads_to_use=8
 
-memory=48 # GB
-
+# system definitions
 cori_cpus=64 # hyperthreads per Cori Haswell node
 cori_mem=128 # GB per Cori Haswell node
-
 perlmutter_cpus=128 # 64 cores per chip, 2 chips per node for CPU nodes
 perlmutter_mem=512 # GB per node
 
+# default memory request for SLURM job
+memory=48 # GB
 
 trap "exit 1" TERM
 export TOP_PID=$$
@@ -27,7 +27,7 @@ die() {
 
 usage() {
   >&2 echo "Usage:
-  $(basename "$0") workflow_name experiment_name [rt_alignment_number] [project_directory] [-p notebook_parameter=value] [-y yaml_string]
+  $(basename "$0") workflow_name experiment_name [rt_alignment_number] [project_directory] [-m memory] [-p notebook_parameter=value] [-y yaml_string]
 
      where:
         workflow_name:     name associated with a workflow definition in the configuration file
@@ -35,6 +35,7 @@ usage() {
         rt_alignment_number:  integer, use 0 the first time generating an RT alignment for an experiment
 	                   and increment if re-generating an RT alignment (default: 0)
 	project_directory: output directory will be created within this directory (default: $HOME/metabolomics_data)
+	-m:                memory in GB to request for the SLURM job (default: ${memory})
         -p:                optional notebook parameters, can use multiple times
         -y:                optional notebook parameters in YAML or JSON string
 
@@ -93,11 +94,6 @@ is_group_member() {
 
 is_perlmutter() {
   [ "$NERSC_HOST" = "perlmutter" ]
-}
-
-is_C18_experiment() {
-  local experiment_name="$1"
-  [[ $experiment_name == *"_C18_"* ]]
 }
 
 ceiling_divide() {
@@ -376,4 +372,4 @@ install_jupyter_kernel
 
 mkdir -p "$alignment_dir"
 # shellcheck disable=SC2086
-echo sbatch $flags -J "${short_id}_${workflow_name}" "${script_dir}/slurm_template.sh"
+sbatch $flags -J "${short_id}_${workflow_name}" "${script_dir}/slurm_template.sh"
