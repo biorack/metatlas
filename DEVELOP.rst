@@ -5,11 +5,11 @@ Setup
 #####
 
 1. Install Python 3.8+ (`pyenv <https://github.com/pyenv/pyenv>`_ and `pyenv intstaller <https://github.com/pyenv/pyenv-installer>`_ can help here)
-1. Install `Pip <https://pip.pypa.io/en/stable/installing/>`_
-1. Install `Docker <https://docs.docker.com/get-docker/>`_.
-1. Install Nox with :code:`pip install --user --upgrade nox`
-1. :code:`git clone https://github.com/biorack/metatlas.git`
-1. Install git pre-commit hooks with :code:`cd metatlas && nox -s install_git_hooks`
+2. Install `Pip <https://pip.pypa.io/en/stable/installing/>`_
+3. Install `Docker <https://docs.docker.com/get-docker/>`_.
+4. Install Nox with :code:`pip install --user --upgrade nox`
+5. :code:`git clone https://github.com/biorack/metatlas.git`
+6. Install git pre-commit hooks with :code:`cd metatlas && nox -s install_git_hooks`
 
 
 Local Development
