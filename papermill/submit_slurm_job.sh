@@ -12,7 +12,7 @@ threads_to_use=8
 # system definitions
 cori_cpus=64 # hyperthreads per Cori Haswell node
 cori_mem=128 # GB per Cori Haswell node
-perlmutter_cpus=128 # 64 cores per chip, 2 chips per node for CPU nodes
+perlmutter_cpus=256 # 64 cores per chip, 2 chips per node for CPU nodes, 2 threads per core
 perlmutter_mem=512 # GB per node
 
 # default memory request for SLURM job
