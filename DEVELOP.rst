@@ -5,12 +5,12 @@ Setup
 #####
 
 1. Install Python 3.8+ (`pyenv <https://github.com/pyenv/pyenv>`_ and `pyenv intstaller <https://github.com/pyenv/pyenv-installer>`_ can help here)
-2. Install `Pip <https://pip.pypa.io/en/stable/installing/>`_
-3. Install `Docker <https://docs.docker.com/get-docker/>`_.
-4. Install Nox with :code:`pip install --user --upgrade nox`
-5. Install Flake8 with :code:`pip install --user --upgrade flake8`
-6. :code:`git clone https://github.com/biorack/metatlas.git`
-7. Install git pre-commit hooks with :code:`cd metatlas && nox -s install_git_hooks`
+1. Install `Pip <https://pip.pypa.io/en/stable/installing/>`_
+1. Install `Docker <https://docs.docker.com/get-docker/>`_.
+1. Install Nox with :code:`pip install --user --upgrade nox`
+1. :code:`git clone https://github.com/biorack/metatlas.git`
+1. Install git pre-commit hooks with :code:`cd metatlas && nox -s install_git_hooks`
+
 
 Local Development
 #################
@@ -58,10 +58,8 @@ Running :code:`nox` will run the default tests. Using :code:`nox -s <session_nam
 the `nox documentation <https://nox.thea.codes/>`_ for more information on running tests.
 
 Metatlas makes use of `pre-commit <https://pre-commit.com/>`_ to manage pre-commit git hooks. The hooks are
-automatically updated when the default nox test suite runs. These hooks check that the diff of the code to be
-committed passes `flake8  <https://flake8.pycqa.org/>`_ along with a few other minor tests
-(see .pre-commit-config.yaml). The flake8 parameters have been modified to allow for a maximum line length of
-110 characters.
+automatically updated when the default nox test suite runs. The flake8 parameters have been modified to
+allow for a maximum line length of 110 characters.
 
 The current tests are in ./tests and while the tests are substantial, there is still a lot of code
 not being tested. The "system_tests" uses
