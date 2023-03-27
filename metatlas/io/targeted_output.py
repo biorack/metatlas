@@ -256,22 +256,22 @@ def get_max_precursor_intensity(data, compound_idx):
     """
     max_pre_intensity = max_precursor_mz = 0
     max_file_idx = max_pre_intensity_idx = None
-    for file_idx, _ in enumerate(data):
+    for file_idx, sample in enumerate(data):
         try:
-            msms = data[file_idx][compound_idx]["data"]["msms"]["data"]
+            msms = sample[compound_idx]["data"]["msms"]["data"]
             if len(msms["precursor_intensity"]) == 0:
                 continue
             pre_intensity_idx = msms["precursor_intensity"].argmax()
             pre_intensity = msms["precursor_intensity"][pre_intensity_idx]
             precursor_mz = msms["precursor_MZ"][pre_intensity_idx]
             rts = msms["rt"][pre_intensity_idx]
-            rt_ref = data[file_idx][compound_idx]["identification"].rt_references[-1]
+            rt_ref = sample[compound_idx]["identification"].rt_references[-1]
             if pre_intensity > max_pre_intensity and rt_ref.rt_min < rts < rt_ref.rt_max:
                 max_file_idx = file_idx
                 max_pre_intensity_idx = pre_intensity_idx
                 max_pre_intensity = pre_intensity
                 max_precursor_mz = precursor_mz
-        except (AttributeError, IndexError):
+        except (AttributeError, IndexError, KeyError):
             pass
     return Max(max_file_idx, max_pre_intensity_idx, max_pre_intensity, max_precursor_mz)
 
