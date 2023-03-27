@@ -165,7 +165,7 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
         delta_mz = abs(mz_theoretical - avg_mz_measured)
         delta_ppm = delta_mz / mz_theoretical * 1e6
 
-        final_df = final_df.append({'index':compound_idx}, ignore_index=True)
+        final_df = pd.concat([final_df, pd.DataFrame(index=[compound_idx])])
         final_df.loc[compound_idx, 'identified_metabolite'] = ""
         if use_labels or len(cid.compound) == 0:
             cid_label = cid.name
