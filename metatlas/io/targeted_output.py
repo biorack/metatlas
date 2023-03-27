@@ -234,7 +234,9 @@ def write_msms_fragment_ions(
         if max_vars.file_idx:
             out.append(
                 get_spectra_strings(
-                    data[max_vars.file_idx][compound_idx],
+                    data,
+                    max_vars.file_idx,
+                    compound_idx,
                     max_vars.pre_intensity,
                     min_mz,
                     max_mz_offset + max_vars.precursor_mz,
@@ -277,7 +279,9 @@ def get_max_precursor_intensity(data, compound_idx):
     return Max(max_file_idx, max_pre_intensity_idx, max_pre_intensity, max_precursor_mz)
 
 
-def get_spectra_strings(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity):
+def get_spectra_strings(
+    data, sample_idx, compound_idx, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity
+):
     """
     inputs:
         data: metatlas_dataset[x][y]
@@ -290,14 +294,27 @@ def get_spectra_strings(data, max_pre_intensity, min_mz, max_mz, intensity_fract
         scale_intensity: If not None, normalize output intensity to maximum of scale_intensity
     returns a dict containing compound name and string representations of the spectra
     """
+    compound_data = data[sample_idx][compound_idx]
     mz_list, intensity_list = get_spectra(
-        data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity
+        compound_data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity
     )
     mz_str = str([f"{x:.2f}" for x in mz_list]).replace("'", "")
     intensity_str = str([int(x) for x in intensity_list]).replace("'", "")
     spectra_str = str([mz_str, intensity_str]).replace("'", "")
-    name = data["identification"].name
-    return {"name": name, "spectrum": spectra_str, "mz": mz_str, "intensity": intensity_str}
+    name = compound_data["identification"].name
+    run = Path(compound_data["lcmsrun"].hdf5_file).stem
+    mz_peak = compound_data["data"]["ms1_summary"]["mz_peak"]
+    rt_peak = compound_data["data"]["ms1_summary"]["rt_peak"]
+    return {
+        "compound_idx": compound_idx,
+        "name": name,
+        "run": run,
+        "rt_peak": rt_peak,
+        "mz_peak": mz_peak,
+        "spectrum": spectra_str,
+        "mz": mz_str,
+        "intensity": intensity_str,
+    }
 
 
 def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity):
