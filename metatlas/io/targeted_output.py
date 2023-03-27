@@ -231,16 +231,17 @@ def write_msms_fragment_ions(
     out = []
     for compound_idx, _ in enumerate(data[0]):
         max_vars = get_max_precursor_intensity(data, compound_idx)
-        out.append(
-            get_spectra_strings(
-                data[max_vars.file_idx][compound_idx],
-                max_vars.pre_intensity,
-                min_mz,
-                max_mz_offset + max_vars.precursor_mz,
-                intensity_fraction,
-                scale_intensity,
+        if max_vars.file_idx:
+            out.append(
+                get_spectra_strings(
+                    data[max_vars.file_idx][compound_idx],
+                    max_vars.pre_intensity,
+                    min_mz,
+                    max_mz_offset + max_vars.precursor_mz,
+                    intensity_fraction,
+                    scale_intensity,
+                )
             )
-        )
     out_df = pd.DataFrame(out)
     path = data.ids.output_dir / f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut.csv"
     export_dataframe_die_on_diff(out_df, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
