@@ -25,6 +25,12 @@ jobs:
       run: |
         DATE_TIME=$(date -u +"%Y%m%d_%H%M%S")
         echo "::set-output name=date_time::${DATE_TIME}"
+    - name: Login to GHCR
+      uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     - name: Build Docker images
       id: build
       uses: docker/build-push-action@v2.7.0
@@ -42,3 +48,16 @@ jobs:
         push: true
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}
+    - name: Build Docker images # This is for the boutique analysis tasks
+      id: build_analysis
+      uses: docker/build-push-action@v2.7.0
+      with:
+        context: ./docker
+        file: ./docker/Dockerfile.analysis
+        platforms: linux/amd64
+        cache-from: type=registry,ref=ghcr.io/biorack/metatlas:latest
+        cache-to: type=inline
+        tags: |
+          ghcr.io/biorack/metatlas:${{ steps.timestamp.outputs.date_time }}
+          ghcr.io/biorack/metatlas:latest
+        push: true
