@@ -31,7 +31,7 @@ jobs:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    - name: Build Docker images
+    - name: Build Docker images # This is for the targeted metatlas pipeline
       id: build
       uses: docker/build-push-action@v2.7.0
       with:
@@ -55,9 +55,22 @@ jobs:
         context: ./docker
         file: ./docker/Dockerfile.analysis
         platforms: linux/amd64
-        cache-from: type=registry,ref=ghcr.io/biorack/metatlas:latest
+        cache-from: type=registry,ref=ghcr.io/biorack/metatlas/analysis:latest
         cache-to: type=inline
         tags: |
-          ghcr.io/biorack/metatlas:${{ steps.timestamp.outputs.date_time }}
-          ghcr.io/biorack/metatlas:latest
+          ghcr.io/biorack/metatlas/analysis:${{ steps.timestamp.outputs.date_time }}
+          ghcr.io/biorack/metatlas/analysis:latest
+        push: true
+    - name: Build Docker images # This is for the mzmine container
+      id: build_mzmine
+      uses: docker/build-push-action@v2.7.0
+      with:
+        context: ./docker
+        file: ./docker/Dockerfile.mzmine
+        platforms: linux/amd64
+        cache-from: type=registry,ref=ghcr.io/biorack/metatlas/mzmine:latest
+        cache-to: type=inline
+        tags: |
+          ghcr.io/biorack/metatlas/mzmine:${{ steps.timestamp.outputs.date_time }}
+          ghcr.io/biorack/metatlas/mzmine:latest
         push: true

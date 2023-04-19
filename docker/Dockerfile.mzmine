@@ -1,0 +1,16 @@
+FROM mambaorg/micromamba:1.4.2-jammy
+COPY --chown=$MAMBA_USER:$MAMBA_USER mzmine.yaml /tmp/env.yaml
+RUN micromamba install -y -n base -f /tmp/env.yaml && \
+    micromamba clean --all --yes
+
+
+WORKDIR /home/mambauser
+
+# this is the same as conda activate
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+
+WORKDIR /home/mambauser
+RUN wget https://github.com/mzmine/mzmine2/releases/download/v2.39/MZmine-2.39.zip -O mzmine_2p39.zip && \
+  unzip mzmine_2p39.zip
+
+# CMD ["/opt/conda/bin/python"]
