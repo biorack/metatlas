@@ -5,6 +5,11 @@ channels:
   - bioconda
 dependencies:
   - cxx-compiler
+  - git
+  - conda
+  - wget
+  - curl
+  - unzip
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
   - aiohttp=3.8.3=py38h0a891b7_1
