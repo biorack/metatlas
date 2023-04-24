@@ -12,10 +12,11 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 RUN git clone https://github.com/biorack/metatlas.git \
     && git clone https://github.com/biorack/blink.git \
+    && git clone https://github.com/biorack/simile.git \
     && git clone https://github.com/avhn/peakdetect.git
 
 USER $MAMBA_USER
 WORKDIR /tmp
 
-ENV PYTHONPATH="/code/metatlas:/code/blink:/code/peakdetect"
+ENV PYTHONPATH="/code/metatlas:/code/blink:/code/simile:/code/peakdetect"
 CMD ["/opt/conda/bin/python"]
