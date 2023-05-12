@@ -137,12 +137,10 @@ needs_full_node() {
 get_slurm_account() {
   if is_group_member "gtrnd" && ! is_perlmutter; then
     echo "gtrnd"
-  elif is_group_member "m342"; then
-    echo "m342"
   elif is_group_member "m2650"; then
     echo "m2650"
   else
-    >&2 echo "WARNING: ${USER} is not a member of gtrnd, m342, or m2650."
+    >&2 echo "WARNING: ${USER} is not a member of gtrnd or m2650."
     >&2 echo "WARNING: Attempting to use ${USER}'s default account."
     echo ""
   fi
