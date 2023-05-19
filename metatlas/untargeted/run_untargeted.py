@@ -5,7 +5,18 @@ from metatlas.untargeted import tools as mzm
 import subprocess
 
 
+
+print('getting new jobs')
 new_folders = mzm.update_new_untargeted_tasks()
+
+print('remove any DNA SIP jobs')
+df = mzm.get_table_from_lims('untargeted_tasks',columns=['Key','parent_dir','mzmine_pos_status','mzmine_neg_status','fbmn_pos_status','fbmn_neg_status'])
+df = df[(df['parent_dir'].str.contains('DNA-SIP')) & (df['parent_dir'].str.contains('_RM'))]
+cols = [c for c in df.columns if c.endswith('status')]
+df[cols] = '12 not relevant'
+mzm.update_table_in_lims(df,'untargeted_tasks',method='update')
+
+
 print('\nChecking status of mzmine jobs')
 mzm.update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short='pos')
 mzm.update_mzmine_status_in_untargeted_tasks(polarity='negative',polarity_short='neg')
@@ -20,8 +31,13 @@ mzm.submit_fbmn_jobs(polarity='positive',polarity_short='pos',N=20)
 mzm.submit_fbmn_jobs(polarity='negative',polarity_short='neg',N=20)
 
 
-mzm.update_num_features()
-mzm.update_num_msms()
+# mzm.update_feature_table()
+# mzm.update_gnps_hits_table()
+# mzm.update_gnps_compound_properties()
+# mzm.update_num_features()
+# mzm.update_num_msms()
+# mzm.update_untargeted_treatments()
+
 
 # import datetime
 # datetime.datetime.now()
@@ -52,6 +68,10 @@ os.system("chgrp -R metatlas %s"%download_folder)
 os.system("chmod o+rx %s"%download_folder)
 os.system("chmod o+rx %s"%download_folder)
 
-# cmd = """/global/cfs/cdirs/m342/USA/shared-repos/rclone/bin/rclone copy --update /global/cfs/cdirs/metatlas/projects/untargeted_outputs ben_lbl_gdrive:/untargeted_outputs"""
+
+#### old one (do not use)
+#### cmd = """/global/cfs/cdirs/m342/USA/shared-repos/rclone/bin/rclone copy --update /global/cfs/cdirs/metatlas/projects/untargeted_outputs ben_lbl_gdrive:/untargeted_outputs"""
+
+##### new one
 cmd = """/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --size-only /global/cfs/cdirs/metatlas/projects/untargeted_outputs ben_lbl_gdrive:/untargeted_outputs"""
 subprocess.check_output(cmd, shell=True)

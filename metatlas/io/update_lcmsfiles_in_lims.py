@@ -25,8 +25,8 @@ import math
 
 EXTENSIONS = {'mzml':'.mzML',
         'hdf5':'.h5',
-        'spectralhits':'_spectral-hits.tab.gz',
-        'pactolus':'.pactolus.gz',
+        # 'spectralhits':'_spectral-hits.tab.gz',
+        # 'pactolus':'.pactolus.gz',
         'raw':'.raw'}
 
 STATUS = {'initiation':'01 initiation',
@@ -38,18 +38,18 @@ STATUS = {'initiation':'01 initiation',
       'submitted':'10 submitted',
       'corrupted':'11 corrupted'}
 
-PROJECT_DIRECTORY = '/global/project/projectdirs/metatlas/raw_data'
+PROJECT_DIRECTORY = '/global/cfs/cdirs/metatlas/raw_data'
 
 GETTER_SPEC = {'raw':{'extension':'.raw',
                             'lims_table':'raw_file'},
                'mzml':{'extension':'.mzml',
                             'lims_table':'mzml_file'},
                'hdf5':{'extension':'.h5',
-                            'lims_table':'hdf5_file'},
-               'spectralhits':{'extension':'_spectral-hits.tab.gz',
-                            'lims_table':'spectralhits_file'},
-              'pactolus':{'extension':'.pactolus.gz',
-                            'lims_table':'pactolus_file'}}
+                            'lims_table':'hdf5_file'}}
+               # 'spectralhits':{'extension':'_spectral-hits.tab.gz',
+                            # 'lims_table':'spectralhits_file'},
+              # 'pactolus':{'extension':'.pactolus.gz',
+                            # 'lims_table':'pactolus_file'}}
 
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
@@ -73,9 +73,11 @@ def get_files_from_disk(directory,extension):
 
 def complex_name_splitter(filename,
                           extensions=set(['raw', 'tab', 'gz', 'pactolus', 'mzML', 'd','h5']),
-                         strippath='/global/project/projectdirs/metatlas/raw_data'):
+                         strippath='/global/cfs/cdirs/metatlas/raw_data'):
 
     #Get the filename
+    if '/project/projectdirs' in filename:
+        filename = filename.replace('/project/projectdirs','/cfs/cdirs')
     basename = os.path.basename(filename)
     #Path is everything not filename
     pathname = filename.replace(basename,'')
@@ -171,7 +173,8 @@ def update_table_in_lims(df,table,method='update',max_size=1000):
             print(('ERROR: Nothing to do.  Method %s is not programmed'%method))
         print('updated')
 
-def get_union_of_all_lcms_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']):
+def get_union_of_all_lcms_names(tables=['mzml_file','hdf5_file','raw_file']):
+    # 'pactolus_file','raw_file','spectralhits_file']):
     # sort out the lcmsrun table
     sql = ['select name from %s'%t for t in tables]
     sql = ' union '.join(sql)
@@ -179,14 +182,17 @@ def get_union_of_all_lcms_names(tables=['mzml_file','hdf5_file','pactolus_file',
 #     con = lk.utils.create_server_context(labkey_server, project_name, use_ssl=True,)
     # base execute_sql
     schema = 'lists'
-    sql_result = api.query.execute_sql(schema, sql,max_rows=1e6)
+    print('Getting union of all names')
+    sql_result = api.query.execute_sql(schema, sql,max_rows=1e8)
+    print('done with union query')
     if sql_result is None:
         print(('execute_sql: Failed to load results from ' + schema + '.' + table))
     else:
         return [r['name'] for r in sql_result['rows']]
 
 
-def update_lcmsrun_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']):
+def update_lcmsrun_names(tables=['mzml_file','hdf5_file','raw_file']):
+    # ['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']):
     #get all the names in the various raw data tables
     names = get_union_of_all_lcms_names(tables)
     #get all the names in lcmsrun (rawdata relationship) table
@@ -207,20 +213,23 @@ def update_lcmsrun_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_fi
 
     #remove extra ones
     if len(extra_in_lcmsruns)>0:
-        sql = """SELECT Key FROM lcmsrun where name IN (%s);"""%','.join(['\'%s\''%e for e in extra_in_lcmsruns])
-        # print(sql)
-        schema = 'lists'
-        sql_result = api.query.execute_sql(schema, sql,max_rows=1e6)
-        if sql_result is None:
-            print(('execute_sql: Failed to load results from ' + schema + '.' + table))
-        #     return None
-        else:
-            temp = pd.DataFrame(sql_result['rows'])
-            temp = temp[[c for c in temp.columns if not c.startswith('_')]]
-        #     return df
+        chunks = [extra_in_lcmsruns[x:x+10] for x in range(0, len(extra_in_lcmsruns), 10)]
+        for i,extra in enumerate(chunks):
+            sql = """SELECT Key FROM lcmsrun where name IN (%s);"""%','.join(['\'%s\''%e for e in extra])
+            # print(sql)
+            schema = 'lists'
+            sql_result = api.query.execute_sql(schema, sql,max_rows=1e7)
+            if sql_result is None:
+                print(('execute_sql: Failed to load results from ' + schema + '.' + table))
+            #     return None
+            else:
+                temp = pd.DataFrame(sql_result['rows'])
+                temp = temp[[c for c in temp.columns if not c.startswith('_')]]
+            #     return df
 
-        if temp.shape[0]>0:
-            update_table_in_lims(temp,'lcmsrun',method='delete')
+            if temp.shape[0]>0:
+                update_table_in_lims(temp,'lcmsrun',method='delete')
+                print('removing chunk %d'%i)
 
     return missing_from_lcmsruns,extra_in_lcmsruns
 
@@ -242,7 +251,8 @@ def update_lcmsrun_matrix(file_type):
 
 def get_lcmsrun_matrix():#labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
     sql = 'select '
-    for f in ['mzml','hdf5','raw','spectralhits','pactolus']:
+    for f in ['mzml','hdf5','raw']:
+        # ,'spectralhits','pactolus']:
         sql = '%s %s_file.filename as %s_filename,'%(sql,f,f)
     sql = '%s from lcmsrun'%sql
 
@@ -270,30 +280,31 @@ def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None):
 
     if file_conversion_tasks is None:
         file_conversion_tasks = get_table_from_lims('file_conversion_task',columns=['Key','input_file','output_file','task','status'])
-    # task_idx = file_conversion_tasks['task']==task
-
+    
     if lcmsruns is None:
         lcmsruns = get_lcmsrun_matrix()
+    if file_conversion_tasks.shape[0]>0:
+        done_input_files = lcmsruns.loc[pd.notna(lcmsruns['%s_filename'%input_type]),'%s_filename'%input_type]
+        done_output_files = lcmsruns.loc[pd.notna(lcmsruns['%s_filename'%output_type]),'%s_filename'%output_type]
+        inputfile_idx = file_conversion_tasks['input_file'].isin(done_input_files)
+        outputfile_idx = file_conversion_tasks['output_file'].isin(done_output_files)
 
-    done_input_files = lcmsruns.loc[pd.notna(lcmsruns['%s_filename'%input_type]),'%s_filename'%input_type]
-    done_output_files = lcmsruns.loc[pd.notna(lcmsruns['%s_filename'%output_type]),'%s_filename'%output_type]
+        task_idx = file_conversion_tasks['task']==task
 
-    task_idx = file_conversion_tasks['task']==task
-    inputfile_idx = file_conversion_tasks['input_file'].isin(done_input_files)
-    outputfile_idx = file_conversion_tasks['output_file'].isin(done_output_files)
+        # This finds where output file exists
+        done_tasks_idx = (task_idx) & (outputfile_idx)
+        if sum(done_tasks_idx)>0:
+            update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')
+            #,labkey_server=labkey_server,project_name=project_name)
+            print(('%s: There are %d tasks where output file exist and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
 
-    # This finds where output file exists
-    done_tasks_idx = (task_idx) & (outputfile_idx)
-    if sum(done_tasks_idx)>0:
-        update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')#,labkey_server=labkey_server,project_name=project_name)
-        print(('%s: There are %d tasks where output file exist and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
-    
-    
-    # This finds where input file is missing
-    done_tasks_idx = (task_idx) & (~inputfile_idx)
-    if sum(done_tasks_idx)>0:
-        update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')#,labkey_server=labkey_server,project_name=project_name)
-        print(('%s: There are %d tasks where input file is missing and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
+
+        # This finds where input file is missing
+        done_tasks_idx = (task_idx) & (~inputfile_idx)
+        if sum(done_tasks_idx)>0:
+            update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')
+            #,labkey_server=labkey_server,project_name=project_name)
+            print(('%s: There are %d tasks where input file is missing and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
 
     right_now_str = datetime.now().strftime("%Y%m%d %H:%M:%S")
 
@@ -308,9 +319,11 @@ def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None):
     temp['log'] = 'detected: %s'%right_now_str
     temp.reset_index(drop=True,inplace=True)
     cols = temp.columns
-
-    temp = pd.merge(temp,file_conversion_tasks.add_suffix('_task'),left_on=['input_file','output_file'],right_on=['input_file_task','output_file_task'],how='outer',indicator=True)
-    new_tasks = temp[temp['_merge']=='left_only'].copy()
+    if file_conversion_tasks.shape[0]>0:
+        temp = pd.merge(temp,file_conversion_tasks.add_suffix('_task'),left_on=['input_file','output_file'],right_on=['input_file_task','output_file_task'],how='outer',indicator=True)
+        new_tasks = temp[temp['_merge']=='left_only'].copy()
+    else:
+        new_tasks = temp
     new_tasks = new_tasks[cols]
     new_tasks.reset_index(drop=True,inplace=True)
 
@@ -387,7 +400,8 @@ def main():
     args = vars(parser.parse_args())
     # trees = np.load(args['tree_file'])
     print(args)
-    tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']
+    tables=['mzml_file','hdf5_file','raw_file']
+            # 'pactolus_file','raw_file','spectralhits_file']
 #     tables=['spectralhits_file']
     if str2bool(args['update_file_tables'])==True:
         # 1. Update each table individually
@@ -412,7 +426,8 @@ def main():
         # 5. populate any file conversion tasks that need to occur
         lcmsruns = get_lcmsrun_matrix() #this could be moved up abote to step 3 and save a few queries
         file_conversion_tasks = get_table_from_lims('file_conversion_task',columns=['Key','input_file','output_file','task','status'])
-        for task in ['mzml_to_hdf5','raw_to_mzml','mzml_to_spectralhits','mzml_to_pactolus']:
+        for task in ['mzml_to_hdf5','raw_to_mzml']:
+            # ,'mzml_to_spectralhits','mzml_to_pactolus']:
             update_file_conversion_tasks(task,lcmsruns=lcmsruns,file_conversion_tasks=file_conversion_tasks)
 
 if __name__ == "__main__":

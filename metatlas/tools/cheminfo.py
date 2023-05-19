@@ -116,7 +116,14 @@ def inchi_or_smiles_to_smiles(molecule_id: str) -> str:
 def normalize_molecule(mol: Chem.rdchem.Mol) -> Chem.rdchem.Mol:
     """Removes salt and neutralizes charges"""
     desalted, _ = cleaning.desalt(mol)
-    return cleaning.NeutraliseCharges(desalted)[0]
+    if desalted is not None:
+        neutralized, _ = cleaning.NeutraliseCharges(desalted)
+    else:
+        return None
+    if neutralized is not None:
+        return neutralized
+    else:
+        return None
 
 
 @functools.lru_cache
