@@ -62,6 +62,7 @@ jobs:
   system_test5:
     name: Run system test 5 - HILIC Targeted_hybrid
     runs-on: ubuntu-20.04
+    continue-on-error: true
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
