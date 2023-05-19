@@ -6,6 +6,7 @@ import re
 import sys
 
 from collections import defaultdict
+from pathlib import Path
 from textwrap import wrap
 
 import dill
@@ -68,6 +69,8 @@ def get_data_for_atlas_df_and_file(input_tuple):
     my_file, group, atlas_df, atlas = input_tuple[:4]
     extra_time = input_tuple[4] if len(input_tuple) >= 5 else 0.5
     extra_mz = input_tuple[5] if len(input_tuple) == 6 else 0.0
+    if atlas.compound_identifications == []:
+        return tuple([])
     df_container = remove_ms1_data_not_in_atlas(atlas_df, df_container_from_metatlas_file(my_file))
     dict_ms1_summary, dict_eic, dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df, df_container,
                                                                           extra_time, extra_mz)
@@ -177,6 +180,8 @@ def extract(data, ids, default=None):
     as: ('attribute_name',). If you want to make it more explict to the reader, you can add a
     second member to the tuple, which will not be used, such as ('attribute_name', 'as attribute')
     """
+    if data is None:
+        return default
     if len(ids) == 0:
         return data
     try:
@@ -761,24 +766,24 @@ def get_compound_names(data,use_labels=False):
     return (compound_names, compound_objects)
 
 
-def make_data_sources_tables(groups, myatlas, output_loc, polarity=None, overwrite=True):
+def make_data_sources_tables(groups, myatlas, output_loc: Path, polarity=None, overwrite=True):
     """
     polarity must be one of None, 'POS', 'NEG' or will throw ValueError
     """
     if polarity not in [None, 'POS', 'NEG']:
         raise ValueError("Polarity parameter must be one of None, 'POS', or 'NEG'.")
     prefix = f"{polarity}_" if polarity else ""
-    output_dir = os.path.join(output_loc, f"{prefix}data_sources")
-    atlas_path = os.path.join(output_dir, f"{prefix}atlas_metadata.tab")
+    output_dir = output_loc / f"{prefix}data_sources"
+    atlas_path = output_dir / f"{prefix}atlas_metadata.tab"
     write_utils.export_dataframe(metob.to_dataframe([myatlas]), atlas_path, "atlas metadata",
                                  overwrite, sep='\t', float_format="%.8e")
-    groups_path = os.path.join(output_dir, f"{prefix}groups_metadata.tab")
+    groups_path = output_dir / f"{prefix}groups_metadata.tab"
     write_utils.export_dataframe(metob.to_dataframe(groups), groups_path, "groups metadata",
                                  overwrite, sep='\t')
 
     atlas_df = make_atlas_df(myatlas)
     atlas_df['label'] = [cid.name for cid in myatlas.compound_identifications]
-    atlas_df_path = os.path.join(output_dir, myatlas.name+'_originalatlas.tab')
+    atlas_df_path = output_dir / f"{myatlas.name}_originalatlas.tab"
     write_utils.export_dataframe(atlas_df, atlas_df_path, "atlas dataframe", overwrite, sep='\t', float_format="%.6e")
 
     group_path_df = pd.DataFrame(columns=['group_name', 'group_path', 'file_name'])
@@ -790,6 +795,6 @@ def make_data_sources_tables(groups, myatlas, output_loc, polarity=None, overwri
             group_path_df.loc[loc_counter, 'file_name'] = run.mzml_file
             loc_counter += 1
 
-    group_path_path = os.path.join(output_dir, f"{prefix}groups.tab")
+    group_path_path = output_dir / f"{prefix}groups.tab"
     write_utils.export_dataframe(group_path_df, group_path_path, "group-file mapping",
                                  overwrite, sep='\t', index=False)

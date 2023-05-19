@@ -7,6 +7,7 @@ import warnings
 # curr_ld_lib_path = ''
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Sized, Union
 from enum import Enum
 
@@ -21,6 +22,7 @@ from metatlas.plots.utils import pdf_with_text
 from metatlas.tools import fastanalysis
 from metatlas.tools import parallel
 from metatlas.tools import spectralprocessing as sp
+from metatlas.tools.notebook import in_papermill
 
 from tqdm.notebook import tqdm
 from textwrap import fill, TextWrapper
@@ -169,7 +171,11 @@ INSTRUCTIONS_PATH = '/global/cfs/cdirs/m2650/targeted_analysis/instructions_for_
 
 class InstructionSet(object):
     def __init__(self, instructions_path):
-        self.data = pd.read_csv(instructions_path, dtype=str, na_values=[], keep_default_na=False)
+        try:
+            self.data = pd.read_csv(instructions_path, dtype=str, na_values=[], keep_default_na=False)
+        except FileNotFoundError:
+            logger.warning('Could not find instructions file %s.', instructions_path)
+            self.data = pd.DataFrame()
 
     def query(self, inchi_key, adduct, chromatography, polarity):
         inputs = {"inchi_key": inchi_key, "adduct": adduct, "chromatography": chromatography, "polarity": polarity}
@@ -241,7 +247,7 @@ class adjust_rt_for_selected_compound(object):
                  include_groups=None,
                  exclude_groups=None,
                  msms_hits=None,
-                 color_me='',
+                 color_me=None,
                  compound_idx=0,
                  width=10,
                  height=4,
@@ -288,12 +294,12 @@ class adjust_rt_for_selected_compound(object):
            Previous MSMS hit: 'k' or up arrow
            Cycle zoom on MSMS plot: 'z'
            Flag for removal: 'x'
-           Toggle highlighting of overlapping RT ranges for similar compounds: 's'
+           Toggle display of similar compounds list and highlighting: 's'
         """
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
         self.msms_hits = msms_hits.sort_values('score', ascending=False)
-        self.color_me = color_me if color_me != '' else [['black', '']]
+        self.color_me = or_default(color_me, [('black', '')])
         self.compound_idx = compound_idx
         self.width = width
         self.height = height
@@ -318,7 +324,7 @@ class adjust_rt_for_selected_compound(object):
         self.hit_ctr = 0
         self.msms_zoom_factor = 1
         self.match_idx = None
-        self.enable_highlight_similar = True
+        self.enable_similar_compounds = True
         self.similar_compounds = []
         self.in_switch_event = True
         self.instruction_set = InstructionSet(INSTRUCTIONS_PATH)
@@ -345,7 +351,7 @@ class adjust_rt_for_selected_compound(object):
 
     def set_plot_data(self):
         logger.debug('Starting replot')
-        self.enable_highlight_similar = True
+        self.enable_similar_compounds = True
         self.similar_compounds = self.get_similar_compounds()
         self.eic_plot()
         self.filter_hits()
@@ -390,7 +396,7 @@ class adjust_rt_for_selected_compound(object):
         self.y_max_slider()
         idx = 0 if self.y_scale == 'linear' else 1
         self.lin_log_radio = self.create_radio_buttons(self.lin_log_ax, ('linear', 'log'),
-                                                       self.set_lin_log, active_idx=idx)
+                                                       self.set_lin_log, 0.07, active_idx=idx)
         self.rt_bounds()
         self.highlight_similar_compounds()
         logger.debug('Finished eic_plot')
@@ -400,9 +406,11 @@ class adjust_rt_for_selected_compound(object):
             peak_flag_index = self.peak_flags.index(self.current_id.ms1_notes)
         else:
             peak_flag_index = 0
+        radius = 0.02 * self.gui_scale_factor
         logger.debug('Setting peak flag radio button with index %d', peak_flag_index)
         self.peak_flag_radio = self.create_radio_buttons(self.peak_flag_ax, self.peak_flags,
                                                          self.set_peak_flag,
+                                                         radius,
                                                          active_idx=peak_flag_index)
         self.peak_flag_radio.active = self.enable_edit
         if self.current_id.ms2_notes in self.msms_flags:
@@ -412,6 +420,7 @@ class adjust_rt_for_selected_compound(object):
         logger.debug('Setting msms flag radio button with index %d', msms_flag_index)
         self.msms_flag_radio = self.create_radio_buttons(self.msms_flag_ax, self.msms_flags,
                                                          self.set_msms_flag,
+                                                         radius,
                                                          active_idx=msms_flag_index)
         self.msms_flag_radio.active = self.enable_edit
 
@@ -452,8 +461,6 @@ class adjust_rt_for_selected_compound(object):
         self.similar_rects = []
 
     def highlight_similar_compounds(self):
-        if not self.enable_highlight_similar:
-            return
         self.unhighlight_similar_compounds()
         min_y, max_y = self.ax.get_ylim()
         min_x, max_x = self.ax.get_xlim()
@@ -493,15 +500,15 @@ class adjust_rt_for_selected_compound(object):
                                  picker=True, pickradius=5, color=color, label=label)
 
     def configure_flags(self):
-        default_peak = ('keep', 'remove', 'unresolvable isomers', 'poor peak shape')
-        default_msms = ('no selection',
+        default_peak = ['keep', 'remove', 'unresolvable isomers', 'poor peak shape']
+        default_msms = ['no selection',
                         '-1, bad match - should remove compound',
                         '0, no ref match available or no MSMS collected',
                         '0.5, co-isolated precursor, partial match',
                         '0.5, partial match of fragments',
                         '1, perfect match to internal reference library',
                         '1, perfect match to external reference library',
-                        '1, co-isolated precursor but all reference ions are in sample spectrum')
+                        '1, co-isolated precursor but all reference ions are in sample spectrum']
         if self.peak_flags is None or self.peak_flags == '':
             self.peak_flags = default_peak
         if self.msms_flags is None or self.msms_flags == '':
@@ -604,10 +611,11 @@ class adjust_rt_for_selected_compound(object):
     def layout_radio_buttons(self, y_slider_width, y_axis_height):
         self.radio_button_radius = 0.02 * self.gui_scale_factor
         radio_button_axes_width = 1-self.plot_right_pos
+        lin_log_height_fraction = 0.3
         self.lin_log_ax = layout_radio_button_set([self.plot_left_pos,
-                                                   self.plot_bottom_pos,
+                                                   self.plot_bottom_pos + y_axis_height*(1-lin_log_height_fraction),
                                                    radio_button_axes_width,
-                                                   y_axis_height],
+                                                   y_axis_height*lin_log_height_fraction],
                                                   anchor='NW')
         self.peak_flag_ax = layout_radio_button_set([self.plot_right_pos + y_slider_width,
                                                      self.plot_bottom_pos,
@@ -633,10 +641,10 @@ class adjust_rt_for_selected_compound(object):
                                    rt_slider_width, rt_slider_height],
                                   facecolor=self.slider_color)
 
-    def create_radio_buttons(self, axes, labels, on_click_handler, active_idx=0):
+    def create_radio_buttons(self, axes, labels, on_click_handler, radius, active_idx=0):
         buttons = RadioButtons(axes, labels, active=active_idx)
         for circle in buttons.circles:
-            circle.set_radius(self.radio_button_radius)
+            circle.set_radius(radius)
         buttons.on_clicked(on_click_handler)
         return buttons
 
@@ -654,7 +662,7 @@ class adjust_rt_for_selected_compound(object):
     def set_peak_flag(self, label):
         old_label = ma_data.extract(self.current_id, ["ms1_notes"])
         self.set_flag('ms1_notes', label)
-        if not self.enable_highlight_similar:
+        if not self.enable_similar_compounds:
             return
         was_remove = is_remove(old_label)
         now_remove = is_remove(label)
@@ -751,14 +759,15 @@ class adjust_rt_for_selected_compound(object):
             logger.debug("Setting msms zoom factor to %d.", self.msms_zoom_factor)
             self.msms_plot()
         elif event.key == 's':
-            self.enable_highlight_similar = not self.enable_highlight_similar
-            if self.enable_highlight_similar:
-                self.similar_compounds = self.get_similar_compounds()
-                logger.debug("Enabling highlight of similar compounds on EIC plot.")
+            self.enable_similar_compounds = not self.enable_similar_compounds
+            self.similar_compounds = self.get_similar_compounds()
+            if self.enable_similar_compounds:
+                logger.debug("Enabling similar compounds list and EIC plot highlighting.")
                 self.highlight_similar_compounds()
             else:
-                logger.debug("Removing highlight of similar compounds on EIC plot.")
+                logger.debug("Removing similar compounds list and EIC plot hightlighting.")
                 self.unhighlight_similar_compounds()
+            self.msms_plot()
         elif event.key == 'm':
             num_sim = len(self.similar_compounds)
             if num_sim > 0:
@@ -834,6 +843,8 @@ class adjust_rt_for_selected_compound(object):
                 rt: a metatlas.datastructures.metatlas_objects.RtReference
                 overlaps: True if compound has RT bounds overlapping with those of self.compound_idx
         """
+        if not self.enable_similar_compounds:
+            return []
         cid = self.current_id
         if len(cid.compound) == 0 or is_remove(ma_data.extract(cid, ["ms1_notes"])):
             return []
@@ -1532,17 +1543,20 @@ def filter_runs(data, include_lcmsruns=None, include_groups=None, exclude_lcmsru
     return data
 
 
-def make_output_dataframe(input_fname='', input_dataset=None, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, output_loc="", fieldname='peak_height', use_labels=False, short_names_df=None, summarize=False, polarity='', overwrite=True):
+def make_output_dataframe(input_fname: Optional[Path] = None, input_dataset=None, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, output_loc: Optional[Path] = None, fieldname='peak_height', use_labels=False, short_names_df=None, summarize=False, polarity='', overwrite=True):
     """
     fieldname can be: peak_height, peak_area, mz_centroid, rt_centroid, mz_peak, rt_peak
     """
-    full_data = or_default(input_dataset, ma_data.get_dill_data(os.path.expandvars(input_fname)))
+    assert input_dataset or input_fname
+    if input_dataset:
+        full_data = input_dataset
+    elif input_fname:
+        full_data = ma_data.get_dill_data(os.path.expandvars(input_fname))
     data = filter_runs(full_data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
     compound_names = ma_data.get_compound_names(data, use_labels=use_labels)[0]
     file_names = ma_data.get_file_names(data)
     group_names = ma_data.get_group_names(data)
     group_shortnames = ma_data.get_group_shortnames(data)
-    output_loc = os.path.expandvars(output_loc)
     out = pd.DataFrame(index=compound_names, columns=file_names, dtype=float)
 
     for i, sample in enumerate(data):
@@ -1566,8 +1580,9 @@ def make_output_dataframe(input_fname='', input_dataset=None, include_lcmsruns=N
         out.columns = out.columns.droplevel()
         out = append_stats_columns(out)
     if output_loc:
+        output_loc = Path(os.path.expandvars(output_loc))
         prefix = f"{polarity}_" if polarity != '' else ''
-        df_path = os.path.join(output_loc, f"{prefix}{fieldname}.tab")
+        df_path = output_loc / f"{prefix}{fieldname}.tab"
         write_utils.export_dataframe_die_on_diff(out, df_path, fieldname, overwrite=overwrite, sep="\t", float_format="%.9e")
     return out
 
@@ -1681,9 +1696,9 @@ def plot_errorbar_plots(df,output_loc='', use_shortnames=True, ylabel=""):
         plt.close(f)#f.clear()
 
 
-def make_boxplot_plots(df, output_loc='', use_shortnames=True, ylabel="",
-                       overwrite=True, max_cpus=1, logy=False):
-    output_loc = os.path.expandvars(output_loc)
+def make_boxplot_plots(df: pd.DataFrame, output_loc: Path, use_shortnames: bool = True, ylabel: str = "",
+                       overwrite: bool = True, max_cpus: int = 1, logy: bool = False) -> None:
+    output_loc = Path(os.path.expandvars(output_loc))
     logger.info('Exporting box plots of %s to %s.', ylabel, output_loc)
     disable_interactive_plots()
     args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy) for compound in df.index]
@@ -1695,12 +1710,13 @@ def _make_boxplot_single_arg(arg_list):
     make_boxplot(*arg_list)
 
 
-def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy):
-    fig_path = os.path.join(output_loc, f"{compound}{'_log' if logy else ''}_boxplot.pdf")
+def make_boxplot(compound: int, df: pd.DataFrame, output_loc: Path, use_shortnames: bool, ylabel: str, overwrite: bool, logy: bool) -> None:
+    fig_path = output_loc / f"{compound}{'_log' if logy else ''}_boxplot.pdf"
     write_utils.check_existing_file(fig_path, overwrite)
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     num_points = 0
     g = df.loc[compound].groupby(level=level)
+    plt.rcParams.update({'font.size': 12})
     f, ax = plt.subplots(1, 1, figsize=(max(len(g)*0.5, 12), 12))
     g.apply(pd.DataFrame).plot(kind='box', ax=ax)
     for i, (n, grp) in enumerate(g):
@@ -1721,6 +1737,7 @@ def make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, lo
     plt.tight_layout()
     f.savefig(fig_path)
     plt.close(f)
+    plt.rcdefaults()  # reset font size to default value
     logger.debug('Exported box plot of %s for %s at %s.', ylabel, compound, fig_path)
 
 
@@ -2156,13 +2173,13 @@ def convert_to_centroid(sample_df):
     return np.zeros((0, 0))
 
 
-def search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes, ref_index, ref_df):
+def search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes, ref_index, ref_df, resolve_by):
     return sp.search_ms_refs(msv_sample, **locals())
 
 
 def get_msms_hits_per_compound(rt_mz_i_df, msms_scan, do_centroid, query, inchi_key, polarity,
                                precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes,
-                               ref_index, ref_df):
+                               ref_index, ref_df, resolve_by):
     msv_sample = rt_mz_i_df.loc[rt_mz_i_df['rt'] == msms_scan,
                                 ['mz', 'i', 'rt', 'precursor_MZ', 'precursor_intensity']]
     precursor_mz_sample = msv_sample['precursor_MZ'].values[0]
@@ -2174,7 +2191,7 @@ def get_msms_hits_per_compound(rt_mz_i_df, msms_scan, do_centroid, query, inchi_
     if msv_sample.size > 0:
         return search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz,
                               pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes,
-                              ref_index, ref_df), msv_sample
+                              ref_index, ref_df, resolve_by), msv_sample
     return pd.DataFrame(), msv_sample
 
 
@@ -2187,18 +2204,18 @@ def get_empty_scan_df(columns):
 def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
                   pre_query='database == "metatlas"', query=None, ref_dtypes=None,
                   ref_loc=None, ref_df=None, frag_mz_tolerance=.005, ref_index=None,
-                  do_centroid=False):
+                  do_centroid=False, resolve_by='shape'):
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Mean of empty slice")
         return get_msms_hits_with_warnings(metatlas_dataset, extra_time, keep_nonmatches, pre_query, query,
                                            ref_dtypes, ref_loc, ref_df, frag_mz_tolerance, ref_index,
-                                           do_centroid)
+                                           do_centroid, resolve_by)
 
 
 def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatches=False,
                                 pre_query='database == "metatlas"', query=None, ref_dtypes=None,
                                 ref_loc=None, ref_df=None, frag_mz_tolerance=.005, ref_index=None,
-                                do_centroid=False):
+                                do_centroid=False, resolve_by='shape'):
     if query is None:
         pre_mz_decimal = ".5*(@pre_mz_ppm**-decimal)/(decimal+1)"
         offset = f".5*(({pre_mz_decimal} + .005 + ({pre_mz_decimal} - .005)**2)**.5)"
@@ -2227,7 +2244,7 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
                              'inchi_key', 'precursor_mz', 'measured_precursor_mz',
                              'measured_precursor_intensity']
     msms_hits = pd.DataFrame(columns=all_cols).set_index(index_cols)
-    for compound_idx, _ in enumerate(tqdm(compound_names, unit='compound')):
+    for compound_idx, _ in enumerate(tqdm(compound_names, unit='compound', disable=in_papermill())):
         cid = metatlas_dataset[0][compound_idx]['identification']
         name = cid.name.split('///')[0] if cid.name else getattr(cid.compound[-1], 'name', None)
         adduct = ma_data.extract(cid, ['mz_references', 0, 'adduct'], None)
@@ -2253,7 +2270,7 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
                                                                  query, inchi_key, polarity,
                                                                  precursor_mz, pre_mz_ppm,
                                                                  frag_mz_tolerance, ref_loc, ref_dtypes,
-                                                                 ref_index, ref_df)
+                                                                 ref_index, ref_df, resolve_by)
                 precursor = rt_mz_i_df.loc[rt_mz_i_df['rt'] == msms_scan, ['precursor_MZ', 'precursor_intensity']]
                 hits = len(scan_df) > 0
                 if not hits and not keep_nonmatches:
@@ -2275,7 +2292,7 @@ def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatc
                     scan_df['score'] = precursor['precursor_intensity'].values[0]
                     scan_df['msv_query_aligned'] = [msv_sample]
                     scan_df['msv_ref_aligned'] = [np.full_like(msv_sample, np.nan)]
-                msms_hits = msms_hits.append(scan_df)
+                msms_hits = pd.concat([msms_hits, scan_df])
     return msms_hits
 
 
@@ -2288,12 +2305,12 @@ def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=No
                        "up coming release"), FutureWarning, stacklevel=2)
     data = filter_runs(input_dataset, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
     prefix = f"{polarity}_" if polarity != '' else ''
-    out_dir = os.path.join(output_loc, f"{prefix}compound_EIC_chromatograms{suffix}")
+    out_dir = Path(output_loc) / f"{prefix}compound_EIC_chromatograms{suffix}"
     logger.info('Saving chromatograms to %s.', out_dir)
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     disable_interactive_plots()
     compound_names = ma_data.get_compound_names(data, use_labels=True)[0]
-    args = [(data, i, os.path.join(out_dir, f"{name}.pdf"), overwrite, share_y, max_plots_per_page)
+    args = [(data, i, out_dir / f"{name}.pdf", overwrite, share_y, max_plots_per_page)
             for i, name in enumerate(compound_names)]
     parallel.parallel_process(_save_eic_pdf, args, max_cpus, unit='plot')
 
@@ -2302,16 +2319,16 @@ def _save_eic_pdf(multi_args):
     save_compound_eic_pdf(*multi_args)
 
 
-def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
-                                  include_groups=[], exclude_groups=[], output_loc=[], msms_hits=None,
+def make_identification_figure_v2(input_fname: Optional[Path] = None, input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
+                                  include_groups=[], exclude_groups=[], output_loc: Path = None, msms_hits=None,
                                   use_labels=False, intensity_sorted_matches=False,
                                   short_names_df=pd.DataFrame(), polarity='', overwrite=True):
+    assert output_loc
+    assert input_fname or input_dataset
     prefix = '' if polarity == '' else f"{polarity}_"
-    output_loc = os.path.join(output_loc, f"{prefix}msms_mirror_plots")
-    if not input_dataset:
-        data = ma_data.get_dill_data(os.path.expandvars(input_fname))
-    else:
-        data = input_dataset
+    output_loc = output_loc / f"{prefix}msms_mirror_plots"
+    logger.info("Exporting indentification figures to %s", output_loc)
+    data = input_dataset if input_dataset else ma_data.get_dill_data(os.path.expandvars(input_fname))
     data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
 
     if msms_hits is not None:
@@ -2459,12 +2476,12 @@ def make_identification_figure_v2(input_fname='', input_dataset=[], include_lcms
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="tight_layout not applied: number of rows in subplot specifications must be multiples of one another.")
             plt.tight_layout()
-        fig_path = os.path.join(output_loc, compound_names[compound_idx] + '.pdf')
+        fig_path = output_loc / f"{compound_names[compound_idx]}.pdf"
         write_utils.check_existing_file(fig_path, overwrite)
         plt.savefig(fig_path)
         plt.close()
         logger.debug('Exported identification figures for %s to %s.', compound_names[compound_idx], fig_path)
-    match_path = os.path.join(output_loc, 'MatchingMZs.tab')
+    match_path = output_loc / "MatchingMZs.tab"
     write_utils.export_dataframe(match, match_path, 'matching MZs', overwrite, sep='\t', float_format="%.12e")
 
 
@@ -2835,11 +2852,11 @@ def get_metatlas_files(experiment: Union[str, Sequence[str]] = '%', name: str = 
     """
     batches = [experiment] if isinstance(experiment, str) else experiment
     files = list(itertools.chain.from_iterable(
-        [metob.retrieve('LcmsRun', experiment=f"{batch}%", name=name, username='*') for batch in batches]
+        [metob.retrieve('LcmsRun', experiment=f"{batch.rstrip('%')}%", name=name, username='*') for batch in batches]
     ))
     if most_recent:
         files = filter_metatlas_objects_to_most_recent(files, 'mzml_file')
-    return files
+    return sorted(files, key=lambda x: x.name)
 
 
 def make_prefilled_fileinfo_sheet(groups, filename):
@@ -3170,10 +3187,8 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
     rows_removed = initial_row_count - len(atlas_df)
     if rows_removed > 0:
-        logger.warning(
-            'Removed %d rows from atlas due to missing values in required columns (%s).',
-            rows_removed,
-            ', '.join(required_columns)
+        raise ValueError(
+            f"Required columns ({', '.join(required_columns)}) missing in {rows_removed} rows."
         )
     if store:
         logger.info('Saving atlas named %s to DB.', atlas_name)
@@ -3226,8 +3241,11 @@ def filter_metatlas_objects_by_list(object_list, field, filter_list):
         field: name of attribute to filter on
         filter_list: strings that are tested to see if they are substrings of the attribute value
     returns filtered list of objects that have a match in filter_list
+    if filter_list is empty, then return object_list
     """
-    return filter_by_list(object_list, lambda x: getattr(x, field), filter_list)
+    if filter_list:
+        return filter_by_list(object_list, lambda x: getattr(x, field), filter_list)
+    return object_list
 
 
 def remove_metatlas_objects_by_list(object_list, field, filter_list):

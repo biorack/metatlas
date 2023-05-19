@@ -1,25 +1,67 @@
+default_install_hook_types: ['pre-commit', 'commit-msg']
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.2.0
+  rev: v4.4.0
   hooks:
   - id: check-added-large-files
   - id: check-ast
+  - id: check-byte-order-marker
+  - id: check-case-conflict
   - id: check-merge-conflict
   - id: check-symlinks
+  - id: check-json
   - id: check-toml
   - id: check-yaml
   - id: debug-statements
+  - id: destroyed-symlinks
+  - id: detect-aws-credentials
+    args: ['--allow-missing-credentials']
+  - id: detect-private-key
   - id: end-of-file-fixer
+  - id: no-commit-to-branch
+    args: ['--branch', 'main']
+  - id: requirements-txt-fixer
   - id: trailing-whitespace
   - id: mixed-line-ending
+  - id: check-shebang-scripts-are-executable
 - repo: https://github.com/zricethezav/gitleaks
-  rev: v8.8.4
+  rev: v8.16.0
   hooks:
     - id: gitleaks
-- repo: local
+- repo: https://github.com/koalaman/shellcheck-precommit
+  rev: v0.9.0
   hooks:
-  - id: flake8_diff
-    name: flake8 only on lines modified by the commit
-    entry: sh -c 'git diff -U0 -w --staged HEAD | flake8 --diff'
-    language: system
-    types: [python]
+  - id: shellcheck
+- repo: https://github.com/pre-commit/pygrep-hooks
+  rev: v1.10.0
+  hooks:
+  - id: python-check-blanket-noqa
+  - id: python-check-blanket-type-ignore
+- repo: https://github.com/markdownlint/markdownlint
+  rev: v0.12.0
+  hooks:
+  - id: markdownlint_docker
+- repo: https://github.com/nbQA-dev/nbQA
+  rev: 1.6.3
+  hooks:
+  - id: nbqa-black
+    args: ['--nbqa-dont-skip-bad-cells', '--line-length=140']
+  - id: nbqa-check-ast
+    args: ['--nbqa-dont-skip-bad-cells']
+  - id: nbqa-pylint
+    args: ['--disable=duplicate-code', '--max-line-length=140', '--nbqa-dont-skip-bad-cells']
+- repo: https://github.com/hadolint/hadolint
+  rev: v2.12.1-beta
+  hooks:
+  - id: hadolint-docker
+- repo: https://github.com/compilerla/conventional-pre-commit
+  rev: v2.1.1
+  hooks:
+   - id: conventional-pre-commit
+     stages: [commit-msg]
+     # optional: list of Conventional Commits types to allow
+     args: ['fix', 'feat', 'build', 'chore', 'ci', 'docs', 'style', 'refactor', 'perf', 'test']
+- repo: https://github.com/commitizen-tools/commitizen
+  rev: v2.42.1
+  hooks:
+  - id: commitizen

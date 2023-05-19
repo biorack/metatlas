@@ -378,7 +378,7 @@ def test_get_data_for_atlas_df_and_file(lcmsrun, group, atlas_df, atlas, usernam
     result = gdhf.get_data_for_atlas_df_and_file((lcmsrun.hdf5_file, group, atlas_df, atlas))
     expected = (
         {
-            "atlas_name": f"HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_{username}0",
+            "atlas_name": "HILICz150_ANT20190824_TPL_EMA_Unlab_POS",
             "atlas_unique_id": "749354f7ad974b288624dad533dcbeec",
             "lcmsrun": "/project/projectdirs/metatlas/raw_data/akuftin/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583/20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_49_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1_Run34.h5",
             "group": {
@@ -408,7 +408,7 @@ def test_get_data_for_atlas_df_and_file(lcmsrun, group, atlas_df, atlas, usernam
                     }
                 ],
                 "last_modified": "2021-05-04T09:41:17",
-                "name": f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}0_Cone-S1",
+                "name": f"20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_{username}_0_0_Cone-S1",
                 "prev_uid": "origin",
                 "short_name": "POS_Cone-S1",
                 "unique_id": "61041d07b5a24ca5b88efbda8f319654",

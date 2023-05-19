@@ -8,6 +8,7 @@ module = [
     "credentials.*",
     "dataset.*",
     "dill.*",
+    "flask.*",
     "ftputil.*",
     "gspread.*",
     "humanize.*",
@@ -31,6 +32,7 @@ module = [
     "numpy.testing.decorators",
     "oauth2client.*",
     "pandas.*",
+    "papermill.*",
     "pathlib2.*",
     "pexpect.*",
     "PIL.*",
@@ -58,10 +60,7 @@ extension-pkg-allow-list = [
 ]
 
 [tool.pylint.messages_control]
-# first two are for black compatibility
-# duplicate-code cannot be disabled on per file/block/line
-#                https://github.com/PyCQA/pylint/issues/214
-disable = "bad-continuation, bad-whitespace, duplicate-code"
+disable = "duplicate-code"
 
 [tool.pylint.format]
 max-line-length = "110"
@@ -71,3 +70,8 @@ generated-members = "pandas.*"
 
 [tool.pytest.ini_options]
 filterwarnings = "ignore::DeprecationWarning:dataset.*:"
+
+[tool.nbqa.addopts]
+pylint = [
+    "--disable=ungrouped-imports"
+]

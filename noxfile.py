@@ -9,7 +9,6 @@ import nox
 py_versions = ["3.8", "3.9"]
 
 nox.options.sessions = [
-    "flake8_diff",
     "flake8",
     "black",
     "pylint-3.8",
@@ -26,12 +25,16 @@ nox.options.sessions = [
 # has not yet been updated to pass all checks.
 more_checks = [
     "metatlas/interfaces/compounds/populate.py",
+    "metatlas/io/gdrive.py",
+    "metatlas/io/file_converter.py",
     "metatlas/io/rclone.py",
     "metatlas/io/targeted_output.py",
+    "metatlas/io/system_utils.py",
     "metatlas/io/write_utils.py",
     "metatlas/datastructures/atlas.py",
     "metatlas/datastructures/analysis_identifiers.py",
     "metatlas/datastructures/id_types.py",
+    "metatlas/datastructures/groups.py",
     "metatlas/datastructures/metatlas_dataset.py",
     "metatlas/datastructures/spectrum.py",
     "metatlas/datastructures/utils.py",
@@ -42,44 +45,47 @@ more_checks = [
     "metatlas/plots/utils.py",
     "metatlas/scripts/copy_ms_to_new_names.py",
     "metatlas/scripts/yaml_validation.py",
+    "metatlas/targeted/rt_alignment.py",
+    "metatlas/targeted/process.py",
     "metatlas/tools/add_msms_ref.py",
     "metatlas/tools/cheminfo.py",
+    "metatlas/tools/config.py",
     "metatlas/tools/environment.py",
     "metatlas/tools/logging.py",
     "metatlas/tools/notebook.py",
     "metatlas/tools/parallel.py",
-    "metatlas/tools/predict_rt.py",
     "metatlas/tools/util.py",
+    "metatlas/tools/validate_filenames.py",
     "noxfile.py",
+    "utils/mzml_to_h5.py",
+    "utils/ts.py",
+    "utils/validate_config.py",
+    "utils/validate_file_name.py",
     "tests",
 ]
 
-# notebooks we can run all the checks on, as they don't contain legacy code that
-# has not yet been updated to pass all checks.
 notebooks = [
-    "notebooks/reference/Targeted.ipynb",
-    "notebooks/reference/RT_Prediction.ipynb",
-    "notebooks/reference/Add_MSMS_Reference.ipynb",
+    "notebooks/reference/",
 ]
 
 pytest_deps = [
-    "attrs==21.2.0",
-    "coverage==6.0",
-    "iniconfig==1.1.1",
-    "numpy==1.22.1",
-    "packaging==21.0",
-    "pandas==1.3.5",
-    "pluggy==0.13.1",
-    "py==1.10.0",
-    "pyparsing==2.4.7",
-    "pytest==6.2.4",
+    "attrs==22.1.0",
+    "coverage==7.0.5",
+    "iniconfig==2.0.0",
+    "numpy==1.22.4",
+    "packaging==21.3",
+    "pandas==1.4.2",
+    "pluggy==1.0.0",
+    "py==1.11.0",
+    "pyparsing==3.0.9",
+    "pytest==7.2.1",
     "pytest-cov==3.0.0",
-    "pytest-mock==3.6.1",
+    "pytest-mock==3.10.0",
     "toml==0.10.2",
 ]
 
 mypy_deps = [
-    "mypy==0.910",
+    "mypy==0.991",
     "types-PyYAML",
     "types-requests",
     "types-simplejson",
@@ -88,44 +94,41 @@ mypy_deps = [
 ]
 
 pylint_deps = [
-    "nox==2022.1.7",
-    "pylint==2.11.1",
-    "pytest==6.2.5",  # so "import pytest" doesn't get reported
+    "nox==2022.11.21",
+    "pylint==2.15.10",
+    "pytest==7.2.1",  # so "import pytest" doesn't get reported
 ]
 
 nbqa_deps = [
-    "nbqa==0.8.1",
-    "tokenize-rt==4.1.0",
-    "importlib-metadata==4.0.1",
-    "astroid==2.8.0",
-    "wrapt==1.12.1",
-    "lazy_object_proxy==1.6.0",
-    "isort==5.8.0",
+    "nbqa==1.6.1",
+    "tokenize-rt==5.0.0",
+    "importlib-metadata==6.0.0",
+    "astroid==2.13.2",
+    "wrapt==1.14.1",
+    "lazy_object_proxy==1.9.0",
+    "isort==5.11.4",
 ]
 
 flake8_deps = [
-    "flake8==3.9.2",
-    "flake8-bugbear==21.9.2",
-    "flake8-builtins==1.5.3",
-    "flake8-comprehensions==3.6.1",
+    "flake8==6.0.0",
+    "flake8-bugbear==23.1.17",
+    "flake8-builtins==2.1.0",
+    "flake8-comprehensions==3.10.1",
 ]
 
 pytest_flags = ["-vv", f"--basetemp={Path.home() / '.pytest_tmp'}"]
+nbqa_flags = ["--nbqa-dont-skip-bad-cells"]
 
 nox.options.error_on_external_run = True
 REUSE_LARGE_VENV = True
+# the NB_LINE_LEN value also appears in pre-commit-config.yaml and must be
+# manually updated when this value is changed
 NB_LINE_LEN = 140
 
 # parallel testings doesn't work well on NERSC login nodes
 if "NERSC_HOST" not in os.environ:
-    pytest_deps.append("pytest-xdist[psutil]==2.4.0")
+    pytest_deps.append("pytest-xdist[psutil]==3.1.0")
     pytest_flags.extend(["--numprocesses", "auto"])
-
-
-@nox.session(python=py_versions[0])
-def flake8_diff(session):
-    session.install(*flake8_deps)
-    session.run("sh", "-c", "git diff -U0 -w --staged HEAD | flake8 --diff", external=True)
 
 
 @nox.session(python=py_versions[0])
@@ -177,26 +180,33 @@ def pylint_nb(session):
     # dupliate code cannot be disabled on per-cell level https://github.com/PyCQA/pylint/issues/214
     # Some duplicate code is required to setup the notebook and do error handling.
     # So turn off duplicate code for whole session -- not ideal.
-    session.run("nbqa", "pylint", "--disable=duplicate-code", f"--max-line-length={NB_LINE_LEN}", *notebooks)
+    session.run(
+        "nbqa",
+        "pylint",
+        "--disable=duplicate-code",
+        f"--max-line-length={NB_LINE_LEN}",
+        *nbqa_flags,
+        *notebooks,
+    )
 
 
 @nox.session(python=py_versions[0])
 def flake8_nb(session):
     session.install(*nbqa_deps, *flake8_deps)
-    session.run("nbqa", "flake8", *notebooks)
+    session.run("nbqa", "flake8", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions[0])
 def black_nb(session):
     session.install("black", *nbqa_deps)
-    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--check", *notebooks)
+    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--check", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions[0])
 def blacken_nb(session):
     """this modifies notebook files to meet black's requirements"""
     session.install("black", *nbqa_deps)
-    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", "--nbqa-mutate", *notebooks)
+    session.run("nbqa", "black", f"--line-length={NB_LINE_LEN}", *nbqa_flags, *notebooks)
 
 
 @nox.session(python=py_versions, reuse_venv=REUSE_LARGE_VENV)
@@ -208,6 +218,9 @@ def unit_tests(session):
         *session.posargs,
         "--cov",
         "metatlas",
+        "--cov-report",
+        "term:skip-covered",
+        "--cov-branch",
         "tests/unit/",
         env={"METATLAS_LOCAL": "TRUE"},
     )
@@ -218,11 +231,13 @@ def cov_report(session):
     session.install("-r", "docker/requirements.txt", *pytest_deps)
     session.run(
         "pytest",
+        *pytest_flags,
         *session.posargs,
         "--cov",
         "metatlas",
         "--cov-report",
-        "term-missing",
+        "term-missing:skip-covered",
+        "--cov-branch",
         "tests/unit/",
         env={"METATLAS_LOCAL": "TRUE"},
     )

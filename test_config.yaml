@@ -1,0 +1,145 @@
+---
+chromatography_types:
+  - name: HILIC
+    aliases:
+      - HILICZ
+      - Ag683775
+  - name: C18
+    aliases: []
+workflows:
+  - name: Test-QC
+    rt_alignment:
+        atlas:
+          name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+          unique_id: e7fba1813272439498405436a28b90b2
+        parameters:
+          polarity: positive
+          groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+          include_groups:
+            always: ["QC"]
+          exclude_groups:
+            always: ["NEG"]
+          use_poly_model: True
+          msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+          google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
+    analyses:
+        - name: QC-POS
+          atlas:
+            name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+            unique_id: e7fba1813272439498405436a28b90b2
+            do_alignment: True
+          parameters:
+            polarity: positive
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            include_groups:
+              always: ["QC"]
+            exclude_groups:
+              always: ["NEG"]
+            generate_qc_outputs: True
+            slurm_execute: True
+  - name: Test-HILIC
+    rt_alignment:
+        atlas:
+          name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+          unique_id: e7fba1813272439498405436a28b90b2
+        parameters:
+          groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+          include_groups:
+            rt_alignment: ["QC"]
+          exclude_groups:
+            rt_alignment: ["NEG"]
+          use_poly_model: True
+          msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+          google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
+    analyses:
+        - name: QC-POS
+          atlas:
+            name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+            unique_id: e7fba1813272439498405436a28b90b2
+          parameters:
+            polarity: positive
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            include_groups:
+              always: ["QC"]
+            exclude_groups:
+              always: ["NEG"]
+            generate_qc_outputs: True
+        - name: EMA-POS
+          atlas:
+            name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS
+            unique_id: 89694aa326cd46958d38d8e9066de16c
+            do_alignment: True
+          parameters:
+            copy_atlas: True
+            polarity: positive
+            exclude_groups:
+              always: ["QC", "NEG", "FPS"]
+            exclude_lcmsruns:
+              always: ["QC"]
+              gui: ["InjBl", "Blank", "blank"]
+              chromatograms: ["InjBl", "Blank", "blank"]
+              data_sheets: ["InjBl", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            filter_removed: True
+            num_points: 5
+            peak_height: 4e5
+            generate_analysis_outputs: True
+            slurm_execute: True
+  - name: Test-C18
+    rt_alignment:
+        atlas:
+          name: C18_20220215_TPL_IS_Unlab_POS
+          unique_id: 322ed4c5fabe49349bcbc2857fbcd0dc
+        parameters:
+          groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+          include_groups:
+            rt_alignment: ["QC"]
+          exclude_groups:
+            rt_alignment: ["NEG"]
+          use_poly_model: True
+          msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+          google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
+    analyses:
+        - name: EMA-NEG
+          atlas:
+            name: C18_20220215_TPL_EMA_Unlab_NEG
+            unique_id: f74a731c590544aba5c3720b346e508e
+            do_alignment: True
+            rt_offset: 0.2
+          parameters:
+            copy_atlas: True
+            polarity: negative
+            exclude_groups:
+              always: ["QC", "POS", "FPS"]
+            exclude_lcmsruns:
+              always: ["QC"]
+              gui: ["InjBl", "Blank", "blank"]
+              chromatograms: ["InjBl", "Blank", "blank"]
+            groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
+            num_points: 3
+            peak_height: 1e6
+            msms_score: 0.6
+            filter_removed: True
+            generate_analysis_outputs: True
+            slurm_execute: True
+  - name: Hybrid
+    rt_alignment:
+        atlas:
+          name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+          unique_id: e7fba1813272439498405436a28b90b2
+        parameters:
+          use_poly_model: True
+          msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
+          google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
+    analyses:
+        - name: EMA-POS
+          atlas:
+            name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS
+            unique_id: 89694aa326cd46958d38d8e9066de16c
+            do_alignment: True
+          parameters:
+            copy_atlas: True
+            polarity: positive
+            filter_removed: True
+            generate_qc_outputs: False
+            generate_analysis_outputs: True

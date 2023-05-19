@@ -1,7 +1,6 @@
 # pylint: disable=missing-function-docstring, missing-module-docstring, line-too-long
 
-import matchms
-
+from matchms.filtering.load_adducts import load_adducts_dict
 from rdkit import Chem
 
 from metatlas.tools import cheminfo
@@ -12,7 +11,7 @@ SMILES = "C1[C@@H]([C@@H](CO)O[C@H]1n1cnc2c(N)ncnc12)O"
 
 
 def test_get_parent_mass01():
-    adducts = matchms.importing.load_adducts_dict()
+    adducts = load_adducts_dict()
     original_parent = 100
     for name in adducts:
         pre = cheminfo.get_precursor_mz(original_parent, name)

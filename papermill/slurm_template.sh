@@ -6,7 +6,9 @@
 
 set -euo pipefail
 
-shifter_flags="--module=none --clearenv"
+# PAPERMILL_EXECUTION is set to True so we can determine if notebooks
+# are being run in papermill or interactively
+shifter_flags="--module=none --clearenv --env=PAPERMILL_EXECUTION=True"
 
 log_dir="/global/cfs/projectdirs/m2650/jupyter_logs/slurm"
 
@@ -34,9 +36,10 @@ output "yaml parameters: $(echo "$YAML_BASE64" | base64 --decode)"
 # doesn't need --entrypoint and is faster to leave it off
 # shellcheck disable=SC2086
 shifter $shifter_flags /bin/bash -c \
-  'black --quiet --check /metatlas_image_version && \
+  'set -euo pipefail && \
+   black --quiet --check /metatlas_image_version && \
    papermill \
-     /src/notebooks/reference/RT_Prediction.ipynb \
+     /src/notebooks/reference/RT-Alignment.ipynb \
      - \
      -p model_only True \
      --prepare-only \

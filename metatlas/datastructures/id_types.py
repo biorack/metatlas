@@ -6,8 +6,8 @@ from traitlets import HasTraits, TraitType
 
 import metatlas.datastructures.metatlas_objects as metob
 
-GroupList = Optional[List[metob.Group]]
-LcmsRunsList = Optional[List[metob.LcmsRun]]
+GroupList = List[metob.Group]
+LcmsRunsList = List[metob.LcmsRun]
 FileMatchList = List[str]
 GroupMatchList = List[str]
 
@@ -15,16 +15,8 @@ Polarity = NewType("Polarity", str)
 ShortPolarity = NewType("ShortPolarity", str)
 Experiment = NewType("Experiment", str)
 OutputType = NewType("OutputType", str)
-AnalysisNumber = NewType("AnalysisNumber", int)
-PathString = NewType("PathString", str)
+IterationNumber = NewType("IterationNumber", int)
 
-OUTPUT_TYPES = [
-    OutputType("ISTDsEtc"),
-    OutputType("FinalEMA-HILIC"),
-    OutputType("FinalEMA-C18"),
-    OutputType("data_QC"),
-    OutputType("other"),
-]
 POLARITIES = [Polarity("positive"), Polarity("negative"), Polarity("fast-polarity-switching")]
 SHORT_POLARITIES = {
     Polarity("positive"): ShortPolarity("POS"),

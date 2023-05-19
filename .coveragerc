@@ -1,2 +1,17 @@
-[report]
-show_missing = false
+[run]
+omit =
+    metatlas/interfaces/pactolus_tools.py
+    metatlas/interfaces/compounds/load_chembl.py
+    metatlas/interfaces/classyfire_tools.py
+    metatlas/interfaces/compounds/Update_compound_names_in_metatlas_database.py
+    metatlas/interfaces/compounds/write_pubchem_info_to_file.py
+    metatlas/interfaces/ms_database_parse.py
+    metatlas/io/feature_tools.py
+    metatlas/io/integrity_monitor.py
+    metatlas/io/system_utils.py
+    metatlas/io/update_lcmsfiles_in_lims.py
+    metatlas/plots/chromatograms_mp_plots.py
+    metatlas/tools/bundle_spectral_hits_jobs.py
+    metatlas/tools/formula_generator.py
+    metatlas/tools/spectral_hits.py
+    metatlas/untargeted/*

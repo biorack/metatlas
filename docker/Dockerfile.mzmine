@@ -1,0 +1,14 @@
+ARG VERSION=2.39
+
+FROM curlimages/curl:8.00.1 as get_mzmine
+ARG VERSION
+WORKDIR /tmp
+RUN curl -sLO https://github.com/mzmine/mzmine2/releases/download/v${VERSION}/MZmine-${VERSION}.zip \
+    && unzip MZmine-${VERSION}.zip \
+    && rm MZmine-${VERSION}.zip
+
+FROM eclipse-temurin:17-jdk-jammy
+ARG VERSION
+COPY --from=get_mzmine /tmp/MZmine-${VERSION} /MZmine
+RUN ln -s /MZmine/startMZmine_Linux.sh /MZmine/startMZmine.sh
+CMD ["/bin/bash"]

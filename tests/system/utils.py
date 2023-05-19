@@ -8,6 +8,8 @@ from typing import Any, Dict
 
 import pandas as pd
 
+PAPERMILL_ENV = {"PAPERMILL_EXECUTION": "True"}
+
 
 def num_files_in(path: os.PathLike) -> int:
     """Returns number of files in path. Does not count directories"""
@@ -36,15 +38,16 @@ def assert_files_match(expected: Dict[os.PathLike, str]) -> None:
             expected_lines = contents.split("\n")
             num = None
             for num, line in enumerate(handle.readlines()):
+                assert num < len(expected_lines), "File has more lines than expected."
                 clean_line = line.rstrip("\n")
-                if not compare_strs(expected_lines[num], clean_line):
-                    print("Expected line differss from actual:")
-                    print(f'Expected: "{expected_lines[num]}"')
-                    print(f'Actual:   "{clean_line}"')
-                assert compare_strs(expected_lines[num], clean_line)
+                assert compare_strs(expected_lines[num], clean_line), (
+                    "Expected line differss from actual:\n"
+                    f'Expected: "{expected_lines[num]}"\n'
+                    f'Actual:   "{clean_line}"'
+                )
             if num is None and contents == "":
                 continue
-            assert len(expected_lines) == num + 1
+            assert len(expected_lines) == num + 1, "File has fewer lines than expected."
 
 
 def assert_dfs_match(expected: Dict[os.PathLike, Dict[str, Dict[int, Any]]]) -> None:
@@ -60,8 +63,9 @@ def assert_dfs_match(expected: Dict[os.PathLike, Dict[str, Dict[int, Any]]]) -> 
         pd.testing.assert_frame_equal(disk_df, expected_df)
 
 
-def exec_docker(image: str, command: str, out_path: os.PathLike) -> None:
+def exec_docker(image: str, command: str, out_path: os.PathLike, env: Dict) -> None:
     """execute command in image with out_path mounted at /out"""
+    env_flags = [x for key, value in env.items() for x in ("--env", f"{key}={value}")]
     subprocess.run(
         [
             "docker",
@@ -71,6 +75,7 @@ def exec_docker(image: str, command: str, out_path: os.PathLike) -> None:
             f"{os.getcwd()}:/src",
             "-v",
             f"{out_path}:/out",
+            *env_flags,
             image,
             "/bin/bash",
             "-c",

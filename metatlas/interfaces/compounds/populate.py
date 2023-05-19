@@ -2,7 +2,9 @@
 # pylint: disable=missing-function-docstring
 
 import logging
+import os
 import time
+from datetime import datetime
 from typing import Any, Generator, List, Optional
 from urllib.parse import quote
 
@@ -192,12 +194,11 @@ def fill_fields(comp: metob.Compound, pubchem_results: List[pcp.Compound]) -> No
         comp.name = names[0]  # type: ignore[assignment]
 
 
-def create_c18_template_atlases() -> None:
-    c18_data = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
-    for polarity in ["negative", "positive"]:
-        name = f"C18_20220118_TPL_{polarity[:3].upper()}"
-        new_atlas = generate_template_atlas(c18_data, ["Gold", "Platinum"], polarity, name)
-        metob.store(new_atlas)
+def create_c18_template_atlases(source: os.PathLike, polarity: str) -> None:
+    assert polarity in ["negative", "positive"]
+    name = f"C18_{datetime.today().strftime('%Y%m%d')}_TPL_{polarity[:3].upper()}"
+    new_atlas = generate_template_atlas(source, ["Gold", "Platinum"], polarity, name)
+    metob.store(new_atlas)
 
 
 # pylint: disable=too-many-arguments
@@ -234,9 +235,8 @@ def make_atlas_from_df(data: pd.DataFrame, name: str, polarity: str, mz_toleranc
     return fill_atlas_compound_fields(atlas)
 
 
-def create_c18_stds_atlases(mz_tolerance: float = 10) -> None:
-    c18_path = "/global/u2/w/wjholtz/c18_atlas_creation.tab"
-    data = pd.read_csv(c18_path, sep="\t")
+def create_c18_stds_atlases(source: os.PathLike, polarity: str, mz_tolerance: float = 10) -> None:
+    data = pd.read_csv(source, sep="\t")
     std_inchi_keys = {
         "Phenylalanine": "COLNVLDHVKWLRT-QMMMGPOBSA-N",
         "L-Tryptophan": "QIVBCDIJIAJPQS-SECBINFHSA-N",
@@ -245,27 +245,26 @@ def create_c18_stds_atlases(mz_tolerance: float = 10) -> None:
         "2-Amino-3-bromo-5-methylbenzoic acid": "LCMZECCEEOQWLQ-UHFFFAOYSA-N",
     }
     abmba = "2-Amino-3-bromo-5-methylbenzoic acid"
-    for polarity in ["positive", "negative"]:
-        more_rows = pd.DataFrame(
-            {
-                "inchi_key": [std_inchi_keys[abmba]],
-                "label": [abmba],
-                "adduct": ["[M+H]+" if polarity == "positive" else "[M-H]-"],
-                "polarity": [polarity],
-                "rt_min": [4.5],
-                "rt_peak": [4.7],
-                "rt_max": [4.9],
-                "mz": [228.97384 + (1.00727647 * (1 if polarity == "positive" else -1))],
-                "confidence_category": "Platinum",
-            }
-        )
-        if more_rows is not None:
-            data = data.append(more_rows)
-        acceptable = data[data["inchi_key"].isin(std_inchi_keys.values())]
-        by_polarity = acceptable[acceptable["polarity"] == polarity]
-        by_polarity = by_polarity.assign(label=None)
-        by_polarity["rank"] = by_polarity["confidence_category"] == "Platinum"
-        single = by_polarity.loc[by_polarity.groupby(["inchi_key"])["rank"].idxmax()]
-        name = f"C18_20220208c_QC_{polarity[:3].upper()}"
-        atlas = make_atlas_from_df(single, name, polarity, mz_tolerance)
-        metob.store(atlas)
+    more_rows = pd.DataFrame(
+        {
+            "inchi_key": [std_inchi_keys[abmba]],
+            "label": [abmba],
+            "adduct": ["[M+H]+" if polarity == "positive" else "[M-H]-"],
+            "polarity": [polarity],
+            "rt_min": [4.5],
+            "rt_peak": [4.7],
+            "rt_max": [4.9],
+            "mz": [228.97384 + (1.00727647 * (1 if polarity == "positive" else -1))],
+            "confidence_category": "Platinum",
+        }
+    )
+    if more_rows is not None:
+        data = data.append(more_rows)
+    acceptable = data[data["inchi_key"].isin(std_inchi_keys.values())]
+    by_polarity = acceptable[acceptable["polarity"] == polarity]
+    by_polarity = by_polarity.assign(label=None)
+    by_polarity["rank"] = by_polarity["confidence_category"] == "Platinum"
+    single = by_polarity.loc[by_polarity.groupby(["inchi_key"])["rank"].idxmax()]
+    name = f"C18_{datetime.today().strftime('%Y%m%d')}_QC_{polarity[:3].upper()}"
+    atlas = make_atlas_from_df(single, name, polarity, mz_tolerance)
+    metob.store(atlas)

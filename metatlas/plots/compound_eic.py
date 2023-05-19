@@ -48,7 +48,7 @@ class CompoundEic(plot_set.Plot):
     def _draw_curve(self, ax: matplotlib.axes.Axes, rt_buffer: float) -> None:
         """Draw the EIC data and fill under the curve betweeen RT min and RT max"""
         eic = self.compound["data"]["eic"]
-        if len(eic["rt"]) > 0:
+        if eic is not None and "rt" in eic and len(eic["rt"]) > 0:
             # fill_between requires a data point at each end of range, so add points via interpolation
             x, y = add_interp_at(eic["rt"], eic["intensity"], self.rt_range)
             ax.plot(x, y)
@@ -77,7 +77,7 @@ def insert_in_sorted_array(a1: np.ndarray, a2: np.ndarray) -> np.ndarray:
 def save_compound_eic_pdf(
     data: MetatlasDataset,
     compound_idx: int,
-    file_name: str,
+    file_name: Path,
     overwrite: bool = False,
     sharey: bool = True,
     max_plots_per_page: int = 30,

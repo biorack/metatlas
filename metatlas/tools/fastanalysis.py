@@ -6,6 +6,9 @@ import multiprocessing as mp
 import pprint
 import statistics
 
+from pathlib import Path
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -29,9 +32,9 @@ strict_param = {'min_intensity': 1e5,
                 'min_msms_score': .6, 'allow_no_msms': False,
                 'min_num_frag_matches': 3, 'min_relative_frag_intensity': .1}
 
-def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
+def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msms_hits_df = None,
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
-                     output_loc = None,
+                     output_loc: Optional[Path] = None,
                      polarity = '',
                      output_sheetname = 'Draft_Final_Identifications.xlsx',
                      msms_hits = None,
@@ -40,7 +43,6 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                      min_msms_score=0, min_num_frag_matches=0,
                      allow_no_msms=False, min_relative_frag_intensity=None,
                      use_labels=False, return_all=False,
-                     msms_refs_loc='/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab',
                      dependencies = {'peak_height': [],
                                      'peak_area': ['peak_height'],
                                      'num_data_points': ['peak_height'],
@@ -50,7 +52,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                                      'mz_ppm': ['peak_height'],
                                      'msms_score': ['peak_height', 'num_frag_matches'],
                                      'num_frag_matches': ['peak_height', 'msms_score']},
-                     overwrite=False):
+                     overwrite=False,
+                     data_sheets=True):
 
     assert output_loc is not None or return_all
 
@@ -60,14 +63,16 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         metatlas_dataset = input_dataset
     dataset = dp.filter_runs(metatlas_dataset, include_lcmsruns, include_groups,
                              exclude_lcmsruns, exclude_groups)
+    assert len(dataset) > 0
     metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta',
                'peak_height', 'peak_area', 'num_data_points']
+    ds_dir = output_loc / 'data_sheets' if data_sheets else None
     dfs = {m: None for m in metrics}
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
         dfs[metric] = dp.make_output_dataframe(input_dataset=dataset,
                                                fieldname=metric,
                                                use_labels=use_labels,
-                                               output_loc=os.path.join(output_loc, 'data_sheets'),
+                                               output_loc=ds_dir,
                                                polarity=polarity)
     final_df = pd.DataFrame(columns=['index'])
     file_names = ma_data.get_file_names(dataset)
@@ -141,13 +146,26 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                     intensities.loc[file_idx, 'file_id'] = file_idx
                     intensities.loc[file_idx, 'intensity'] = dataset[file_idx][compound_idx]['data']['ms1_summary']['peak_height']
 
+        if 'intensity' in intensities.columns:
+            peak_height_values = np.array(intensities.intensity.tolist())
+        else:
+            peak_height_values = []
+
+        if len(peak_height_values) > 3:
+            top3_peak_height_idxs = np.argpartition(peak_height_values, -3)[-3:]
+
+            if len(avg_mz_measured) == len(peak_height_values):
+                avg_mz_measured = np.array(avg_mz_measured)[top3_peak_height_idxs]
+            if len(avg_rt_measured) == len(peak_height_values):
+                avg_rt_measured = np.array(avg_rt_measured)[top3_peak_height_idxs]
+
         avg_mz_measured = np.mean(avg_mz_measured)
         avg_rt_measured = np.mean(avg_rt_measured)
 
         delta_mz = abs(mz_theoretical - avg_mz_measured)
         delta_ppm = delta_mz / mz_theoretical * 1e6
 
-        final_df = final_df.append({'index':compound_idx}, ignore_index=True)
+        final_df = pd.concat([final_df, pd.DataFrame(index=[compound_idx])])
         final_df.loc[compound_idx, 'identified_metabolite'] = ""
         if use_labels or len(cid.compound) == 0:
             cid_label = cid.name
@@ -224,9 +242,9 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
         final_df.loc[compound_idx, 'identified_metabolite'] = final_df.loc[compound_idx, 'overlapping_compound'] or final_df.loc[compound_idx, 'label']
         final_df.loc[compound_idx, 'msms_quality'] = ""  # this gets updated after ms2_notes column is added
 
-        if delta_ppm <= 5 or delta_mz <= 0.001:
+        if delta_ppm <= 5 or delta_mz <= 0.0015:
             final_df.loc[compound_idx, 'mz_quality'] = 1
-        elif delta_ppm >= 5 and delta_ppm <= 10 and delta_mz > 0.001:
+        elif delta_ppm >= 5 and delta_ppm <= 10 and delta_mz > 0.0015:
             final_df.loc[compound_idx, 'mz_quality'] = 0.5
         elif delta_ppm > 10:
             final_df.loc[compound_idx, 'mz_quality'] = 0
@@ -267,8 +285,8 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
             final_df.loc[compound_idx, 'total_score'] = ""
             final_df.loc[compound_idx, 'msi_level'] = ""
         if len(intensities) > 0:
-            final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].idxmax()]['intensity']
-            max_intensity_file_id = int(intensities.loc[intensities['intensity'].idxmax()]['file_id'])
+            final_df.loc[compound_idx, 'max_intensity'] = intensities.loc[intensities['intensity'].astype(float).idxmax()]['intensity']
+            max_intensity_file_id = int(intensities.loc[intensities['intensity'].astype(float).idxmax()]['file_id'])
             final_df.loc[compound_idx, 'max_intensity_file'] = file_names[max_intensity_file_id]
             final_df.loc[compound_idx, 'ms1_rt_peak'] = dataset[max_intensity_file_id][compound_idx]['data']['ms1_summary']['rt_peak']
         else:
@@ -319,17 +337,16 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
                 dfs['num_frag_matches'].iat[compound_idx, file_idx] = np.nan
             else:
                 if not np.isnan(np.concatenate(rows['msv_ref_aligned'].values, axis=1)).all():
-                    dfs['msms_score'].iat[compound_idx, file_idx] = rows.loc[rows['score'].idxmax()]['score']
-                dfs['num_frag_matches'].iat[compound_idx, file_idx] = rows.loc[rows['score'].idxmax()]['num_matches']
+                    dfs['msms_score'].iat[compound_idx, file_idx] = rows.loc[rows['score'].astype(float).idxmax()]['score']
+                dfs['num_frag_matches'].iat[compound_idx, file_idx] = rows.loc[rows['score'].astype(float).idxmax()]['num_matches']
 
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
 
     prefix = f"{polarity}_" if polarity != '' else ''
-    output_sheetname = f"{prefix}{output_sheetname}"
     if not output_sheetname.endswith('.xlsx'):
         output_sheetname = output_sheetname + '.xlsx'
-    excel_path = os.path.join(output_loc, output_sheetname)
+    excel_path = output_loc / output_sheetname
     write_utils.check_existing_file(excel_path, overwrite)
     writer = pd.ExcelWriter(excel_path, engine='xlsxwriter')
     final_df.to_excel(writer, sheet_name='Final_Identifications', index=False, startrow=3)
@@ -362,7 +379,7 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     for i, header in enumerate(HEADER2):
         worksheet.write(1,i, header, cell_format)
 
-    HEADER3 = ['Unique for study','Some isomers are not chromatographically or spectrally resolvable.  Some compounds detected w/ >1 adduct (increases identification confidence but only use 1 for analysis).','Name of standard reference compound in library match.','compound with similar mz (abs difference <= 0.005) or monoisotopic molecular weight (abs difference <= 0.005) and RT (min or max within the RT-min-max-range of similar compound)','List of inchi keys that correspond to the compounds listed in the previous column','','','monoisotopic mass (neutral except for permanently charged molecules)','neutralized version','1 (MSMS matches ref. std.), 0.5 (possible match), 0 (no MSMS collected or no appropriate ref available), -1 (bad match)','1 (delta ppm </= 5 or delta Da </= 0.001), 0.5 (delta ppm 5-10 and delta Da > 0.001), 0 (delta ppm > 10) mz_quality','1 (delta RT </= 0.5), 0.5 (delta RT > 0.5 & </= 2), 0 (delta RT > 2 min)','sum of m/z, RT and MSMS score','Level 1 = Two independent and orthogonal properties match authentic standard; else = putative [Metabolomics. 2007 Sep; 3(3): 211-221. doi: 10.1007/s11306-007-0082-2]','Isomers have same formula (and m/z) and similar RT - MSMS spectra may be used to differentiate (exceptions) or RT elution order','','','','','','','','','mean # of fragment ions matching between compound in sample and reference compound / standard; may include parent and isotope ions and very low intensity background ions (these do not contribute to score)','','MSMS score (highest across all samples), scale of 0 to 1 based on an algorithm. 0 = no match, 1 = perfect match. If no score, then no MSMS was acquired for that compound (@ m/z & RT window).','More than one may be detectable; the one evaluated is listed','theoretical m/z for a given compound / adduct pair','average m/z within 20ppm of theoretical detected across all samples @ RT peak','absolute difference between theoretical and detected m/z','ppm difference between theoretical and detected m/z','','','theoretical retention time for a compound based upon reference standard at highest intensity point of peak','average retention time for a detected compound at highest intensity point of peak across all samples','absolute difference between theoretical and detected RT peak']
+    HEADER3 = ['Unique for study', 'Some isomers are not chromatographically or spectrally resolvable.  Some compounds detected w/ >1 adduct (increases identification confidence but only use 1 for analysis).', 'Name of standard reference compound in library match.', 'compound with similar mz (abs difference <= 0.005) or monoisotopic molecular weight (abs difference <= 0.005) and RT (min or max within the RT-min-max-range of similar compound)', 'List of inchi keys that correspond to the compounds listed in the previous column', '', '', 'monoisotopic mass (neutral except for permanently charged molecules)', 'neutralized version', '1 (MSMS matches ref. std.), 0.5 (possible match), 0 (no MSMS collected or no appropriate ref available), -1 (bad match)', '1 (delta ppm </= 5 or delta Da </= 0.0015), 0.5 (delta ppm 5-10 and delta Da > 0.0015), 0 (delta ppm > 10) mz_quality', '1 (delta RT </= 0.5), 0.5 (delta RT > 0.5 & </= 2), 0 (delta RT > 2 min)', 'sum of m/z, RT and MSMS score', 'Level 1 = Two independent and orthogonal properties match authentic standard; else = putative [Metabolomics. 2007 Sep; 3(3): 211-221. doi: 10.1007/s11306-007-0082-2]', 'Isomers have same formula (and m/z) and similar RT - MSMS spectra may be used to differentiate (exceptions) or RT elution order', '', '', '', '', '', '', '', '', 'mean # of fragment ions matching between compound in sample and reference compound / standard; may include parent and isotope ions and very low intensity background ions (these do not contribute to score)', '', 'MSMS score (highest across all samples), scale of 0 to 1 based on an algorithm. 0 = no match, 1 = perfect match. If no score, then no MSMS was acquired for that compound (@ m/z & RT window).', 'More than one may be detectable; the one evaluated is listed', 'theoretical m/z for a given compound / adduct pair', 'average m/z within 20ppm of theoretical detected across the top three most intense ions @ RT peak', 'absolute difference between theoretical and detected m/z', 'ppm difference between theoretical and detected m/z', '', '', 'theoretical retention time for a compound based upon reference standard at highest intensity point of peak', 'average retention time for a detected compound at highest intensity point of peak across all samples', 'absolute difference between theoretical and detected RT peak']
 
     for i, header in enumerate(HEADER3):
         worksheet.write(2,i, header, cell_format)
@@ -407,10 +424,10 @@ def make_stats_table(input_fname = '', input_dataset = [], msms_hits_df = None,
     stats_table = pd.concat(stats_table, axis=1)
 
     if output_loc is not None:
-        stats_tables_dir = os.path.join(output_loc, f"{prefix}stats_tables")
-        stats_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.tab")
+        stats_tables_dir = output_loc / f"{prefix}stats_tables"
+        stats_path = stats_tables_dir / f"{prefix}stats_table.tab"
         write_utils.export_dataframe_die_on_diff(stats_table, stats_path, 'stats table', overwrite, sep='\t', float_format="%.8e")
-        readme_path = os.path.join(stats_tables_dir, f"{prefix}stats_table.readme")
+        readme_path = stats_tables_dir / f"{prefix}stats_table.readme"
         write_utils.check_existing_file(readme_path, overwrite)
         with open(readme_path, 'w') as readme:
             for var in ['dependencies', 'min_peak_height', 'rt_tolerance', 'ppm_tolerance', 'min_msms_score', 'min_num_frag_matches']:
@@ -498,7 +515,7 @@ def make_scores_df(metatlas_dataset, msms_hits):
                 pass
 
         if len(comp_msms_hits['score']) > 0:
-            row = comp_msms_hits.loc[comp_msms_hits['score'].idxmax()]
+            row = comp_msms_hits.loc[comp_msms_hits['score'].astype(float).idxmax()]
             if np.isnan(row['msv_ref_aligned']).all():
                 max_msms_score = np.nan
             else:

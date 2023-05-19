@@ -21,7 +21,7 @@ MetatlasDataset = List[List[Any]]  # avoiding a circular import
 class Tic(plot_set.Plot):
     """TIC for a single sample"""
 
-    def __init__(self, title: str, group_name: str, h5_file_name: str, polarity: str):
+    def __init__(self, title: str, group_name: str, h5_file_name: Path, polarity: str):
         super().__init__(title, group_name)
         self.h5_file_name = h5_file_name
         assert polarity in ["positive", "negative"]
@@ -39,7 +39,7 @@ class Tic(plot_set.Plot):
 def save_sample_tic_pdf(
     data: MetatlasDataset,
     polarity: str,
-    file_name: str,
+    file_name: Path,
     overwrite: bool = False,
     sharey: bool = True,
     x_min: Optional[float] = None,

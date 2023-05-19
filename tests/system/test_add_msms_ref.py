@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_add_msms_ref_by_line01(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci01:v1.4.20"
+    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.1.0"
     expected = {}
     expected[
         str(tmp_path / "updated_refs.tab")
@@ -32,6 +32,6 @@ metatlas	sigma-lot123	adenosine	[[55.01269, 57.02821, 66.78931, 69.02660, 71.005
                         /out/Remove.ipynb \
                         /out/Remove-done.ipynb
                    """
-    utils.exec_docker(image, command, tmp_path)
+    utils.exec_docker(image, command, tmp_path, utils.PAPERMILL_ENV)
     assert utils.num_files_in(tmp_path) == 4
     utils.assert_files_match(expected)

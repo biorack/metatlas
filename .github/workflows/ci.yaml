@@ -6,7 +6,7 @@ on:
 jobs:
   unit_tests:
     name: Run unit tests suite
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
@@ -21,7 +21,7 @@ jobs:
       run: nox -s unit_tests-3.8
   system_test1:
     name: Run system test 1 - HILIC targeted
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
@@ -30,18 +30,18 @@ jobs:
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_targeted
   system_test2:
-    name: Run system test 2 - RT prediction
-    runs-on: ubuntu-latest
+    name: Run system test 2 - RT alignment
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
     - name: Setup nox
       uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_rt_predict
+      run: nox -s system_tests-3.8 -- -k test_rt_alignment
   system_test3:
     name: Run system test 3 - add MSMS references
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
@@ -51,7 +51,7 @@ jobs:
       run: nox -s system_tests-3.8 -- -k test_add_msms_ref
   system_test4:
     name: Run system test 4 - C18 targeted
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
@@ -59,3 +59,15 @@ jobs:
       uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_c18
+  system_test5:
+    name: Run system test 5 - HILIC Targeted_hybrid
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Setup nox
+      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+    - name: Run system tests
+      run: nox -s system_tests-3.8 -- -k test_hybrid

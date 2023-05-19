@@ -2,36 +2,43 @@
 # pylint: disable=too-many-arguments
 
 import logging
-import os
-import tarfile
+import math
 
 from collections import namedtuple
+from pathlib import Path
+from typing import List
 
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
-from IPython.core.display import display, HTML
+from matplotlib import gridspec
+from matplotlib.axis import Axis
+from tqdm.notebook import tqdm
 
-from metatlas.io import rclone
+from metatlas.datastructures.metatlas_dataset import MetatlasDataset
 from metatlas.io.write_utils import export_dataframe_die_on_diff
 from metatlas.plots import dill2plots as dp
 from metatlas.tools import fastanalysis as fa
+from metatlas.tools.config import Analysis, Workflow
+from metatlas.tools.notebook import in_papermill
 from metatlas.plots.tic import save_sample_tic_pdf
 
 logger = logging.getLogger(__name__)
 
-RCLONE_PATH = "/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone"
 
-
-def write_atlas_to_spreadsheet(metatlas_dataset, overwrite=False):
+def write_atlas_to_csv(metatlas_dataset, overwrite=False):
     """Save atlas as csv file. Will not overwrite existing file unless overwrite is True"""
-    out_file_name = os.path.join(metatlas_dataset.ids.output_dir, f"{metatlas_dataset.atlas.name}_export.csv")
+    prefix = "CompoundAtlas__"
+    out_file_name = metatlas_dataset.ids.output_dir / f"{prefix}{metatlas_dataset.atlas.name}.csv"
     out_df = dp.export_atlas_to_spreadsheet(metatlas_dataset.atlas)
     export_dataframe_die_on_diff(out_df, out_file_name, "atlas", overwrite=overwrite, float_format="%.6e")
 
 
-def write_stats_table(
+def write_identifications_spreadsheet(
     metatlas_dataset,
+    analysis_parameters,
     min_intensity=1e4,
     rt_tolerance=0.5,
     mz_tolerance=20,
@@ -61,8 +68,10 @@ def write_stats_table(
         overwrite: if True, will write over existing files
     """
     ids = metatlas_dataset.ids
+    ids.set_output_state(analysis_parameters, "ids_spreadsheet")
     prefix = f"{ids.short_polarity}_"
-    scores_path = os.path.join(ids.output_dir, f"{prefix}stats_tables", f"{prefix}compound_scores.csv")
+    parent = ids.additional_output_dir
+    scores_path = parent / f"{prefix}stats_tables" / f"{prefix}compound_scores.csv"
     _ = metatlas_dataset.hits  # regenerate hits if needed before logging about scores
     logger.info("Calculating scores and exporting them to %s.", scores_path)
     scores_df = fa.make_scores_df(metatlas_dataset, metatlas_dataset.hits)
@@ -77,23 +86,25 @@ def write_stats_table(
         min_relative_frag_intensity,
     )
     export_dataframe_die_on_diff(scores_df, scores_path, "scores", overwrite=overwrite, float_format="%.8e")
+    output_sheetname = f"{ids.project}_{ids.workflow}_{ids.analysis}_Identifications.xlsx"
     fa.make_stats_table(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
-        output_loc=ids.output_dir,
-        output_sheetname=f"{ids.project}_{ids.output_type}_Identifications.xlsx",
+        output_loc=ids.additional_output_dir,
+        output_sheetname=output_sheetname,
         min_peak_height=1e5,
         use_labels=True,
         min_msms_score=0.01,
         min_num_frag_matches=1,
-        include_lcmsruns=[],
-        exclude_lcmsruns=["QC"],
         polarity=ids.short_polarity,
         overwrite=overwrite,
+        data_sheets=False,  # eliminates output of the legacy 'data_sheets' dir but not '{POL}_data_sheets'
     )
+    xlsx = ids.additional_output_dir / output_sheetname
+    xlsx.rename(ids.output_dir / xlsx.name)
 
 
-def write_chromatograms(metatlas_dataset, overwrite=False, max_cpus=1):
+def write_chromatograms(metatlas_dataset, analysis_parameters, overwrite=False, max_cpus=1):
     """
     inputs:
         metatlas_dataset: a MetatlasDataset instance
@@ -101,13 +112,12 @@ def write_chromatograms(metatlas_dataset, overwrite=False, max_cpus=1):
         overwrite: if False raise error if file already exists
     """
     # overwrite checks done within dp.make_chromatograms
+    metatlas_dataset.ids.set_output_state(analysis_parameters, "chromatograms")
     logger.info("Exporting chromatograms with shared Y-axis.")
     params = {
         "input_dataset": metatlas_dataset,
-        "include_lcmsruns": [],
-        "exclude_lcmsruns": ["InjBl", "QC", "Blank", "blank"],
         "share_y": True,
-        "output_loc": metatlas_dataset.ids.output_dir,
+        "output_loc": metatlas_dataset.ids.additional_output_dir,
         "polarity": metatlas_dataset.ids.short_polarity,
         "overwrite": overwrite,
         "max_cpus": max_cpus,
@@ -125,9 +135,10 @@ def write_tics(metatlas_dataset, x_min=None, x_max=None, y_min=0, overwrite=Fals
     Create PDF files with TIC plot for each sample
     One file with shared Y-axes, one file with independent Y-axes
     """
+    parent = metatlas_dataset.ids.additional_output_dir
     prefix = f"{metatlas_dataset.ids.short_polarity}_"
     for suffix, sharey in [("_independentY", False), ("_sharedY", True)]:
-        file_name = os.path.join(metatlas_dataset.ids.output_dir, f"{prefix}TICs{suffix}.pdf")
+        file_name = parent / f"{prefix}TICs{suffix}.pdf"
         save_sample_tic_pdf(
             metatlas_dataset,
             metatlas_dataset.ids.polarity,
@@ -140,16 +151,16 @@ def write_tics(metatlas_dataset, x_min=None, x_max=None, y_min=0, overwrite=Fals
         )
 
 
-def write_identification_figure(metatlas_dataset, overwrite=False):
+def write_identification_figure(metatlas_dataset, analysis_parameters, overwrite=False):
     """Save identification figure. Will not overwrite existing file unless overwrite is True"""
     # overwrite checks done within dp.make_identification_figure_v2
-    logger.info("Exporting indentification figures to %s", metatlas_dataset.ids.output_dir)
+    ids = metatlas_dataset.ids
+    logger.info("Exporting indentification figures to %s", ids.output_dir)
+    ids.set_output_state(analysis_parameters, "chromatograms")
     dp.make_identification_figure_v2(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
         use_labels=True,
-        include_lcmsruns=[],
-        exclude_lcmsruns=["InjBl", "QC", "Blank", "blank"],
         output_loc=metatlas_dataset.ids.output_dir,
         short_names_df=metatlas_dataset.ids.lcmsruns_short_names,
         polarity=metatlas_dataset.ids.short_polarity,
@@ -157,37 +168,41 @@ def write_identification_figure(metatlas_dataset, overwrite=False):
     )
 
 
-def write_metrics_and_boxplots(metatlas_dataset, overwrite=False, max_cpus=1):
+def write_metrics_and_boxplots(metatlas_dataset, analysis_parameters, overwrite=False, max_cpus=1):
     """
     Save metrics dataframes as csv and boxplots as PDF.
     Will not overwrite existing file unless overwrite is True
     """
     config = [
-        {"name": "peak_height", "label": "Peak Height"},
-        {"name": "peak_area", "label": None},
-        {"name": "mz_peak", "label": None},
-        {"name": "rt_peak", "label": "RT Peak"},
-        {"name": "mz_centroid", "label": "MZ Centroid"},
-        {"name": "rt_centroid", "label": None},
+        {"name": "peak_height", "label": "Peak Height", "additional": False},
+        {"name": "peak_area", "label": None, "additional": True},
+        {"name": "mz_peak", "label": None, "additional": True},
+        {"name": "rt_peak", "label": "RT Peak", "additional": True},
+        {"name": "mz_centroid", "label": "MZ Centroid", "additional": True},
+        {"name": "rt_centroid", "label": None, "additional": True},
     ]
+    ids = metatlas_dataset.ids
     prefix = f"{metatlas_dataset.ids.short_polarity}_"
-    for fields in config:
-        df_dir = os.path.join(metatlas_dataset.ids.output_dir, f"{prefix}data_sheets")
-        dataframe = dp.make_output_dataframe(
+    df_dir = ids.output_dir / f"{prefix}data_sheets"
+    ids.set_output_state(analysis_parameters, "data_sheets")
+    dfs = [
+        dp.make_output_dataframe(
             fieldname=fields["name"],
             input_dataset=metatlas_dataset,
             output_loc=df_dir,
-            short_names_df=metatlas_dataset.ids.lcmsruns_short_names,
-            polarity=metatlas_dataset.ids.short_polarity,
+            short_names_df=ids.lcmsruns_short_names,
+            polarity=ids.short_polarity,
             use_labels=True,
             overwrite=overwrite,
         )
+        for fields in config
+    ]
+    ids.set_output_state(analysis_parameters, "box_plots")
+    for dataframe, fields in zip(dfs, config):
         if fields["label"] is not None:
             for logy in [False, True]:
-                plot_dir = os.path.join(
-                    metatlas_dataset.ids.output_dir,
-                    f"{prefix}boxplot_{fields['name']}{'_log' if logy else ''}",
-                )
+                parent = ids.additional_output_dir if fields["additional"] else ids.output_dir
+                plot_dir = parent / f"{prefix}boxplot_{fields['name']}{'_log' if logy else ''}"
                 dp.make_boxplot_plots(
                     dataframe,
                     output_loc=plot_dir,
@@ -216,18 +231,21 @@ def write_msms_fragment_ions(
     out = []
     for compound_idx, _ in enumerate(data[0]):
         max_vars = get_max_precursor_intensity(data, compound_idx)
-        out.append(
-            get_spectra_strings(
-                data[max_vars.file_idx][compound_idx],
-                max_vars.pre_intensity,
-                min_mz,
-                max_mz_offset + max_vars.precursor_mz,
-                intensity_fraction,
-                scale_intensity,
+        if max_vars.file_idx:
+            out.append(
+                get_spectra_strings(
+                    data,
+                    max_vars.file_idx,
+                    compound_idx,
+                    max_vars.pre_intensity,
+                    min_mz,
+                    max_mz_offset + max_vars.precursor_mz,
+                    intensity_fraction,
+                    scale_intensity,
+                )
             )
-        )
     out_df = pd.DataFrame(out)
-    path = os.path.join(data.ids.output_dir, f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut.csv")
+    path = data.ids.output_dir / f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut.csv"
     export_dataframe_die_on_diff(out_df, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
     return out_df
 
@@ -241,27 +259,29 @@ def get_max_precursor_intensity(data, compound_idx):
     """
     max_pre_intensity = max_precursor_mz = 0
     max_file_idx = max_pre_intensity_idx = None
-    for file_idx, _ in enumerate(data):
+    for file_idx, sample in enumerate(data):
         try:
-            msms = data[file_idx][compound_idx]["data"]["msms"]["data"]
+            msms = sample[compound_idx]["data"]["msms"]["data"]
             if len(msms["precursor_intensity"]) == 0:
                 continue
             pre_intensity_idx = msms["precursor_intensity"].argmax()
             pre_intensity = msms["precursor_intensity"][pre_intensity_idx]
             precursor_mz = msms["precursor_MZ"][pre_intensity_idx]
             rts = msms["rt"][pre_intensity_idx]
-            rt_ref = data[file_idx][compound_idx]["identification"].rt_references[-1]
+            rt_ref = sample[compound_idx]["identification"].rt_references[-1]
             if pre_intensity > max_pre_intensity and rt_ref.rt_min < rts < rt_ref.rt_max:
                 max_file_idx = file_idx
                 max_pre_intensity_idx = pre_intensity_idx
                 max_pre_intensity = pre_intensity
                 max_precursor_mz = precursor_mz
-        except (AttributeError, IndexError):
+        except (AttributeError, IndexError, KeyError):
             pass
     return Max(max_file_idx, max_pre_intensity_idx, max_pre_intensity, max_precursor_mz)
 
 
-def get_spectra_strings(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity):
+def get_spectra_strings(
+    data, sample_idx, compound_idx, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity
+):
     """
     inputs:
         data: metatlas_dataset[x][y]
@@ -274,14 +294,27 @@ def get_spectra_strings(data, max_pre_intensity, min_mz, max_mz, intensity_fract
         scale_intensity: If not None, normalize output intensity to maximum of scale_intensity
     returns a dict containing compound name and string representations of the spectra
     """
+    compound_data = data[sample_idx][compound_idx]
     mz_list, intensity_list = get_spectra(
-        data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity
+        compound_data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity
     )
     mz_str = str([f"{x:.2f}" for x in mz_list]).replace("'", "")
     intensity_str = str([int(x) for x in intensity_list]).replace("'", "")
     spectra_str = str([mz_str, intensity_str]).replace("'", "")
-    name = data["identification"].name
-    return {"name": name, "spectrum": spectra_str, "mz": mz_str, "intensity": intensity_str}
+    name = compound_data["identification"].name
+    run = Path(compound_data["lcmsrun"].hdf5_file).stem
+    mz_peak = compound_data["data"]["ms1_summary"]["mz_peak"]
+    rt_peak = compound_data["data"]["ms1_summary"]["rt_peak"]
+    return {
+        "compound_idx": compound_idx,
+        "name": name,
+        "run": run,
+        "rt_peak": rt_peak,
+        "mz_peak": mz_peak,
+        "spectrum": spectra_str,
+        "mz": mz_str,
+        "intensity": intensity_str,
+    }
 
 
 def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity):
@@ -312,44 +345,184 @@ def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, sca
     return None, None
 
 
-def archive_outputs(ids):
-    """
-    Creates a .tar.gz file containing all output files
-    Inputs:
-        ids: an AnalysisIds object
-    """
-    logger.info("Generating archive of output files.")
-    suffix = "" if ids.output_type == "data_QC" else f"-{ids.short_polarity}"
-    output_file = f"{ids.short_experiment_analysis}{suffix}.tar.gz"
-    output_path = os.path.join(ids.project_directory, ids.experiment, output_file)
-    with tarfile.open(output_path, "w:gz") as tar:
-        tar.add(ids.output_dir, arcname=os.path.basename(ids.output_dir))
-    logger.info("Generation of archive completed succesfully: %s", output_path)
+def generate_standard_outputs(
+    data: MetatlasDataset,
+    workflow: Workflow,
+    analysis: Analysis,
+    overwrite: bool = False,
+) -> None:
+    """Generates the default set of outputs for a targeted experiment"""
+    params = analysis.parameters
+    data.ids.set_output_state(params, "gui")
+    write_atlas_to_csv(data, overwrite=overwrite)
+    write_tics(data, overwrite=overwrite, x_min=1.5)
+    write_identifications_spreadsheet(data, params, overwrite=overwrite)
+    write_chromatograms(data, params, overwrite=overwrite, max_cpus=data.max_cpus)
+    write_identification_figure(data, params, overwrite=overwrite)
+    write_metrics_and_boxplots(data, params, overwrite=overwrite, max_cpus=data.max_cpus)
+    logger.info("Generation of standard output files completed sucessfully.")
 
 
-def copy_outputs_to_google_drive(ids):
-    """
-    Recursively copy the output files to Google Drive using rclone
-    Inputs:
-        ids: an AnalysisIds object
-    """
-    logger.info("Copying output files to Google Drive")
-    rci = rclone.RClone(RCLONE_PATH)
-    fail_suffix = "not copying files to Google Drive"
-    if rci.config_file() is None:
-        logger.warning("RClone config file not found -- %s.", fail_suffix)
-        return
-    drive = rci.get_name_for_id(ids.google_folder)
-    if drive is None:
-        logger.warning("RClone config file missing JGI_Metabolomics_Projects -- %s.", fail_suffix)
-        return
-    folders = [ids.experiment, ids.analysis, ids.output_type]
-    if ids.output_type != "data_QC":
-        folders.append(ids.short_polarity)
-    sub_folders_string = os.path.join("Analysis_uploads", *folders)
-    rci.copy_to_drive(ids.output_dir, drive, sub_folders_string, progress=True)
-    logger.info("Done copying output files to Google Drive")
-    path_string = f"{drive}:{sub_folders_string}"
-    display(
-        HTML(f'Data is now on Google Drive at <a href="{rci.path_to_url(path_string)}">{path_string}</a>')
+def generate_qc_plots(data: MetatlasDataset) -> None:
+    """Write plots that can be used to QC the experiment"""
+    rts_df = get_rts(data)
+    compound_atlas_rts_file_name = data.ids.output_dir / f"{data.ids.short_polarity}_Compound_Atlas_RTs.pdf"
+    plot_compound_atlas_rts(len(data), rts_df, compound_atlas_rts_file_name)
+    peak_heights_df = get_peak_heights(data)
+    peak_heights_plot_file_name = (
+        data.ids.output_dir / f"{data.ids.short_polarity}_Compound_Atlas_peak_heights.pdf"
     )
+    plot_compound_atlas_peak_heights(len(data), peak_heights_df, peak_heights_plot_file_name)
+
+
+def generate_qc_outputs(data: MetatlasDataset, analysis: Analysis) -> None:
+    """Write outputs that can be used to QC the experiment"""
+    ids = data.ids
+    ids.set_output_state(analysis.parameters, "ids_spreadsheet")
+    save_rt_peak(data, ids.output_dir / f"{ids.short_polarity}_rt_peak.tab")
+    save_measured_rts(data, ids.output_dir / f"{ids.short_polarity}_QC_Measured_RTs.csv")
+    generate_qc_plots(data)
+
+
+def save_measured_rts(data: MetatlasDataset, file_name: Path) -> None:
+    """Save RT values in csv format file"""
+    rts_df = get_rts(data, include_atlas_rt_peak=False)
+    export_dataframe_die_on_diff(rts_df, file_name, "measured RT values", float_format="%.6e")
+
+
+def save_rt_peak(data: MetatlasDataset, file_name: Path) -> None:
+    """Save peak RT values in tsv format file"""
+    rts_df = dp.make_output_dataframe(input_dataset=data, fieldname="rt_peak", use_labels=True)
+    export_dataframe_die_on_diff(rts_df, file_name, "peak RT values", sep="\t", float_format="%.6e")
+
+
+def get_rts(data: MetatlasDataset, include_atlas_rt_peak: bool = True) -> pd.DataFrame:
+    """Returns RT values in DataFrame format"""
+    rts_df = dp.make_output_dataframe(
+        input_dataset=data,
+        fieldname="rt_peak",
+        use_labels=True,
+        summarize=True,
+    )
+    if include_atlas_rt_peak:
+        rts_df["atlas RT peak"] = [
+            compound["identification"].rt_references[0].rt_peak for compound in data[0]
+        ]
+    return order_df_columns_by_run(rts_df)
+
+
+def get_peak_heights(data: MetatlasDataset) -> pd.DataFrame:
+    """Returns peak heights in DataFrame format"""
+    peak_height_df = dp.make_output_dataframe(
+        input_dataset=data,
+        fieldname="peak_height",
+        use_labels=True,
+        summarize=True,
+    )
+    return order_df_columns_by_run(peak_height_df)
+
+
+def order_df_columns_by_run(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """
+    Returns a dataframe with re-ordered columns such that second column up to column 'mean'
+    are ordered by run number from low to high
+    """
+    cols = dataframe.columns.tolist()
+    stats_start_idx = cols.index("mean")
+    to_sort = cols[:stats_start_idx]
+    no_sort = cols[stats_start_idx:]
+    to_sort.sort(
+        key=lambda x: int(
+            x.split(".")[0].split("_")[-1].lower().replace("run", "").replace("seq", "").replace("s", "")
+        )
+    )
+    new_cols = to_sort + no_sort
+    return dataframe[new_cols]
+
+
+def plot_per_compound(
+    field_name: str,
+    num_files: int,
+    data: pd.DataFrame,
+    file_name: Path,
+    fontsize: float = 2,
+    pad: float = 0.1,
+    cols: int = 8,
+) -> None:
+    """
+    Writes plot of RT peak for vs file for each compound
+    inputs:
+        field_name: one of rt_peak or peak_height
+        num_files: number of files in data set, ie len(data)
+        data: Dataframe with RTs values
+        file_name: where to save plot
+        fontsize: size of text
+        pad: padding size
+        cols: number of columns in plot grid
+    """
+    logger.info("Plotting %s vs file for each compound", field_name)
+    plot_df = (
+        data.sort_values(by="standard deviation", ascending=False, na_position="last")
+        .drop(["#NaNs"], axis=1)
+        .dropna(axis=0, how="all", subset=data.columns[:num_files])
+    )
+    rows = int(math.ceil((data.shape[0] + 1) / cols))
+    fig = plt.figure()
+    grid = gridspec.GridSpec(rows, cols, figure=fig, wspace=0.2, hspace=0.4)
+    for i, (_, row) in tqdm(
+        enumerate(plot_df.iterrows()), total=len(plot_df), unit="plot", disable=in_papermill()
+    ):
+        a_x = fig.add_subplot(grid[i])
+        range_columns = list(plot_df.columns[:num_files])
+        file_vs_value_plot(a_x, field_name, row, range_columns, fontsize, pad)
+    plt.savefig(file_name, bbox_inches="tight")
+    plt.close()
+
+
+def file_vs_value_plot(
+    a_x: Axis, field_name: str, row: pd.DataFrame, range_columns: List[str], fontsize: float, pad: float
+) -> None:
+    """Create a dot plot with one point per file"""
+    assert field_name in ["rt_peak", "peak_height"]
+    a_x.tick_params(direction="in", length=1, pad=pad, width=0.1, labelsize=fontsize)
+    num_files = len(range_columns)
+    a_x.scatter(range(num_files), row[:num_files], s=0.2)
+    if field_name == "rt_peak":
+        a_x.axhline(y=row["atlas RT peak"], color="r", linestyle="-", linewidth=0.2)
+        range_columns += ["atlas RT peak"]
+        a_x.set_ylim(np.nanmin(row.loc[range_columns]) - 0.12, np.nanmax(row.loc[range_columns]) + 0.12)
+    else:
+        a_x.set_yscale("log")
+        a_x.set_ylim(bottom=1e4, top=1e10)
+    a_x.set_xlim(-0.5, num_files + 0.5)
+    a_x.xaxis.set_major_locator(mticker.FixedLocator(np.arange(0, num_files, 1.0)))
+    _ = [s.set_linewidth(0.1) for s in a_x.spines.values()]
+    # truncate name so it fits above a single subplot
+    a_x.set_title(row.name[:33], pad=pad, fontsize=fontsize)
+    a_x.set_xlabel("Files", labelpad=pad, fontsize=fontsize)
+    ylabel = "Actual RTs" if field_name == "rt_peak" else "Peak Height"
+    a_x.set_ylabel(ylabel, labelpad=pad, fontsize=fontsize)
+
+
+def plot_compound_atlas_rts(
+    num_files: int,
+    rts_df: pd.DataFrame,
+    file_name: Path,
+    fontsize: float = 2,
+    pad: float = 0.1,
+    cols: int = 8,
+) -> None:
+    """Plot filenames vs peak RT for each compound"""
+    plot_per_compound("rt_peak", num_files, rts_df, file_name, fontsize, pad, cols)
+
+
+def plot_compound_atlas_peak_heights(
+    num_files: int,
+    peak_heights_df: pd.DataFrame,
+    file_name: Path,
+    fontsize: float = 2,
+    pad: float = 0.1,
+    cols: int = 8,
+) -> None:
+    """Plot filenames vs peak height for each compound"""
+    plot_per_compound("peak_height", num_files, peak_heights_df, file_name, fontsize, pad, cols)

@@ -1,17 +1,18 @@
 """Test of EIC plotting functions"""
 # pylint: disable=missing-function-docstring
 
-import os
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from metatlas.plots import compound_eic
 
 
 def test_save_compound_eic_pdf(metatlas_dataset):
-    file_name = "foo.pdf"
+    file_name = Path("foo.pdf")
     compound_eic.save_compound_eic_pdf(metatlas_dataset, 0, file_name, sharey=True, overwrite=True)
-    assert os.path.isfile(file_name)
+    assert file_name.is_file()
 
 
 def test_insert_in_sorted_array():
@@ -24,3 +25,9 @@ def test_insert_in_sorted_array():
 
 def test_add_interp_at():
     assert compound_eic.add_interp_at([1.0, 2.0], [3.0, 4.0], [1.5]) == ([1, 1.5, 2], [3, 3.5, 4])
+
+
+def test_eic_none(metatlas_dataset):
+    metatlas_dataset[0][0]["data"]["eic"] = None
+    _, axes = plt.subplots()
+    compound_eic.CompoundEic("Title", "Group Name", metatlas_dataset[0][0]).plot(axes)
