@@ -30,6 +30,7 @@ BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
 
 import sys
 import os
+import shutil
 import pathlib
 import argparse
 from subprocess import call
@@ -62,6 +63,72 @@ import xmltodict
 import zipfile
 import re
 from rdkit import Chem
+
+from rdkit.Chem.rdMolDescriptors import CalcMolFormula
+from collections import Counter
+from rdkit.Chem.Descriptors import ExactMolWt
+from rdkit.Chem import rdMolDescriptors
+from rdkit.Chem import Descriptors
+from rdkit.ML.Descriptors import MoleculeDescriptors
+import re
+
+import scipy.stats
+
+
+def remove_untargeted_job(experiment,
+                          outdir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
+                          zipdir='/global/cfs/cdirs/metatlas/projects/untargeted_outputs'):
+    
+    # remove untargeted zip file
+    zip_archive = os.path.join(zipdir,'%s.zip'%experiment)
+    if os.path.isfile(zip_archive):
+        os.remove(zip_archive)
+        print('removed %s'%zip_archive)
+
+    # remove untargeted output directory
+    for polarity in ['positive','negative']:
+        task_dir = os.path.join(outdir,'%s_%s'%(experiment,polarity))
+        if os.path.isdir(task_dir):
+            try:
+                shutil.rmtree(task_dir)
+                print('removed %s'%task_dir)
+            except OSError as e:
+                print ("Error: %s - %s." % (e.filename, e.strerror))
+
+    schema = 'lists'
+    # remove untargeted_tasks
+    sql = """SELECT Key, parent_dir FROM untargeted_tasks
+    WHERE parent_dir='%s';"""%(experiment)
+
+    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
+    if len(sql_result['rows'])>0:
+        df = pd.DataFrame(sql_result['rows'])
+        df = df[['Key']]
+        update_table_in_lims(df,'untargeted_tasks',method='delete')
+        print('removed tasks')
+        
+    # remove untargeted_features
+    sql = """SELECT Key, experiment FROM untargeted_features 
+    WHERE experiment='%s';"""%(experiment)
+
+    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
+    if len(sql_result['rows'])>0:
+        df = pd.DataFrame(sql_result['rows'])
+        df = df[['Key']]
+        update_table_in_lims(df,'untargeted_features',method='delete')
+        print('removed features')
+    
+    # remove gnps_hits (feature_key)
+    sql = """SELECT Key, feature_key.experiment FROM gnps_hits 
+    WHERE feature_key.experiment='%s';"""%(experiment)
+    
+    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
+    if len(sql_result['rows'])>0:
+        df = pd.DataFrame(sql_result['rows'])
+        df = df[['Key']]
+        update_table_in_lims(df,'gnps_hits',method='delete')
+        print('removed gnps hits')
+
 
 def get_monoisotopic_mass(formula):
     parts = re.findall("[A-Z][a-z]?|[0-9]+", formula)
@@ -171,9 +238,11 @@ def get_files_from_disk(directory,extension):
 
 def complex_name_splitter(filename,
                           extensions=set(['raw', 'tab', 'gz', 'pactolus', 'mzML', 'd','h5']),
-                         strippath='/global/project/projectdirs/metatlas/raw_data'):
+                         strippath='/global/cfs/cdirs/metatlas/raw_data'):
 
     #Get the filename
+    if '/project/projectdirs' in filename:
+        filename = filename.replace('/project/projectdirs','/cfs/cdirs')
     basename = os.path.basename(filename)
     #Path is everything not filename
     pathname = filename.replace(basename,'')
@@ -231,7 +300,7 @@ def get_table_from_lims(table,columns=None,max_rows=1e6):
         sql = """SELECT %s FROM %s;"""%(','.join(columns),table)
     # base execute_sql
     schema = 'lists'
-    sql_result = api.query.execute_sql(schema, sql,max_rows=max_rows)
+    sql_result = api.query.execute_sql(schema, sql,max_rows=max_rows,timeout=10000)
     if sql_result is None:
         print(('execute_sql: Failed to load results from ' + schema + '.' + table))
         return None
@@ -240,12 +309,14 @@ def get_table_from_lims(table,columns=None,max_rows=1e6):
         df = df[[c for c in df.columns if not c.startswith('_')]]
         return df
 
-def update_table_in_lims(df,table,method='update',max_size=1000):
+def update_table_in_lims(df,table,method='update',max_size=1000,pause_time=None):
 
     """
     Note: Do ~1000 rows at a time.  Any more and you get a 504 error.  Maybe increasing the timeout would help.
     In the header, timeout is a variable that gets set.  Check to see what its set to.  Maybe increasing it would let
     more rows be updated at a time
+    
+    method can be 'update','insert',or 'delete'
 
     Use it like this:
     update_table_in_lims(df_lims,'mzml_files')
@@ -256,7 +327,7 @@ def update_table_in_lims(df,table,method='update',max_size=1000):
 #     else:
 #         cols = pd.unique([index_column] + columns)
     # One of the cols needs to be the index column (almost always: Key or Name)
-
+    import time
     N = math.ceil(float(df.shape[0]) / max_size)
     for sub_df in np.array_split(df, N):
         payload = sub_df.to_dict('records')
@@ -269,6 +340,9 @@ def update_table_in_lims(df,table,method='update',max_size=1000):
         else:
             print(('ERROR: Nothing to do.  Method %s is not programmed'%method))
         print('updated %d rows in %s'%(df.shape[0],table))
+        if pause_time is not None:
+            time.sleep(pause_time)    # Pause this many seconds
+            print('pausing for %d seconds'%pause_time)
 
 def get_union_of_all_lcms_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']):
     # sort out the lcmsrun table
@@ -708,13 +782,18 @@ def submit_fbmn_jobs(polarity='positive',polarity_short='pos',N=15):
         pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
         runner_filename = os.path.join(pathname,'%s_%s_fbmn.sh'%(row['parent_dir'],polarity))
         if os.path.isfile(runner_filename)==True:
-            with open(runner_filename,'r') as fid:
-                task = call(fid.read(),shell=True)
-                time.sleep(5)
-                print(task)
-            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
+            mgf_filename = build_untargeted_filename(row['output_dir'],row['parent_dir'],polarity,'msms-mzmine')
+            if os.stat(mgf_filename).st_size > 0:
+                with open(runner_filename,'r') as fid:
+                    task = call(fid.read(),shell=True)
+                    time.sleep(5)
+                    count += 1
+                    print(task)
+                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
+            else:
+                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
+                print(row['parent_dir'],polarity,'not relevant for fbmn')
             update_df.append(i)
-            count += 1
         if count==N:
             break
     if len(update_df)>0:
@@ -747,20 +826,55 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,num_files)
     mzmine_launcher = get_latest_mzmine_binary(version='MZmine-2.39')
     sbatch_filename = '%s_mzmine-sbatch.sbatch'%os.path.join(basepath,parent_dir)
     runner_filename = '%s_mzmine.sh'%os.path.join(basepath,parent_dir)
-    s = '%s %s'%(mzmine_launcher,batch_filename)
-    with open(sbatch_filename,'w') as fid:
-        if num_files<51:
+    s = '%s %s\necho MZMINE IS DONE\n\n\n'%(mzmine_launcher,batch_filename)
+
+    hostname = os.environ['NERSC_HOST']
+    if (num_files<51) & (hostname=='cori'):
+        with open(sbatch_filename,'w') as fid:
             fid.write('%s\n%s\n'%(SLURM_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
-        else:
-            print('asdfasdfasdf')
-            fid.write('%s\n%s\n'%(SLURM_BIGMEM_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
-    with open(runner_filename,'w') as fid:
-        if num_files<51:
+        with open(runner_filename,'w') as fid:
             fid.write('sbatch %s'%sbatch_filename)
-        else:
+    elif (num_files>=51) & (hostname=='cori'):
+        with open(sbatch_filename,'w') as fid:
+            fid.write('%s\n%s\n'%(SLURM_BIGMEM_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
+        with open(runner_filename,'w') as fid:
             fid.write('module load esslurm\n')
             fid.write('sbatch %s\n'%sbatch_filename)
             fid.write('module unload esslurm\n')
+    # elif (num_files<100) & (hostname=='perlmutter'):
+    #     with open(sbatch_filename,'w') as fid:
+    #         fid.write('%s\n%s\n'%(SLURM_PERLMUTTER_REALTIME_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
+    #     with open(runner_filename,'w') as fid:
+    #         fid.write('sbatch %s'%sbatch_filename)
+    else:# we are not on Cori!
+        with open(sbatch_filename,'w') as fid:
+            fid.write('%s\n%s\n'%(SLURM_PERLMUTTER_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
+        with open(runner_filename,'w') as fid:
+            fid.write('sbatch %s'%sbatch_filename)
+
+        # Write the large memory sbatch file irregardless
+        with open(sbatch_filename,'r') as fid:
+            p_sbatch = fid.read()
+        # print(p_sbatch)
+        error_line = [s for s in p_sbatch.split('\n') if '#SBATCH --error' in s][-1]
+        error_line = error_line.replace('mzmine.err','mzmine-cori-bigmem.err')
+        out_line = [s for s in p_sbatch.split('\n') if '#SBATCH --output' in s][-1]
+        out_line = out_line.replace('mzmine.out','mzmine-cori-bigmem.out')
+        new_header = SLURM_BIGMEM_HEADER.split('\n')
+        new_header = [error_line if '--error' in n else n for n in new_header]
+        new_header = [out_line if '--out' in n else n for n in new_header]
+        new_header = '\n'.join(new_header)
+        # print(error_line)
+        # print(out_line)
+        p_sbatch = [s for s in p_sbatch.split('\n') if not s.startswith('#')]
+        p_sbatch = '\n'.join(p_sbatch)
+        new_sbatch = new_header + p_sbatch
+        # print(new_sbatch)
+        # print('\n\n\n')
+        new_filename = sbatch_filename.replace('mzmine-sbatch','coribigmem-mzmine-sbatch')
+        with open(new_filename,'w') as fid:
+            fid.write(new_sbatch)
+    
 
 def write_fbmn_sbatch_and_runner(basepath,parent_dir):
     runner_filename = '%s_fbmn.sh'%os.path.join(basepath,parent_dir)
@@ -862,6 +976,9 @@ def update_new_untargeted_tasks(update_lims=True):
     
     df = get_table_from_lims('lcmsrun_plus')
     df = df[pd.notna(df['mzml_file'])]
+    df['basename'] = df['mzml_file'].apply(os.path.basename)
+    df.sort_values('timeepoch',ascending=False,inplace=True)
+    df.drop_duplicates(['basename','parent_dir'],inplace=True)
     
     df.drop(columns=['mzml_file_container'],inplace=True)
     df.replace('',np.nan,inplace=True)
@@ -898,7 +1015,7 @@ def update_new_untargeted_tasks(update_lims=True):
     for m in missing:
         neg_count[m] = 0
     
-    outdir = '/project/projectdirs/metatlas/projects/untargeted_tasks'
+    outdir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks'
     
     
 #     idx1 = ~df_untargeted['mzmine_pos_status'].str.contains('complete')
@@ -939,8 +1056,8 @@ def update_new_untargeted_tasks(update_lims=True):
                 temp[cols[i]] = g
 #             else:
 #                 print('too many controls!!! %s'%g)
-            
-        temp.to_csv(metadata_filename,sep='\t',index=False)
+        if not os.path.isfile(metadata_filename):
+            temp.to_csv(metadata_filename,sep='\t',index=False)
         pos_metadata_files[block[0]] = metadata_filename
         pos_filelist[block[0]] = block[1]['mzml_file']
         
@@ -973,7 +1090,8 @@ def update_new_untargeted_tasks(update_lims=True):
                 temp[cols[i]] = g
 #             else:
 #                 print('too many controls!!! %s'%g)
-        temp.to_csv(metadata_filename,sep='\t',index=False)
+        if not os.path.isfile(metadata_filename):
+            temp.to_csv(metadata_filename,sep='\t',index=False)
         neg_metadata_files[block[0]] = metadata_filename
         neg_filelist[block[0]] = block[1]['mzml_file']
     
@@ -1043,19 +1161,22 @@ def get_gnps_hits(parent_dir,output_dir,polarity,status,override=False):
                                      polarity,
                                      'gnps-uuid-fbmn')
     gnps_zip_output_file = os.path.join(os.path.dirname(gnps_uuid_file),'%s_%s_gnps-download.zip'%(parent_dir,polarity))
-    if (os.path.isfile(gnps_uuid_file)) & ('complete' in status):
-        with open(gnps_uuid_file,'r') as fid:
-            url = fid.read()
-        gnps_uuid = url.split('=')[-1]
-        if (override==True) | (not os.path.isfile(gnps_zip_output_file)):
-            with zipfile.ZipFile(gnps_zip_output_file, 'r') as archive:
-                hits_file = [f for f in archive.namelist() if 'DB_result' in f]
-                if len(hits_file)>0:
-                    hits_file = hits_file[-1]
-                    hits_fid = archive.open(hits_file)
-                    df = pd.read_csv(hits_fid,sep='\t')
-    
-                    return df
+    # if (os.path.isfile(gnps_uuid_file)) & ('complete' in status):
+    #     with open(gnps_uuid_file,'r') as fid:
+    #         url = fid.read()
+    #     gnps_uuid = url.split('=')[-1]
+    if os.path.isfile(gnps_zip_output_file):
+        with zipfile.ZipFile(gnps_zip_output_file, 'r') as archive:
+            hits_file = [f for f in archive.namelist() if 'DB_result' in f]
+            if len(hits_file)>0:
+                hits_file = hits_file[-1]
+                with archive.open(hits_file) as hits_fid:
+                    try:
+                        df = pd.read_csv(hits_fid,sep='\t')
+                    except:
+                        df = None
+
+                return df
     return None
 
 
@@ -1106,7 +1227,7 @@ def melt_dataframe(ph,md):
     df['value'].fillna(0.0,inplace=True)
     df['value'] = df['value'].astype(float)
     df = pd.merge(df,md,left_on='variable',right_on='filename')
-    df.drop(columns=['variable','filename'],inplace=True)
+    df.drop(columns=['variable'],inplace=True)
     df.reset_index(inplace=True,drop=True)
     return df
 
@@ -1120,6 +1241,8 @@ def calc_background(df,background='exctrl',background_ratio=3.0):
     bad_features = list(set(all_features) - set(good_features))
     rm_count = len(all_features) - len(good_features)
     print('Please remove %d features out of %d'%(rm_count,len(all_features)))
+    if len(bad_features)==0:
+        good_features = df['feature_id'].unique()
     return good_features,bad_features
 
 
@@ -1147,6 +1270,33 @@ SLURM_HEADER = """#!/bin/bash
 #SBATCH -A m1541
 #SBATCH --exclusive
 module load java
+
+"""
+
+#SBATCH -L project
+
+
+SLURM_PERLMUTTER_REALTIME_HEADER = """#!/bin/bash
+#SBATCH -N 1
+#SBATCH --error="slurm.err"
+#SBATCH --output="slurm.out"
+#SBATCH -A m1541
+#SBATCH -C cpu
+#SBATCH --qos=realtime
+#SBATCH -t 2:00:00
+
+"""
+
+SLURM_PERLMUTTER_HEADER = """#!/bin/bash
+#SBATCH -N 1
+#SBATCH --exclusive
+#SBATCH --error="slurm.err"
+#SBATCH --output="slurm.out"
+#SBATCH -A m342
+#SBATCH -C cpu
+#SBATCH --qos=regular
+#SBATCH -t 12:00:00
+
 
 """
 
@@ -1195,7 +1345,7 @@ SLURM_BIGMEM_HEADER = """#!/bin/bash
 #SBATCH --qos=jgi_shared
 #SBATCH -A pkscell
 #SBATCH -C skylake
-#SBATCH -t 8:00:00
+#SBATCH -t 48:00:00
 #SBATCH -L project
 
 """
@@ -1483,6 +1633,301 @@ def create_job_script(m):
 
     return sbatch_file_name
 
+
+
+def filter_features(experiment,rt_cutoff=1,polarity='positive',output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks/'):
+    mgf_file = build_untargeted_filename(output_dir,experiment,polarity,'msms-mzmine')
+    ph_file =  build_untargeted_filename(output_dir,experiment,polarity,'peak-height-mzmine')
+    md_file =  build_untargeted_filename(output_dir,experiment,polarity,'metadata')
+
+    ph = pd.read_csv(ph_file)
+    print(ph.shape)
+    cols = ph.columns
+    cols = [c.replace(' Peak height','') for c in cols]
+    ph.columns = cols
+    cols = [c for c in cols if not 'Unnamed:' in c]
+    ph = ph[cols]
+    rename_cols = {'row ID':'feature_id','row m/z':'mz','row retention time':'rt'}
+    ph.rename(columns=rename_cols,inplace=True)
+
+
+    md = pd.read_csv(md_file,sep='\t')
+    md.rename(columns={'ATTRIBUTE_sampletype':'sampletype'},inplace=True)
+    md.fillna('',inplace=True)
+    md['sampletype'] = md['sampletype'].astype(str)
+    md['sampletype'] = md['sampletype'].apply(lambda x: x.lower())
+    if any([e for e in  md['sampletype'].tolist() if 'exctrl' in e]):
+        md['filename'] = md['filename'].apply(lambda x: os.path.basename(x))
+
+    df = melt_dataframe(ph,md)
+    df = df[~df['sampletype'].str.startswith('qc')]
+    good_features,bad_features = calc_background(df,background_ratio=50)#,background='media-control')
+    print(len(good_features),len(bad_features))
+    df = df[df['feature_id'].isin(good_features)]
+    idx = df['rt']>rt_cutoff
+    print('there are %d in the solvent front that will be removed'%sum(~idx))
+    df = df[idx]
+    df['polarity'] = polarity
+    # df_range = df.groupby(['feature_id','mz','rt'])['value'].agg({'max':lambda x: x.max(),'range':lambda x: (x.max()+1) / (x.min()+1)})
+    df_avg_temp = df.groupby(['feature_id','polarity','sampletype']).mean()
+    df_avg_temp.reset_index(inplace=True)
+    cols = ['feature_id','polarity','mz','rt']
+    if 'mz' in df_avg_temp.columns:
+        df_range = df_avg_temp.groupby(cols).agg(max=('value', np.max),range=('value', lambda x: (x.max()+1)/(x.min()+1)))
+
+        df_range = df.groupby(['feature_id','polarity','mz','rt']).agg(max=('value', np.max),range=('value', lambda x: (x.max()+1)/(x.min()+1)))
+        df_range.reset_index(inplace=True,drop=False)
+
+        df_range = df_range[(df_range['max']>1e6)]
+        # df_range = df_range[(df_range['range']>10) & (df_range['max']>1e6)]
+        df_range.reset_index(inplace=True,drop=True)
+        if df_range.shape[0]>0:
+            df = pd.merge(df,df_range,how='inner',on=cols)
+            df.drop(columns=['max','range'],inplace=True)
+        else:
+            df = None
+    else:
+        df = None
+    return df
+
+
+def update_feature_table():
+    df_tasks = get_table_from_lims('untargeted_tasks',columns=['parent_dir','output_dir','mzmine_pos_status','mzmine_neg_status'])
+    df_tasks = df_tasks.melt(id_vars=['parent_dir','output_dir'],value_vars=['mzmine_pos_status','mzmine_neg_status'])
+    df_tasks = df_tasks[df_tasks['value']=='07 complete']
+    df_tasks['polarity'] = df_tasks['variable'].apply(lambda x: 'positive' if x.split('_')[1]=='pos' else 'negative')
+
+    sql = "SELECT DISTINCT experiment,polarity FROM untargeted_features;"
+    print(sql)
+    schema = 'lists'
+    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
+    done_experiments = pd.DataFrame(sql_result['rows'])
+
+    if done_experiments.shape[0]>0:
+        print(df_tasks.shape)
+        df_tasks = pd.merge(df_tasks,done_experiments,left_on=['parent_dir','polarity'],right_on=['experiment','polarity'],how='left',indicator=True)
+        df_tasks = df_tasks[df_tasks['_merge']=='left_only']
+        df_tasks.drop(columns=['experiment','_merge'],inplace=True)
+        print(df_tasks.shape)
+
+
+    for i,row in df_tasks.iterrows():
+        experiment = row['parent_dir']
+        polarity = row['polarity']
+        print(experiment)
+        temp = filter_features(experiment,polarity=polarity)
+        if (temp is not None):
+            if ('CONTROL' in temp.columns):
+                temp.drop(columns=['CONTROL'],inplace=True)
+            temp['experiment'] = experiment
+            temp['polarity'] = polarity
+            # temp.drop(columns=['filename'],inplace=True)
+            # cols = temp.columns
+            # cols = [c for c in cols if c != 'value']
+            # temp = temp.groupby(cols).mean()
+            temp.reset_index(inplace=True)
+            cols = ['feature_id','experiment','polarity','mz','rt']
+            quant_cols = ['value','filename','sampletype']
+            temp = temp[cols + quant_cols]
+            temp.sort_values('value',ascending=False,inplace=True)
+            temp.drop_duplicates(subset=cols,inplace=True)
+        else:
+            print(experiment)
+            temp = pd.DataFrame()
+            temp['experiment'] = [experiment]
+            temp['polarity'] = [polarity]
+        update_table_in_lims(temp,'untargeted_features',method='insert')
+        
+
+
+        
+def update_gnps_hits_table(output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks/'):
+    print('Updating GNPS hits')
+    df_hits_db = get_table_from_lims('gnps_hits',columns=['feature_key'])
+    df_features = get_table_from_lims('untargeted_features',columns=['Key','experiment','polarity','feature_id'],max_rows=1e9)
+    cols = ['experiment','polarity']
+    all_experiments = df_features[cols].drop_duplicates(subset=cols)
+
+    if df_hits_db.shape[0]>0:
+        done_experiments = df_features.loc[df_features['Key'].isin(df_hits_db['feature_key']),cols].drop_duplicates()
+        todo_experiments = pd.merge(all_experiments,done_experiments,how='left',indicator=True)
+        todo_experiments = todo_experiments[todo_experiments['_merge']=='left_only']
+        todo_experiments.drop(columns=['_merge'],inplace=True)
+    else:
+        todo_experiments = all_experiments.copy()
+    print('Getting GNPS Hits for',todo_experiments.shape[0],'experiments')
+
+    for i,row in todo_experiments.iterrows():
+        print(row)
+        experiment = row['experiment']
+        polarity = row['polarity']
+
+        hits = get_gnps_hits(experiment,output_dir,
+                                 polarity,'complete',override=True)
+
+        if hits is not None:
+            hits = hits[pd.notna(hits['Smiles'])]
+            hits = hits[pd.notna(hits['InChIKey'])]
+            no_hits=False # set this to true if there are not any hits to update a dummy row to the table
+
+            if hits.shape[0]>0:
+                hits.rename(columns={'#Scan#':'feature_id','MQScore':'score'},inplace=True)
+                hits.columns = [c.lower() for c in hits.columns]
+                hits.sort_values('score',ascending=False,inplace=True)
+                hits.drop_duplicates(subset=['feature_id','inchikey'],inplace=True)
+
+                ##### Add any new compounds to the compounds table #####
+                compounds = get_table_from_lims('gnps_compounds',columns=['inchikey'])
+                cols_compound_db = ['inchikey','compound_name','smiles']
+                df_compound = hits[cols_compound_db].copy()
+                df_compound.drop_duplicates(subset=['inchikey'],inplace=True)
+                df_compound = pd.merge(df_compound,compounds,on='inchikey',how='left',indicator=True)
+                df_compound = df_compound[df_compound['_merge']=='left_only']
+                if df_compound.shape[0]>0:
+                    print('updating compounds')
+                    update_table_in_lims(df_compound,'gnps_compounds',method='insert')
+
+                ##### Add hits to the hits table #####
+                hits_cols = ['feature_id','score','adduct','sharedpeaks', 'massdiff','inchikey']
+                hits_slice = df_features[(df_features['experiment']==experiment) & (df_features['polarity']==polarity)].copy()
+                hits_slice = pd.merge(hits_slice,hits[hits_cols],on='feature_id',how='inner')
+                if hits_slice.shape[0]>0:
+                    hits_slice.rename(columns={'Key':'feature_key'},inplace=True)
+                    hits_slice.drop(columns=['feature_id','experiment','polarity'],inplace=True)
+                    update_table_in_lims(hits_slice,'gnps_hits',method='insert')
+                else:
+                    no_hits = True
+            else:
+                no_hits = True
+        else:
+            no_hits = True
+
+        if no_hits==True:
+            # This is a placeholder entry in the table so that jobs with no hits will be removed from future queue
+            # Add one row that has a feature
+            print('no hits:',experiment,polarity)
+            hits_slice = df_features[(df_features['experiment']==experiment) & (df_features['polarity']==polarity)].copy()
+            min_feature_key = hits_slice['Key'].min()
+            hits_slice = hits_slice[hits_slice['Key']==min_feature_key]
+            hits_slice.rename(columns={'Key':'feature_key'},inplace=True)
+            hits_slice.drop(columns=['feature_id','experiment','polarity'],inplace=True)
+            update_table_in_lims(hits_slice,'gnps_hits',method='insert')
+
+def update_gnps_compound_properties():
+    sql = "SELECT DISTINCT inchikey FROM gnps_compound_properties;"
+
+    print('NEW BATCH of compound properties to calculate')
+    schema = 'lists'
+    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
+    done_compounds = pd.DataFrame(sql_result['rows'])
+
+    # Updating Compounds That need properties
+    df = get_table_from_lims('gnps_compounds',columns=['inchikey','smiles'])
+    print(df.shape)
+    if done_compounds.shape[0]>0:
+        df = df[~df['inchikey'].isin(done_compounds['inchikey'])]
+    print(df.shape)
+
+
+    idx = (pd.notna(df['smiles'])) & (pd.notna(df['inchikey'])) & (df['smiles']!='')
+    df = df[idx]
+    df.loc[idx,'smiles'] = df.loc[idx,'smiles'].apply(lambda x: x.strip())
+    df.loc[idx,'mol'] = df.loc[idx,'smiles'].apply(lambda x: Chem.MolFromSmiles(x))
+    idx = pd.notna(df['mol'])
+    df = df[idx]
+
+    print(df.shape)
+    if df.shape[0]>0:
+        descriptor_names = list(rdMolDescriptors.Properties.GetAvailableProperties())
+        get_descriptors = rdMolDescriptors.Properties(descriptor_names)
+
+        def mol_to_descriptors(mol):
+            descriptors = get_descriptors.ComputeProperties(mol)
+            return descriptors
+
+
+        des_list = [x[0] for x in Descriptors._descList]
+        calculator = MoleculeDescriptors.MolecularDescriptorCalculator(des_list)
+
+
+        descriptors = []
+
+        for i,row in df.iterrows():
+            # print(row['inchikey'],row['smiles'])
+            out = {'inchikey':row['inchikey']}
+            d = list(mol_to_descriptors(row['mol']))
+            for j,dd in enumerate(d):
+                out['property: %s'%descriptor_names[j]] = dd
+            d = list(calculator.CalcDescriptors(row['mol']))
+            for j,dd in enumerate(d):
+                out['descriptor: %s'%des_list[j]] = dd
+            descriptors.append(out)
+            # print('done\n')
+
+        descriptors = pd.DataFrame(descriptors)
+
+        cols = [c for c in descriptors.columns if not 'inchikey' in c]
+        descriptors = descriptors.melt(id_vars='inchikey',value_vars=cols)
+        descriptors['type'] = descriptors['variable'].apply(lambda x: 'property' if 'property' in x else 'descriptor')
+        descriptors['variable'] = descriptors['variable'].apply(lambda x: x.split(':')[-1].strip())
+        update_table_in_lims(descriptors,'gnps_compound_properties',method='insert',max_size=5000)
+
+def mean_confidence_interval(data, confidence=0.95):
+    data = data['value'].values
+    a = 1.0 * np.array(data)
+    n = len(a)
+    m = np.mean(a)
+    if n>1:
+        se = scipy.stats.sem(a)
+        h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+        return pd.Series({'mean':m,'lower_bound': m-h,'upper_bound':m+h,'num_replicates':n,'standard_error':se})
+    else:
+        return pd.Series({'mean':m,'lower_bound': 0,'upper_bound':0,'num_replicates':n,'standard_error':0})
+
+
+def update_untargeted_treatments():
+    print('getting master list of features')
+    sql = """SELECT Key as Key,feature_id,experiment,polarity FROM untargeted_features"""
+
+    schema = 'lists'
+    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
+    df = pd.DataFrame(sql_result['rows'])
+    sql = "SELECT DISTINCT feature FROM untargeted_treatments;"
+    df = df[pd.notna(df['feature_id'])]
+
+    print('there are %d features'%df.shape[0])
+
+    print('getting treatment groups')
+    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
+    done_features = pd.DataFrame(sql_result['rows'])
+    print('there are %d features by treatments'%done_features.shape[0])
+
+    if done_features.shape[0]>0:
+        df = df[~df['Key'].isin(done_features['feature'])]
+        print('After removing done features, there are %d features'%df.shape[0])
+
+    if df.shape[0]>0:
+        todo_experiments = df.copy()
+        todo_experiments.drop_duplicates(subset=['experiment','polarity'],inplace=True)
+        for i,row in todo_experiments.iterrows():
+            print('working on %s %s mode'%(row['experiment'],row['polarity']))
+            new_features = filter_features(row['experiment'],rt_cutoff=1,polarity=row['polarity'])
+            if (new_features is not None) and (new_features.shape[0]>0):
+                new_features['polarity'] = row['polarity']
+                new_features['experiment'] = row['experiment']
+                new_features = pd.merge(new_features,df,on=['feature_id','experiment','polarity'],how='inner')
+                new_features.rename(columns={'Key':'feature'},inplace=True)
+                new_features.drop(columns=['feature_id','experiment','polarity'],inplace=True)
+                print('it has %d features by treatments'%new_features.shape[0])
+
+                g = new_features.groupby(['feature','sampletype'])[['value','mz']].apply(lambda x: mean_confidence_interval(x))
+                g.reset_index(inplace=True,drop=False)
+                update_table_in_lims(g,'untargeted_treatments',method='insert',max_size=500)
+
+
+            
+    
+            
 #####################################################
 #####################################################
 ########         mzmine setup scripts        ########

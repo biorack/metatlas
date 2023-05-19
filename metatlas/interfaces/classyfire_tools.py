@@ -6,7 +6,7 @@ import os
 import pandas as pd
 import time
 
-def write_classyfire_info_to_file(inchi_key,wait=True,outdir='/global/projectb/sandbox/metatlas/projects/classyfire_annotations'):
+def write_classyfire_info_to_file(inchi_key,wait=True,outdir='/global/cfs/cdirs/metatlas/projects/classyfire_annotations'):
     suffix = '.json'
     fname = os.path.join(outdir, inchi_key + suffix)
     if not os.path.isfile(fname):
@@ -37,7 +37,7 @@ def read_classyfire_json(filename):
         return None
 
 
-def get_classyfire_classes(inchi_keys,basepath='/global/projectb/sandbox/metatlas/projects/classyfire_annotations/'):
+def get_classyfire_classes(inchi_keys,basepath='/global/cfs/cdirs/metatlas/projects/classyfire_annotations'):
     cf_hits = []
     cf_keys = ['url', 'name', 'chemont_id', 'description']
     for ik in inchi_keys:
@@ -85,7 +85,7 @@ def make_new_classyfire_entries(not_found,script_filename):
             fid.write('sleep 10s\n')
 
 
-def make_classyfire_table(classyfire_path='/global/projectb/sandbox/metatlas/projects/classyfire_annotations/',
+def make_classyfire_table(classyfire_path='/global/cfs/cdirs/metatlas/projects/classyfire_annotations',
                           output_filename='/global/homes/b/bpb/Downloads/classyfire_all_compounds.csv.gz',
                          compression=True,
                          iks=None):

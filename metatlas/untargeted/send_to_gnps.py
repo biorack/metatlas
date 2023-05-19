@@ -22,19 +22,19 @@ def copy_and_submit_to_gnps(basedir,basename,override=False):
         with open(taskid_filename,'r') as fid:
             print(fid.read())
         return False
-    files_filename = '%s_filelist.txt'%new_basename
-    if os.path.isfile(files_filename):
-        with open(files_filename,'r') as fid:
-            files = fid.read()
-        files = files.split('\n')
-        for f in files:
-            upload_to_gnps(f,basename,'rawdata','bpbowen',gnps_password)
-    else:
-        import tempfile
-        with tempfile.NamedTemporaryFile() as tmp:
-            print(tmp.name)
-            tmp.write('no raw data')
-            upload_to_gnps(tmp.name,basename,'rawdata','bpbowen',gnps_password)
+    # files_filename = '%s_filelist.txt'%new_basename
+    # if os.path.isfile(files_filename):
+    #     with open(files_filename,'r') as fid:
+    #         files = fid.read()
+    #     files = files.split('\n')
+    #     for f in files:
+    #         upload_to_gnps(f,basename,'rawdata','bpbowen',gnps_password)
+    # else:
+    #     import tempfile
+    #     with tempfile.NamedTemporaryFile() as tmp:
+    #         print(tmp.name)
+    #         tmp.write('no raw data')
+    #         upload_to_gnps(tmp.name,basename,'rawdata','bpbowen',gnps_password)
     
     metadata_filename = '%s_%s.tab'%(new_basename,'metadata')
     if os.path.isfile(metadata_filename):

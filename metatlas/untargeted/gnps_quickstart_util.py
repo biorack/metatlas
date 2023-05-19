@@ -214,7 +214,7 @@ def launch_GNPS_featurenetworking_workflow(ftp_path, job_description, username, 
     # make a subfolder 
     # It will look just like this, but a differnt folder 
         # invokeParameters["metadata_table"] = "d.%s/"%username + ftp_path + "/samplemetadata/%s;"%metadata_filename
-    invokeParameters["raw_spectra"] = "d.%s/"%username + ftp_path + "/rawdata/;"
+    #invokeParameters["raw_spectra"] = "d.%s/"%username + ftp_path + "/rawdata/;"
     
     #Quant
     invokeParameters["QUANT_TABLE_SOURCE"] = featuretool
