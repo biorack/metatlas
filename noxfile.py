@@ -102,7 +102,7 @@ pylint_deps = [
 nbqa_deps = [
     "nbqa==1.6.1",
     "tokenize-rt==5.0.0",
-    "importlib-metadata==6.0.0",
+    "importlib-metadata==4.12.0",
     "astroid==2.13.2",
     "wrapt==1.14.1",
     "lazy_object_proxy==1.9.0",
