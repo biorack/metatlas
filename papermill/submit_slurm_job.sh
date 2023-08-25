@@ -10,8 +10,6 @@ raw_data='/global/cfs/cdirs/metatlas/raw_data'
 threads_to_use=8
 
 # system definitions
-cori_cpus=64 # hyperthreads per Cori Haswell node
-cori_mem=128 # GB per Cori Haswell node
 perlmutter_cpus=256 # 64 cores per chip, 2 chips per node for CPU nodes, 2 threads per core
 perlmutter_mem=512 # GB per node
 
@@ -93,7 +91,12 @@ is_group_member() {
 }
 
 is_perlmutter() {
-  [ "$NERSC_HOST" = "perlmutter" ]
+  if [ "$NERSC_HOST" = "perlmutter" ]; then
+    return 0
+  else
+    >&2 echo "ERROR: This cluster is not supported. You must use Perlmutter @ NERSC"
+    die
+  fi
 }
 
 ceiling_divide() {
@@ -103,8 +106,6 @@ ceiling_divide() {
 total_cpus() {
   if is_perlmutter; then
     echo "$perlmutter_cpus"
-  else
-    echo "$cori_cpus"
   fi
 }
 
@@ -112,8 +113,6 @@ total_mem() {
   # all values are in GB
   if is_perlmutter; then
     echo "$perlmutter_mem"
-  else
-    echo "$cori_mem"
   fi
 }
 
@@ -135,12 +134,10 @@ needs_full_node() {
 }
 
 get_slurm_account() {
-  if is_group_member "gtrnd" && ! is_perlmutter; then
-    echo "gtrnd"
-  elif is_group_member "m2650"; then
+  if is_group_member "m2650"; then
     echo "m2650"
   else
-    >&2 echo "WARNING: ${USER} is not a member of gtrnd or m2650."
+    >&2 echo "WARNING: ${USER} is not a member of m2650."
     >&2 echo "WARNING: Attempting to use ${USER}'s default account."
     echo ""
   fi
@@ -148,32 +145,18 @@ get_slurm_account() {
 
 get_slurm_time() {
   if is_perlmutter; then
-    echo "12:00:00"
-  else
-    echo "36:00:00"
+    echo "24:00:00"
   fi
 }
 
 get_slurm_constraint() {
   if is_perlmutter; then
     echo "cpu"
-  else
-    echo "haswell"
   fi
 }
 
 get_slurm_queue() {
   local mem="$1"
-  if ! is_perlmutter; then  # cori
-    if is_group_member "gtrnd"; then
-      if needs_full_node "$mem"; then
-        echo "genepool"
-      else
-        echo "genepool_shared"
-      fi
-      return
-    fi
-  fi
   if needs_full_node "$mem"; then
     echo "regular"
   else
