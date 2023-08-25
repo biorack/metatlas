@@ -17,7 +17,7 @@ proceed until you have been added to the metatlas group.
 
 1. On your local computer open a terminal.
 1. Copy and paste the following command into the terminal,
-   where NERSC_USERID should be replaced with your NERSC username:
+   where `NERSC_USERID` should be replaced with your NERSC username:
 
    ```bash
    ssh -L localhost:53682:localhost:53682 NERSC_USERID@perlmutter-p1.nersc.gov \
@@ -37,7 +37,7 @@ proceed until you have been added to the metatlas group.
    Please go back to rclone".
 1. Go to [jupyter.nersc.gov](https://jupyter.nersc.gov/) and login using your
    NERSC account.
-1. Click the 'start' button for a Perlmutter 'Shared CPU Node' and wait for
+1. Click the 'start' button for a Perlmutter 'Login Node' and wait for
    the JupyterLab interface to load.
 1. From the menu bar, select 'File' -> 'New' -> 'Terminal'.
 1. Copy and paste the following command into the terminal:
@@ -162,10 +162,9 @@ like:
    JGI-HILIC 20210804_JGI-AK_PA-CT_507784_Frtlzr_Set1_QE-139_HILICZ_USHXG01490 0
 ```
 
-This will submit a slurm job. On Cori, you will receive an email when the job
-starts executing and when it has completed. On Perlmutter, the SLRUM job
-notifications emails are currently broken. Typical HILIC jobs take several hours
-to complete.
+This will submit a slurm job. You may receive an email when the job
+starts executing and when it has completed. Typical HILIC jobs take several
+hours to complete.
 
 #### Evaluate Outputs
 
@@ -200,7 +199,7 @@ https://github.com/biorack/metatlas/blob/main/notebooks/reference/RT-Alignment.i
 ### Perform ISTDsEtc Analysis
 
 1. Launch [jupyter.nersc.gov](https://jupyter.nersc.gov/) in your web browser
-   and start a 'Shared CPU Node' on Cori or Perlmutter.
+   and start a 'Login Node' session on Perlmutter.
 1. Open
    `~/metabolomics_data/<short_experiment_id>/<workflow_name>/<rt_alignment_number>/0/Targeted/<workflow_name>/<project_id>_<workflow_name>_ISTDsEtc-POS.ipynb`
    within JupyterLab (you no longer need to use the Classic Notebook interface).
