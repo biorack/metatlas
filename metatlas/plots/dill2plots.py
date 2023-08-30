@@ -60,6 +60,9 @@ from metatlas.tools.util import or_default
 from functools import reduce
 from io import StringIO
 
+from matchms.similarity import CosineHungarian
+from matchms import Spectrum
+
 logger = logging.getLogger(__name__)
 
 ADDUCT_INFO = {'[2M+H]': {'charge': '1',
@@ -1654,7 +1657,11 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
                 for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                     msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
 
-                    score = sp.score_ms_vectors_composite(*sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape'))
+                    cos = CosineHungarian(tolerance=0.005)
+                    mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
+                    mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
+
+                    score = cos.pair(mms_sample, mms_ref)['score'].item()
 
                     if score > max_score or np.isnan(max_score):
                         max_score = score
@@ -1932,9 +1939,13 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
             for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                 msv_ref = np.array(frag['mz_intensities']).T
 
-                msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, .005, 'shape')
+                msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, 0.005)
 
-                score = sp.score_ms_vectors_composite(msv_sample_aligned, msv_ref_aligned)
+                cos = CosineHungarian(tolerance=0.005)
+                mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
+                mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
+
+                score = cos.pair(mms_sample, mms_ref)['score'].item()
 
                 if current_best_score == None or score > current_best_score:
                     current_best_score = score
