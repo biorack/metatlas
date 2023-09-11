@@ -227,9 +227,9 @@ def update_lcmsrun_names(tables=['mzml_file','hdf5_file','raw_file']):
                 temp = temp[[c for c in temp.columns if not c.startswith('_')]]
             #     return df
 
-            if temp.shape[0]>0:
-                update_table_in_lims(temp,'lcmsrun',method='delete')
-                print('removing chunk %d'%i)
+            #if temp.shape[0]>0:
+            #    update_table_in_lims(temp,'lcmsrun',method='delete')
+            #    print('removing chunk %d'%i)
 
     return missing_from_lcmsruns,extra_in_lcmsruns
 
@@ -371,8 +371,8 @@ def update_file_table(file_table):
     cols = ['Key','filename']
     temp = diff_df.loc[diff_df['Exist']=='right_only',cols]
     temp['Key'] = temp['Key'].astype(int)
-    if temp.shape[0]>0:
-        update_table_in_lims(temp,file_table,method='delete')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
+    #if temp.shape[0]>0:
+    #    update_table_in_lims(temp,file_table,method='delete')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
 #         df.to_csv('/global/homes/b/bpb/Downloads/%s_files.tab'%k,index=None,sep='\t')
 
 def str2bool(v):
@@ -422,13 +422,13 @@ def main():
     # TODO!!!!!# TODO!!!!!# TODO!!!!!
     # TODO!!!!!# TODO!!!!!# TODO!!!!!
     # TODO!!!!!# TODO!!!!!# TODO!!!!!
-    if str2bool(args['update_fileconversion_tasks'])==True:
-        # 5. populate any file conversion tasks that need to occur
-        lcmsruns = get_lcmsrun_matrix() #this could be moved up abote to step 3 and save a few queries
-        file_conversion_tasks = get_table_from_lims('file_conversion_task',columns=['Key','input_file','output_file','task','status'])
-        for task in ['mzml_to_hdf5','raw_to_mzml']:
-            # ,'mzml_to_spectralhits','mzml_to_pactolus']:
-            update_file_conversion_tasks(task,lcmsruns=lcmsruns,file_conversion_tasks=file_conversion_tasks)
+    #if str2bool(args['update_fileconversion_tasks'])==True:
+    #    # 5. populate any file conversion tasks that need to occur
+    #    lcmsruns = get_lcmsrun_matrix() #this could be moved up abote to step 3 and save a few queries
+    #    file_conversion_tasks = get_table_from_lims('file_conversion_task',columns=['Key','input_file','output_file','task','status'])
+    #    for task in ['mzml_to_hdf5','raw_to_mzml']:
+    #        # ,'mzml_to_spectralhits','mzml_to_pactolus']:
+    #        update_file_conversion_tasks(task,lcmsruns=lcmsruns,file_conversion_tasks=file_conversion_tasks)
 
 if __name__ == "__main__":
     main()
