@@ -28,7 +28,6 @@ jobs:
     - name: Run system tests
       run: |
         pip install nox
-        cd /src/
         nox -s system_tests-3.8 -- -k test_targeted
   system_test2:
     name: Run system test 2 - RT alignment
@@ -39,7 +38,6 @@ jobs:
     - name: Run system tests
       run: |
         pip install nox
-        cd /src/
         nox -s system_tests-3.8 -- -k test_rt_alignment
   system_test3:
     name: Run system test 3 - add MSMS references
@@ -50,7 +48,6 @@ jobs:
     - name: Run system tests
       run: |
         pip install nox
-        cd /src/
         nox -s system_tests-3.8 -- -k test_add_msms_ref
   system_test4:
     name: Run system test 4 - C18 targeted
@@ -61,7 +58,6 @@ jobs:
     - name: Run system tests
       run: |
         pip install nox
-        cd /src/
         nox -s system_tests-3.8 -- -k test_c18
   system_test5:
     name: Run system test 5 - HILIC Targeted_hybrid
@@ -75,5 +71,4 @@ jobs:
     - name: Run system tests
       run: |
         pip install nox
-        cd /src/
         nox -s system_tests-3.8 -- -k test_hybrid
