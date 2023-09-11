@@ -16,7 +16,7 @@ jobs:
         path: ~/work/metatlas/metatlas/.nox
         key: ${{ runner.os }}-nox
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run unit tests
       run: nox -s unit_tests-3.8
   system_test1:
@@ -26,7 +26,7 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_targeted
   system_test2:
@@ -36,7 +36,7 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_rt_alignment
   system_test3:
@@ -46,7 +46,7 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_add_msms_ref
   system_test4:
@@ -56,7 +56,7 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_c18
   system_test5:
@@ -69,6 +69,6 @@ jobs:
       with:
         fetch-depth: 0
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_hybrid
