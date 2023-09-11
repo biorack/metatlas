@@ -11,7 +11,7 @@ jobs:
     - name: Checkout source
       uses: actions/checkout@v4
     - name: Cache nox environment for unit tests
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: ~/work/metatlas/metatlas/.nox
         key: ${{ runner.os }}-nox
