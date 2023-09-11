@@ -25,40 +25,40 @@ jobs:
     steps:
     - name: Checkout source
       uses: actions/checkout@v4
-    - name: Setup nox
-      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_targeted
+      run: |
+        pip install nox
+        nox -s system_tests-3.8 -- -k test_targeted
   system_test2:
     name: Run system test 2 - RT alignment
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v4
-    - name: Setup nox
-      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_rt_alignment
+      run: |
+        pip install nox
+        nox -s system_tests-3.8 -- -k test_rt_alignment
   system_test3:
     name: Run system test 3 - add MSMS references
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v4
-    - name: Setup nox
-      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_add_msms_ref
+      run: |
+        pip install nox
+        nox -s system_tests-3.8 -- -k test_add_msms_ref
   system_test4:
     name: Run system test 4 - C18 targeted
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v4
-    - name: Setup nox
-      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_c18
+      run: |
+        pip install nox
+        nox -s system_tests-3.8 -- -k test_c18
   system_test5:
     name: Run system test 5 - HILIC Targeted_hybrid
     runs-on: ubuntu-20.04
@@ -68,7 +68,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - name: Setup nox
-      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_hybrid
+      run: |
+        pip install nox
+        nox -s system_tests-3.8 -- -k test_hybrid
