@@ -32,7 +32,7 @@ jobs:
         ls -l
         ls -l /home/runner/work/metatlas/metatlas
         git rev-parse HEAD
-        docker run -it --rm -v "$(pwd):/src" docker.io/doejgi/metatlas_ci:1.1.0 python -c 'from metatlas.tools.environment import get_repo_hash; print(get_repo_hash())'
+        docker run --rm -v "$(pwd):/src" docker.io/doejgi/metatlas_ci:1.1.0 python -c 'from metatlas.tools.environment import get_repo_hash; print(get_repo_hash())'
         # pip install nox
         #nox -s system_tests-3.8 -- -k test_targeted
   system_test2:
