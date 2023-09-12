@@ -27,13 +27,5 @@ jobs:
       uses: actions/checkout@v4
     - name: Run system tests
       run: |
-        set -x
-        pwd
-        ls -la
-        ls -la /home/runner/work/metatlas/metatlas
-        git rev-parse HEAD
-        docker run --rm -u 0:0 -v "$(pwd):/src" docker.io/doejgi/metatlas_ci:1.1.0 python -c 'from metatlas.tools.environment import repo_dir; print(repo_dir())'
-        docker run --rm -u 0:0 -v "$(pwd):/src" docker.io/doejgi/metatlas_ci:1.1.0 python -c 'from metatlas.tools.environment import repo_dir; import subprocess; subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_dir())'
-        docker run --rm -u 0:0 -v "$(pwd):/src" docker.io/doejgi/metatlas_ci:1.1.0 python -c 'from metatlas.tools.environment import get_repo_hash; print(get_repo_hash())'
-        # pip install nox
-        #nox -s system_tests-3.8 -- -k test_targeted
+        pip install nox
+        nox -s system_tests-3.8 -- -k test_targeted
