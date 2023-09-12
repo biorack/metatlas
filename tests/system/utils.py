@@ -71,7 +71,6 @@ def exec_docker(image: str, command: str, out_path: os.PathLike, env: Dict) -> N
             "docker",
             "run",
             "--rm",
-            f"--user={os.getuid()}:{os.getgid()}",
             "-v",
             f"{os.getcwd()}:/src",
             "-v",
