@@ -1,9 +1,11 @@
 #!/bin/bash
+
+# if image registry requires authorization, login before running this script
+
 set -euf -o pipefail
 
-SPIN_USER="$USER"
-PROJECT="metatlas_test"
-REGISTRY="registry.spin.nersc.gov"
+PROJECT="doejgi"
+REGISTRY="docker.io"
 DOCKER="docker"
 TAG=""
 ID=""
@@ -15,7 +17,6 @@ while [[ "$#" -gt 0 ]]; do
     -p|--project) PROJECT="$2"; shift ;;
     -r|--registry) REGISTRY="$2"; shift ;;
     -t|--tag) TAG="$2"; shift ;;
-    -u|--user) SPIN_USER="$2"; shift ;;
     -h|--help)
         echo -e "$0 [options]"
         echo ""
@@ -26,7 +27,6 @@ while [[ "$#" -gt 0 ]]; do
         echo "   -r, --registry string   FQDN of container registry to push to"
         echo "                           use 'NONE' to not push (default ${REGISTRY})"
         echo "   -t, --tag string        image tag"
-        echo "   -u, --user string       username for ${REGISTRY} (default ${USER})"
         exit 0
         ;;
     *)echo "Unknown parameter passed: $1"; exit 1 ;;
@@ -48,4 +48,4 @@ DOCKERFILE="Dockerfile.$ID"
 IMAGE_NAME="metatlas_$ID"
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-"${SCRIPT_DIR}/build.sh" --image "$IMAGE_NAME" --tag "$TAG" --docker "$DOCKER" --project "$PROJECT" --registry "$REGISTRY" --user "$USER" --dockerfile "${SCRIPT_DIR}/$DOCKERFILE"
+"${SCRIPT_DIR}/build.sh" --image "$IMAGE_NAME" --tag "$TAG" --docker "$DOCKER" --project "$PROJECT" --registry "$REGISTRY" --dockerfile "${SCRIPT_DIR}/$DOCKERFILE"
