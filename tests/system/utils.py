@@ -75,8 +75,6 @@ def exec_docker(image: str, command: str, out_path: os.PathLike, env: Dict) -> N
             f"{os.getcwd()}:/src",
             "-v",
             f"{out_path}:/out",
-            "-w",
-            "/src",
             *env_flags,
             image,
             "/bin/bash",
