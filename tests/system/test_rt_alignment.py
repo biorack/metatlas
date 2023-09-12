@@ -6,7 +6,7 @@ from . import utils
 
 
 def test_rt_alignment_by_line01(tmp_path):
-    image = "registry.spin.nersc.gov/metatlas_test/metatlas_ci:1.1.0"
+    image = "docker.io/doejgi/metatlas_ci:1.2.0"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
