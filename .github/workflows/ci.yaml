@@ -9,14 +9,14 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Cache nox environment for unit tests
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: ~/work/metatlas/metatlas/.nox
         key: ${{ runner.os }}-nox
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run unit tests
       run: nox -s unit_tests-3.8
   system_test1:
@@ -24,9 +24,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_targeted
   system_test2:
@@ -34,9 +34,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_rt_alignment
   system_test3:
@@ -44,9 +44,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_add_msms_ref
   system_test4:
@@ -54,9 +54,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout source
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_c18
   system_test5:
@@ -65,10 +65,8 @@ jobs:
     continue-on-error: true
     steps:
     - name: Checkout source
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
+      uses: actions/checkout@v4
     - name: Setup nox
-      uses: excitedleigh/setup-nox@4c62aee44396909396d10137c747b2633deeee76
+      uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
       run: nox -s system_tests-3.8 -- -k test_hybrid
