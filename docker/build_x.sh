@@ -48,4 +48,4 @@ DOCKERFILE="Dockerfile.$ID"
 IMAGE_NAME="metatlas_$ID"
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-"${SCRIPT_DIR}/build.sh" --image "$IMAGE_NAME" --tag "$TAG" --docker "$DOCKER" --project "$PROJECT" --registry "$REGISTRY" --user "$USER" --dockerfile "${SCRIPT_DIR}/$DOCKERFILE"
+"${SCRIPT_DIR}/build.sh" --image "$IMAGE_NAME" --tag "$TAG" --docker "$DOCKER" --project "$PROJECT" --registry "$REGISTRY" --dockerfile "${SCRIPT_DIR}/$DOCKERFILE"

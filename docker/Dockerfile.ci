@@ -106,6 +106,8 @@ RUN pip install --quiet --no-cache-dir -r requirements.txt
 
 COPY papermill.kernel.json /root/.local/share/jupyter/kernels/papermill/kernel.json
 
+RUN git config --global --add safe.directory '*'
+
 WORKDIR /work
 
 ENV METATLAS_LOCAL=True
