@@ -33,7 +33,7 @@ jobs:
         ls -la /home/runner/work/metatlas/metatlas
         git rev-parse HEAD
         docker run --rm -v "$(pwd):/src" docker.io/doejgi/metatlas_ci:1.1.0 python -c 'from metatlas.tools.environment import repo_dir; print(repo_dir())'
-        docker run --rm -v "$(pwd):/src" docker.io/doejgi/metatlas_ci:1.1.0 python -c 'import subprocess; subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_dir())'
+        docker run --rm -v "$(pwd):/src" docker.io/doejgi/metatlas_ci:1.1.0 python -c 'from metatlas.tools.environment import repo_dir; import subprocess; subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_dir())'
         docker run --rm -v "$(pwd):/src" docker.io/doejgi/metatlas_ci:1.1.0 python -c 'from metatlas.tools.environment import get_repo_hash; print(get_repo_hash())'
         # pip install nox
         #nox -s system_tests-3.8 -- -k test_targeted
