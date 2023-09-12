@@ -1,11 +1,12 @@
 #!/bin/bash
 
+# if image registry requires authorization, login before running this script
+
 # catch some common errors, terminate if a command returns non-zero exit code
 set -euf -o pipefail
 
-SPIN_USER="$USER"
-PROJECT="metatlas_test"
-REGISTRY="registry.spin.nersc.gov"
+PROJECT="doejgi"
+REGISTRY="docker.io"
 DOCKER="docker"
 DOCKERFILE=""
 
@@ -20,7 +21,6 @@ while [[ "$#" -gt 0 ]]; do
     -r|--registry) REGISTRY="$2"; shift ;;
     -p|--project) PROJECT="$2"; shift ;;
     -t|--tag) TAG="$2"; shift ;;
-    -u|--user) SPIN_USER="$2"; shift ;;
     -h|--help)
         echo -e "$0 [options]"
         echo ""
@@ -32,7 +32,6 @@ while [[ "$#" -gt 0 ]]; do
         echo "   -r, --registry string   FQDN of container registry to push to"
         echo "                           use 'NONE' to not push (default ${REGISTRY})"
         echo "   -t, --tag string        image tag"
-        echo "   -u, --user string       username for ${REGISTRY} (default ${USER})"
         exit 0
         ;;
     *)echo "Unknown parameter passed: $1"; exit 1 ;;
@@ -70,15 +69,16 @@ ${DOCKER} image build --tag "${SHORT_TAG}" --file "${DOCKERFILE}" "$SCRIPT_DIR"
 if [[ "$REGISTRY" != "NONE" ]]; then
   if [[ $(uname -s) == "Darwin" ]]; then
     # no readlink on macOS...
-    if [[ $(basename $(which ${DOCKER})) == 'podman' ]]; then
+    if [[ $(basename "$(which "${DOCKER}")") == 'podman' ]]; then
       PUSH_FLAGS="--format=docker"
     fi
   else
-    if [[ $(basename $(readlink -f $(which ${DOCKER}))) == 'podman' ]]; then
+    if [[ $(basename "$(readlink -f "$(which "${DOCKER}")")") == 'podman' ]]; then
       PUSH_FLAGS="--format=docker"
     fi
   fi
   ${DOCKER} image tag "${SHORT_TAG}" "${LONG_TAG}"
+  # shellcheck disable=SC2086
   ${DOCKER} image push ${PUSH_FLAGS:-} "${LONG_TAG}"
   TAG="${LONG_TAG}"
 else
