@@ -9,12 +9,12 @@ jobs:
   build_push_metatlas_shifter_image:
     name: Build/push doejgi/metatlas_shifter docker image
     if: github.repository == 'biorack/metatlas' && (github.event.pull_request.merged || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v4
     - name: Login to DockerHub
-      uses: docker/login-action@v1
+      uses: docker/login-action@v3
       with:
         username: wjhjgi
         password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -24,10 +24,10 @@ jobs:
       id: timestamp
       run: |
         DATE_TIME=$(date -u +"%Y%m%d_%H%M%S")
-        echo "::set-output name=date_time::${DATE_TIME}"
+        echo "date_time=${DATE_TIME}" >> $GITHUB_OUTPUT
     - name: Build Docker images # This is for the targeted metatlas pipeline
       id: build
-      uses: docker/build-push-action@v2.7.0
+      uses: docker/build-push-action@v5
       with:
         context: ./docker
         file: ./docker/Dockerfile.shifter
@@ -43,7 +43,7 @@ jobs:
   build_push_metatlas_analysis_image:
     name: Build/push analysis docker image
     if: github.repository == 'biorack/metatlas' && (github.event.pull_request.merged || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v4
@@ -51,16 +51,16 @@ jobs:
       id: timestamp
       run: |
         DATE_TIME=$(date -u +"%Y%m%d_%H%M%S")
-        echo "::set-output name=date_time::${DATE_TIME}"
+        echo "date_time=${DATE_TIME}" >> $GITHUB_OUTPUT
     - name: Login to GHCR
-      uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
+      uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
     - name: Build Docker images # This is for the boutique analysis tasks
       id: build_analysis
-      uses: docker/build-push-action@v2.7.0
+      uses: docker/build-push-action@v5
       with:
         context: ./docker
         file: ./docker/Dockerfile.analysis
@@ -74,7 +74,7 @@ jobs:
   build_push_metatlas_mzmine_image:
     name: Build/push mzmine docker image
     if: github.repository == 'biorack/metatlas' && (github.event.pull_request.merged || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout source
       uses: actions/checkout@v4
@@ -82,16 +82,16 @@ jobs:
       id: timestamp
       run: |
         DATE_TIME=$(date -u +"%Y%m%d_%H%M%S")
-        echo "::set-output name=date_time::${DATE_TIME}"
+        echo "date_time=${DATE_TIME}" >> $GITHUB_OUTPUT
     - name: Login to GHCR
-      uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
+      uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
     - name: Build Docker images # This is for the mzmine container
       id: build_mzmine
-      uses: docker/build-push-action@v2.7.0
+      uses: docker/build-push-action@v5
       with:
         context: ./docker
         file: ./docker/Dockerfile.mzmine
