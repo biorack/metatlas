@@ -19,6 +19,8 @@ aws s3 sync --storage-class GLACIER \
             --exclude '*' \
 	    --include '*.raw' \
 	    --include '*.cmbx' \
+            --include '*/other/*.sld' \
+            --include "*/other/*.csv' \
 	    --exclude '*/other/*' \
             "${nersc_raw_data}/${1}" \
 	    "${s3_raw_data}/${1}" \
