@@ -1,0 +1,32 @@
+name: image_ci
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
+
+jobs:
+  build_push_metatlas_shifter_image:
+    name: Build/push doejgi/metatlas_ci docker image
+    if: github.repository == 'biorack/metatlas' && (github.event.pull_request.merged || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+    - name: Login to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build metatlas_ci image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: ./docker
+        file: ./docker/Dockerfile.ci
+        platforms: linux/amd64
+        cache-to: type=inline
+        tags: |
+          ghcr.io/biorack/metatlas/metatlas_ci:1.2.0
+        push: true
