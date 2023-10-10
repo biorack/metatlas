@@ -75,7 +75,7 @@ validate_extra_parameters() {
 }
 
 is_valid_yaml() {
-  echo "$1" | shifter --module=none --clearenv --image=doejgi/metatlas_shifter:latest \
+  echo "$1" | shifter --module=none --clearenv --image=ghcr.io/biorack/metatlas/metatlas_shifter:latest \
 	  /src/metatlas/scripts/yaml_validation.py
 }
 

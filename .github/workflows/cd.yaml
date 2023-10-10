@@ -13,11 +13,12 @@ jobs:
     steps:
     - name: Checkout source
       uses: actions/checkout@v4
-    - name: Login to DockerHub
+    - name: Login to GHCR
       uses: docker/login-action@v3
       with:
-        username: wjhjgi
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     - name: generate version_info file
       run: python ./docker/most_recent_commits.py > docker/.version_info
     - name: generate time based tag
@@ -32,13 +33,11 @@ jobs:
         context: ./docker
         file: ./docker/Dockerfile.shifter
         platforms: linux/amd64
-        cache-from: type=registry,ref=wjhjgi/metatlas_shifter:latest
+        cache-from: type=registry,ref=ghcr.io/biorack/metatlas/metatlas_shifter:latest
         cache-to: type=inline
         tags: |
-          wjhjgi/metatlas_shifter:${{ steps.timestamp.outputs.date_time }}
-          wjhjgi/metatlas_shifter:latest
-          doejgi/metatlas_shifter:${{ steps.timestamp.outputs.date_time }}
-          doejgi/metatlas_shifter:latest
+          ghcr.io/biorack/metatlas/metatlas_shifter:${{ steps.timestamp.outputs.date_time }}
+          ghcr.io/biorack/metatlas/metatlas_shifter:latest
         push: true
   build_push_metatlas_analysis_image:
     name: Build/push analysis docker image

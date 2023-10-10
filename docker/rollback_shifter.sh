@@ -9,7 +9,7 @@
 set -euf -o pipefail
 
 SHORT="metatlas_shifter"
-LONG="doejgi/$SHORT"
+LONG="ghcr.io/biorack/metatlas/$SHORT"
 TAG=""
 
 while [[ "$#" -gt 0 ]]; do
