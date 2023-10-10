@@ -8,7 +8,7 @@ gspread
 h5py
 humanize
 ipykernel
-ipympl==0.8.6
+ipympl==0.9.3
 ipysheet
 ipywidgets
 jupyter-client

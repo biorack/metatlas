@@ -7,7 +7,8 @@ import ipywidgets as widgets
 import matchms
 import numpy as np
 
-from matchms.filtering.load_adducts import load_adducts_dict
+from matchms.filtering.filter_utils.load_known_adducts import (
+    load_known_adducts)
 from rdkit import Chem
 
 from metatlas.interfaces.compounds import structure_cleaning as cleaning
@@ -28,21 +29,23 @@ def get_parent_mass(precursor_mz: float, adduct: str) -> float:
 @functools.lru_cache
 def get_precursor_mz(parent_mass: float, adduct: str) -> float:
     """For an input molecule with parent_mass that generates adduct, return the resutling precursor_mz"""
-    adducts = load_adducts_dict()
-    if adduct not in adducts:
+    adducts = load_known_adducts()
+    if adduct not in adducts["adduct"].values:
         raise KeyError("Adduct '%s' is not supported")
-    multiplier = adducts[adduct]["mass_multiplier"]
-    correction_mass = adducts[adduct]["correction_mass"]
+    row = adducts.loc[adducts["adduct"] == adduct].iloc[0]
+    multiplier = row["mass_multiplier"]
+    correction_mass = row["correction_mass"]
     return (parent_mass + correction_mass) / multiplier
 
 
 @functools.lru_cache
 def is_positive_mode(adduct: str) -> bool:
     """Returns True if the MS mode for an adduct is positive"""
-    adducts = load_adducts_dict()
-    if adduct not in adducts:
+    adducts = load_known_adducts()
+    if adduct not in adducts["adduct"].values:
         raise KeyError("Adduct '%s' is not supported")
-    return adducts[adduct]["ionmode"] == "positive"
+    row = adducts.loc[adducts["adduct"] == adduct].iloc[0]
+    return row["ionmode"] == "positive"
 
 
 @functools.lru_cache
@@ -149,7 +152,7 @@ def valid_adduct(value: str) -> bool:
     True if the value is an adduct listed supported by the matchms package
     This is not a comprehensive list, so it will return False for some uncommon adducts
     """
-    adducts = load_adducts_dict()
+    adducts = load_known_adducts()
     return value in adducts
 
 

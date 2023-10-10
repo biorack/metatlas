@@ -6,18 +6,18 @@ from pathlib import Path
 
 import nox
 
-py_versions = ["3.8", "3.9"]
+py_versions = ["3.11"]
 
 nox.options.sessions = [
     "flake8",
     "black",
-    "pylint-3.8",
-    "mypy-3.8",
-    "unit_tests-3.8",
+    "pylint-3.11",
+    "mypy-3.11",
+    "unit_tests-3.11",
     "flake8_nb",
     "black_nb",
-    "pylint_nb-3.8",
-    "system_tests-3.8",
+    "pylint_nb-3.11",
+    "system_tests-3.11",
     "update_git_hooks",
 ]
 
@@ -69,15 +69,10 @@ notebooks = [
 ]
 
 pytest_deps = [
-    "attrs==22.1.0",
     "coverage==7.0.5",
     "iniconfig==2.0.0",
-    "numpy==1.22.4",
-    "packaging==21.3",
-    "pandas==1.4.2",
     "pluggy==1.0.0",
     "py==1.11.0",
-    "pyparsing==3.0.9",
     "pytest==7.2.1",
     "pytest-cov==3.0.0",
     "pytest-mock==3.10.0",
