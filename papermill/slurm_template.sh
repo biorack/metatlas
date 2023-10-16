@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --image=docker:doejgi/metatlas_shifter:latest
+#SBATCH --image=docker:ghcr.io/biorack/metatlas/metatlas_shifter:latest
 #SBATCH --nodes=1
 #SBATCH --licenses=cfs
 #SBATCH --mail-type=ALL
