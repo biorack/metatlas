@@ -57,7 +57,7 @@ if [ -f "$failure_file" ]; then
 fi
 
 function metatlas {
-  shifter "--image=doejgi/metatlas_shifter:latest" \
+  shifter "--image=ghcr.io/biorack/metatlas/metatlas_shifter:latest" \
           "--env=HDF5_USE_FILE_LOCKING=FALSE" \
           "--env=PYTHONPATH=/src" \
 	  "--clearenv" \
