@@ -18,7 +18,7 @@ jobs:
     - name: Setup nox
       uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run unit tests
-      run: nox -s unit_tests-3.8
+      run: nox -s unit_tests-3.11
   system_test1:
     name: Run system test 1 - HILIC targeted
     runs-on: ubuntu-22.04
@@ -28,7 +28,7 @@ jobs:
     - name: Setup nox
       uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_targeted
+      run: nox -s system_tests-3.11 -- -k test_targeted
   system_test2:
     name: Run system test 2 - RT alignment
     runs-on: ubuntu-22.04
@@ -38,7 +38,7 @@ jobs:
     - name: Setup nox
       uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_rt_alignment
+      run: nox -s system_tests-3.11 -- -k test_rt_alignment
   system_test3:
     name: Run system test 3 - add MSMS references
     runs-on: ubuntu-22.04
@@ -48,7 +48,7 @@ jobs:
     - name: Setup nox
       uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_add_msms_ref
+      run: nox -s system_tests-3.11 -- -k test_add_msms_ref
   system_test4:
     name: Run system test 4 - C18 targeted
     runs-on: ubuntu-22.04
@@ -58,7 +58,7 @@ jobs:
     - name: Setup nox
       uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_c18
+      run: nox -s system_tests-3.11 -- -k test_c18
   system_test5:
     name: Run system test 5 - HILIC Targeted_hybrid
     runs-on: ubuntu-22.04
@@ -69,4 +69,4 @@ jobs:
     - name: Setup nox
       uses: daisylb/setup-nox@c375841575e07f30359a5843bf0bffa7aa596782
     - name: Run system tests
-      run: nox -s system_tests-3.8 -- -k test_hybrid
+      run: nox -s system_tests-3.11 -- -k test_hybrid
