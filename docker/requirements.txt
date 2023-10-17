@@ -204,7 +204,7 @@ markupsafe==2.1.3
     #   jinja2
     #   mako
     #   nbconvert
-matchms==0.15.0
+matchms==0.20.0
     # via -r requirements.in
 matplotlib==3.8.0
     # via
@@ -242,7 +242,9 @@ networkx==3.1
 notebook-shim==0.2.3
     # via jupyterlab
 numba==0.58.0
-    # via matchms
+    # via
+    #   matchms
+    #   sparsestack
 numexpr==2.8.7
     # via tables
 numpy==1.24.4
@@ -261,6 +263,7 @@ numpy==1.24.4
     #   rdkit-pypi
     #   scikit-learn
     #   scipy
+    #   sparsestack
     #   tables
 oauth2client==4.1.3
     # via -r requirements.in
@@ -297,6 +300,7 @@ pickydict==0.4.0
 pillow==10.1.0
     # via
     #   ipympl
+    #   matchms
     #   matplotlib
     #   rdkit-pypi
 platformdirs==3.11.0
@@ -410,6 +414,7 @@ scipy==1.11.3
     #   -r requirements.in
     #   matchms
     #   scikit-learn
+    #   sparsestack
 send2trash==1.8.2
     # via jupyter-server
 six==1.16.0
@@ -423,6 +428,8 @@ sniffio==1.3.0
     # via anyio
 soupsieve==2.5
     # via beautifulsoup4
+sparsestack==0.4.1
+    # via matchms
 sqlalchemy==1.4.49
     # via
     #   -r requirements.in
@@ -454,7 +461,9 @@ tornado==6.3.3
     #   jupyterlab
     #   terminado
 tqdm==4.66.1
-    # via papermill
+    # via
+    #   matchms
+    #   papermill
 traitlets==5.11.2
     # via
     #   comm
@@ -498,7 +507,7 @@ widgetsnbextension==4.0.9
     # via ipywidgets
 wrapt==1.15.0
     # via deprecated
-xlsxwriter==3.0.3
+xlsxwriter==3.1.8
     # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:

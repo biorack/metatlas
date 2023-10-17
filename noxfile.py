@@ -71,6 +71,7 @@ notebooks = [
 pytest_deps = [
     "coverage==7.0.5",
     "iniconfig==2.0.0",
+    "pandas==2.1.1",
     "pluggy==1.0.0",
     "py==1.11.0",
     "pytest==7.2.1",

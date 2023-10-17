@@ -13,13 +13,12 @@ ipysheet
 ipywidgets==8.1.1
 jupyter-client
 jupyterlab
-matchms==0.15.0
+matchms==0.20.0
 matplotlib
 numpy==1.24.4
 oauth2client
-pandas
+pandas==2.1.1
 papermill
-pip
 pubchempy
 pydantic
 pymysql
@@ -31,4 +30,4 @@ scipy
 sqlalchemy
 tables
 tabulate
-xlsxwriter==3.0.3
+xlsxwriter
