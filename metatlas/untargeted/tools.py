@@ -78,7 +78,7 @@ import scipy.stats
 def remove_untargeted_job(experiment,
                           outdir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
                           zipdir='/global/cfs/cdirs/metatlas/projects/untargeted_outputs'):
-    
+
     # remove untargeted zip file
     zip_archive = os.path.join(zipdir,'%s.zip'%experiment)
     if os.path.isfile(zip_archive):
@@ -106,9 +106,9 @@ def remove_untargeted_job(experiment,
         df = df[['Key']]
         update_table_in_lims(df,'untargeted_tasks',method='delete')
         print('removed tasks')
-        
+
     # remove untargeted_features
-    sql = """SELECT Key, experiment FROM untargeted_features 
+    sql = """SELECT Key, experiment FROM untargeted_features
     WHERE experiment='%s';"""%(experiment)
 
     sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
@@ -117,11 +117,11 @@ def remove_untargeted_job(experiment,
         df = df[['Key']]
         update_table_in_lims(df,'untargeted_features',method='delete')
         print('removed features')
-    
+
     # remove gnps_hits (feature_key)
-    sql = """SELECT Key, feature_key.experiment FROM gnps_hits 
+    sql = """SELECT Key, feature_key.experiment FROM gnps_hits
     WHERE feature_key.experiment='%s';"""%(experiment)
-    
+
     sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
     if len(sql_result['rows'])>0:
         df = pd.DataFrame(sql_result['rows'])
@@ -206,7 +206,7 @@ def get_parent_folders_from_lcmsruns(get_groups=False):
 #     SELECT DISTINCT parent_dir FROM lcmsrun_plus
     sql = """SELECT DISTINCT parent_dir FROM lcmsrun_plus"""
     if get_groups==True:
-        sql = """SELECT 
+        sql = """SELECT
 lcmsrun.mzml_file.filename AS mzml_file,
 regexp_replace(lcmsrun.name, '.*/([^/]*)/[^/]*$', '\1') AS parent_dir,
 
@@ -315,7 +315,7 @@ def update_table_in_lims(df,table,method='update',max_size=1000,pause_time=None)
     Note: Do ~1000 rows at a time.  Any more and you get a 504 error.  Maybe increasing the timeout would help.
     In the header, timeout is a variable that gets set.  Check to see what its set to.  Maybe increasing it would let
     more rows be updated at a time
-    
+
     method can be 'update','insert',or 'delete'
 
     Use it like this:
@@ -460,8 +460,8 @@ def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None):
     if sum(done_tasks_idx)>0:
         update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')#,labkey_server=labkey_server,project_name=project_name)
         print(('%s: There are %d tasks where output file exist and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
-    
-    
+
+
     # This finds where input file is missing
     done_tasks_idx = (task_idx) & (~inputfile_idx)
     if sum(done_tasks_idx)>0:
@@ -508,14 +508,14 @@ def update_file_table(file_table):
         df['timeepoch'] = 0
         df['basename'] = 'None'
         df['name'] = 'None'
-    
+
     print(('\tThere were %d files on disk'%len(files)))
 
     cols = ['filename','name','Key']
     df_lims = get_table_from_lims(v['lims_table'],columns=cols)
     print(('\tThere were %d files from LIMS table %s'%(df_lims.shape[0],v['lims_table'])))
 
-        
+
     diff_df = pd.merge(df, df_lims,on=['filename','name'], how='outer', indicator='Exist')
     diff_df = diff_df.loc[diff_df['Exist'] != 'both'] #(left_only, right_only, or both)
     print(('\tThere are %d different'%diff_df.shape[0]))
@@ -545,7 +545,7 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-    
+
 def build_untargeted_filename(output_dir,parent_dir,polarity,file_type):
     """
         file_spec = {'peak-area-mzmine':'peak-area.csv',
@@ -632,7 +632,7 @@ def submit_mzmine_jobs(polarity='positive',polarity_short='pos'):
         cols = ['Key',
                 '%s_%s_status'%(tasktype,polarity_short)]
         update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
-        
+
 def update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short='pos'):
     """
     finds running mzmine tasks
@@ -658,7 +658,7 @@ def update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short=
                 '%s_%s_status'%(tasktype,polarity_short),
                '%s_%s_status'%('fbmn',polarity_short)]
         update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
-        
+
 def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='pos',latest_version=28.2):
     """
     finds running fbmn tasks
@@ -689,12 +689,12 @@ def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='p
 #                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '01 initiation'
                 download_gnps_graphml(taskid,graphml_filename)
                 update_df.append(i)
-            elif status=='DONE':          
+            elif status=='DONE':
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
 #                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '01 initiation'
                 download_gnps_graphml(taskid,graphml_filename)
                 update_df.append(i)
-            elif status=='FAILED':          
+            elif status=='FAILED':
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'
 #                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '08 hold'
                 update_df.append(i)
@@ -711,7 +711,7 @@ def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='p
     if len(update_df)>0:
         cols = ['Key',
                 '%s_%s_status'%(tasktype,polarity_short)] # ,               '%s_%s_status'%('gnps_msms_hits',polarity_short)
-        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')        
+        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
 
 def write_new_mzmine_params(gsheet_params,my_polarity,files,basepath,parent_dir):
     """
@@ -874,7 +874,7 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,num_files)
         new_filename = sbatch_filename.replace('mzmine-sbatch','coribigmem-mzmine-sbatch')
         with open(new_filename,'w') as fid:
             fid.write(new_sbatch)
-    
+
 
 def write_fbmn_sbatch_and_runner(basepath,parent_dir):
     runner_filename = '%s_fbmn.sh'%os.path.join(basepath,parent_dir)
@@ -960,7 +960,7 @@ def update_num_msms():
         temp = df_tasks.loc[df_tasks.index.isin(keep_rows),cols].copy()
         temp.fillna(0,inplace=True)
         update_table_in_lims(temp,'untargeted_tasks',method='update')
-        
+
 
 def update_new_untargeted_tasks(update_lims=True):
     """
@@ -968,18 +968,18 @@ def update_new_untargeted_tasks(update_lims=True):
     and all the directories in the raw data folders
     return all the directories in the raw data folders
     that are not in the untargeted tasks
-    
-    The strip command is because there is one folder that ends in a 
+
+    The strip command is because there is one folder that ends in a
     space and labkey doesn't allow this
     """
-    
-    
+
+
     df = get_table_from_lims('lcmsrun_plus')
     df = df[pd.notna(df['mzml_file'])]
     df['basename'] = df['mzml_file'].apply(os.path.basename)
     df.sort_values('timeepoch',ascending=False,inplace=True)
     df.drop_duplicates(['basename','parent_dir'],inplace=True)
-    
+
     df.drop(columns=['mzml_file_container'],inplace=True)
     df.replace('',np.nan,inplace=True)
 
@@ -989,7 +989,7 @@ def update_new_untargeted_tasks(update_lims=True):
 
 
     df_untargeted = get_table_from_lims('untargeted_tasks')
-    
+
     all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
 
     all_folders = [a.strip() for a in all_folders]
@@ -1003,7 +1003,7 @@ def update_new_untargeted_tasks(update_lims=True):
     print(len(new_folders),len(all_folders),len(folders_in_tasks))
     new_folders = list(set(new_folders) & set(time_check_folders))
     print(len(new_folders),len(all_folders),len(folders_in_tasks))
-    
+
 
     # get file counts
     pos_count = df[df['polarity']=='POS'].groupby('parent_dir')['mzml_file'].count()
@@ -1014,10 +1014,10 @@ def update_new_untargeted_tasks(update_lims=True):
     missing = np.setdiff1d(new_folders,neg_count.index.tolist())
     for m in missing:
         neg_count[m] = 0
-    
+
     outdir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks'
-    
-    
+
+
 #     idx1 = ~df_untargeted['mzmine_pos_status'].str.contains('complete')
 #     idx2 = ~df_untargeted['mzmine_pos_status'].str.contains('not relevant')
 #     idx3 = ~df_untargeted['mzmine_neg_status'].str.contains('complete')
@@ -1060,7 +1060,7 @@ def update_new_untargeted_tasks(update_lims=True):
             temp.to_csv(metadata_filename,sep='\t',index=False)
         pos_metadata_files[block[0]] = metadata_filename
         pos_filelist[block[0]] = block[1]['mzml_file']
-        
+
     print('making metadata neg')
     # make the metadata sheets
     files = df[df['polarity']=='NEG'].groupby('parent_dir')
@@ -1094,7 +1094,7 @@ def update_new_untargeted_tasks(update_lims=True):
             temp.to_csv(metadata_filename,sep='\t',index=False)
         neg_metadata_files[block[0]] = metadata_filename
         neg_filelist[block[0]] = block[1]['mzml_file']
-    
+
     print('There are %d new_folders'%len(new_folders))
     if len(new_folders)>0:
         new_folders = pd.DataFrame(data={'parent_dir':new_folders,'num_pos_files':pos_count[new_folders],'num_neg_files':neg_count[new_folders]})
@@ -1121,7 +1121,7 @@ def update_new_untargeted_tasks(update_lims=True):
                     batch_filename = write_new_mzmine_params(gsheet_params,'negative',neg_filelist[row['parent_dir']],basepath,parent_dir)
                 write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,neg_filelist[row['parent_dir']].shape[0])
                 write_fbmn_sbatch_and_runner(basepath,parent_dir)
-                
+
         new_folders['file_conversion_complete'] = False
         new_folders['conforming_filenames'] = False
         new_folders['mzmine_pos_status'] = '01 initiation'
@@ -1445,15 +1445,14 @@ def prepare_true_positive_and_export(output_filename,df_experimental,df_true_pos
     total_count = pd.DataFrame(columns=['total'],data=[[df_experimental.shape[0]]])
 
     # Create a Pandas Excel writer using XlsxWriter as the engine.
-    writer = pd.ExcelWriter(output_filename, engine='xlsxwriter')
-
-    # Write each dataframe to a different worksheet.
-    params.to_excel(writer, sheet_name='params')
-    istd_count.to_excel(writer, sheet_name='istd_count')
-    bio_count.to_excel(writer, sheet_name='bio_count')
-    df_grouped.to_excel(writer, sheet_name='df_grouped')
-    df_hits.to_excel(writer, sheet_name='df_hits')
-    total_count.to_excel(writer, sheet_name='total')
+    with pd.ExcelWriter(output_filename, engine='xlsxwriter') as writer:
+        # Write each dataframe to a different worksheet.
+        params.to_excel(writer, sheet_name='params')
+        istd_count.to_excel(writer, sheet_name='istd_count')
+        bio_count.to_excel(writer, sheet_name='bio_count')
+        df_grouped.to_excel(writer, sheet_name='df_grouped')
+        df_hits.to_excel(writer, sheet_name='df_hits')
+        total_count.to_excel(writer, sheet_name='total')
     return istd_count,bio_count,df_grouped,df_hits,total_count
     # Close the Pandas Excel writer and output the Excel file.
 #     writer.save()
@@ -1737,10 +1736,10 @@ def update_feature_table():
             temp['experiment'] = [experiment]
             temp['polarity'] = [polarity]
         update_table_in_lims(temp,'untargeted_features',method='insert')
-        
 
 
-        
+
+
 def update_gnps_hits_table(output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks/'):
     print('Updating GNPS hits')
     df_hits_db = get_table_from_lims('gnps_hits',columns=['feature_key'])
@@ -1925,9 +1924,9 @@ def update_untargeted_treatments():
                 update_table_in_lims(g,'untargeted_treatments',method='insert',max_size=500)
 
 
-            
-    
-            
+
+
+
 #####################################################
 #####################################################
 ########         mzmine setup scripts        ########

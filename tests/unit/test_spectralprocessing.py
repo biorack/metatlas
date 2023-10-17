@@ -8,12 +8,18 @@ import numpy as np
 import metatlas.tools.spectralprocessing as sp
 
 
+def array_equal(arr_a, arr_b, equal_nan=False):
+    # https://numpy.org/neps/nep-0034-infer-dtype-is-object.html#usage-and-impact
+    # required for dealing with "ragged" arrays
+    return np.array_equal(np.array(arr_a, dtype=object), np.array(arr_b, dtype=object), equal_nan=equal_nan)
+
+
 def test_find_all_ms_matches01():
     msv_1 = np.array([[1, 2, 3], [4, 5, 6]], np.float64)
     msv_2 = np.array([[1.2, 2.04, 3.09], [4, 5, 6]], np.float64)
     out = sp.find_all_ms_matches(msv_1, msv_2, mz_tolerance=0.1)
-    assert np.array_equal(out[0], [[], [1], [2]])
-    assert np.array_equal(out[1], [1.0, 2.0])
+    assert array_equal(out[0], [[], [1], [2]])
+    assert array_equal(out[1], [1.0, 2.0])
 
 
 def test_find_all_ms_matches02():
