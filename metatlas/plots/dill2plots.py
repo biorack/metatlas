@@ -2223,7 +2223,7 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre
     cos = CosineHungarian(tolerance=frag_mz_tolerance)
 
     msms_hits = []
-    for inchi_key in inchi_keys:
+    for inchi_key in tqdm(inchi_keys, unit='compound', disable=in_papermill()):
 
         filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
         filtered_msms_refs = build_msms_refs_spectra(filtered_msms_refs)
