@@ -51,6 +51,8 @@ def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
         for compound_idx, compound_name in enumerate(compound_names):
 
             file_compound_data = metatlas_dataset[file_idx][compound_idx]
+            if 'data' not in file_compound_data['data']['msms']:
+                continue
 
             cid = file_compound_data['identification']
             mz_tolerance = cid.mz_references[0].mz_tolerance
