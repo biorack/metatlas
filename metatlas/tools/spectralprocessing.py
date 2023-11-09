@@ -589,6 +589,17 @@ def pairwise_align_ms_vectors(msv_query, msv_ref, frag_mz_tolerance):
 
     return msv_query_aligned, msv_ref_aligned
 
+def align_all_ms_vectors(msv_pairs, frag_tolerance):
+    all_queries = []
+    all_refs = []
+
+    for pair in msv_pairs:
+        msv_query_aligned, msv_ref_aligned = pairwise_align_ms_vectors(pair[0], pair[1], frag_tolerance)
+
+        all_queries.append(msv_query_aligned)
+        all_refs.append(msv_ref_aligned)
+
+    return all_queries, all_refs
 
 def peakdet(v, delta, x = None):
     """

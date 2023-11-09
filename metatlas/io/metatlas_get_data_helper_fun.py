@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import six
 import tables
+from matchms import Spectrum
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import h5_query as h5q
@@ -39,6 +40,49 @@ def create_msms_dataframe(df):
     grouped.loc[:, 'spectrum'] = grouped['spectrum'].apply(lambda x: list(zip(x[0], x[1])))
     grouped.drop(['mz','i'], axis=1, inplace=True)
     return grouped
+
+def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
+
+    file_names = get_file_names(metatlas_dataset)
+    compound_names = get_compound_names(metatlas_dataset)[0]
+
+    msms_data = []
+    for file_idx, filename in enumerate(file_names):
+        for compound_idx, compound_name in enumerate(compound_names):
+
+            file_compound_data = metatlas_dataset[file_idx][compound_idx]
+
+            cid = file_compound_data['identification']
+            mz_tolerance = cid.mz_references[0].mz_tolerance
+            rt_min = cid.rt_references[0].rt_min
+            rt_max = cid.rt_references[0].rt_max
+
+            scan_rts = np.unique(file_compound_data['data']['msms']['data']['rt'])
+            if scan_rts.shape[0] < 1 and not keep_nonmatches:
+                continue
+
+            inchi_key = file_compound_data['identification'].compound[0].inchi_key
+
+            for scan_rt in scan_rts:
+
+                scan_mask = file_compound_data['data']['msms']['data']['rt']==scan_rt
+                mzs = file_compound_data['data']['msms']['data']['mz'][scan_mask]
+                intensities = file_compound_data['data']['msms']['data']['i'][scan_mask]
+                precursor_mz = file_compound_data['data']['msms']['data']['precursor_MZ'][scan_mask][0]
+                precursor_intensity = file_compound_data['data']['msms']['data']['precursor_intensity'][scan_mask][0]
+
+                spectrum = np.array([mzs, intensities])
+                if do_centroid:
+                    spectrum = convert_to_centroid(spectrum)
+                matchms_spectrum = Spectrum(spectrum[0], spectrum[1], metadata={'precursor_mz':precursor_mz})
+
+                msms_data.append({'file_name':filename, 'msms_scan':scan_rt,
+                                  'measured_precursor_mz':precursor_mz, 'measured_precursor_intensity':precursor_intensity,
+                                  'inchi_key':inchi_key, 'matchms_spectrum':matchms_spectrum,
+                                  'query_spectrum':spectrum, 'cid_pmz_tolerance':mz_tolerance,
+                                  'cid_rt_min':rt_min, 'cid_rt_max':rt_max})
+
+    return pd.DataFrame(msms_data)
 
 def compare_EIC_to_BPC_for_file(metatlas_dataset,file_index,yscale = 'linear'):
     """

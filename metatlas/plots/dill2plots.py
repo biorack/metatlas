@@ -2167,14 +2167,31 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         fontsize=2,
         transform=ax.transAxes)
 
+def build_msms_refs_spectra(msms_refs):
 
-def get_refs(file_name, ref_dtypes, ref_index):
-    """Load msms refs from file_name, returns pandas Dataframe"""
-    return pd.read_csv(file_name,
-                       sep='\t',
-                       dtype=ref_dtypes
-                       ).set_index(ref_index)
+    msms_refs['spectrum'] = msms_refs['spectrum'].apply(lambda s: np.array(json.loads(s)))
+    msms_refs['matchms_spectrum'] = msms_refs.apply(lambda s: Spectrum(s.spectrum[0], s.spectrum[1], metadata={'precursor_mz':s.precursor_mz}), axis=1)
 
+    return msms_refs
+
+def load_msms_refs_file(refs_path, pre_query, query, ref_dtypes, ref_index):
+
+    if ref_dtypes is None:
+        ref_dtypes = {'database': str, 'id': str, 'name': str,
+                          'spectrum': object, 'decimal': int, 'precursor_mz': float,
+                          'polarity': str, 'adduct': str, 'fragmentation_method': str,
+                          'collision_energy': str, 'instrument': str, 'instrument_type': str,
+                          'formula': str, 'exact_mass': float,
+                          'inchi_key': str, 'inchi': str, 'smiles': str}
+
+    msms_refs = pd.read_csv(refs_path, sep='\t', dtype=ref_dtypes)
+    msms_refs = msms_refs.query(pre_query)
+    if query is not None:
+        msms_refs = msms_refs.query(query)
+    if ref_index is not None:
+        msms_refs.set_index(ref_index)
+
+    return msms_refs
 
 def convert_to_centroid(sample_df):
     max_peaks, _ = sp.peakdet(sample_df[1], 1000.0)
@@ -2183,129 +2200,55 @@ def convert_to_centroid(sample_df):
         return sample_df[:, idx]
     return np.zeros((0, 0))
 
+def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre_query='database == "metatlas"',
+                  query=None, ref_dtypes=None, ref_loc=None, ref_df=None, frag_mz_tolerance=0.005, ref_index=None,
+                  do_centroid=False, resolve_by=None):
 
-def search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes, ref_index, ref_df, resolve_by):
-    return sp.search_ms_refs(msv_sample, **locals())
+    msms_hits_cols = ['database', 'id', 'file_name', 'msms_scan', 'score', 'num_matches',
+                     'msv_query_aligned', 'msv_ref_aligned', 'name', 'adduct', 'inchi_key',
+                     'precursor_mz', 'measured_precursor_mz',
+                     'measured_precursor_intensity']
 
-
-def get_msms_hits_per_compound(rt_mz_i_df, msms_scan, do_centroid, query, inchi_key, polarity,
-                               precursor_mz, pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes,
-                               ref_index, ref_df, resolve_by):
-    msv_sample = rt_mz_i_df.loc[rt_mz_i_df['rt'] == msms_scan,
-                                ['mz', 'i', 'rt', 'precursor_MZ', 'precursor_intensity']]
-    precursor_mz_sample = msv_sample['precursor_MZ'].values[0]
-    msv_sample.sort_values('mz', inplace=True)
-    msv_sample = msv_sample[['mz', 'i']].values.T
-    msv_sample = convert_to_centroid(msv_sample) if do_centroid else msv_sample
-    # Filter ions greater than 2.5 + precursor M/Z
-    msv_sample = msv_sample[:, msv_sample[0] < precursor_mz_sample + 2.5]
-    if msv_sample.size > 0:
-        return search_ms_refs(msv_sample, query, inchi_key, polarity, precursor_mz,
-                              pre_mz_ppm, frag_mz_tolerance, ref_loc, ref_dtypes,
-                              ref_index, ref_df, resolve_by), msv_sample
-    return pd.DataFrame(), msv_sample
-
-
-def get_empty_scan_df(columns):
-    return pd.DataFrame(data={'database': [np.nan], 'id': [np.nan]},
-                        index=pd.MultiIndex.from_tuples([(np.nan, np.nan)], names=['database', 'id']),
-                        columns=columns)
-
-
-def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False,
-                  pre_query='database == "metatlas"', query=None, ref_dtypes=None,
-                  ref_loc=None, ref_df=None, frag_mz_tolerance=.005, ref_index=None,
-                  do_centroid=False, resolve_by='shape'):
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="Mean of empty slice")
-        return get_msms_hits_with_warnings(metatlas_dataset, extra_time, keep_nonmatches, pre_query, query,
-                                           ref_dtypes, ref_loc, ref_df, frag_mz_tolerance, ref_index,
-                                           do_centroid, resolve_by)
-
-
-def get_msms_hits_with_warnings(metatlas_dataset, extra_time=False, keep_nonmatches=False,
-                                pre_query='database == "metatlas"', query=None, ref_dtypes=None,
-                                ref_loc=None, ref_df=None, frag_mz_tolerance=.005, ref_index=None,
-                                do_centroid=False, resolve_by='shape'):
-    if query is None:
-        pre_mz_decimal = ".5*(@pre_mz_ppm**-decimal)/(decimal+1)"
-        offset = f".5*(({pre_mz_decimal} + .005 + ({pre_mz_decimal} - .005)**2)**.5)"
-        query = ("(@inchi_key == inchi_key) and "
-                 "(@polarity == polarity) and "
-                 f"( (@precursor_mz - {offset}) <= precursor_mz <= (@precursor_mz + {offset}) )")
-    if ref_dtypes is None:
-        ref_dtypes = {'database': str, 'id': str, 'name': str,
-                      'spectrum': object, 'decimal': int, 'precursor_mz': float,
-                      'polarity': str, 'adduct': str, 'fragmentation_method': str,
-                      'collision_energy': str, 'instrument': str, 'instrument_type': str,
-                      'formula': str, 'exact_mass': float,
-                      'inchi_key': str, 'inchi': str, 'smiles': str}
-    if ref_index is None:
-        ref_index = ['database', 'id']
-    if ref_loc is None:
-        ref_loc = '/global/project/projectdirs/metatlas/projects/spectral_libraries/msms_refs_v2.tab'
     if ref_df is None:
-        ref_df = get_refs(ref_loc, ref_dtypes, ref_index)
-    ref_df = ref_df.query(pre_query).copy()
-    ref_df.loc[:, 'spectrum'] = ref_df['spectrum'].apply(lambda s: np.array(json.loads(s)))
-    file_names = ma_data.get_file_names(metatlas_dataset)
-    compound_names = ma_data.get_compound_names(metatlas_dataset)[0]
-    index_cols = ref_df.index.names + ['file_name', 'msms_scan']
-    all_cols = index_cols + ['score', 'num_matches', 'msv_query_aligned', 'msv_ref_aligned', 'name', 'adduct',
-                             'inchi_key', 'precursor_mz', 'measured_precursor_mz',
-                             'measured_precursor_intensity']
-    msms_hits = pd.DataFrame(columns=all_cols).set_index(index_cols)
-    for compound_idx, _ in enumerate(tqdm(compound_names, unit='compound', disable=in_papermill())):
-        cid = metatlas_dataset[0][compound_idx]['identification']
-        name = cid.name.split('///')[0] if cid.name else getattr(cid.compound[-1], 'name', None)
-        adduct = ma_data.extract(cid, ['mz_references', 0, 'adduct'], None)
-        inchi_key = ma_data.extract(cid, ['compound', 0, 'inchi_key'], '')
-        pre_mz_ppm = cid.mz_references[0].mz_tolerance
-        precursor_mz = cid.mz_references[0].mz
-        rt_min = cid.rt_references[0].rt_min
-        rt_max = cid.rt_references[0].rt_max
-        for file_idx, file_name in enumerate(file_names):
-            mfc = metatlas_dataset[file_idx][compound_idx]
-            polarity = mfc['identification'].mz_references[0].detected_polarity
-            try:
-                assert {'rt', 'i', 'precursor_MZ', 'mz'}.issubset(set(mfc['data']['msms']['data'].keys()))
-            except (KeyError, AssertionError, AttributeError):
-                continue
-            rt_mz_i_df = pd.DataFrame({k: mfc['data']['msms']['data'][k]
-                                      for k in ['rt', 'mz', 'i', 'precursor_MZ', 'precursor_intensity']}
-                                      ).sort_values(['rt', 'mz'])
-            for msms_scan in rt_mz_i_df.rt.unique():
-                if not extra_time and not rt_min <= msms_scan <= rt_max:
-                    continue
-                scan_df, msv_sample = get_msms_hits_per_compound(rt_mz_i_df, msms_scan, do_centroid,
-                                                                 query, inchi_key, polarity,
-                                                                 precursor_mz, pre_mz_ppm,
-                                                                 frag_mz_tolerance, ref_loc, ref_dtypes,
-                                                                 ref_index, ref_df, resolve_by)
-                precursor = rt_mz_i_df.loc[rt_mz_i_df['rt'] == msms_scan, ['precursor_MZ', 'precursor_intensity']]
-                hits = len(scan_df) > 0
-                if not hits and not keep_nonmatches:
-                    continue
-                if not hits and keep_nonmatches:
-                    # leave out the cols that are used in the index
-                    scan_df = get_empty_scan_df(all_cols[2:])
-                scan_df['file_name'] = file_name
-                scan_df['msms_scan'] = msms_scan
-                scan_df['name'] = name
-                scan_df['adduct'] = adduct
-                scan_df['inchi_key'] = inchi_key
-                scan_df['precursor_mz'] = precursor_mz
-                scan_df['measured_precursor_mz'] = precursor['precursor_MZ'].values[0]
-                scan_df['measured_precursor_intensity'] = precursor['precursor_intensity'].values[0]
-                scan_df.set_index(['file_name', 'msms_scan'], append=True, inplace=True)
-                if not hits and keep_nonmatches:
-                    scan_df['num_matches'] = 0
-                    scan_df['score'] = precursor['precursor_intensity'].values[0]
-                    scan_df['msv_query_aligned'] = [msv_sample]
-                    scan_df['msv_ref_aligned'] = [np.full_like(msv_sample, np.nan)]
-                msms_hits = pd.concat([msms_hits, scan_df])
-    return msms_hits
+        msms_refs = load_msms_refs_file(ref_loc, pre_query, query, ref_dtypes, ref_index)
+    else:
+        msms_refs = ref_df
 
+    msms_data = ma_data.arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid)
+    if not extra_time:
+        msms_data = msms_data[(msms_data['msms_scan']>=msms_data['cid_rt_min']) | (msms_data['msms_scan']<=msms_data['cid_rt_max'])]
+
+    inchi_keys = set(msms_data.inchi_key.tolist())
+
+    cos = CosineHungarian(tolerance=frag_mz_tolerance)
+
+    msms_hits = []
+    for inchi_key in inchi_keys:
+
+        filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
+        filtered_msms_refs = build_msms_refs_spectra(filtered_msms_refs)
+
+        filtered_msms_data = msms_data[msms_data['inchi_key']==inchi_key].reset_index(drop=True).drop(columns=['inchi_key']).copy()
+
+        scores_matches = cos.matrix(filtered_msms_data.matchms_spectrum.tolist(),
+                                    filtered_msms_refs.matchms_spectrum.tolist())
+
+        inchi_msms_hits = pd.merge(filtered_msms_data, filtered_msms_refs, how='cross')
+        inchi_msms_hits['score'] = scores_matches['score'].flatten()
+        inchi_msms_hits['num_matches'] = scores_matches['matches'].flatten()
+
+        inchi_msms_hits['precursor_ppm_error'] = (abs(inchi_msms_hits['measured_precursor_mz'] - inchi_msms_hits['precursor_mz']) / inchi_msms_hits['precursor_mz']) * 1000000
+        inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
+
+        msms_hits.append(inchi_msms_hits)
+
+    msms_hits = pd.concat(msms_hits)
+
+    msv_queries_aligned, msv_refs_aligned = sp.align_all_ms_vectors(zip(msms_hits['query_spectrum'].tolist(), msms_hits['spectrum'].tolist()), frag_tolerance=frag_mz_tolerance)
+    msms_hits['msv_query_aligned'] = msv_queries_aligned
+    msms_hits['msv_ref_aligned'] = msv_refs_aligned
+
+    return msms_hits[msms_hits_cols].set_index(['file_name', 'msms_scan', 'id'])
 
 def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, group='index', share_y=True, save=True, output_loc=None, short_names_df=None, short_names_header=None, polarity='', overwrite=False, max_cpus=1, suffix='', max_plots_per_page=30):
     bad_parameters = {"group": group != "index", "save": not save,
