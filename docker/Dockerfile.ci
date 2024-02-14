@@ -70,7 +70,7 @@ RUN curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_
     && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_63_Neg-D89_C_Rg80to1200-CE102040-soil-S1_Run215.h5" \
     && curl $FLAGS -O "$BASE_DATA_URL/20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680_NEG_MSMS_75_ExCtrl_C_Rg80to1200-CE102040-soil-S1_Run209.h5"
 
-FROM python:3.8-slim-bullseye
+FROM python:3.11-slim-bullseye
 
 # This brings the above ARG values from the top of the file into this stage
 ARG BASE_DATA_URL

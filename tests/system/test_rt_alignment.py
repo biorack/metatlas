@@ -6,7 +6,7 @@ from . import utils
 
 
 def test_rt_alignment_by_line01(tmp_path):
-    image = "ghcr.io/biorack/metatlas/metatlas_ci:1.2.0"
+    image = "ghcr.io/biorack/metatlas/metatlas_ci:1.3.0"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
