@@ -2217,6 +2217,8 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre
     msms_data = ma_data.arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid)
     if not extra_time:
         msms_data = msms_data[(msms_data['msms_scan']>=msms_data['cid_rt_min']) | (msms_data['msms_scan']<=msms_data['cid_rt_max'])]
+    else:
+        msms_data = msms_data[(msms_data['msms_scan']>=msms_data['cid_rt_min']-extra_time) | (msms_data['msms_scan']<=msms_data['cid_rt_max']+extra_time)]
 
     inchi_keys = set(msms_data.inchi_key.tolist())
 
@@ -2224,6 +2226,9 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre
 
     msms_hits = []
     for inchi_key in tqdm(inchi_keys, unit='compound', disable=in_papermill()):
+
+        if inchi_key not in msms_refs['inchi_key'].tolist():
+            continue
 
         filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
         filtered_msms_refs = build_msms_refs_spectra(filtered_msms_refs)
@@ -2239,6 +2244,9 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre
 
         inchi_msms_hits['precursor_ppm_error'] = (abs(inchi_msms_hits['measured_precursor_mz'] - inchi_msms_hits['precursor_mz']) / inchi_msms_hits['precursor_mz']) * 1000000
         inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
+
+        if len(inchi_msms_hits) == 0:
+            inchi_msms_hits.loc[0] = filtered_msms_data.iloc[0]
 
         msms_hits.append(inchi_msms_hits)
 
