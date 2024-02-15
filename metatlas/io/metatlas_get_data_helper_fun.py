@@ -55,6 +55,8 @@ def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
                 continue
 
             cid = file_compound_data['identification']
+            cid_name = cid.compound[0].name
+            precursor_mz = cid.mz_references[0].mz
             mz_tolerance = cid.mz_references[0].mz_tolerance
             rt_min = cid.rt_references[0].rt_min
             rt_max = cid.rt_references[0].rt_max
@@ -70,17 +72,17 @@ def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
                 scan_mask = file_compound_data['data']['msms']['data']['rt']==scan_rt
                 mzs = file_compound_data['data']['msms']['data']['mz'][scan_mask]
                 intensities = file_compound_data['data']['msms']['data']['i'][scan_mask]
-                precursor_mz = file_compound_data['data']['msms']['data']['precursor_MZ'][scan_mask][0]
-                precursor_intensity = file_compound_data['data']['msms']['data']['precursor_intensity'][scan_mask][0]
+                measured_precursor_mz = file_compound_data['data']['msms']['data']['precursor_MZ'][scan_mask][0]
+                measured_precursor_intensity = file_compound_data['data']['msms']['data']['precursor_intensity'][scan_mask][0]
 
                 spectrum = np.array([mzs, intensities])
                 if do_centroid:
                     spectrum = convert_to_centroid(spectrum)
-                matchms_spectrum = Spectrum(spectrum[0], spectrum[1], metadata={'precursor_mz':precursor_mz})
+                matchms_spectrum = Spectrum(spectrum[0], spectrum[1], metadata={'precursor_mz':measured_precursor_mz})
 
                 msms_data.append({'file_name':filename, 'msms_scan':scan_rt,
-                                  'measured_precursor_mz':precursor_mz, 'measured_precursor_intensity':precursor_intensity,
-                                  'inchi_key':inchi_key, 'matchms_spectrum':matchms_spectrum,
+                                  'measured_precursor_mz':measured_precursor_mz, 'measured_precursor_intensity':measured_precursor_intensity,
+                                  'precursor_mz':precursor_mz, 'name':cid_name, 'inchi_key':inchi_key, 'matchms_spectrum':matchms_spectrum,
                                   'query_spectrum':spectrum, 'cid_pmz_tolerance':mz_tolerance,
                                   'cid_rt_min':rt_min, 'cid_rt_max':rt_max})
 

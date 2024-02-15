@@ -43,6 +43,7 @@ from IPython.display import display, HTML
 from IPython import get_ipython
 
 import getpass
+from typing import Type
 
 from ast import literal_eval
 from datetime import datetime
@@ -539,8 +540,12 @@ class adjust_rt_for_selected_compound(object):
                                   (my_scan_rt <= float(self.data.rts[self.compound_idx].rt_max)) &
                                   within_tolerance(self.msms_hits['measured_precursor_mz'],
                                                    mz_theoretical, hits_mz_tolerance)]
-        self.hits = filtered if inchi_key is None else filtered[(filtered['inchi_key'] == inchi_key)]
 
+        import pickle
+        with open('inchi_key.pkl', 'wb') as handle:
+            pickle.dump(inchi_key, handle)
+
+        self.hits = filtered if inchi_key is None else filtered[(filtered['inchi_key'] == inchi_key)]
 
     def msms_plot(self, font_scale=10.0):
         logger.debug('Starting msms_plot')
@@ -555,6 +560,7 @@ class adjust_rt_for_selected_compound(object):
         hit_ref_id, hit_score, hit_query, hit_ref = get_msms_plot_data(self.hits, self.hit_ctr)
         self.ax2.cla()
         self.ax2.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
         self.mz_lines = plot_msms_comparison2(0, mz_header, rt_header, cpd_header_wrap, hit_ref_id,
                                               hit_file_name, hit_score, self.ax2, hit_query,
                                               hit_ref, self.msms_zoom_factor)
@@ -1652,13 +1658,16 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
                          for i in range(rt_of_msv_sample.size-1)
                          if rt_of_msv_sample[i] != rt_of_msv_sample[i+1]]
 
+
+            cos = CosineHungarian(tolerance=0.005)
+
             for i, msv_sample in enumerate(np.split(msv_sample_scans, scan_idxs, axis=1)):
+
+                mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
 
                 for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                     msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
 
-                    cos = CosineHungarian(tolerance=0.005)
-                    mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
                     mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
 
                     score = cos.pair(mms_sample, mms_ref)['score'].item()
@@ -1929,6 +1938,8 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
                      for i in range(rt_of_msv_sample.size-1)
                      if rt_of_msv_sample[i] != rt_of_msv_sample[i+1]]
 
+        cos = CosineHungarian(tolerance=0.005)
+
         for i, msv_sample in enumerate(np.split(msv_sample_scans, scan_idxs, axis=1)):
             current_best_score = None
             current_best_ref_idx = None
@@ -1936,13 +1947,13 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
             current_best_msv_ref = None
             current_best_rt = None
 
+            mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
+
             for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                 msv_ref = np.array(frag['mz_intensities']).T
 
                 msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, 0.005)
 
-                cos = CosineHungarian(tolerance=0.005)
-                mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
                 mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
 
                 score = cos.pair(mms_sample, mms_ref)['score'].item()
@@ -2194,11 +2205,52 @@ def load_msms_refs_file(refs_path, pre_query, query, ref_dtypes, ref_index):
     return msms_refs
 
 def convert_to_centroid(sample_df):
+
     max_peaks, _ = sp.peakdet(sample_df[1], 1000.0)
     if max_peaks.shape[0] > 0:
         idx = max_peaks[:, 0].astype(int).flatten()
         return sample_df[:, idx]
     return np.zeros((0, 0))
+
+def create_nonmatched_msms_hits(msms_data):
+
+    inchi_msms_hits = msms_data.copy()
+
+    inchi_msms_hits['database'] = np.nan
+    inchi_msms_hits['id'] = np.nan
+    inchi_msms_hits['adduct'] = ''
+    inchi_msms_hits['inchi_key'] = ''
+
+    inchi_msms_hits['score'] = msms_data['measured_precursor_intensity']
+    inchi_msms_hits['num_matches'] = 0
+    inchi_msms_hits['spectrum'] = [np.array([np.array([]), np.array([])])] * len(inchi_msms_hits)
+
+    return inchi_msms_hits
+
+def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
+                          msms_data: pd.DataFrame, msms_refs: pd.DataFrame) -> pd.DataFrame:
+
+    if inchi_key not in msms_refs['inchi_key'].tolist():
+        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data)
+
+        return nonmatched_msms_hits
+
+    filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
+    filtered_msms_refs = build_msms_refs_spectra(filtered_msms_refs)
+
+    filtered_msms_data = msms_data[msms_data['inchi_key']==inchi_key].reset_index(drop=True).drop(columns=['inchi_key', 'precursor_mz', 'name']).copy()
+
+    scores_matches = cos.matrix(filtered_msms_data.matchms_spectrum.tolist(),
+                                filtered_msms_refs.matchms_spectrum.tolist())
+
+    inchi_msms_hits = pd.merge(filtered_msms_data, filtered_msms_refs, how='cross')
+    inchi_msms_hits['score'] = scores_matches['score'].flatten()
+    inchi_msms_hits['num_matches'] = scores_matches['matches'].flatten()
+
+    inchi_msms_hits['precursor_ppm_error'] = (abs(inchi_msms_hits['measured_precursor_mz'] - inchi_msms_hits['precursor_mz']) / inchi_msms_hits['precursor_mz']) * 1000000
+    inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
+
+    return inchi_msms_hits
 
 def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre_query='database == "metatlas"',
                   query=None, ref_dtypes=None, ref_loc=None, ref_df=None, frag_mz_tolerance=0.005, ref_index=None,
@@ -2215,39 +2267,20 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre
         msms_refs = ref_df
 
     msms_data = ma_data.arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid)
+
     if not extra_time:
         msms_data = msms_data[(msms_data['msms_scan']>=msms_data['cid_rt_min']) | (msms_data['msms_scan']<=msms_data['cid_rt_max'])]
     else:
         msms_data = msms_data[(msms_data['msms_scan']>=msms_data['cid_rt_min']-extra_time) | (msms_data['msms_scan']<=msms_data['cid_rt_max']+extra_time)]
 
-    inchi_keys = set(msms_data.inchi_key.tolist())
+    data_inchi_keys = set(msms_data.inchi_key.tolist())
 
     cos = CosineHungarian(tolerance=frag_mz_tolerance)
 
     msms_hits = []
-    for inchi_key in tqdm(inchi_keys, unit='compound', disable=in_papermill()):
+    for inchi_key in tqdm(data_inchi_keys, unit='compound', disable=in_papermill()):
 
-        if inchi_key not in msms_refs['inchi_key'].tolist():
-            continue
-
-        filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
-        filtered_msms_refs = build_msms_refs_spectra(filtered_msms_refs)
-
-        filtered_msms_data = msms_data[msms_data['inchi_key']==inchi_key].reset_index(drop=True).drop(columns=['inchi_key']).copy()
-
-        scores_matches = cos.matrix(filtered_msms_data.matchms_spectrum.tolist(),
-                                    filtered_msms_refs.matchms_spectrum.tolist())
-
-        inchi_msms_hits = pd.merge(filtered_msms_data, filtered_msms_refs, how='cross')
-        inchi_msms_hits['score'] = scores_matches['score'].flatten()
-        inchi_msms_hits['num_matches'] = scores_matches['matches'].flatten()
-
-        inchi_msms_hits['precursor_ppm_error'] = (abs(inchi_msms_hits['measured_precursor_mz'] - inchi_msms_hits['precursor_mz']) / inchi_msms_hits['precursor_mz']) * 1000000
-        inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
-
-        if len(inchi_msms_hits) == 0:
-            inchi_msms_hits.loc[0] = filtered_msms_data.iloc[0]
-
+        inchi_msms_hits = get_hits_per_compound(cos, inchi_key, msms_data, msms_refs)
         msms_hits.append(inchi_msms_hits)
 
     msms_hits = pd.concat(msms_hits)
@@ -2256,7 +2289,7 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre
     msms_hits['msv_query_aligned'] = msv_queries_aligned
     msms_hits['msv_ref_aligned'] = msv_refs_aligned
 
-    return msms_hits[msms_hits_cols].set_index(['file_name', 'msms_scan', 'id'])
+    return msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
 
 def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, group='index', share_y=True, save=True, output_loc=None, short_names_df=None, short_names_header=None, polarity='', overwrite=False, max_cpus=1, suffix='', max_plots_per_page=30):
     bad_parameters = {"group": group != "index", "save": not save,
