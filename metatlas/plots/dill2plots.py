@@ -652,8 +652,7 @@ class adjust_rt_for_selected_compound(object):
 
     def create_radio_buttons(self, axes, labels, on_click_handler, radius, active_idx=0):
         buttons = RadioButtons(axes, labels, active=active_idx)
-        for circle in buttons.circles:
-            circle.set_radius(radius)
+        buttons.set_radio_props({'s':1600*radius, 'facecolor':'blue'})
         buttons.on_clicked(on_click_handler)
         return buttons
 
@@ -709,6 +708,11 @@ class adjust_rt_for_selected_compound(object):
                 self.mz_annot.set_visible(False)
                 self.fig.canvas.draw_idle()
 
+    def hide_radio_buttons(self):
+        self.peak_flag_radio.set_radio_props({'facecolor':'white'})
+        self.lin_log_radio.set_radio_props({'facecolor':'white'})
+        self.msms_flag_radio.set_radio_props({'facecolor':'white'})
+
     def update_plots(self):
         self.msms_zoom_factor = 1
         self.ax.cla()
@@ -717,6 +721,7 @@ class adjust_rt_for_selected_compound(object):
         self.rt_min_ax.cla()
         self.rt_max_ax.cla()
         self.y_scale_ax.cla()
+        self.hide_radio_buttons()
         self.set_plot_data()
 
     @log_errors(output_context=LOGGING_WIDGET)
