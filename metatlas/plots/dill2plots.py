@@ -541,10 +541,6 @@ class adjust_rt_for_selected_compound(object):
                                   within_tolerance(self.msms_hits['measured_precursor_mz'],
                                                    mz_theoretical, hits_mz_tolerance)]
 
-        import pickle
-        with open('inchi_key.pkl', 'wb') as handle:
-            pickle.dump(inchi_key, handle)
-
         self.hits = filtered if inchi_key is None else filtered[(filtered['inchi_key'] == inchi_key)]
 
     def msms_plot(self, font_scale=10.0):
@@ -2224,7 +2220,9 @@ def create_nonmatched_msms_hits(msms_data):
     inchi_msms_hits['database'] = np.nan
     inchi_msms_hits['id'] = np.nan
     inchi_msms_hits['adduct'] = ''
-    inchi_msms_hits['inchi_key'] = ''
+
+    if inchi_msms_hits['inchi_key'].isnull().all():
+        inchi_msms_hits['inchi_key'] = ''
 
     inchi_msms_hits['score'] = msms_data['measured_precursor_intensity']
     inchi_msms_hits['num_matches'] = 0
