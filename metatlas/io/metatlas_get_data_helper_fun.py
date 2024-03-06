@@ -20,7 +20,6 @@ from matchms import Spectrum
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import h5_query as h5q
 from metatlas.io import write_utils
-from metatlas.plots.dill2plots import convert_to_centroid
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
 
     msms_data = []
     for file_idx, filename in enumerate(file_names):
-        for compound_idx, compound_name in enumerate(compound_names):
+        for compound_idx in range(len(compound_names)):
 
             file_compound_data = metatlas_dataset[file_idx][compound_idx]
             if 'data' not in file_compound_data['data']['msms']:
@@ -80,8 +79,6 @@ def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
                 measured_precursor_intensity = file_compound_data['data']['msms']['data']['precursor_intensity'][scan_mask][0]
 
                 spectrum = np.array([mzs, intensities])
-                if do_centroid:
-                    spectrum = convert_to_centroid(spectrum)
                 matchms_spectrum = Spectrum(spectrum[0], spectrum[1], metadata={'precursor_mz':measured_precursor_mz})
 
                 msms_data.append({'file_name':filename, 'msms_scan':scan_rt,
