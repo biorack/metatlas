@@ -20,6 +20,7 @@ from matchms import Spectrum
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.io import h5_query as h5q
 from metatlas.io import write_utils
+from metatlas.plots.dill2plots import convert_to_centroid
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,9 @@ def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
 
             file_compound_data = metatlas_dataset[file_idx][compound_idx]
             if 'data' not in file_compound_data['data']['msms']:
+                continue
+
+            if 'rt' not in file_compound_data['data']['msms']['data']:
                 continue
 
             cid = file_compound_data['identification']
