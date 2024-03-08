@@ -2213,16 +2213,17 @@ def convert_to_centroid(sample_df):
         return sample_df[:, idx]
     return np.zeros((0, 0))
 
-def create_nonmatched_msms_hits(msms_data):
+def create_nonmatched_msms_hits(msms_data, inchi_key):
 
-    inchi_msms_hits = msms_data.copy()
+    if inchi_key is None:
+        inchi_msms_hits = msms_data[msms_data['inchi_key'].isnull()].reset_index(drop=True).copy()
+        inchi_msms_hits['inchi_key'] = ''
+    else:
+        inchi_msms_hits = msms_data[msms_data['inchi_key'] == inchi_key].reset_index(drop=True).copy()
 
     inchi_msms_hits['database'] = np.nan
     inchi_msms_hits['id'] = np.nan
     inchi_msms_hits['adduct'] = ''
-
-    if inchi_msms_hits['inchi_key'].isnull().all():
-        inchi_msms_hits['inchi_key'] = ''
 
     inchi_msms_hits['score'] = msms_data['measured_precursor_intensity']
     inchi_msms_hits['num_matches'] = 0
@@ -2234,7 +2235,7 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
                           msms_data: pd.DataFrame, msms_refs: pd.DataFrame) -> pd.DataFrame:
 
     if inchi_key not in msms_refs['inchi_key'].tolist():
-        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data)
+        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
 
         return nonmatched_msms_hits
 
