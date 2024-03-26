@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore", module="plotly")
 # home directory, you get a warning.
 from pymzml.run import Reader
 
-# from metatlas import __version__
+from metatlas import __version__
 
 DEBUG = False
 FORMAT_VERSION = 5
@@ -295,7 +295,7 @@ def _convert(mzml_reader, out_file=None, filter_easyic_signal=True, debug=None):
             table.copy(sortby='mz', newname=name + '_mz')
             table.cols.mz.remove_index()#             info_table.append([info])
         out_file.set_node_attr('/', 'format_version', FORMAT_VERSION)
-        out_file.set_node_attr('/', 'metatlas_version', "test")
+        out_file.set_node_attr('/', 'metatlas_version', __version__)
 
         if debug:
             sys.stdout.write('\nSaving file\n')
