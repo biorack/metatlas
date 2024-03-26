@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore", module="plotly")
 # home directory, you get a warning.
 from pymzml.run import Reader
 
-from metatlas import __version__
+# from metatlas import __version__
 
 DEBUG = False
 FORMAT_VERSION = 5
@@ -54,7 +54,6 @@ class MS2Data(MS1Data):
 #     precursor_intensity = tables.Float32Col(pos=6)
 #     collision_energy = tables.Float32Col(pos=7)
 
-
 def read_spectrum(spectrum):
     """Read a single spectrum
 
@@ -62,7 +61,7 @@ def read_spectrum(spectrum):
     ----------
     spectrum : mzML spectrum
         The mzML spectrum to parse.
-
+        
     Returns
     -------
     out : list of tuples
@@ -157,9 +156,8 @@ def mzml_to_df(in_file_name):
     return dict_of_lists #returns a dictionary of dataframes
 
 
-def mzml_to_hdf(in_file_name, out_file=None, debug=False):
-    """Converts in_file (mzml) to binary and stores it in out_file
-    """
+def mzml_to_hdf(in_file_name, out_file=None, debug=False, remove_easyic_signal=True):
+    """Converts in_file (mzml) to binary and stores it in out_file"""
     debug = debug or DEBUG
     if debug:
         sys.stdout.write("STATUS: Converting %s to %s (mzML to HDF)" %
@@ -200,10 +198,31 @@ def mzml_to_hdf(in_file_name, out_file=None, debug=False):
 
     return out_file
 
+def remove_easyic_signal(spectrum_data, easyic_mzs={1:202.07770, 0:202.07880}, mz_tolerance=0.001):
+    """Remove peaks from spectral data that match the internal calibrant m/z.
+    
+    Depending on Easy-IC method setting on modern Thermo Orbitrap Mass Spectrometers, it may be necessary
+    to remove the fluoranthene lock mass signal.
+    """
+    
+    targeted_mz = easyic_mzs[spectrum_data[0][3]]
 
+    cleaned_spectrum = []
+    for peak_data in spectrum_data:
+        
+        if abs(peak_data[0] - targeted_mz) > mz_tolerance:
+            cleaned_spectrum.append(peak_data)
+    
+    return cleaned_spectrum
 
-
-def _convert(mzml_reader, out_file=None,debug=None):
+def _convert(mzml_reader, out_file=None, filter_easyic_signal=True, debug=None):
+    """Convert and save mzML spectra to h5 file.
+    
+    Parameters
+    ----------
+    remove_easyic_signal : Bool
+        Whether or not to remove lock mass signal during conversion.
+    """
     if out_file is not None:
         FILTERS = tables.Filters(complib='blosc', complevel=1)
         out_file = tables.open_file(out_file, "w", filters=FILTERS)
@@ -238,6 +257,9 @@ def _convert(mzml_reader, out_file=None,debug=None):
 
         if not data:
             continue
+            
+        if filter_easyic_signal:
+            data = remove_easyic_signal(data)
 
 #         got_first = True
         if out_file is not None:
@@ -273,7 +295,7 @@ def _convert(mzml_reader, out_file=None,debug=None):
             table.copy(sortby='mz', newname=name + '_mz')
             table.cols.mz.remove_index()#             info_table.append([info])
         out_file.set_node_attr('/', 'format_version', FORMAT_VERSION)
-        out_file.set_node_attr('/', 'metatlas_version', __version__)
+        out_file.set_node_attr('/', 'metatlas_version', "test")
 
         if debug:
             sys.stdout.write('\nSaving file\n')
