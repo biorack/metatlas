@@ -49,7 +49,7 @@ def test_setup_file_slicing_parameters002(mocker, lcmsrun, metatlas_dataset_with
     assert all(isinstance(ele, dict) for ele in slicing_dicts)  ## Assert by type
     #assert slicing_dicts[0].get('lcmsrun') == filenames[0]  ## Assert by a value that's not explicitly passed
 
-def test_calculate_ms1_summary(df_container):
+def test_calculate_ms1_summary001(df_container):  ## Test with feature_filter on
 
     desired_key = 'ms1_pos'    
 
@@ -57,12 +57,25 @@ def test_calculate_ms1_summary(df_container):
     unfiltered_data['label'] = np.concatenate([np.array(np.repeat("Compound1", 37)), np.array(np.repeat("Compound2", 37))])  ## Fake two compounds
     unfiltered_data['in_feature'] = True
 
-    summary_df = feature_tools.calculate_ms1_summary(unfiltered_data)
+    summary_df = feature_tools.calculate_ms1_summary(unfiltered_data, feature_filter=True)
 
     assert summary_df.shape == (2,6)  ## MS1 data is split by compound only, resulting in two groups (rows in summary)
 
 
-def test_calculate_ms2_summary(df_container):
+def test_calculate_ms1_summary002(df_container):  ## Test with feature_filter off
+
+    desired_key = 'ms1_pos'    
+
+    unfiltered_data = df_container[desired_key]
+    unfiltered_data['label'] = np.concatenate([np.array(np.repeat("Compound1", 37)), np.array(np.repeat("Compound2", 37))])  ## Fake two compounds
+    unfiltered_data['in_feature'] = True
+
+    summary_df = feature_tools.calculate_ms1_summary(unfiltered_data, feature_filter=False)
+
+    assert summary_df.shape == (2,6)  ## MS1 data is split by compound only, resulting in two groups (rows in summary)
+
+
+def test_calculate_ms2_summary001(df_container):  ## Test with feature_filter on
 
     desired_key = 'ms2_pos'    
 
@@ -70,9 +83,23 @@ def test_calculate_ms2_summary(df_container):
     unfiltered_data['label'] = np.concatenate([np.array(np.repeat("Compound1", 4)), np.array(np.repeat("Compound2", 4))])  ## Fake two compounds
     unfiltered_data['in_feature'] = True
 
-    summary_df = feature_tools.calculate_ms2_summary(unfiltered_data)
+    summary_df = feature_tools.calculate_ms2_summary(unfiltered_data, feature_filter=True)
 
     assert summary_df.shape == (4,5)  ## MS2 df is split by compound and by rt, resulting in two groups of two (rows in summary)
+
+
+def test_calculate_ms2_summary002(df_container):  ## Test with feature_filter off
+
+    desired_key = 'ms2_pos'    
+
+    unfiltered_data = df_container[desired_key]
+    unfiltered_data['label'] = np.concatenate([np.array(np.repeat("Compound1", 4)), np.array(np.repeat("Compound2", 4))])  ## Fake two compounds
+    unfiltered_data['in_feature'] = True
+
+    summary_df = feature_tools.calculate_ms2_summary(unfiltered_data, feature_filter=False)
+
+    assert summary_df.shape == (4,5)  ## MS2 df is split by compound and by rt, resulting in two groups of two (rows in summary)
+
 
 def test_map_mzgroups_to_data(metatlas_dataset_with_2_cids, eic):
     

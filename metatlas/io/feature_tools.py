@@ -343,9 +343,10 @@ def get_atlas_data_from_file(filename,atlas,desired_key='ms1_pos'):#,bundle=True
         return df.reset_index(drop=True)
 
 
-def calculate_ms1_summary(df):
+def calculate_ms1_summary(df, feature_filter=True):
     """
     Calculate summary properties for features from MS1 data
+    Use feature_filter=False to keep unmatched data
     """
 
     summary = {'label': [],
@@ -355,7 +356,15 @@ def calculate_ms1_summary(df):
                'mz_centroid':[],
                'rt_peak':[]}
     
-    for label_group, label_data in df[df['in_feature']==True].groupby('label'):
+    if 'label' not in df:
+
+        df['label'] = "Untitled"
+        
+    if(feature_filter == True):
+
+        df = df[df['in_feature']==True]
+
+    for label_group, label_data in df.groupby('label'):
 
         summary['label'].append(label_group)
         summary['num_datapoints'].append(label_data['i'].count())
@@ -368,9 +377,10 @@ def calculate_ms1_summary(df):
     return pd.DataFrame(summary)
 
 
-def calculate_ms2_summary(df):
+def calculate_ms2_summary(df, feature_filter=True):
     """
     Calculate summary properties for features from MS2 data
+    Use feature_filter=False to keep unmatched data
     """
     
     spectra = {'label':[], 
@@ -379,7 +389,15 @@ def calculate_ms2_summary(df):
                'precursor_mz':[],
                'precursor_peak_height':[]}
     
-    for label_group, label_data in df[df['in_feature']==True].groupby('label'):
+    if 'label' not in df:
+
+        df['label'] = "Untitled"
+
+    if(feature_filter == True):
+
+        df = df[df['in_feature']==True]
+
+    for label_group, label_data in df.groupby('label'):
                 
         for rt_group, rt_data in pd.DataFrame(label_data).groupby('rt'):
             
@@ -430,7 +448,7 @@ def get_data(input_data,return_data=False,save_file=True):
         with pd.HDFStore(input_data['outfile'],mode='a',complib='zlib',complevel=9) as f:
             f.put('ms1_data',d,data_columns=True)
 
-    d = calculate_ms1_summary(d).reset_index()
+    d = calculate_ms1_summary(d, feature_filter=True).reset_index()
 
     if d.shape[0]==0: #there isn't any data!
         for c in ['num_datapoints','peak_area','peak_height','mz_centroid','rt_peak']:
