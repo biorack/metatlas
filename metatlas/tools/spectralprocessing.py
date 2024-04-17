@@ -542,6 +542,7 @@ def match_peaks(spec1, spec2, frag_mz_tolerance):
 
     return matched_peaks
 
+
 def hungarian_assignment(matched_peaks, matrix_size):
 
     cost_matrix = np.zeros((matrix_size, matrix_size))
@@ -554,6 +555,7 @@ def hungarian_assignment(matched_peaks, matrix_size):
     filtered_coords = [coord[0] for coord in matched_peaks if coord[0] in optimized_coords]
 
     return filtered_coords
+
 
 def link_alligned_spectra(spec1, spec2, filtered_coords):
 
@@ -581,6 +583,7 @@ def link_alligned_spectra(spec1, spec2, filtered_coords):
 
     return msv_spec1_aligned, msv_spec2_aligned
 
+
 def pairwise_align_ms_vectors(msv_query, msv_ref, frag_mz_tolerance):
 
     matched_peaks = match_peaks(msv_query, msv_ref, frag_mz_tolerance)
@@ -588,6 +591,7 @@ def pairwise_align_ms_vectors(msv_query, msv_ref, frag_mz_tolerance):
     msv_query_aligned, msv_ref_aligned = link_alligned_spectra(msv_query, msv_ref, filtered_coords)
 
     return msv_query_aligned, msv_ref_aligned
+
 
 def align_all_ms_vectors(msv_pairs, frag_tolerance):
     all_queries = []
@@ -600,6 +604,7 @@ def align_all_ms_vectors(msv_pairs, frag_tolerance):
         all_refs.append(msv_ref_aligned)
 
     return all_queries, all_refs
+
 
 def peakdet(v, delta, x = None):
     """
