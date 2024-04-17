@@ -41,7 +41,7 @@ def create_msms_dataframe(df):
     grouped.drop(['mz','i'], axis=1, inplace=True)
     return grouped
 
-def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
+def arrange_ms2_data(metatlas_dataset, do_centroid):
 
     file_names = get_file_names(metatlas_dataset)
     compound_names = get_compound_names(metatlas_dataset)[0]
@@ -59,13 +59,14 @@ def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
 
             cid = file_compound_data['identification']
             cid_name = cid.compound[0].name
+            adduct = cid.mz_references[0].adduct
             precursor_mz = cid.mz_references[0].mz
             mz_tolerance = cid.mz_references[0].mz_tolerance
             rt_min = cid.rt_references[0].rt_min
             rt_max = cid.rt_references[0].rt_max
 
             scan_rts = np.unique(file_compound_data['data']['msms']['data']['rt'])
-            if scan_rts.shape[0] < 1 and not keep_nonmatches:
+            if scan_rts.shape[0] < 1:
                 continue
 
             inchi_key = file_compound_data['identification'].compound[0].inchi_key
@@ -81,11 +82,11 @@ def arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid):
                 spectrum = np.array([mzs, intensities])
                 matchms_spectrum = Spectrum(spectrum[0], spectrum[1], metadata={'precursor_mz':measured_precursor_mz})
 
-                msms_data.append({'file_name':filename, 'msms_scan':scan_rt,
-                                  'measured_precursor_mz':measured_precursor_mz, 'measured_precursor_intensity':measured_precursor_intensity,
-                                  'precursor_mz':precursor_mz, 'name':cid_name, 'inchi_key':inchi_key, 'matchms_spectrum':matchms_spectrum,
-                                  'query_spectrum':spectrum, 'cid_pmz_tolerance':mz_tolerance,
-                                  'cid_rt_min':rt_min, 'cid_rt_max':rt_max})
+                msms_data.append({'file_name': filename, 'msms_scan': scan_rt,
+                                  'measured_precursor_mz': measured_precursor_mz, 'measured_precursor_intensity': measured_precursor_intensity,
+                                  'precursor_mz': precursor_mz, 'name': cid_name, 'adduct': adduct, 'inchi_key': inchi_key,
+                                  'matchms_spectrum': matchms_spectrum, 'query_spectrum': spectrum, 'cid_pmz_tolerance': mz_tolerance,
+                                  'cid_rt_min': rt_min, 'cid_rt_max': rt_max})
 
     return pd.DataFrame(msms_data)
 

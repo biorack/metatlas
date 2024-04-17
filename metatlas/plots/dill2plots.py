@@ -2242,12 +2242,12 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
     filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
     filtered_msms_refs = build_msms_refs_spectra(filtered_msms_refs)
 
-    filtered_msms_data = msms_data[msms_data['inchi_key']==inchi_key].reset_index(drop=True).drop(columns=['inchi_key', 'precursor_mz', 'name']).copy()
+    filtered_msms_data = msms_data[msms_data['inchi_key']==inchi_key].reset_index(drop=True).drop(columns=['inchi_key', 'precursor_mz']).copy()
 
     scores_matches = cos.matrix(filtered_msms_data.matchms_spectrum.tolist(),
                                 filtered_msms_refs.matchms_spectrum.tolist())
 
-    inchi_msms_hits = pd.merge(filtered_msms_data, filtered_msms_refs, how='cross')
+    inchi_msms_hits = pd.merge(filtered_msms_data, filtered_msms_refs.drop(columns=['name', 'adduct']), how='cross')
     inchi_msms_hits['score'] = scores_matches['score'].flatten()
     inchi_msms_hits['num_matches'] = scores_matches['matches'].flatten()
 
@@ -2270,12 +2270,19 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre
     else:
         msms_refs = ref_df
 
-    msms_data = ma_data.arrange_ms2_data(metatlas_dataset, keep_nonmatches, do_centroid)
+    msms_data = ma_data.arrange_ms2_data(metatlas_dataset, do_centroid)
 
     if not extra_time:
-        msms_data = msms_data[(msms_data['msms_scan']>=msms_data['cid_rt_min']) | (msms_data['msms_scan']<=msms_data['cid_rt_max'])]
+        cid_rt_min = msms_data['cid_rt_min']
+        cid_rt_max = msms_data['cid_rt_max']
     else:
-        msms_data = msms_data[(msms_data['msms_scan']>=msms_data['cid_rt_min']-extra_time) | (msms_data['msms_scan']<=msms_data['cid_rt_max']+extra_time)]
+        cid_rt_min = msms_data['cid_rt_min'] - extra_time
+        cid_rt_max = msms_data['cid_rt_max'] + extra_time
+
+    msms_data = msms_data[(msms_data['msms_scan']>=cid_rt_min) & (msms_data['msms_scan']<=cid_rt_max)]
+
+    if len(msms_data) == 0:
+        return pd.DataFrame(columns=msms_hits_cols).set_index(['database', 'id', 'file_name', 'msms_scan'])
 
     data_inchi_keys = set(msms_data.inchi_key.tolist())
 
@@ -2292,6 +2299,9 @@ def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre
     msv_queries_aligned, msv_refs_aligned = sp.align_all_ms_vectors(zip(msms_hits['query_spectrum'].tolist(), msms_hits['spectrum'].tolist()), frag_tolerance=frag_mz_tolerance)
     msms_hits['msv_query_aligned'] = msv_queries_aligned
     msms_hits['msv_ref_aligned'] = msv_refs_aligned
+
+    if not keep_nonmatches:
+        msms_hits.dropna(subset=['database', 'id'], how='all', inplace=True)
 
     return msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
 
