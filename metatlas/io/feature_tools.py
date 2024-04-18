@@ -16,9 +16,6 @@ from six.moves import range
 from six.moves import zip
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
-"""
-
-"""
 
 # SUMMARY OF TIMING AND MEMORY TESTING AT NERSC
 # 10 threads
@@ -84,6 +81,7 @@ def setup_file_slicing_parameters(atlas,filenames,extra_time=0.1,ppm_tolerance=2
     """
     if not 'label' in atlas.columns:
         atlas['label'] = list(range(atlas.shape[0]))
+
     atlas['extra_time'] = extra_time
     atlas['ppm_tolerance'] = ppm_tolerance
 
@@ -178,52 +176,59 @@ def group_consecutive(data,stepsize=10.0,do_ppm=True):
     else:
         print('not a numpy array. convert it and sort it first')
 
+
 def map_mzgroups_to_data(mz_atlas,mz_group_indices,mz_data):
     """
+    Inputs:
     mz_atlas: m/z values from atlas
     mz_group_indices: integer index from "group_consecutive"
     mz_data: m/z values from raw data
 
+    Outputs: 
+    Index list mapping the raw features to atlas feature by m/z
     """
-    from scipy import interpolate
-
     f = interpolate.interp1d(mz_atlas,np.arange(mz_atlas.size),kind='nearest',bounds_error=False,fill_value='extrapolate') #get indices of all mz values in the atlas
     idx = f(mz_data)   # iterpolate to find the nearest mz in the data for each mz in an atlas
     idx = idx.astype('int')
-#     d = 1e6#np.abs(mz_data - mz_atlas[idx]) / mz_data * 1.0e6
-#     output_mat = np.column_stack((d,))
-    return mz_group_indices[idx]#output_mat
+
+    return mz_group_indices[idx]
+
 
 def df_container_from_metatlas_file(filename,desired_key=None):
     """
+    Inputs:
+    filename: hdf filename from which to extract desired key
+    desired_key: optional key, typically "ms1_pos", "ms2_neg", etc.
 
+    Outputs:
+    df_container: a dataframe holding the information for the desired key (e.g., m/z, rt, intensity)
     """
-#     data_df = pd.DataFrame()
-
-    pd_h5_file = pd.HDFStore(filename, 'r')
-
-    keys = list(pd_h5_file.keys())
-    pd_h5_file.close()
     df_container = {}
+
     if desired_key is not None:
+
         return pd.read_hdf(filename,desired_key)
+    
+    ## This does not work currently!!
     else:
+
+        pd_h5_file = pd.HDFStore(filename, 'r')
+        keys = list(pd_h5_file.keys())
+        pd_h5_file.close()
+
         for k in keys:
             if ('ms' in k) and not ('_mz' in k):
                 new_df = pd.read_hdf(filename,k)
                 df_container[k[1:]] = new_df
+
     return df_container
-
-
-
 
 
 
 def group_duplicates(df,group_col,make_string=False,precision={'i':0,'mz':4,'rt':2}):
     """
-    takes in a list of grouping columns and turns the rest into arrays
+    Currently unused: takes in a list of grouping columns and turns the rest into arrays
     """
-
     all_cols = np.asarray(df.columns)
     #get the index of the grouping term as array
     idx_group = np.argwhere(all_cols == group_col).flatten()
@@ -269,44 +274,67 @@ def group_duplicates(df,group_col,make_string=False,precision={'i':0,'mz':4,'rt'
     return df2
 
 
+def filter_raw_data_using_atlas(atlas, msdata):
+    """
+    Inputs:
+    atlas: a dataframe containing atlas data with group indices
+    msdatea: a dataframe containing lcmsrun data with group indices
+    
+    Outputs:
+    merged_data_filtered: a dataframe with the same rows as input merged_data but unmatched features are removed
+    """
+
+    merged_data = pd.merge(atlas,msdata,left_on='group_index',right_on='group_index',how='outer',suffixes=('_atlas','_data'))
+
+    #grab all datapoints including "extra"
+    mz_condition = abs(merged_data['mz_data']-merged_data['mz_atlas'])/merged_data['mz_atlas']*1e6<merged_data['ppm_tolerance']
+    rt_min_condition = merged_data['rt']>=(merged_data['rt_min']-merged_data['extra_time'])
+    rt_max_condition = merged_data['rt']<=(merged_data['rt_max']+merged_data['extra_time'])
+    merged_data_filtered = merged_data[(mz_condition) & (rt_min_condition) & (rt_max_condition)]
+    merged_data_filtered['in_feature'] = True
+
+    #label datapoints that are within the bounds of the feature vs "extra"
+    if merged_data_filtered['extra_time'].max()>0.0:
+        cond_rt = (merged_data_filtered['rt']<merged_data_filtered['rt_min']) | (merged_data_filtered['rt']>merged_data_filtered['rt_max'])
+        merged_data_filtered.loc[cond_rt,'in_feature'] = False
+
+    #above, the df has mz_data and mz_atlas.  we don't need to differentiate anymore so:
+    merged_data_filtered = merged_data_filtered.rename(columns={'mz_data':'mz'})
+
+    return merged_data_filtered
 
 
 def get_atlas_data_from_file(filename,atlas,desired_key='ms1_pos'):#,bundle=True,make_string=False):
+    """
+    Inputs:
+    filename: hdf filename containing raw data
+    atlas: atlas to which raw data will be mapped (after running group_consecutive() to get group_index column)
+    desired_key: ms mode
+
+    Outputs:
+    Dataframe of new raw data where unmatched features have been dropped
+
+    """
     msdata = df_container_from_metatlas_file(filename,desired_key=desired_key)
+
     if 'ms2' in desired_key:
         # throw away all the intensity duplication here to make merging faster
         # this has the expense of having to remerge it later.
         msdata = msdata[['rt','precursor_MZ']].drop_duplicates('rt')
         msdata = msdata.rename(columns={'precursor_MZ':'mz'})
 
-    g = map_mzgroups_to_data(atlas['mz'].values[:],
+    msdata['group_index'] = map_mzgroups_to_data(atlas['mz'].values[:],
                                atlas['group_index'].values[:],
                                msdata['mz'].values[:])
-    msdata['group_index'] = g#[:,1]
-#     msdata['group_index_ppm'] = g[:,0]
-    df = pd.merge(atlas,msdata,left_on='group_index',right_on='group_index',how='outer',suffixes=('_atlas','_data'))
+    
+    df = filter_raw_data_using_atlas(atlas, msdata)
 
-    #grab all datapoints including "extra"
-    mz_condition = abs(df['mz_data']-df['mz_atlas'])/df['mz_atlas']*1e6<df['ppm_tolerance']
-    rt_min_condition = df['rt']>=(df['rt_min']-df['extra_time'])
-    rt_max_condition = df['rt']<=(df['rt_max']+df['extra_time'])
-    df = df[(mz_condition) & (rt_min_condition) & (rt_max_condition)]
-
-    #label datapoints that are within the bounds of the feature vs "extra"
-    df['in_feature'] = True
-    if df['extra_time'].max()>0.0:
-        cond_rt = (df['rt']<df['rt_min']) | (df['rt']>df['rt_max'])
-        df.loc[cond_rt,'in_feature'] = False
-
-    #above, the df has mz_data and mz_atlas.  we don't need to differentiate anymore so:
-    df = df.rename(columns={'mz_data':'mz'})
     if 'ms2' in desired_key:
         # keep in mind we don't have intensity or scan attributes
         df = df[['label','rt','in_feature']]
         # you've got to add it back in; so reload original file
         msdata = df_container_from_metatlas_file(filename,desired_key=desired_key)
-        # This will merge back into the MSMS data
-        # the missing intensity and scan attributes
+        # This will merge back into the MSMS data the missing intensity and scan attributes
         mcols = ['rt','i','mz','precursor_MZ','precursor_intensity','collision_energy']
         df = pd.merge(df,msdata[mcols],left_on='rt',right_on='rt',how='left')
         return df.reset_index(drop=True)
@@ -315,43 +343,59 @@ def get_atlas_data_from_file(filename,atlas,desired_key='ms1_pos'):#,bundle=True
         return df.reset_index(drop=True)
 
 
-def calculate_ms1_summary(row):
+def calculate_ms1_summary(df):
     """
-    Calculate summary properties for features from data
+    Calculate summary properties for features from MS1 data
     """
-    d = {}
-    #Before doing this make sure "in_feature"==True has already occured
-    d['num_datapoints'] = row['i'].count()
-    d['peak_area'] = row['i'].sum()
-    idx = row['i'].idxmax()
-    d['peak_height'] = row.loc[idx,'i']
-    d['mz_centroid'] = sum(row['i']*row['mz'])/d['peak_area']
-    d['rt_peak'] = row.loc[idx,'rt']
-    return pd.Series(d)
 
-# def calculate_ms1_summary(df):
-#     a = df[['label','rt','mz','i','in_feature']].values
-#     labels, row_pos = np.unique(a[:, 0], return_inverse=True) #these are feature labels
-#     rt, col_pos = np.unique(a[:, 1], return_inverse=True) #these are rt values
+    summary = {'label': [],
+               'num_datapoints':[], 
+               'peak_area':[], 
+               'peak_height':[], 
+               'mz_centroid':[],
+               'rt_peak':[]}
+    
+    for label_group, label_data in df[df['in_feature']==True].groupby('label'):
 
-#     pivot_table = np.zeros((len(labels), len(rt),3), dtype=float)
-#     pivot_table[row_pos, col_pos] = a[:, [2,3,4]]
-#     eic = pd.DataFrame(index=labels,data=pivot_table[:,:,1],columns=rt)
-#     emzc = pd.DataFrame(index=labels,data=pivot_table[:,:,0],columns=rt)
-#     efeaturec = pd.DataFrame(index=labels,data=pivot_table[:,:,2],columns=rt)
-#     in_feature = efeaturec.values.astype(int)
-#     intensity = np.multiply(eic.values,in_feature)
-#     mz = np.multiply(emzc.values,in_feature)
-#     rt = np.asarray(eic.columns)
-#     labels = eic.index.tolist()
-#     idx_max = np.argmax(intensity,axis=1)
-#     df = pd.DataFrame(index=labels)
-#     df['num_datapoints']=in_feature.sum(axis=1)
-#     df['peak_area']=intensity.sum(axis=1)
-#     df['peak_height']=np.diag(intensity[:,idx_max]) #I shouldn't have to do this and must be doing numpy slicing wrong!
-#     df['mz_centroid']=np.divide(np.sum(np.multiply(mz,intensity),axis=1),intensity.sum(axis=1))
-#     df['rt_peak']=rt[idx_max]
-#     return df
+        summary['label'].append(label_group)
+        summary['num_datapoints'].append(label_data['i'].count())
+        summary['peak_area'].append(label_data['i'].sum())
+        idx = label_data['i'].idxmax()
+        summary['peak_height'].append(label_data.loc[idx,'i'])
+        summary['mz_centroid'].append(sum(label_data['i']*label_data['mz'])/float(summary['peak_area'][0]))
+        summary['rt_peak'].append(label_data.loc[idx,'rt'])
+
+    return pd.DataFrame(summary)
+
+
+def calculate_ms2_summary(df):
+    """
+    Calculate summary properties for features from MS2 data
+    """
+    
+    spectra = {'label':[], 
+               'spectrum':[], 
+               'rt':[], 
+               'precursor_mz':[],
+               'precursor_peak_height':[]}
+    
+    for label_group, label_data in df[df['in_feature']==True].groupby('label'):
+                
+        for rt_group, rt_data in pd.DataFrame(label_data).groupby('rt'):
+            
+            mz = np.array(rt_data.mz.tolist())
+            i = np.array(rt_data.i.tolist())
+        
+            mzi = np.array([mz, i])
+        
+            spectra['label'].append(label_group)
+            spectra['spectrum'].append(mzi)
+            spectra['rt'].append(rt_group)
+            spectra['precursor_mz'].append(rt_data.precursor_MZ.median())
+            spectra['precursor_peak_height'].append(rt_data.precursor_intensity.median())
+        
+    return pd.DataFrame(spectra)
+
 
 def get_data(input_data,return_data=False,save_file=True):
     """
@@ -360,6 +404,7 @@ def get_data(input_data,return_data=False,save_file=True):
     'outfile':outfile, #the hdf5 container to store the results
     'lcmsrun':new_file, #the hdf5 file corresponding to an lcms run
     'atlas':atlas, #the atlas dataframe containing minimally: [mz, rt_min,rt_max,rt_peak)]
+    'polarity':polarity #the polarity str, 'negative' or 'positive'
     'ppm_tolerance':ppm_tolerance, #ppm tolerance in m/z
     'extra_time':extra_time} #time to add to the collected data beyond rt_min and rt_max
 
@@ -373,8 +418,11 @@ def get_data(input_data,return_data=False,save_file=True):
     Returns a dictionary
     """
     out_data = {} #setup a container to store any data to return to the user otherwise save it to file
+
     polarity_short_string = input_data['polarity'][:3]
+
     d = get_atlas_data_from_file(input_data['lcmsrun'],input_data['atlas'],desired_key='ms1_%s'%polarity_short_string)#,bundle=True,make_string=True)
+
     if return_data is True:
         out_data['atlas'] = input_data['atlas']
         out_data['ms1_data'] = d
@@ -382,7 +430,8 @@ def get_data(input_data,return_data=False,save_file=True):
         with pd.HDFStore(input_data['outfile'],mode='a',complib='zlib',complevel=9) as f:
             f.put('ms1_data',d,data_columns=True)
 
-    d = d[d['in_feature']==True].groupby('label').apply(calculate_ms1_summary).reset_index()
+    d = calculate_ms1_summary(d).reset_index()
+
     if d.shape[0]==0: #there isn't any data!
         for c in ['num_datapoints','peak_area','peak_height','mz_centroid','rt_peak']:
             d[c] = 0
@@ -393,8 +442,8 @@ def get_data(input_data,return_data=False,save_file=True):
         with pd.HDFStore(input_data['outfile'],mode='a',complib='zlib',complevel=9) as f:
             f.put('ms1_summary',d,data_columns=True)
 
-#     input_data['atlas']['extra_time'] = 0.0 # set extratime here to be zero for msms getting
     d = get_atlas_data_from_file(input_data['lcmsrun'],input_data['atlas'],desired_key='ms2_%s'%polarity_short_string)#,bundle=True,make_string=True)
+    
     if return_data is True:
         out_data['ms2_data'] = d
     if save_file is True:
