@@ -8,7 +8,7 @@ import warnings
 
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence, Sized, Union
+from typing import Callable, List, Optional, Sequence, Sized, Union, Dict
 from enum import Enum
 
 from metatlas.datastructures import metatlas_objects as metob
@@ -65,6 +65,8 @@ from matchms.similarity import CosineHungarian
 from matchms import Spectrum
 
 logger = logging.getLogger(__name__)
+
+MetatlasDataset = List[List[Any]]  # avoiding a circular import
 
 ADDUCT_INFO = {'[2M+H]': {'charge': '1',
               'color': '#fabebe',
@@ -2179,14 +2181,17 @@ def plot_score_and_ref_file(ax, score, rt, ref):
         fontsize=2,
         transform=ax.transAxes)
 
-def build_msms_refs_spectra(msms_refs):
+def build_msms_refs_spectra(msms_refs: pd.DataFrame) -> pd.DataFrame:
+    """Converts MS2 spectral arrays from strings to numpy arrays and creates MatchMS spectra."""
 
     msms_refs['spectrum'] = msms_refs['spectrum'].apply(lambda s: np.array(json.loads(s)))
     msms_refs['matchms_spectrum'] = msms_refs.apply(lambda s: Spectrum(s.spectrum[0], s.spectrum[1], metadata={'precursor_mz':s.precursor_mz}), axis=1)
 
     return msms_refs
 
-def load_msms_refs_file(refs_path, pre_query, query, ref_dtypes, ref_index):
+def load_msms_refs_file(refs_path: str, pre_query: str, query: str,
+                        ref_dtypes: Dict[str, Type[Any]], ref_index: str | List[str]) -> pd.DataFrame:
+    """Load MSMS refs from file path."""
 
     if ref_dtypes is None:
         ref_dtypes = {'database': str, 'id': str, 'name': str,
@@ -2213,7 +2218,13 @@ def convert_to_centroid(sample_df):
         return sample_df[:, idx]
     return np.zeros((0, 0))
 
-def create_nonmatched_msms_hits(msms_data, inchi_key):
+def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str) -> pd.DataFrame:
+    """
+    Create MSMS hits DataFrame with no corresponding match in MSMS refs.
+
+    If there is no InChi Key in the atlas (compound identifications) for a particular compound,
+    Setting inchi_key to an empty string is necessary for correct plotting.
+    """
 
     if inchi_key is None:
         inchi_msms_hits = msms_data[msms_data['inchi_key'].isnull()].reset_index(drop=True).copy()
@@ -2233,6 +2244,11 @@ def create_nonmatched_msms_hits(msms_data, inchi_key):
 
 def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
                           msms_data: pd.DataFrame, msms_refs: pd.DataFrame) -> pd.DataFrame:
+    """
+    Get MSMS hits for an individual InChiKey.
+
+    If no key is given, or it isn't present in the MSMS refs, create nonmatched dummy hits DataFrame.
+    """
 
     if inchi_key not in msms_refs['inchi_key'].tolist():
         nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
@@ -2256,9 +2272,32 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
 
     return inchi_msms_hits
 
-def get_msms_hits(metatlas_dataset, extra_time=False, keep_nonmatches=False, pre_query='database == "metatlas"',
-                  query=None, ref_dtypes=None, ref_loc=None, ref_df=None, frag_mz_tolerance=0.005, ref_index=None,
-                  do_centroid=False, resolve_by=None):
+def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = False, keep_nonmatches: bool = False,
+                  pre_query: str= 'database == "metatlas"', query: str | None = None, ref_dtypes: Dict[str, Type[Any]] | None = None,
+                  ref_loc: str | None = None, ref_df: pd.DataFrame | None = None, frag_mz_tolerance: float = 0.005,
+                  ref_index: List[str] or str or None = None, do_centroid: bool = False, resolve_by: str | None = None) -> pd.DataFrame:
+    """
+    Get MSMS Hits from metatlas dataset and MSMS refs.
+
+    Input:
+        Metatlas Dataset
+        MSMS refs path or DataFrame
+    Parameters:
+        extra_time: If float instead of False, extra time will be added to the rt_min and max set in the atlas
+        keep_nonmatches: Whether or not to keep MSMS hits that haven't matched any spectra in the MSMS refs file
+        pre_query: DataFrame query applied after reading in the MSMS refs file
+        query: Optional additional DataFrame query applied
+        ref_dtypes: Dtypes used when reading in MSMS refs file
+        ref_loc: path to MSMS refs file
+        ref_df: DataFrame of MSMS refs
+        frag_mz_tolerance: m/z tolerance used when matching peaks during scoring
+        ref_index: index to use in MSMS refs DataFrame
+        do_centroid: centroid data before scoring (currently not implemented)
+        resolve_by: how to resolve multiple matching peaks within tolerance (currently not implemented)
+
+    Output:
+        MSMS hits DataFrame with scores, aligned spectra for plotting, and metadata
+    """
 
     msms_hits_cols = ['database', 'id', 'file_name', 'msms_scan', 'score', 'num_matches',
                      'msv_query_aligned', 'msv_ref_aligned', 'name', 'adduct', 'inchi_key',

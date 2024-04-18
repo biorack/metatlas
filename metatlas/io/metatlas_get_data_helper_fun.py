@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import six
 import tables
+from typing import List, Any
 from matchms import Spectrum
 
 from metatlas.datastructures import metatlas_objects as metob
@@ -22,6 +23,8 @@ from metatlas.io import h5_query as h5q
 from metatlas.io import write_utils
 
 logger = logging.getLogger(__name__)
+
+MetatlasDataset = List[List[Any]]  # avoiding a circular import
 
 
 def create_msms_dataframe(df):
@@ -41,7 +44,11 @@ def create_msms_dataframe(df):
     grouped.drop(['mz','i'], axis=1, inplace=True)
     return grouped
 
-def arrange_ms2_data(metatlas_dataset, do_centroid):
+
+def arrange_ms2_data(metatlas_dataset: MetatlasDataset, do_centroid: bool) -> pd.DataFrame:
+    """
+    Reformat MS2 data in metatlas dataset for efficient scoring.
+    """
 
     file_names = get_file_names(metatlas_dataset)
     compound_names = get_compound_names(metatlas_dataset)[0]
@@ -73,14 +80,14 @@ def arrange_ms2_data(metatlas_dataset, do_centroid):
 
             for scan_rt in scan_rts:
 
-                scan_mask = file_compound_data['data']['msms']['data']['rt']==scan_rt
+                scan_mask = file_compound_data['data']['msms']['data']['rt'] == scan_rt
                 mzs = file_compound_data['data']['msms']['data']['mz'][scan_mask]
                 intensities = file_compound_data['data']['msms']['data']['i'][scan_mask]
                 measured_precursor_mz = file_compound_data['data']['msms']['data']['precursor_MZ'][scan_mask][0]
                 measured_precursor_intensity = file_compound_data['data']['msms']['data']['precursor_intensity'][scan_mask][0]
 
                 spectrum = np.array([mzs, intensities])
-                matchms_spectrum = Spectrum(spectrum[0], spectrum[1], metadata={'precursor_mz':measured_precursor_mz})
+                matchms_spectrum = Spectrum(spectrum[0], spectrum[1], metadata={'precursor_mz': measured_precursor_mz})
 
                 msms_data.append({'file_name': filename, 'msms_scan': scan_rt,
                                   'measured_precursor_mz': measured_precursor_mz, 'measured_precursor_intensity': measured_precursor_intensity,
@@ -89,6 +96,7 @@ def arrange_ms2_data(metatlas_dataset, do_centroid):
                                   'cid_rt_min': rt_min, 'cid_rt_max': rt_max})
 
     return pd.DataFrame(msms_data)
+
 
 def compare_EIC_to_BPC_for_file(metatlas_dataset,file_index,yscale = 'linear'):
     """

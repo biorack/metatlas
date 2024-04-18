@@ -13,7 +13,8 @@ except:
     from numpy.fft import fft,ifft
 
 
-
+from typing import List, Tuple, TypeAlias, Any
+import numpy.typing as npt
 import pandas as pd
 from matplotlib import pyplot as plt
 from six.moves import range
@@ -21,6 +22,12 @@ from six.moves import zip
 
 # mass differences ranked by commonality in biochemical databases
 mass_differences = pd.DataFrame([{"formula":"Same","mass":0.0,"rank":0},{"formula":"+O","mass":15.99491500,"rank":1.00000000},{"formula":"+H 2","mass":2.01565000,"rank":2.00000000},{"formula":"+H 2+O","mass":18.01056500,"rank":3.00000000},{"formula":"+H 2+C","mass":14.01565000,"rank":4.00000000},{"formula":"+H 2+C+O","mass":30.01056500,"rank":5.00000000},{"formula":"+H 8+C 5","mass":68.06260000,"rank":6.00000000},{"formula":"+O-H 2","mass":13.97926500,"rank":7.00000000},{"formula":"+H12+C 9-O 6","mass":24.12441000,"rank":8.00000000},{"formula":"+C","mass":12.00000000,"rank":9.00000000},{"formula":"+H10+C 6+O 5","mass":162.05282500,"rank":10.00000000},{"formula":"+C+O","mass":27.99491500,"rank":11.00000000},{"formula":"+O-H 3","mass":12.97144000,"rank":12.00000000},{"formula":"+O-H 2-C","mass":1.97926500,"rank":13.00000000},{"formula":"+O-H","mass":14.98709000,"rank":14.00000000},{"formula":"+O 2","mass":31.98983000,"rank":15.00000000},{"formula":"+H 4+C 2","mass":28.03130000,"rank":16.00000000},{"formula":"+H 8+C 5-O","mass":52.06768500,"rank":17.00000000},{"formula":"+H 4","mass":4.03130000,"rank":18.00000000},{"formula":"+O 2-H 3","mass":28.96635500,"rank":19.00000000},{"formula":"+O 3+P-H","mass":77.95068300,"rank":20.00000000},{"formula":"+H 6+C 5-O","mass":50.05203500,"rank":21.00000000},{"formula":"+H 2+C 2","mass":26.01565000,"rank":22.00000000},{"formula":"+C+O 2-H","mass":42.98200500,"rank":23.00000000},{"formula":"+H 4+C","mass":16.03130000,"rank":24.00000000},{"formula":"+H 2+C 2+O","mass":42.01056500,"rank":25.00000000},{"formula":"+O 2-H","mass":30.98200500,"rank":26.00000000},{"formula":"+H12+C 9-O 5","mass":40.11932500,"rank":27.00000000},{"formula":"+H 4+C 2+O","mass":44.02621500,"rank":28.00000000},{"formula":"+O-C","mass":3.99491500,"rank":29.00000000},{"formula":"+H 4+C 2-O","mass":12.03638500,"rank":30.00000000},{"formula":"+H26+C15+O","mass":222.19836500,"rank":31.00000000},{"formula":"+C 2","mass":24.00000000,"rank":32.00000000},{"formula":"+O 9+P-H13-C 9","mass":53.82627300,"rank":33.00000000},{"formula":"+O 2-H 2","mass":29.97418000,"rank":34.00000000},{"formula":"+H 4+C+O","mass":32.02621500,"rank":35.00000000},{"formula":"+O11-H 2-C 3","mass":137.92841500,"rank":36.00000000},{"formula":"+H","mass":1.00782500,"rank":37.00000000},{"formula":"+O-H 4","mass":11.96361500,"rank":38.00000000},{"formula":"+H 2+C+O 2","mass":46.00548000,"rank":39.00000000},{"formula":"+H16+C10","mass":136.12520000,"rank":40.00000000},{"formula":"+H 4+O","mass":20.02621500,"rank":41.00000000},{"formula":"+H14+C10-O 5","mass":54.13497500,"rank":42.00000000},{"formula":"+C+O-H","mass":26.98709000,"rank":43.00000000},{"formula":"+C-H 2","mass":9.98435000,"rank":44.00000000},{"formula":"+O 5-H 4-C 4","mass":27.94327500,"rank":45.00000000},{"formula":"+H 2+C 2-O","mass":10.02073500,"rank":46.00000000},{"formula":"+H+O","mass":17.00274000,"rank":47.00000000},{"formula":"+H 8+C 5+O","mass":84.05751500,"rank":48.00000000},{"formula":"+H 3","mass":3.02347500,"rank":49.00000000},{"formula":"+H 2+O 2","mass":34.00548000,"rank":50.00000000}])
+
+
+# typing
+MS2Spectrum: TypeAlias = npt.NDArray[npt.NDArray[np.float64]]
+MS2MatchedPeaks: TypeAlias = List[Tuple[Tuple[int, int], float]]
+MS2Aligned = Tuple[npt.NDArray[np.NDArray[Any]], npt.NDArray[np.NDArray[Any]]]
 
 
 ################################################################################
@@ -530,7 +537,13 @@ def partition_nl_vectors(msv_1_precusor_mz, msv_2_precusor_mz, msv_1, msv_2, mz_
         mz_tolerance, resolve_by)
 
 
-def match_peaks(spec1, spec2, frag_mz_tolerance):
+def match_peaks(spec1: MS2Spectrum, spec2: MS2Spectrum, frag_mz_tolerance: float) -> MS2MatchedPeaks:
+    """
+    Match MS2 fragment peaks within m/z tolerance.
+
+    Outputs both the coordinates of the match in addition to the product of their matched intensities.
+    The product of matched intensities is maximized when choosing between two matched peaks within tolerance.
+    """
     matched_peaks = []
     for i in range(spec1.shape[1]):
         tolerance_filter = np.isclose(spec1[0][i], spec2[0], atol=frag_mz_tolerance)
@@ -543,7 +556,12 @@ def match_peaks(spec1, spec2, frag_mz_tolerance):
     return matched_peaks
 
 
-def hungarian_assignment(matched_peaks, matrix_size):
+def hungarian_assignment(matched_peaks: MS2MatchedPeaks, matrix_size: int) -> List[Tuple[int, int]]:
+    """
+    Filter matched peaks by maximizing the matched intensity product with the hungarian algorithm.
+
+    This approach is similarly implemented in MatchMS for reconciling multiple matched peaks within tolerance.
+    """
 
     cost_matrix = np.zeros((matrix_size, matrix_size))
     for match in matched_peaks:
@@ -557,7 +575,33 @@ def hungarian_assignment(matched_peaks, matrix_size):
     return filtered_coords
 
 
-def link_alligned_spectra(spec1, spec2, filtered_coords):
+def link_alligned_spectra(spec1: MS2Spectrum, spec2: MS2Spectrum,
+                          filtered_coords: List[Tuple[int, int]]) -> MS2Aligned:
+    """
+    Create linked and alligned MS2 spectra using filtered matching fragment indices.
+
+    The output objects from this function are used for generating mirror plots elswhere in the codebase.
+
+    Aligned and linked spectrum 1 is modeled as a numpy array with NaN values used as
+    placeholders for unmatched peaks from spectrum 2, followed by all peak data from spectrum 1.
+
+    Aligned and linked spectrum 2 is modeled as a numpy array with all unshared spectrum 2
+    peak data, followed by matched spectrum 2 m/zs with NaN values interspersed as placeholders.
+
+    Simple example:
+        # two shared peaks: 1 and 2
+        # two arrays, first for m/z values and second for intensities
+        spec1 = [[1, 2, 3, 4], [5, 5, 5, 10]]
+        spec2 = [[1, 2, 5, 6, 7], [5, 5, 5, 5, 10]]
+
+        # nan placeholders for 3 unmatched peaks from spec2
+        msv_spec1_aligned = [[nan, nan, nan, 1, 2, 3, 4],
+                             [nan, nan, nan, 5, 5, 5, 10]]
+        # peak values for 3 unmatched peak from spec2
+        # peak values for matched m/z, then nan for placeholder
+        msv_spec2_aligned = [[5, 6, 7, 1, 2, nan, nan],
+                             [5, 5, 10, 5, 5, nan, nan]]
+    """
 
     shared_spec1_idxs = [coord[0] for coord in filtered_coords]
     shared_spec2_idxs = [coord[1] for coord in filtered_coords]
@@ -584,7 +628,11 @@ def link_alligned_spectra(spec1, spec2, filtered_coords):
     return msv_spec1_aligned, msv_spec2_aligned
 
 
-def pairwise_align_ms_vectors(msv_query, msv_ref, frag_mz_tolerance):
+def pairwise_align_ms_vectors(msv_query: MS2Spectrum, msv_ref: MS2Spectrum,
+                              frag_mz_tolerance: float) -> MS2Aligned:
+    """
+    Generate linked and aligned spectra from MS2 spectral vectors.
+    """
 
     matched_peaks = match_peaks(msv_query, msv_ref, frag_mz_tolerance)
     filtered_coords = hungarian_assignment(matched_peaks, max(msv_query.shape[1], msv_ref.shape[1]))
@@ -593,7 +641,10 @@ def pairwise_align_ms_vectors(msv_query, msv_ref, frag_mz_tolerance):
     return msv_query_aligned, msv_ref_aligned
 
 
-def align_all_ms_vectors(msv_pairs, frag_tolerance):
+def align_all_ms_vectors(msv_pairs: Tuple[MS2Spectrum, MS2Spectrum], frag_tolerance: float) -> List[MS2Aligned]:
+    """
+    Generate list of linked and aligned spectra given pairs of MS2 spectral vectors.
+    """
     all_queries = []
     all_refs = []
 
