@@ -31,6 +31,7 @@ more_checks = [
     "metatlas/io/targeted_output.py",
     "metatlas/io/system_utils.py",
     "metatlas/io/write_utils.py",
+    "metatlas/io/feature_tools.py",
     "metatlas/datastructures/atlas.py",
     "metatlas/datastructures/analysis_identifiers.py",
     "metatlas/datastructures/id_types.py",
