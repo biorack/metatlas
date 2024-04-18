@@ -43,7 +43,7 @@ from IPython.display import display, HTML
 from IPython import get_ipython
 
 import getpass
-from typing import Type
+from typing import Type, Any
 
 from ast import literal_eval
 from datetime import datetime

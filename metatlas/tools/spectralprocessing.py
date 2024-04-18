@@ -27,7 +27,7 @@ mass_differences = pd.DataFrame([{"formula":"Same","mass":0.0,"rank":0},{"formul
 # typing
 MS2Spectrum: TypeAlias = npt.NDArray[npt.NDArray[np.float64]]
 MS2MatchedPeaks: TypeAlias = List[Tuple[Tuple[int, int], float]]
-MS2Aligned = Tuple[npt.NDArray[np.NDArray[Any]], npt.NDArray[np.NDArray[Any]]]
+MS2Aligned = Tuple[npt.NDArray[npt.NDArray[Any]], npt.NDArray[npt.NDArray[Any]]]
 
 
 ################################################################################
