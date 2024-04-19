@@ -343,9 +343,10 @@ def get_atlas_data_from_file(filename,atlas,desired_key='ms1_pos'):#,bundle=True
         return df.reset_index(drop=True)
 
 
-def calculate_ms1_summary(df):
+def calculate_ms1_summary(df, feature_filter=True):
     """
     Calculate summary properties for features from MS1 data
+    Use feature_filter=False to keep unmatched data
     """
 
     summary = {'label': [],
@@ -354,8 +355,12 @@ def calculate_ms1_summary(df):
                'peak_height':[], 
                'mz_centroid':[],
                'rt_peak':[]}
-    
-    for label_group, label_data in df[df['in_feature']==True].groupby('label'):
+        
+    if(feature_filter == True):
+
+        df = df[df['in_feature']==True]
+
+    for label_group, label_data in df.groupby('label'):
 
         summary['label'].append(label_group)
         summary['num_datapoints'].append(label_data['i'].count())
@@ -368,9 +373,10 @@ def calculate_ms1_summary(df):
     return pd.DataFrame(summary)
 
 
-def calculate_ms2_summary(df):
+def calculate_ms2_summary(df, feature_filter=True):
     """
     Calculate summary properties for features from MS2 data
+    Use feature_filter=False to keep unmatched data
     """
     
     spectra = {'label':[], 
@@ -378,8 +384,12 @@ def calculate_ms2_summary(df):
                'rt':[], 
                'precursor_mz':[],
                'precursor_peak_height':[]}
-    
-    for label_group, label_data in df[df['in_feature']==True].groupby('label'):
+
+    if(feature_filter == True):
+
+        df = df[df['in_feature']==True]
+
+    for label_group, label_data in df.groupby('label'):
                 
         for rt_group, rt_data in pd.DataFrame(label_data).groupby('rt'):
             
@@ -397,7 +407,7 @@ def calculate_ms2_summary(df):
     return pd.DataFrame(spectra)
 
 
-def get_data(input_data,return_data=False,save_file=True):
+def get_data(input_data,return_data=False,save_file=True,ms1_feature_filter=True):
     """
     Required Inputs a Dict that has these attributes:
     {'file_index':i, #a numerical index that helps with bookkeeping
@@ -430,7 +440,7 @@ def get_data(input_data,return_data=False,save_file=True):
         with pd.HDFStore(input_data['outfile'],mode='a',complib='zlib',complevel=9) as f:
             f.put('ms1_data',d,data_columns=True)
 
-    d = calculate_ms1_summary(d).reset_index()
+    d = calculate_ms1_summary(d, feature_filter=ms1_feature_filter).reset_index()
 
     if d.shape[0]==0: #there isn't any data!
         for c in ['num_datapoints','peak_area','peak_height','mz_centroid','rt_peak']:
@@ -452,3 +462,28 @@ def get_data(input_data,return_data=False,save_file=True):
 
     if return_data is True:
         return out_data
+
+
+# def calculate_ms1_summary(df):
+#     a = df[['label','rt','mz','i','in_feature']].values
+#     labels, row_pos = np.unique(a[:, 0], return_inverse=True) #these are feature labels
+#     rt, col_pos = np.unique(a[:, 1], return_inverse=True) #these are rt values
+
+#     pivot_table = np.zeros((len(labels), len(rt),3), dtype=float)
+#     pivot_table[row_pos, col_pos] = a[:, [2,3,4]]
+#     eic = pd.DataFrame(index=labels,data=pivot_table[:,:,1],columns=rt)
+#     emzc = pd.DataFrame(index=labels,data=pivot_table[:,:,0],columns=rt)
+#     efeaturec = pd.DataFrame(index=labels,data=pivot_table[:,:,2],columns=rt)
+#     in_feature = efeaturec.values.astype(int)
+#     intensity = np.multiply(eic.values,in_feature)
+#     mz = np.multiply(emzc.values,in_feature)
+#     rt = np.asarray(eic.columns)
+#     labels = eic.index.tolist()
+#     idx_max = np.argmax(intensity,axis=1)
+#     df = pd.DataFrame(index=labels)
+#     df['num_datapoints']=in_feature.sum(axis=1)
+#     df['peak_area']=intensity.sum(axis=1)
+#     df['peak_height']=np.diag(intensity[:,idx_max]) #I shouldn't have to do this and must be doing numpy slicing wrong!
+#     df['mz_centroid']=np.divide(np.sum(np.multiply(mz,intensity),axis=1),intensity.sum(axis=1))
+#     df['rt_peak']=rt[idx_max]
+#     return df
