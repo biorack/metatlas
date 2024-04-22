@@ -224,56 +224,6 @@ def df_container_from_metatlas_file(filename,desired_key=None):
     return df_container
 
 
-
-def group_duplicates(df,group_col,make_string=False,precision={'i':0,'mz':4,'rt':2}):
-    """
-    Currently unused: takes in a list of grouping columns and turns the rest into arrays
-    """
-    all_cols = np.asarray(df.columns)
-    #get the index of the grouping term as array
-    idx_group = np.argwhere(all_cols == group_col).flatten()
-    #get the indices of all other terms as array
-    idx_list = np.argwhere(all_cols != group_col).flatten()
-    cols = all_cols[idx_list]
-
-    # create a sorted numpy array (sorted by column=group_col)
-    a = df.sort_values(group_col).values.T
-
-    #get the indices of the first instance of each unique identifier
-    ukeys, index = np.unique(a[idx_group,:],return_index=True)
-
-    #split the other rows of the array into separate arrays using the
-    #unique index
-    arrays = np.split(a[idx_list,:],index[1:],axis=1)
-
-    #make a list of dicts with column headings as keys
-    #if there are not multiple items then return value
-    #If there are multiple items then return list
-
-#     ucpds = [dict([(c,aa) if len(aa)>1 else (c,aa[0]) for c,aa in zip(cols,a)]) for a in arrays ]
-    ucpds = [dict([(c,aa) for c,aa in zip(cols,a)]) for a in arrays ]
-
-    #make a dataframe from the list of dicts
-    df2 = pd.DataFrame(ucpds,index=ukeys)
-
-    #make strings of array columns if you want to save it in anything useful
-    if make_string==True:
-        for c in cols:
-#             df2[c] = df2[c].apply(lambda x: np.array2string(x, precision=5, separator=','))
-            if c in list(precision.keys()):
-                pre_str = '{:.%df}'%precision[c]
-            else:
-                pre_str = '{:.4f}'
-            df2[c] = df2[c].apply(lambda x: [pre_str.format(n) for n in x.tolist()])
-#             df2[c] = df2[c].apply(lambda x: str(x.tolist()))
-
-    df2.index = df2.index.set_names(group_col)
-    df2.reset_index(inplace=True)
-
-    #return dataframe
-    return df2
-
-
 def filter_raw_data_using_atlas(atlas, msdata):
     """
     Inputs:
@@ -290,7 +240,7 @@ def filter_raw_data_using_atlas(atlas, msdata):
     mz_condition = abs(merged_data['mz_data']-merged_data['mz_atlas'])/merged_data['mz_atlas']*1e6<merged_data['ppm_tolerance']
     rt_min_condition = merged_data['rt']>=(merged_data['rt_min']-merged_data['extra_time'])
     rt_max_condition = merged_data['rt']<=(merged_data['rt_max']+merged_data['extra_time'])
-    merged_data_filtered = merged_data[(mz_condition) & (rt_min_condition) & (rt_max_condition)]
+    merged_data_filtered = merged_data[(mz_condition) & (rt_min_condition) & (rt_max_condition)].reset_index(drop=True)
     merged_data_filtered['in_feature'] = True
 
     #label datapoints that are within the bounds of the feature vs "extra"
@@ -418,14 +368,10 @@ def get_data(input_data,return_data=False,save_file=True,ms1_feature_filter=True
     'ppm_tolerance':ppm_tolerance, #ppm tolerance in m/z
     'extra_time':extra_time} #time to add to the collected data beyond rt_min and rt_max
 
-    The goal is to write to a file,
+    The goal is to return a dict (or write to a file) with the following keys:
     ms1_data:
-
     ms1_summary:
-
     ms2_data:
-
-    Returns a dictionary
     """
     out_data = {} #setup a container to store any data to return to the user otherwise save it to file
 
@@ -440,7 +386,7 @@ def get_data(input_data,return_data=False,save_file=True,ms1_feature_filter=True
         with pd.HDFStore(input_data['outfile'],mode='a',complib='zlib',complevel=9) as f:
             f.put('ms1_data',d,data_columns=True)
 
-    d = calculate_ms1_summary(d, feature_filter=ms1_feature_filter).reset_index()
+    d = calculate_ms1_summary(d, feature_filter=ms1_feature_filter).reset_index(drop=True)
 
     if d.shape[0]==0: #there isn't any data!
         for c in ['num_datapoints','peak_area','peak_height','mz_centroid','rt_peak']:
@@ -462,6 +408,55 @@ def get_data(input_data,return_data=False,save_file=True,ms1_feature_filter=True
 
     if return_data is True:
         return out_data
+
+
+def group_duplicates(df,group_col,make_string=False,precision={'i':0,'mz':4,'rt':2}):
+    """
+    Takes in a list of grouping columns and turns the rest into arrays
+    """
+    all_cols = np.asarray(df.columns)
+    #get the index of the grouping term as array
+    idx_group = np.argwhere(all_cols == group_col).flatten()
+    #get the indices of all other terms as array
+    idx_list = np.argwhere(all_cols != group_col).flatten()
+    cols = all_cols[idx_list]
+
+    # create a sorted numpy array (sorted by column=group_col)
+    a = df.sort_values(group_col).values.T
+
+    #get the indices of the first instance of each unique identifier
+    ukeys, index = np.unique(a[idx_group,:],return_index=True)
+
+    #split the other rows of the array into separate arrays using the
+    #unique index
+    arrays = np.split(a[idx_list,:],index[1:],axis=1)
+
+    #make a list of dicts with column headings as keys
+    #if there are not multiple items then return value
+    #If there are multiple items then return list
+
+#     ucpds = [dict([(c,aa) if len(aa)>1 else (c,aa[0]) for c,aa in zip(cols,a)]) for a in arrays ]
+    ucpds = [dict([(c,aa) for c,aa in zip(cols,a)]) for a in arrays ]
+
+    #make a dataframe from the list of dicts
+    df2 = pd.DataFrame(ucpds,index=ukeys)
+
+    #make strings of array columns if you want to save it in anything useful
+    if make_string==True:
+        for c in cols:
+#             df2[c] = df2[c].apply(lambda x: np.array2string(x, precision=5, separator=','))
+            if c in list(precision.keys()):
+                pre_str = '{:.%df}'%precision[c]
+            else:
+                pre_str = '{:.4f}'
+            df2[c] = df2[c].apply(lambda x: [pre_str.format(n) for n in x.tolist()])
+#             df2[c] = df2[c].apply(lambda x: str(x.tolist()))
+
+    df2.index = df2.index.set_names(group_col)
+    df2.reset_index(inplace=True)
+
+    #return dataframe
+    return df2
 
 
 # def calculate_ms1_summary(df):
