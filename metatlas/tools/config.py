@@ -110,6 +110,7 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     num_points: Optional[int] = None
     peak_height: Optional[float] = None
     msms_score: Optional[float] = None
+    msms_matches: Optional[int] = None
     filter_removed: bool = False
     line_colors: Optional[List[Tuple[str, str]]] = None
     require_all_evaluated: bool = False
@@ -140,6 +141,7 @@ class Atlas(BaseModel):
     unique_id: str
     name: str
     do_alignment: bool = False
+    do_prefilter: bool = False
     rt_offset: float = 0.5
 
     @validator("unique_id")

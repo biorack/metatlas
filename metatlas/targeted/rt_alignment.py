@@ -32,6 +32,7 @@ from metatlas.tools import notebook
 from metatlas.tools.config import Config, Workflow, Analysis
 from metatlas.tools.notebook import in_papermill
 from metatlas.tools.util import repo_path
+from metatlas.tools.atlas_prefilter import filter_atlas
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ def generate_outputs(data: MetatlasDataset, workflow: Workflow, set_parameters: 
     assert params.stop_before in ["atlases", "notebook_generation", "notebook_execution", None]
     linear, poly = generate_rt_alignment_models(data, workflow)
     if params.stop_before in ["notebook_generation", "notebook_execution", None]:
-        atlases = create_aligned_atlases(linear, poly, ids, workflow)
+        atlases = create_aligned_atlases(linear, poly, ids, workflow, data)
     if params.stop_before in ["notebook_execution", None]:
         notebook_file_names = write_notebooks(ids, atlases, workflow, set_parameters)
     if params.stop_before is None:
@@ -363,6 +364,7 @@ def create_aligned_atlases(
     poly: Model,
     ids: AnalysisIdentifiers,
     workflow: Workflow,
+    data: MetatlasDataset,
 ) -> List[metob.Atlas]:
     """
     input:
@@ -377,18 +379,22 @@ def create_aligned_atlases(
     model = poly if workflow.rt_alignment.parameters.use_poly_model else linear
     for analysis in tqdm(workflow.analyses, unit="atlas", disable=in_papermill()):
         template_atlas = get_atlas(analysis.atlas.unique_id, analysis.atlas.name)
-        if analysis.atlas.do_alignment:
+        if analysis.atlas.do_alignment or analysis.atlas.do_prefilter:
             name = get_atlas_name(ids, workflow, analysis, model)
             logger.info("Creating atlas %s", name)
             out_atlas_file_name = ids.output_dir / f"{name}.csv"
-            aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset)
-            aligned_atlas.name = name
-            metob.store(aligned_atlas)
-            aligned_atlas_df = ma_data.make_atlas_df(aligned_atlas)
+
+            aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset) if analysis.atlas.do_alignment else template_atlas
+            logger.info("Collecting data for pre-filter") if analysis.atlas.do_prefilter else None
+            aligned_filtered_atlas = filter_atlas(aligned_atlas, ids, analysis, data) if analysis.atlas.do_prefilter else aligned_atlas
+            aligned_filtered_atlas.name = name
+
+            metob.store(aligned_filtered_atlas)
+            aligned_filtered_atlas_df = ma_data.make_atlas_df(aligned_filtered_atlas)
             write_utils.export_dataframe_die_on_diff(
-                aligned_atlas_df, out_atlas_file_name, "RT aligned atlas", index=False, float_format="%.6e"
+                aligned_filtered_atlas_df, out_atlas_file_name, "RT aligned atlas", index=False, float_format="%.6e"
             )
-            out_atlases.append(aligned_atlas)
+            out_atlases.append(aligned_filtered_atlas)
         else:
             out_atlases.append(template_atlas)
     return out_atlases

@@ -69,6 +69,7 @@ workflows:
             name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS
             unique_id: 89694aa326cd46958d38d8e9066de16c
             do_alignment: True
+            do_prefilter: True
           parameters:
             copy_atlas: True
             polarity: positive
@@ -83,6 +84,8 @@ workflows:
             filter_removed: True
             num_points: 5
             peak_height: 4e5
+            msms_score: 0.7
+            msms_matches: 3
             generate_analysis_outputs: True
             slurm_execute: True
   - name: Test-C18
@@ -105,6 +108,7 @@ workflows:
             name: C18_20220215_TPL_EMA_Unlab_NEG
             unique_id: f74a731c590544aba5c3720b346e508e
             do_alignment: True
+            do_prefilter: False
             rt_offset: 0.2
           parameters:
             copy_atlas: True
