@@ -57,6 +57,10 @@ def get_sample_data(aligned_atlas_df: pd.DataFrame, sample_files: list[str], ppm
 
     ms1_data = pd.concat(ms1_data)
     ms2_data = pd.concat(ms2_data)
+
+    df = pd.DataFrame(ms2_data['spectrum'])
+    df.to_csv("/out/ms2_data_array.csv")
+
     ms2_data['spectrum'] = ms2_data['spectrum'].apply(order_ms2_spectrum)
 
     return (ms1_data, ms2_data)
