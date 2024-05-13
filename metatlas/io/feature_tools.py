@@ -314,8 +314,8 @@ def calculate_ms1_summary(df, feature_filter=True):
 
         summary['label'].append(label_group)
         summary['num_datapoints'].append(label_data['i'].count())
-        summary['peak_area'].append(label_data['i'].sum())
         sum_intensity = label_data['i'].sum()
+        summary['peak_area'].append(sum_intensity)
         idx = label_data['i'].idxmax()
         summary['peak_height'].append(label_data.loc[idx,'i'])
         summary['mz_centroid'].append(sum(label_data['i']*label_data['mz'])/sum_intensity)
