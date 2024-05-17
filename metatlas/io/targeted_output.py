@@ -231,7 +231,7 @@ def write_msms_fragment_ions(
     out = []
     for compound_idx, _ in enumerate(data[0]):
         max_vars = get_max_precursor_intensity(data, compound_idx)
-        if max_vars.file_idx:
+        if max_vars.file_idx is not None:
             out.append(
                 get_spectra_strings(
                     data,
