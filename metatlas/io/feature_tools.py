@@ -194,58 +194,6 @@ def map_mzgroups_to_data(mz_atlas,mz_group_indices,mz_data):
     return mz_group_indices[idx]
 
 
-def df_container_from_mzml_file(filename, desired_key):
-    """
-    Inputs:
-    filename: mzML filename from which to extract desired key
-    desired_key: must be "ms1_pos", "ms2_neg", "ms1_neg" or "ms2_pos".
-
-    Outputs:
-    df_container: a dataframe holding the information for the desired key (e.g., m/z, rt, intensity)
-    """
-    assert filename.endswith('.mzML') or filename.endswith('.mzml')
-    
-    desired_ms_level = int(desired_key.split('_')[0][2])
-    desired_polarity = desired_key.split('_')[1]
-
-    spectra = {'mz': [], 'i': [], 'rt': [], 'polarity': []}
-    if desired_ms_level == 2:
-        spectra['precursor_MZ'] = []
-        spectra['precursor_intensity'] = []
-        spectra['collision_energy'] = []
-    
-    run = pymzml.run.Reader(filename, build_index_from_scratch=True)
-    for spec in run:
-        
-        if spec['negative scan']: 
-            polarity = 'neg' 
-        elif spec['positive scan']: 
-            polarity = 'pos' 
-        else: 
-            continue
-            
-        if spec.ms_level == desired_ms_level and polarity == desired_polarity:
-            spectra['mz'] += spec.mz.tolist()
-            spectra['i'] += spec.i.tolist()
-            
-            rt = round(spec.scan_time_in_minutes(), 10)
-            peak_len = len(spec.mz)
-            spectra['rt'] += [rt for i in range(peak_len)]
-            
-            spectra['polarity'] += [0 if polarity == 'neg' else 1 for i in range(peak_len)]
-            
-            precursor_data = spec.selected_precursors[0]
-            if spec.ms_level == 2:
-                spectra['precursor_MZ'] += [precursor_data['mz'] for i in range(peak_len)]
-                spectra['precursor_intensity'] += [precursor_data['i'] for i in range(peak_len)]
-                spectra['collision_energy'] += [spec['collision energy'] for i in range(peak_len)]
-            
-    run.close()
-    spectra_df = pd.DataFrame(spectra)
-
-    return spectra_df
-
-
 def df_container_from_metatlas_file(filename,desired_key=None):
     """
     Inputs:
