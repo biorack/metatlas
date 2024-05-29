@@ -2290,7 +2290,6 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
 
     if inchi_key not in msms_refs['inchi_key'].tolist():
         nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
-
         return nonmatched_msms_hits
 
     filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
@@ -2307,12 +2306,16 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
     inchi_msms_hits['precursor_ppm_error'] = (abs(inchi_msms_hits['measured_precursor_mz'] - inchi_msms_hits['precursor_mz']) / inchi_msms_hits['precursor_mz']) * 1000000
     inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
 
+    if inchi_msms_hits.empty:
+        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
+        return nonmatched_msms_hits
+
     return inchi_msms_hits
 
 def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = False, keep_nonmatches: bool = False,
                   pre_query: str= 'database == "metatlas"', query: str | None = None, ref_dtypes: Dict[str, Type[Any]] | None = None,
                   ref_loc: str | None = None, ref_df: pd.DataFrame | None = None, frag_mz_tolerance: float = 0.005,
-                  ref_index: List[str] or str or None = None, do_centroid: bool = False, resolve_by: str | None = None) -> pd.DataFrame:
+                  ref_index: List[str] | str | None = None, do_centroid: bool = False, resolve_by: str | None = None) -> pd.DataFrame:
     """
     Get MSMS Hits from metatlas dataset and MSMS refs.
 
@@ -2347,6 +2350,9 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
         msms_refs = ref_df
 
     msms_data = ma_data.arrange_ms2_data(metatlas_dataset, do_centroid)
+
+    if msms_data.empty:
+        return pd.DataFrame(columns=msms_hits_cols).set_index(['database', 'id', 'file_name', 'msms_scan'])
 
     if not extra_time:
         cid_rt_min = msms_data['cid_rt_min']
