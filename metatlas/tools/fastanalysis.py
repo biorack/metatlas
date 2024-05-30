@@ -303,7 +303,7 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
             final_df.loc[compound_idx, 'msms_numberofions'] = len(mz_sample_matches)
             final_df.loc[compound_idx, 'msms_matchingions'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
             if len(mz_sample_matches) == 1:
-                if abs(final_df[compound_idx, 'msms_matchingions'].split(',')[0] - final_df.loc[compound_idx, 'exact_mass']) <= ppm_tolerance:
+                if abs(final_df.loc[compound_idx, 'msms_matchingions'].split(',')[0] - final_df.loc[compound_idx, 'exact_mass']) <= ppm_tolerance:
                     # Set score to zero when the single matching fragment ion is the precursor.
                     final_df.loc[compound_idx, 'msms_score'] = 0.0
                     # Then, overwrite the 'MSMS Score (0 to 1)' column of COMPOUND IDENTIFICATION SCORES
