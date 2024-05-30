@@ -20,18 +20,30 @@ from metatlas.tools import spectralprocessing as sp
 
 logger = logging.getLogger(__name__)
 
-loose_param = {'min_intensity': 1e3,
-               'rt_tolerance': .25,
-               'mz_tolerance': 25,
-               'min_msms_score': 0.3, 'allow_no_msms': True,
-               'min_num_frag_matches': 1,  'min_relative_frag_intensity': .01}
+# loose_param = {'min_intensity': 1e3,
+#                'rt_tolerance': .25,
+#                'mz_tolerance': 25,
+#                'min_msms_score': 0.3, 'allow_no_msms': True,
+#                'min_num_frag_matches': 1,  'min_relative_frag_intensity': .01}
 
-strict_param = {'min_intensity': 1e5,
-                'rt_tolerance': .25,
-                'mz_tolerance': 5,
-                'min_msms_score': .6, 'allow_no_msms': False,
-                'min_num_frag_matches': 3, 'min_relative_frag_intensity': .1}
+# strict_param = {'min_intensity': 1e5,
+#                 'rt_tolerance': .25,
+#                 'mz_tolerance': 5,
+#                 'min_msms_score': .6, 'allow_no_msms': False,
+#                 'min_num_frag_matches': 3, 'min_relative_frag_intensity': .1}
 
+def calculate_compound_total_score(final_df, compound_idx, quality_scores):
+    final_df.loc[compound_idx, 'total_score'] = sum(quality_scores)
+    if final_df.loc[compound_idx, 'msms_quality'] == -1:
+        final_df.loc[compound_idx, 'msi_level'] = "REMOVE, INVALIDATED BY BAD MSMS MATCH"
+    elif statistics.median(quality_scores) < 1:
+        final_df.loc[compound_idx, 'msi_level'] = "putative"
+    elif final_df.loc[compound_idx, 'total_score'] == 3:
+        final_df.loc[compound_idx, 'msi_level'] = "Exceeds Level 1"
+    else:
+        final_df.loc[compound_idx, 'msi_level'] = "Level 1"
+    return final_df
+                
 def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msms_hits_df = None,
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
                      output_loc: Optional[Path] = None,
@@ -272,15 +284,7 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
             final_df.loc[compound_idx, 'msms_quality'] = ''
         quality_scores = [final_df.loc[compound_idx, x] for x in ['msms_quality', 'mz_quality', 'rt_quality']]
         if all(isinstance(x, (int, float)) for x in quality_scores):
-            final_df.loc[compound_idx, 'total_score'] = sum(quality_scores)
-            if final_df.loc[compound_idx, 'msms_quality'] == -1:
-                final_df.loc[compound_idx, 'msi_level'] = "REMOVE, INVALIDATED BY BAD MSMS MATCH"
-            elif statistics.median(quality_scores) < 1:
-                final_df.loc[compound_idx, 'msi_level'] = "putative"
-            elif sum(quality_scores) == 3:
-                final_df.loc[compound_idx, 'msi_level'] = "Exceeds Level 1"
-            else:
-                final_df.loc[compound_idx, 'msi_level'] = "Level 1"
+            final_df = calculate_compound_total_score(final_df, compound_idx, quality_scores)
         else:
             final_df.loc[compound_idx, 'total_score'] = ""
             final_df.loc[compound_idx, 'msi_level'] = ""
@@ -299,8 +303,15 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
             final_df.loc[compound_idx, 'msms_numberofions'] = len(mz_sample_matches)
             final_df.loc[compound_idx, 'msms_matchingions'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
             if len(mz_sample_matches) == 1:
-                # Set score to zero when there is only one matching ion. precursor intensity is set as score in such cases and need to be set to 0 for final identification.
-                final_df.loc[compound_idx, 'msms_score'] = 0.0
+                if abs(final_df[compound_idx, 'msms_matchingions'][0] - final_df.loc[compound_idx, 'exact_mass']) <= ppm_tolerance:
+                    # Set score to zero when the single matching fragment ion is the precursor.
+                    final_df.loc[compound_idx, 'msms_score'] = 0.0
+                    # Then, overwrite the 'MSMS Score (0 to 1)' column of COMPOUND IDENTIFICATION SCORES
+                    final_df.loc[compound_idx, 'msms_quality'] = 0
+                    # Last, recalculate total score of COMPOUND IDENTIFICATION SCORES
+                    final_df = calculate_compound_total_score(final_df, compound_idx, quality_scores)
+                else: # When single matching fragment ion is not the precursor, set score to best.
+                    final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
             else:
                 final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
         else:
