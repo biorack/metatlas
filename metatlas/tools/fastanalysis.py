@@ -303,16 +303,28 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
             final_df.loc[compound_idx, 'msms_numberofions'] = len(mz_sample_matches)
             final_df.loc[compound_idx, 'msms_matchingions'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
             if len(mz_sample_matches) == 1:
-                if abs(final_df.loc[compound_idx, 'msms_matchingions'].split(',')[0] - final_df.loc[compound_idx, 'exact_mass']) <= ppm_tolerance:
+                single_matching_ion = float(final_df.loc[compound_idx, 'msms_matchingions'].split(',')[0])
+                precursor_mass = float(final_df.loc[compound_idx, 'exact_mass'])
+                if abs(single_matching_ion - precursor_mass) <= ppm_tolerance:
+                    logger.info("Notice! Single matching MSMS fragment ion %s is within ppm tolerance (%s) of the precursor mass (%s) for %s. Setting MSMS score to zero.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
                     # Set score to zero when the single matching fragment ion is the precursor.
+                    final_df.loc[compound_idx, 'identification_notes'] = "Single matching fragment ion is the precursor."
                     final_df.loc[compound_idx, 'msms_score'] = 0.0
                     # Then, overwrite the 'MSMS Score (0 to 1)' column of COMPOUND IDENTIFICATION SCORES
                     final_df.loc[compound_idx, 'msms_quality'] = 0
+                    quality_scores[0] = 0 # Overwrite the MSMS score in quality_scores since it's named independently from final_df.loc[compound_idx, 'msms_quality'] above
                     # Last, recalculate total score of COMPOUND IDENTIFICATION SCORES
-                    final_df = calculate_compound_total_score(final_df, compound_idx, quality_scores)
+                    if all(isinstance(x, (int, float)) for x in quality_scores):
+                        final_df = calculate_compound_total_score(final_df, compound_idx, quality_scores)
+                    else:
+                        final_df.loc[compound_idx, 'total_score'] = ""
+                        final_df.loc[compound_idx, 'msi_level'] = ""
                 else: # When single matching fragment ion is not the precursor, set score to best.
+                    logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s. Setting MSMS score to the best score of %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'], scores[0])
+                    final_df.loc[compound_idx, 'identification_notes'] = "Single matching fragment ion is not the precursor."
                     final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
             else:
+                #logger.info("Note: Multiple matching fragment ions found for %s.", final_df.loc[compound_idx, 'identified_metabolite'])
                 final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
         else:
             final_df.loc[compound_idx, 'msms_file'] = ""
