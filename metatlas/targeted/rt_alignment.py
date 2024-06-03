@@ -80,34 +80,52 @@ class Model:
         return self.sk_model.predict(x_transformed).flatten().tolist()
 
 
+class MedianOffset(BaseEstimator):
+    """Custom sklearn transformer for median offset."""
+    def __init__(self, intercept_=None, coef_=None):
+        self.intercept_ = intercept_
+        self.coef_ = coef_
+
+    def fit(self, X, y):
+        diff = y - X
+        median_diff = np.median(diff)
+
+        self.intercept_ = median_diff
+        self.coef_ = np.array([[1.0]])
+        return self
+
+    def predict(self, X):
+        return X + self.intercept_
+
+
 def generate_rt_alignment_models(
     data: MetatlasDataset,
     workflow: Workflow,
-) -> Tuple[Model, Model]:
+) -> Tuple[Model, Model, Model]:
     """
     Generate the RT correction models and model charaterization files
-    Returns a tuple with a linear and polynomial model
+    Returns a tuple with linear, polynomial and offset models
     """
     params = workflow.rt_alignment.parameters
     rts_df = get_rts(data)
     actual, pred = subset_data_for_model_input(
         params.dependent_data_source, rts_df, data.atlas_df, params.inchi_keys_not_in_model
     )
-    linear, poly = generate_models(actual, pred)
+    linear, poly, offset = generate_models(actual, pred)
     out_dir = Path(data.ids.output_dir)
     excluded_inchi_keys_file_name = out_dir / "inchi_keys_excluded_from_model.csv"
     inchi_df = pd.DataFrame(data={"excluded_inchi_keys": params.inchi_keys_not_in_model})
     write_utils.export_dataframe_die_on_diff(inchi_df, excluded_inchi_keys_file_name, "excluded inchi_keys")
     actual_rts, aligned_rts = actual_and_aligned_rts(rts_df, data.atlas_df, params.inchi_keys_not_in_model)
     actual_vs_pred_file_name = out_dir / "Actual_vs_Aligned_RTs.pdf"
-    plot_actual_vs_aligned_rts(aligned_rts, actual_rts, rts_df, str(actual_vs_pred_file_name), linear, poly)
+    plot_actual_vs_aligned_rts(aligned_rts, actual_rts, rts_df, str(actual_vs_pred_file_name), linear, poly, offset)
     rt_comparison_file_name = out_dir / "RT-Alignment_Model_Comparison.csv"
     save_model_comparison(
-        params.dependent_data_source, data.atlas_df, rts_df, linear, poly, rt_comparison_file_name
+        params.dependent_data_source, data.atlas_df, rts_df, linear, poly, offset, rt_comparison_file_name
     )
     models_file_name = out_dir / "rt_alignment_model.txt"
-    write_models(str(models_file_name), linear, poly, data.ids.groups, data.atlas)
-    return (linear, poly)
+    write_models(str(models_file_name), linear, poly, offset, data.ids.groups, data.atlas)
+    return (linear, poly, offset)
 
 
 def generate_outputs(data: MetatlasDataset, workflow: Workflow, set_parameters: dict) -> None:
@@ -119,9 +137,9 @@ def generate_outputs(data: MetatlasDataset, workflow: Workflow, set_parameters: 
     params = workflow.rt_alignment.parameters
     ids = data.ids
     assert params.stop_before in ["atlases", "notebook_generation", "notebook_execution", None]
-    linear, poly = generate_rt_alignment_models(data, workflow)
+    linear, poly, offset = generate_rt_alignment_models(data, workflow)
     if params.stop_before in ["notebook_generation", "notebook_execution", None]:
-        atlases = create_aligned_atlases(linear, poly, ids, workflow, data)
+        atlases = create_aligned_atlases(linear, poly, offset, ids, workflow, data)
     if params.stop_before in ["notebook_execution", None]:
         notebook_file_names = write_notebooks(ids, atlases, workflow, set_parameters)
     if params.stop_before is None:
@@ -159,12 +177,12 @@ def get_rts(metatlas_dataset: MetatlasDataset, include_atlas_rt_peak: bool = Tru
     return targeted_output.order_df_columns_by_run(rts_df)
 
 
-def generate_models(actual: List[float], pred: List[float]) -> Tuple[Model, Model]:
+def generate_models(actual: List[float], pred: List[float]) -> Tuple[Model, Model, Model]:
     """
     inputs:
         actual: experimental RTs
         pred: predicted RTs
-    returns tuple containing two Model classes of order 1 and 2
+    returns tuple containing three Model classes of order 1 and 2 and offset
     """
     transformed_actual = np.array(actual).reshape(-1, 1)
     transformed_pred = np.array(pred).reshape(-1, 1)
@@ -179,7 +197,11 @@ def generate_models(actual: List[float], pred: List[float]) -> Tuple[Model, Mode
     x_poly = poly_reg.fit_transform(transformed_pred)
     rt_model_poly = LinearRegression().fit(x_poly, transformed_actual)
     poly = Model(rt_model_poly, rt_model_poly.intercept_[0], rt_model_poly.coef_)
-    return linear, poly
+
+    median_offset = MedianOffset()
+    rt_model_offset = median_offset.fit(transformed_pred, transformed_actual)
+    offset = Model(rt_model_offset, rt_model_offset.intercept_, rt_model_offset.coef_)
+    return linear, poly, offset
 
 
 def subset_data_for_model_input(
@@ -246,8 +268,9 @@ def plot_actual_vs_aligned_rts(
     file_name: str,
     linear: Model,
     poly: Model,
+    offset: Model
 ) -> None:
-    """Write scatter plot showing linear vs polynomial fit"""
+    """Write scatter plot showing linear vs polynomial vs offset fit"""
     # pylint: disable=too-many-locals
     rows = int(math.ceil((rts_df.shape[1] + 1) / 5))
     cols = 5
@@ -267,12 +290,13 @@ def plot_actual_vs_aligned_rts(
         spaced_x = np.linspace(0, max(x_values), 100)
         sub.plot(spaced_x, linear.predict(spaced_x), linewidth=0.5, color="red")
         sub.plot(spaced_x, poly.predict(spaced_x), linewidth=0.5, color="green")
+        sub.plot(spaced_x, offset.predict(spaced_x), linewidth=0.5, color="blue")
         sub.set_title("File: " + str(i))
         sub.set_xlabel("relative RTs")
         sub.set_ylabel("actual RTs")
     fig_legend = [
         (
-            "Red line: linear model;  Green curve: polynomial model. "
+            "Red line: linear model;  Green curve: polynomial model; Blue line: simple offset model."
             "Default model is a polynomial model using the median data."
         ),
         "",
@@ -291,16 +315,18 @@ def save_model_comparison(
     rts_df: pd.DataFrame,
     linear: Model,
     poly: Model,
+    offset: Model,
     file_name: str,
 ) -> None:
     """
-    Save csv format file with per-compound comparision of linear vs polynomial models
+    Save csv format file with per-compound comparision of linear vs polynomial vs offset models
     inputs:
         selected_column: column number in rts_df to use for actual values
         qc_atlas_df: QC atlas in dataframe format
         rts_df: dataframe with RT values
         linear: instance of class Model with first order model
         poly: instance of class Model with second order model
+        offset: instance of class Model with simple offset model
         file_name: where to save the plot
     """
     qc_df = rts_df[[selected_column]].copy()
@@ -312,24 +338,29 @@ def save_model_comparison(
     qc_df.loc[:, "Relative RT Polynomial"] = pd.Series(
         poly.predict(qc_df["RT Reference"].to_numpy()), index=qc_df.index
     )
+    qc_df.loc[:, "Relative RT Offset"] = pd.Series(
+        offset.predict(qc_df["RT Reference"].to_numpy()), index=qc_df.index
+    )
     qc_df["RT Diff Linear"] = qc_df["RT Measured"] - qc_df["Relative RT Linear"]
     qc_df["RT Diff Polynomial"] = qc_df["RT Measured"] - qc_df["Relative RT Polynomial"]
+    qc_df["RT Diff Offset"] = qc_df["RT Measured"] - qc_df["Relative RT Offset"]
     write_utils.export_dataframe_die_on_diff(qc_df, file_name, "model comparision", float_format="%.6e")
 
 
 def write_models(
-    file_name: str, linear_model: Model, poly_model: Model, groups: Sequence[metob.Group], atlas: metob.Atlas
+    file_name: str, linear_model: Model, poly_model: Model, offset_model: Model, groups: Sequence[metob.Group], atlas: metob.Atlas
 ) -> None:
     """
     inputs:
         file_name: text file to save model information
         linear_model: instance of class Model with first order model
         poly_model: instance of class Model with second order model
+        offset_modelL instance of class Model with simple offset model
         groups: list of groups used in model generation
         atlas: QC atlas
     """
     with open(file_name, "w", encoding="utf8") as out_fh:
-        for model in [linear_model, poly_model]:
+        for model in [linear_model, poly_model, offset_model]:
             out_fh.write(f"{model.sk_model.set_params()}\n")
             out_fh.write(f"{model}\n")
             group_names = ", ".join([g.name for g in groups])
@@ -362,14 +393,16 @@ def align_atlas(atlas: metob.Atlas, model: Model, rt_offset: float) -> metob.Atl
 def create_aligned_atlases(
     linear: Model,
     poly: Model,
+    offset: Model,
     ids: AnalysisIdentifiers,
     workflow: Workflow,
     data: MetatlasDataset,
 ) -> List[metob.Atlas]:
     """
     input:
-        linear_model: instance of class Model with first order model
-        poly_model: instance of class Model with second order model
+        linear: instance of class Model with first order model
+        poly: instance of class Model with second order model
+        offset: isntance of class Model with simple offset model
         ids: an AnalysisIdentifiers object
         workflow: a config Workflow object
     returns a list of the names of atlases
@@ -377,6 +410,7 @@ def create_aligned_atlases(
     # pylint: disable=too-many-locals
     out_atlases = []
     model = poly if workflow.rt_alignment.parameters.use_poly_model else linear
+    model = offset if workflow.rt_alignment.parameters.use_offset_model else model
     for analysis in tqdm(workflow.analyses, unit="atlas", disable=in_papermill()):
         template_atlas = get_atlas(analysis.atlas.unique_id, analysis.atlas.name)
         if analysis.atlas.do_alignment or analysis.atlas.do_prefilter:

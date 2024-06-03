@@ -130,6 +130,7 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
     inchi_keys_not_in_model: List[str] = []
     dependent_data_source: str = "median"
     use_poly_model: bool = False
+    use_offset_model: bool = False
     stop_before: Optional[str] = None
     google_folder: str
     msms_refs: Path
