@@ -15,10 +15,8 @@ def test_order_ms2_spectrum():
 
     assert np.all(ordered_array == np.array([[1e+01,1e+02,1e+03,1e+04,1e+05],[1e+05,1e+04,1e+03,1e+02,1e+01]]))
 
-def test_get_sample_file_paths(analysis_ids):
+def test_get_sample_file_paths(analysis_ids, lcmsrun):
 
-    ids = analysis_ids
-
-    sample_file_paths = pf.get_sample_file_paths(ids)
-
-    assert sample_file_paths == ids.all_lcmsruns
+    sample_file_paths = pf.get_sample_file_paths(analysis_ids)
+    
+    assert sample_file_paths == [lcmsrun.hdf5_file]

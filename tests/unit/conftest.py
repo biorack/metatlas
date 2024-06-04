@@ -51,7 +51,6 @@ def fixture_analysis_ids(sqlite_with_test_config_atlases, lcmsrun, configuration
     analysis_name = "EMA-POS"
     workflow = configuration.get_workflow(workflow_name)
     analysis = workflow.get_analysis(analysis_name)
-    hdf5_file = lcmsrun.hdf5_file
     return ids.AnalysisIdentifiers(
         project_directory=project_directory,
         experiment=experiment,
@@ -60,7 +59,6 @@ def fixture_analysis_ids(sqlite_with_test_config_atlases, lcmsrun, configuration
         configuration=configuration,
         workflow=workflow_name,
         analysis=analysis_name,
-        all_lcmsruns=hdf5_file
     )
 
 
