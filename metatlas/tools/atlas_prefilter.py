@@ -1,4 +1,3 @@
-import glob
 import os
 import pandas as pd
 import numpy as np
@@ -57,9 +56,6 @@ def get_sample_data(aligned_atlas_df: pd.DataFrame, sample_files: list[str], ppm
 
     ms1_data = pd.concat(ms1_data)
     ms2_data = pd.concat(ms2_data)
-
-    df = pd.DataFrame(ms2_data['spectrum'])
-    df.to_csv("/out/ms2_data_array.csv")
 
     ms2_data['spectrum'] = ms2_data['spectrum'].apply(order_ms2_spectrum)
 
@@ -165,84 +161,3 @@ def filter_atlas(aligned_atlas, ids: AnalysisIdentifiers, analysis, data: Metatl
     aligned_filtered_atlas = dp.get_atlas(aligned_atlas.name, aligned_filtered_atlas_df, ids.polarity, mz_tolerance)
 
     return aligned_filtered_atlas
-
-
-# Prototype Pre-Filter RT-Alignment Functions
-
-
-def extract_file_polarity(file_path: str) -> str:
-    """Extract file polarity from file path.
-
-    Per file naming conventions, field 9 of each (underscore delimited) filename contains the polarity information for that particular file.
-    """
-    return os.path.basename(file_path).split('_')[9]
-
-
-def subset_file_paths(raw_data_dir: str, experiment: str, polarity: str) -> tuple[list[str], list[str]]:
-    """Return lists of QC file paths and sample file paths filtered by polarity.
-
-    Filter polarity is used in this case to retrieve both fast polarity switching (FPS) files and files matching the defined polarity
-    """
-
-    if polarity == 'positive':
-        file_polarity = 'POS'
-        filter_polarity = 'NEG'
-    else:
-        file_polarity = 'NEG'
-        filter_polarity = 'POS'
-
-    all_files = glob.glob(os.path.join(raw_data_dir, experiment, '*.h5'))
-
-    sample_files = [file for file in all_files if extract_file_polarity(file) == file_polarity and 'QC' not in file]
-    qc_files = [file for file in all_files if extract_file_polarity(file) != filter_polarity and 'QC_' in file]
-
-    return (sample_files, qc_files)
-
-
-def get_rt_alignment_ms1_data(rt_alignment_atlas: pd.DataFrame, qc_files: list[str], ppm_tolerance: int,
-                              extra_time: float, polarity: str) -> pd.DataFrame:
-    """Collect all MS1 feature data for each entry in the retention time adjustment atlas."""
-
-    experiment_input = ft.setup_file_slicing_parameters(rt_alignment_atlas, qc_files, base_dir=os.getcwd(), ppm_tolerance=ppm_tolerance, extra_time=extra_time, polarity=polarity)
-
-    ms1_data = []
-    for file_input in experiment_input:
-
-        data = ft.get_data(file_input, save_file=False, return_data=True)
-        data['ms1_summary']['lcmsrun_observed'] = file_input['lcmsrun']
-
-        ms1_data.append(data['ms1_summary'])
-
-    return pd.concat(ms1_data)
-
-
-def align_rt_adjustment_peaks(ms1_data: pd.DataFrame, rt_alignment_atlas: pd.DataFrame) -> tuple[list[float], list[float]]:
-    """align median experimental retention time peaks with rt adjustment atlas peaks."""
-
-    median_experimental_rt_peaks = ms1_data[ms1_data['peak_height'] >= 1e4].groupby('label')['rt_peak'].median()
-    rt_peaks_merged = pd.merge(rt_alignment_atlas[['label', 'rt_peak']], median_experimental_rt_peaks, on='label')
-
-    original_rt_peaks = rt_peaks_merged['rt_peak_x'].tolist()
-    experimental_rt_peaks = rt_peaks_merged['rt_peak_y'].tolist()
-
-    return (original_rt_peaks, experimental_rt_peaks)
-
-
-def adjust_template_atlas_rt_peaks(template_atlas: pd.DataFrame, original_rt_peaks: list[float], experimental_rt_peaks: list[float],
-                                   rt_regression: bool, model_degree: int, rt_window: float) -> pd.DataFrame:
-    """Build and use model to adjust template atlas retention time peaks to match experimental retention time space."""
-
-    aligned_template_atlas = template_atlas.copy()
-
-    if rt_regression:
-        rt_alignment_model = np.polyfit(original_rt_peaks, experimental_rt_peaks, model_degree)
-        aligned_template_atlas['rt_peak'] = aligned_template_atlas['rt_peak'].apply(lambda x: np.polyval(rt_alignment_model, x))
-
-    else:
-        median_offset = np.median(np.array(original_rt_peaks) - np.array(experimental_rt_peaks))
-        aligned_template_atlas['rt_peak'] = aligned_template_atlas['rt_peak'] + median_offset
-
-    aligned_template_atlas['rt_min'] = aligned_template_atlas['rt_peak'] - rt_window
-    aligned_template_atlas['rt_max'] = aligned_template_atlas['rt_peak'] + rt_window
-
-    return aligned_template_atlas

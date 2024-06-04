@@ -22,7 +22,6 @@ from metatlas.datastructures.id_types import (
     FileMatchList,
     GroupList,
     GroupMatchList,
-    LcmsRunDict,
     LcmsRunsList,
     Polarity,
     POLARITIES,

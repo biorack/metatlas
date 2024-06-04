@@ -19,7 +19,7 @@ workflows:
             always: ["QC"]
           exclude_groups:
             always: ["NEG"]
-          use_poly_model: True
+          use_poly_model: False
           msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
           google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
     analyses:
@@ -49,6 +49,7 @@ workflows:
           exclude_groups:
             rt_alignment: ["NEG"]
           use_poly_model: True
+          use_offset_model: False
           msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
           google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
     analyses:
@@ -69,7 +70,7 @@ workflows:
             name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS
             unique_id: 89694aa326cd46958d38d8e9066de16c
             do_alignment: True
-            do_prefilter: True
+            do_prefilter: False
           parameters:
             copy_atlas: True
             polarity: positive
@@ -84,8 +85,6 @@ workflows:
             filter_removed: True
             num_points: 5
             peak_height: 4e5
-            msms_score: 0.7
-            msms_matches: 3
             generate_analysis_outputs: True
             slurm_execute: True
   - name: Test-C18
@@ -99,7 +98,8 @@ workflows:
             rt_alignment: ["QC"]
           exclude_groups:
             rt_alignment: ["NEG"]
-          use_poly_model: True
+          use_poly_model: False
+          use_offset_model: True
           msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
           google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
     analyses:
@@ -108,7 +108,7 @@ workflows:
             name: C18_20220215_TPL_EMA_Unlab_NEG
             unique_id: f74a731c590544aba5c3720b346e508e
             do_alignment: True
-            do_prefilter: False
+            do_prefilter: True
             rt_offset: 0.2
           parameters:
             copy_atlas: True
@@ -123,6 +123,7 @@ workflows:
             num_points: 3
             peak_height: 1e6
             msms_score: 0.6
+            msms_matches: 3
             filter_removed: True
             generate_analysis_outputs: True
             slurm_execute: True
