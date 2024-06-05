@@ -96,6 +96,7 @@ def write_identifications_spreadsheet(
         use_labels=True,
         min_msms_score=0.01,
         min_num_frag_matches=1,
+        ppm_tolerance = mz_tolerance,
         polarity=ids.short_polarity,
         overwrite=overwrite,
         data_sheets=False,  # eliminates output of the legacy 'data_sheets' dir but not '{POL}_data_sheets'
