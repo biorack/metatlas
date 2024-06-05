@@ -96,6 +96,7 @@ def write_identifications_spreadsheet(
         use_labels=True,
         min_msms_score=0.01,
         min_num_frag_matches=1,
+        ppm_tolerance = mz_tolerance,
         polarity=ids.short_polarity,
         overwrite=overwrite,
         data_sheets=False,  # eliminates output of the legacy 'data_sheets' dir but not '{POL}_data_sheets'
@@ -218,7 +219,7 @@ Max = namedtuple("Max", ["file_idx", "pre_intensity_idx", "pre_intensity", "prec
 
 
 def write_msms_fragment_ions(
-    data, intensity_fraction=0.01, min_mz=450, max_mz_offset=5, scale_intensity=1e5, overwrite=False
+    data, intensity_fraction=0.01, min_mz=0, max_mz_offset=5, scale_intensity=1e5, overwrite=False
 ):
     """
     inputs:
@@ -231,7 +232,7 @@ def write_msms_fragment_ions(
     out = []
     for compound_idx, _ in enumerate(data[0]):
         max_vars = get_max_precursor_intensity(data, compound_idx)
-        if max_vars.file_idx:
+        if max_vars.file_idx is not None:
             out.append(
                 get_spectra_strings(
                     data,

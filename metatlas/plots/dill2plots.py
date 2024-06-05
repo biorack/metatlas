@@ -30,6 +30,7 @@ from textwrap import fill, TextWrapper
 import pandas as pd
 import dill
 import numpy as np
+import numpy.typing as npt
 import json
 import matplotlib.pyplot as plt
 
@@ -62,6 +63,7 @@ from functools import reduce
 from io import StringIO
 
 from matchms.similarity import CosineHungarian
+from matchms.typing import SpectrumType
 from matchms import Spectrum
 
 logger = logging.getLogger(__name__)
@@ -2242,6 +2244,42 @@ def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str) -> pd.D
 
     return inchi_msms_hits
 
+
+def score_matrix(cos: Type[CosineHungarian], references: List[SpectrumType], queries: List[SpectrumType]) -> npt.NDArray:
+    """
+    Calculate matrix of scores and matching ion counts using MatchMS spectrum objects.
+
+    This is a replacement for (and is derived from) the native MatchMS BaseSimilarity.matrix method.
+    Source for is here: https://github.com/matchms/matchms/blob/master/matchms/similarity/BaseSimilarity.py
+
+    This additional function is necessary to fix numpy errors that arise when the score matrix is filled with all 0 values.
+    """
+
+    score_datatype = [("score", "float"), ("matches", "int")]
+
+    n_rows = len(references)
+    n_cols = len(queries)
+    idx_row = []
+    idx_col = []
+    scores = []
+    for i_ref, reference in enumerate(references[:n_rows]):
+        for i_query, query in enumerate(queries[:n_cols]):
+            score = cos.pair(reference, query)
+
+            idx_row.append(i_ref)
+            idx_col.append(i_query)
+            scores.append(score)
+
+    idx_row = np.array(idx_row)
+    idx_col = np.array(idx_col)
+    scores_data = np.array(scores, dtype=score_datatype)
+
+    scores_array = np.zeros(shape=(n_rows, n_cols), dtype=score_datatype)
+    scores_array[idx_row, idx_col] = scores_data.reshape(-1)
+
+    return scores_array
+
+
 def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
                           msms_data: pd.DataFrame, msms_refs: pd.DataFrame) -> pd.DataFrame:
     """
@@ -2252,7 +2290,6 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
 
     if inchi_key not in msms_refs['inchi_key'].tolist():
         nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
-
         return nonmatched_msms_hits
 
     filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
@@ -2260,8 +2297,7 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
 
     filtered_msms_data = msms_data[msms_data['inchi_key']==inchi_key].reset_index(drop=True).drop(columns=['inchi_key', 'precursor_mz']).copy()
 
-    scores_matches = cos.matrix(filtered_msms_data.matchms_spectrum.tolist(),
-                                filtered_msms_refs.matchms_spectrum.tolist())
+    scores_matches = score_matrix(cos, filtered_msms_data.matchms_spectrum.tolist(), filtered_msms_refs.matchms_spectrum.tolist())
 
     inchi_msms_hits = pd.merge(filtered_msms_data, filtered_msms_refs.drop(columns=['name', 'adduct']), how='cross')
     inchi_msms_hits['score'] = scores_matches['score'].flatten()
@@ -2270,12 +2306,16 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
     inchi_msms_hits['precursor_ppm_error'] = (abs(inchi_msms_hits['measured_precursor_mz'] - inchi_msms_hits['precursor_mz']) / inchi_msms_hits['precursor_mz']) * 1000000
     inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
 
+    if inchi_msms_hits.empty:
+        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
+        return nonmatched_msms_hits
+
     return inchi_msms_hits
 
 def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = False, keep_nonmatches: bool = False,
                   pre_query: str= 'database == "metatlas"', query: str | None = None, ref_dtypes: Dict[str, Type[Any]] | None = None,
                   ref_loc: str | None = None, ref_df: pd.DataFrame | None = None, frag_mz_tolerance: float = 0.005,
-                  ref_index: List[str] or str or None = None, do_centroid: bool = False, resolve_by: str | None = None) -> pd.DataFrame:
+                  ref_index: List[str] | str | None = None, do_centroid: bool = False, resolve_by: str | None = None) -> pd.DataFrame:
     """
     Get MSMS Hits from metatlas dataset and MSMS refs.
 
@@ -2310,6 +2350,9 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
         msms_refs = ref_df
 
     msms_data = ma_data.arrange_ms2_data(metatlas_dataset, do_centroid)
+
+    if msms_data.empty:
+        return pd.DataFrame(columns=msms_hits_cols).set_index(['database', 'id', 'file_name', 'msms_scan'])
 
     if not extra_time:
         cid_rt_min = msms_data['cid_rt_min']

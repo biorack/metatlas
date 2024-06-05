@@ -4,6 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 from scipy import interpolate
+import pymzml
 import time
 
 #pandas columns that are "objects", but you are 100% sure contain strings
@@ -15,7 +16,6 @@ import warnings
 from six.moves import range
 from six.moves import zip
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
-
 
 # SUMMARY OF TIMING AND MEMORY TESTING AT NERSC
 # 10 threads
@@ -224,6 +224,59 @@ def df_container_from_metatlas_file(filename,desired_key=None):
     return df_container
 
 
+def df_container_from_mzml_file(filename: str, desired_key: str) -> pd.DataFrame:
+    """
+    Inputs:
+    filename: mzml filename from which to extract desired key
+    desired_key: must be "ms1_pos", "ms2_neg", "ms1_neg" or "ms2_pos"
+
+    Outputs:
+    df_container: a dataframe holding the information for the desired key (e.g., m/z, rt, intensity)
+    """
+    assert filename.endswith('.mzML') or filename.endswith('.mzml')
+    
+    ms_level = int(desired_key.split('_')[0][2])
+    desired_polarity = desired_key.split('_')[1]
+
+    spectra = {'mz': [], 'i': [], 'rt': [], 'polarity': []}
+    if ms_level == 2:
+        spectra['precursor_MZ'] = []
+        spectra['precursor_intensity'] = []
+        spectra['collision_energy'] = []
+    
+    run = pymzml.run.Reader(filename, build_index_from_scratch=True)
+    for spec in run:
+        
+        if spec['negative scan']: 
+            polarity = 'neg' 
+        elif spec['positive scan']: 
+            polarity = 'pos' 
+        else: 
+            continue
+            
+        if spec.ms_level == ms_level and polarity == desired_polarity:
+            spectra['mz'] += spec.mz.tolist()
+            spectra['i'] += spec.i.tolist()
+            
+            rt = spec.scan_time_in_minutes()
+            peak_len = len(spec.mz)
+            spectra['rt'] += [rt for i in range(peak_len)]
+            
+            spectra['polarity'] += [0 if polarity == 'neg' else 1 for i in range(peak_len)]
+            
+            if spec.ms_level == 2:
+                precursor_data = spec.selected_precursors[0]
+                spectra['precursor_MZ'] += [precursor_data['mz'] for i in range(peak_len)]
+                spectra['precursor_intensity'] += [precursor_data['i'] for i in range(peak_len)]
+                spectra['collision_energy'] += [spec['collision energy'] for i in range(peak_len)]
+            
+    run.close()
+    
+    spectra_df = pd.DataFrame(spectra)
+
+    return spectra_df
+
+
 def filter_raw_data_using_atlas(atlas, msdata):
     """
     Inputs:
@@ -291,6 +344,45 @@ def get_atlas_data_from_file(filename,atlas,desired_key='ms1_pos'):#,bundle=True
     else:
         df = df[['label','rt','mz','i','in_feature']]
         return df.reset_index(drop=True)
+    
+    
+def get_atlas_data_from_mzml(filename, atlas, desired_key='ms1_pos'):#,bundle=True,make_string=False):
+    """
+    Inputs:
+    filename: mzml filename containing raw data
+    atlas: atlas to which raw data will be mapped (after running group_consecutive() to get group_index column)
+    desired_key: ms mode
+
+    Outputs:
+    Dataframe of new raw data where unmatched features have been dropped
+
+    """
+    
+    msdata = df_container_from_mzml_file(filename, desired_key)
+
+    if 'ms2' in desired_key:
+        # throw away all the intensity duplication here to make merging faster
+        # this has the expense of having to remerge it later.
+        unfiltered_msdata = msdata.copy()
+        msdata = msdata[['rt','precursor_MZ']].drop_duplicates('rt')
+        msdata = msdata.rename(columns={'precursor_MZ':'mz'})
+
+    msdata['group_index'] = map_mzgroups_to_data(atlas['mz'].values[:],
+                               atlas['group_index'].values[:],
+                               msdata['mz'].values[:])
+    
+    df = filter_raw_data_using_atlas(atlas, msdata)
+
+    if 'ms2' in desired_key:
+        # keep in mind we don't have intensity or scan attributes
+        df = df[['label','rt','in_feature']]
+        # This will merge back into the MSMS data the missing intensity and scan attributes
+        mcols = ['rt','i','mz','precursor_MZ','precursor_intensity','collision_energy']
+        df = pd.merge(df,unfiltered_msdata[mcols],left_on='rt',right_on='rt',how='left')
+        return df.reset_index(drop=True)
+    else:
+        df = df[['label','rt','mz','i','in_feature']]
+        return df.reset_index(drop=True)
 
 
 def calculate_ms1_summary(df, feature_filter=True):
@@ -314,10 +406,11 @@ def calculate_ms1_summary(df, feature_filter=True):
 
         summary['label'].append(label_group)
         summary['num_datapoints'].append(label_data['i'].count())
-        summary['peak_area'].append(label_data['i'].sum())
+        sum_intensity = label_data['i'].sum()
+        summary['peak_area'].append(sum_intensity)
         idx = label_data['i'].idxmax()
         summary['peak_height'].append(label_data.loc[idx,'i'])
-        summary['mz_centroid'].append(sum(label_data['i']*label_data['mz'])/float(summary['peak_area'][0]))
+        summary['mz_centroid'].append(sum(label_data['i']*label_data['mz'])/sum_intensity)
         summary['rt_peak'].append(label_data.loc[idx,'rt'])
 
     return pd.DataFrame(summary)
