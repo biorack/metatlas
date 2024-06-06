@@ -23,6 +23,11 @@ LinearRegression()
 Polynomial model with intercept=0.733 and coefficents=[0.00000, 0.81321, 0.00919]
 groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root_0_0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root_0_0_QC
 atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
+
+MedianOffset(coef_=array([[1.]]), intercept_=0.04492217884826655)
+Linear model with intercept=0.045 and slope=1.00000
+groups = 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_root_0_0_QC, 20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_root_0_0_QC
+atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
 """
     expected_df = {}
     expected_df[
@@ -76,6 +81,15 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
             5: 4.878586,
             6: 13.32883,
         },
+        'Relative RT Offset': {
+            0: 1.438622,
+            1: 2.278929,
+            2: 2.602524,
+            3: 2.770266,
+            4: 3.135941,
+            5: 4.878586,
+            6: 13.49007
+        },
         "RT Diff Linear": {
             0: 0.1222508,
             1: -0.2713695,
@@ -93,6 +107,15 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
             4: -0.2254138,
             5: 1.776357e-15,
             6: 1.776357e-14,
+        },
+        'RT Diff Offset': {
+            0: 0.4455958,
+            1: 0.01478179,
+            2: 0.06215487,
+            3: 0.0006507599,
+            4: -0.02687692,
+            5: 0.0,
+            6: -0.1612413
         },
     }
 
