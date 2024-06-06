@@ -19,7 +19,7 @@ workflows:
             always: ["QC"]
           exclude_groups:
             always: ["NEG"]
-          use_poly_model: False
+          use_poly_model: True
           msms_refs: /global/cfs/cdirs/metatlas/projects/spectral_libraries/msms_refs_v3.tab
           google_folder: 0B-ZDcHbPi-aqZzE5V3hOZFc0dms
     analyses:
