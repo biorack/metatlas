@@ -365,7 +365,7 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
             final_df.loc[compound_idx, 'msms_file'] = ""
             final_df.loc[compound_idx, 'msms_rt'] = np.nan
             final_df.loc[compound_idx, 'msms_numberofions'] = np.nan
-            final_df.loc[compound_idx, 'msms_matchingions'] = np.nan
+            final_df.loc[compound_idx, 'msms_matchingions'] = ""
             final_df.loc[compound_idx, 'msms_score'] = np.nan
         final_df.loc[compound_idx, 'mz_adduct'] = cid.mz_references[0].adduct
         final_df.loc[compound_idx, 'mz_theoretical'] = float("%.4f" % mz_theoretical)
