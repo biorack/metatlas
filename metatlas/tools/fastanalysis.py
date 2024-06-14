@@ -352,7 +352,7 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
                     if all(isinstance(x, (int, float)) for x in quality_scores):
                         final_df = calculate_compound_total_score(final_df, compound_idx, quality_scores)
                     else:
-                        final_df.loc[compound_idx, 'total_score'] = pd.NA
+                        final_df.loc[compound_idx, 'total_score'] = np.nan
                         final_df.loc[compound_idx, 'msi_level'] = ""
                 else: # When single matching fragment ion is not the precursor, set score to best.
                     logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s. Setting MSMS score to the best score of %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'], scores[0])
