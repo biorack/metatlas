@@ -2,37 +2,43 @@
 
 ### Gather atlas CSV
 
-The `csv_atlas_file_name` parameter should be a direct path to the CSV
-(comma-separated values) files that contains your atlas data. Required fields
-in the atlas CSV file are:
+The metatlas compound atlas you want to create and deposit should be a table in 
+comma-separated value (CSV) format. It may contain any number of fields, but
+must contain the following required columns:
 
 `rt_max` - float
+
 `rt_min` - float
+
 `rt_peak` - float
+
 `mz` - float
 
-Additional suggested minimum fields are:
+Additional suggested columns are:
 
 `inchi_key` - XXXXXXXXXXXXXX-XXXXXXXXXX-X
-`name` - free text without non-ASCII characters
+
+`name` - free text with only ASCII characters (check for special characters)
+
 `polarity` - negative or positive
 
-**Move the atlas CSV to a directory on perlmutter at NERSC where you have 
-read/write permissions.**
+Once the compound table is in the correct format, move it to a directory on perlmutter
+at NERSC where you have read/write permissions.
 
 ### Run the Add_Atlas_to_DB.ipynb notebook
 
-A useful interactive way to run the [Add_Atlas_to_DB.ipynb](
-https://github.com/biorack/metatlas/blob/main/notebooks/reference/Add_Atlas_to_DB.ipynb) notebook is 
-to use the [JupyterLab ](https://jupyter.nersc.gov/) server in your web browser by starting a 'Login Node' 
-session on Perlmutter. You can read more about how to use the service at NERSC's [Jupyter Overview page](https://docs.nersc.gov/services/jupyter/).
+The [Add_Atlas_to_DB.ipynb](
+https://github.com/biorack/metatlas/blob/main/notebooks/reference/Add_Atlas_to_DB.ipynb) notebook will deposit your CSV into the metatlas MySQL database.
+A useful way to run the notebook is to use the [JupyterLab ](https://jupyter.nersc.gov/) server in your web browser
+by starting a 'Login Node' session on Perlmutter. You can read more about how to use the 
+service at NERSC's [Jupyter Overview page](https://docs.nersc.gov/services/jupyter/).
 
-To do this, ensure you have cloned or pulled the most up-to-date version of the [Metatlas github repo](https://github.com/biorack/metatlas/tree/main)
-on perlmutter and navigate there within the JupyterLab ecosystem. Open up the notebook at
-``` <REPO_DIR>/notebooks/reference/Add_Atlas_to_DB.ipynb ```. Choose the `Metatlas Targeted` kernel if prompted.
+To do this, ensure you have cloned or pulled the most up-to-date version of the [metatlas github repo](https://github.com/biorack/metatlas/tree/main)
+main branch on perlmutter and navigate there within the JupyterLab ecosystem. Open up the notebook at
+``` <REPO_DIR>/notebooks/reference/Add_Atlas_to_DB.ipynb ``` and choose the "Metatlas Targeted" kernel if prompted.
 
 You can also run the notebook on perlmutter from an IDE such as VSCode, ensuring you are using an
-appropriate kernel, [e.g.](https://github.com/biorack/metatlas/blob/main/docker/shifter.kernel.json).
+appropriate kernel, [e.g. Metatlas Targeted](https://github.com/biorack/metatlas/blob/main/docker/shifter.kernel.json).
 
 ### Set parameters of Add_Atlas_to_DB.ipynb notebook
 
@@ -41,18 +47,23 @@ appropriate kernel, [e.g.](https://github.com/biorack/metatlas/blob/main/docker/
 The first cell contains several parameters that should be set by the user.
 
 `csv_atlas_file_name` - direct path (from root) to the atlas CSV file
+
 `atlas_name` - suggested: `<C18/HILIC/LIPID>_<date>_<TPL>_<Workflow>_<Lab/Unlab>_<NEG/POS>`
+
 `polarity` - negative or positive
+
 `mz_tolerance` - integer (default is 5)
+
 `sort_atlas` - True or False (default is True)
+
 `run_retrieval_check` - True or False (default is False because it taks a while)
 
 Remaining parameters can be set based on specific needs and useage is described.
 
 #### Cell 2
 
-No user-defined settings are required for this cell. Ensure that the commit you expect
-(likely, most recent) is printed in the info log below the cell.
+No user-defined settings are required for this cell. Ensure that the metatlas repo commit 
+you expect (likely, most recent) is printed in the info log below the cell.
 
 #### Cells 3 and 4
 
@@ -79,8 +90,8 @@ This is the main call of the notebook and will:
 5. Assign it the provided name and an auto-generated unique ID
 6. Transform the deposited atlas to a pandas dataframe for optional inspection
 
-Cell 5 is a timed block, and should take on the order of 1-20 minutes to complete. Once
-it is completed, note the atlas name and unique IDs for use in metabolomics analysis with
+Cell 5 is a timed block, and should take on the order of single-digit minutes to complete. Once
+completed, it will print the atlas name and unique IDs for use in metabolomics analysis with
 metatlas workflows.
 
 #### Cell 6
