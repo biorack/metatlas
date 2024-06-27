@@ -16,11 +16,14 @@ must contain the following required columns:
 
 Additional suggested columns are:
 
+`label` - free text (check for special characters, i.e., Greek letters). For internal stardards
+atlases, label should include a parenthetical indicating unlabeled or the isotopic labeling
+
 `inchi_key` - XXXXXXXXXXXXXX-XXXXXXXXXX-X
 
-`name` - free text with only ASCII characters (check for special characters)
-
 `polarity` - negative or positive
+
+`adduct` - the ion modification of the compound
 
 Once the compound table is in the correct format, move it to a directory on perlmutter
 at NERSC where you have read/write permissions.
@@ -48,7 +51,7 @@ The first cell contains several parameters that should be set by the user.
 
 `csv_atlas_file_name` - direct path (from root) to the atlas CSV file
 
-`atlas_name` - suggested: `<C18/HILIC/LIPID>_<date>_<TPL>_<Workflow>_<Lab/Unlab>_<NEG/POS>`
+`atlas_name` - suggested: `<C18/HILIC/LIPID>_<date>_<TPL>_<Workflow>_<Lab/Unlab>_<NEG/POS>` (e.g., C18_20240624_TPL_EMA_Unlab_NEG)
 
 `polarity` - negative or positive
 
@@ -69,7 +72,9 @@ you expect (likely, most recent) is printed in the info log below the cell.
 
 The default behavior of the notebook is to sort your atlas CSV first by retention time (RT)
 and second by mass/charge (MZ), then write the sorted CSV to a file at the same location as 
-the original csv (with the suffix "sorted" appended before the ".csv"). Sorting helps the
+the original csv (with the suffix "sorted" appended before the ".csv").  If you are inputting
+a file which is in CSV format but whose name does not end in ".csv", you will wante to ammend
+this line to writeSorting helps the
 analyst who will be using the template notebook for metabolomics workflows.
 
 Cell 3 defines a function to perform the sorting; Cell 4 reads, sorts, and writes the
