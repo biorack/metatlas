@@ -110,6 +110,7 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     num_points: Optional[int] = None
     peak_height: Optional[float] = None
     msms_score: Optional[float] = None
+    msms_matches: Optional[int] = None
     filter_removed: bool = False
     line_colors: Optional[List[Tuple[str, str]]] = None
     require_all_evaluated: bool = False
@@ -129,6 +130,7 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
     inchi_keys_not_in_model: List[str] = []
     dependent_data_source: str = "median"
     use_poly_model: bool = False
+    use_offset_model: bool = False
     stop_before: Optional[str] = None
     google_folder: str
     msms_refs: Path
@@ -140,6 +142,7 @@ class Atlas(BaseModel):
     unique_id: str
     name: str
     do_alignment: bool = False
+    do_prefilter: bool = False
     rt_offset: float = 0.5
 
     @validator("unique_id")

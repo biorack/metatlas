@@ -19,7 +19,7 @@ def test_get_rts01(metatlas_dataset):
 def test_plot_actual_vs_aligned_rts01(model):
     arrays = [[]]
     rts_df = pd.DataFrame(data={"1": [], "2": [], "3": [], "4": [], "5": [], "6": []})
-    rt_alignment.plot_actual_vs_aligned_rts(arrays, arrays, rts_df, "file_name", model, model)
+    rt_alignment.plot_actual_vs_aligned_rts(arrays, arrays, rts_df, "file_name", model, model, model)
 
 
 def test_align_atlas(atlas_with_2_cids, model):
@@ -32,8 +32,8 @@ def test_align_atlas(atlas_with_2_cids, model):
     assert len(out.compound_identifications) == 2
 
 
-def test_create_aligned_atlases(atlas_with_2_cids, model, analysis_ids, workflow):
-    atlases = rt_alignment.create_aligned_atlases(model, model, analysis_ids, workflow)
+def test_create_aligned_atlases(model, analysis_ids, metatlas_dataset, workflow):
+    atlases = rt_alignment.create_aligned_atlases(model, model, model, analysis_ids, workflow, metatlas_dataset)
     assert [a.name for a in atlases] == [
         "HILICz150_ANT20190824_TPL_QCv3_Unlab_POS",
         "HILICz150_ANT20190824_PRD_EMA_Unlab_POS_linear_505892_OakGall_final_Test-HILIC_EMA-POS_0",
