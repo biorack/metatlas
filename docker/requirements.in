@@ -17,7 +17,7 @@ matchms==0.20.0
 matplotlib
 numpy==1.24.4
 oauth2client
-pandas==2.1.1
+pandas==2.1.2
 papermill
 pubchempy
 pydantic
