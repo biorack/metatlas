@@ -51,7 +51,7 @@ appropriate kernel, [e.g. Metatlas Targeted](https://github.com/biorack/metatlas
 
 ### Set parameters in notebook cells
 
-#### Cell 1
+#### Parameters
 
 The first cell contains several parameters that should be set by the user.
 
@@ -75,18 +75,17 @@ the notebook will sort the atlas so labeled compunds appear first)
 `run_retrieval_check` - True or False (default is False because it takes a while, this tests
 if the deposited atlas has the same number of compounds as the input CSV)
 
-Remaining parameters can be set based on specific needs and usage is described in Cell 1.
+Remaining parameters can be set based on specific needs and usage is described in the notebook.
 
-#### Cell 2
+#### Initialization
 
-No user-defined settings are required for this cell. Ensure that the metatlas repo commit 
-you expect (likely, most recent) is printed in the info log below the cell. Keep a heads up
-for Warnings that may indicate incorrect CSV input formatting or conflicting parameters.
+The second cell ininitalizes all the variables set above, performs system checks (e.g., on 
+the kernel environment), and import various functions from the metatlas universe.
 
-#### Cells 3 and 4
+#### Atlas Sort
 
-Cell 3 defines a function to perform atlas sorting; Cell 4 performs the sort if `sort_atlas`
-is True by reading, sorting, and writing the atlas to an updated CSV.
+The third cell performs a convenience sort if `sort_atlas` is True by reading, sorting, and 
+writing the atlas to an updated CSV.
 
 Sorting helps the analyst who will be using the template notebook for 
 metabolomics workflows and should generally be kept as True. The default behavior 
@@ -101,10 +100,10 @@ If you are depositing an internal standards atlas with both unlabeled and isotop
 compounds, also ensure that `istd_atlas` is set to True so the sorting function
 knows to put the labeled compounds first in the final atlas.
 
-Check that the logger info printed under Cell 4 matches your expectations about which CSV (sorted
+Check that the logger info printed in this cell matches your expectations about which CSV (sorted
 or unsorted) will be deposited to the database.
 
-#### Cell 5
+#### Atlas Generation
 
 This is the main call of the notebook and will:
 
@@ -115,19 +114,19 @@ This is the main call of the notebook and will:
 5. Assign it the provided name and an auto-generated unique ID
 6. Transform the deposited atlas to a pandas dataframe for optional inspection
 
-Cell 5 is a timed block, and should take on the order of minutes to complete. Once
+This cell is a timed block, and should take on the order of minutes to complete. Once
 completed, it will print to standard output the atlas name and unique IDs for use in 
 metabolomics analysis configs with metatlas workflows.
 
-#### Cell 6
+#### Deposited Atlas Check
 
-Cell 6 runs an optional check on whether the number of compounds in the input CSV matches the
+The final cell runs an optional check on whether the number of compounds in the input CSV matches the
 number of compounds in the deposited atlas. This is not run by default because retrieval of
 the atlas from MySQL by unique ID is time consuming (>15 minutes). Set the `run_retrieval_check`
-parameter to `True` in Cell 1 to run this check.
+parameter to `True` in the notebook Parameters cell to run this check.
 
 ## Document the atlas name and unique ID
 
 Important note: To use the newly deposited atlas for metatlas workflows you will need to 
-update the config file(s) with the atlas name and the unique ID (printed after Cell 5), document
-these somewhere.
+update the config file(s) with the atlas name and the unique ID (printed after the Atlas
+Generation cell).
