@@ -26,6 +26,33 @@ logger = logging.getLogger(__name__)
 
 MetatlasDataset = List[List[Any]]  # avoiding a circular import
 
+def sort_atlas_csv(input_csv: str, column1: str, column2: str, istd_atlas: bool) -> pd.DataFrame:
+    """
+    Reads in the atlas CSV, sorts it based on two numeric columns in ascending order
+
+    Parameters:
+    - input_csv: Path to the input CSV file.
+    - column1: The first column to sort by.
+    - column2: The second column to sort by.
+    """
+    # Read the CSV file into a DataFrame
+    df = pd.read_csv(input_csv)
+    
+    # Sort the DataFrame based on the specified columns in ascending order
+    if istd_atlas == True:
+        if 'label' in df.columns:
+            if 'unlabeled' not in df['label'].values:
+                logger.info("Warning: The designation 'unlabeled' does not appear in the 'label' column. Only set 'istd_atlas' to True if this is an internal standard atlas with isotopic labeling.")
+            df['rt_peak'] = df.apply(lambda row: row['rt_peak'] + 0.1 if 'unlabeled' in row['label'] else row['rt_peak'], axis=1)
+            sorted_df = df.sort_values(by=[column1, column2], ascending=[True, True])
+            sorted_df['rt_peak'] = sorted_df.apply(lambda row: row['rt_peak'] - 0.1 if 'unlabeled' in row['label'] else row['rt_peak'], axis=1)
+        else:
+            logger.info("Warning: The 'label' column is missing. Not sorting with heavy isotope compound first even though 'istd_atlas' is set to True.")
+            sorted_df = df.sort_values(by=[column1, column2], ascending=[True, True])
+    else:
+        sorted_df = df.sort_values(by=[column1, column2], ascending=[True, True])
+    
+    return(sorted_df)
 
 def create_msms_dataframe(df):
     """
