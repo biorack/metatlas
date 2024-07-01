@@ -49,7 +49,7 @@ main branch on perlmutter and navigate there within the JupyterLab ecosystem. Op
 You can also run the notebook on perlmutter from an IDE such as VSCode, ensuring you are using an
 appropriate kernel, [e.g. Metatlas Targeted](https://github.com/biorack/metatlas/blob/main/docker/shifter.kernel.json).
 
-### Set parameters in notebook cells
+### Notebook cell descriptions
 
 #### Parameters
 
