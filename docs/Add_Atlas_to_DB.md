@@ -1,4 +1,10 @@
-# Create atlas from CSV and deposit it to metatlas database
+# Create metatlas atlas from CSV and deposit into database
+
+## Purpose
+
+This documentation will describe how to convert a CSV containing metabolite
+information (for ISTD, QC, EMA analyses, etc.) into a metatlas MySQL database
+object that can be referenced by name or unique ID.
 
 ## Gather atlas CSV
 
