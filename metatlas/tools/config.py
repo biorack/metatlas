@@ -111,6 +111,7 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     peak_height: Optional[float] = None
     msms_score: Optional[float] = None
     msms_matches: Optional[int] = None
+    msms_frag_ratio: Optional[float] = None
     filter_removed: bool = False
     line_colors: Optional[List[Tuple[str, str]]] = None
     require_all_evaluated: bool = False

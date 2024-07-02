@@ -70,7 +70,7 @@ workflows:
             name: HILICz150_ANT20190824_TPL_EMA_Unlab_POS
             unique_id: 89694aa326cd46958d38d8e9066de16c
             do_alignment: True
-            do_prefilter: False
+            do_prefilter: True
           parameters:
             copy_atlas: True
             polarity: positive
@@ -124,6 +124,7 @@ workflows:
             peak_height: 1e6
             msms_score: 0.6
             msms_matches: 3
+            msms_frag_ratio: 0.3
             filter_removed: True
             generate_analysis_outputs: True
             slurm_execute: True
