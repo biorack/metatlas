@@ -1668,12 +1668,12 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
 
             for i, msv_sample in enumerate(np.split(msv_sample_scans, scan_idxs, axis=1)):
 
-                mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
+                mms_sample = Spectrum(mz=msv_sample[0], intensities=np.sqrt(msv_sample[1]), metadata={'precursor_mz':np.nan})
 
                 for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                     msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
 
-                    mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
+                    mms_ref = Spectrum(mz=msv_ref[0], intensities=np.sqrt(msv_ref[1]), metadata={'precursor_mz':np.nan})
 
                     score = cos.pair(mms_sample, mms_ref)['score'].item()
 
@@ -1952,14 +1952,14 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
             current_best_msv_ref = None
             current_best_rt = None
 
-            mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
+            mms_sample = Spectrum(mz=msv_sample[0], intensities=np.sqrt(msv_sample[1]), metadata={'precursor_mz':np.nan})
 
             for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                 msv_ref = np.array(frag['mz_intensities']).T
 
                 msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, 0.005)
 
-                mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
+                mms_ref = Spectrum(mz=msv_ref[0], intensities=np.sqrt(msv_ref[1]), metadata={'precursor_mz':np.nan})
 
                 score = cos.pair(mms_sample, mms_ref)['score'].item()
 
@@ -2187,7 +2187,7 @@ def build_msms_refs_spectra(msms_refs: pd.DataFrame) -> pd.DataFrame:
     """Converts MS2 spectral arrays from strings to numpy arrays and creates MatchMS spectra."""
 
     msms_refs['spectrum'] = msms_refs['spectrum'].apply(lambda s: np.array(json.loads(s)))
-    msms_refs['matchms_spectrum'] = msms_refs.apply(lambda s: Spectrum(s.spectrum[0], s.spectrum[1], metadata={'precursor_mz':s.precursor_mz}), axis=1)
+    msms_refs['matchms_spectrum'] = msms_refs.apply(lambda s: Spectrum(s.spectrum[0], np.sqrt(s.spectrum[1]), metadata={'precursor_mz':s.precursor_mz}), axis=1)
 
     return msms_refs
 
