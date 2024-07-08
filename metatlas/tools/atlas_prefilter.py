@@ -109,8 +109,8 @@ def score_ms2_data(ms2_data: pd.DataFrame, aligned_atlas_df: pd.DataFrame,
     ms2_data_refs_merge = pd.merge(ms2_data, aligned_atlas_df[['label', 'inchi_key']], on='label')
     ms2_data_refs_merge = pd.merge(ms2_data_refs_merge, msms_refs[['id', 'inchi_key', 'spectrum']], on='inchi_key')
 
-    ms2_data_refs_merge['mms_spectrum_x'] = ms2_data_refs_merge.apply(lambda x: mms.Spectrum(x.spectrum_x[0], x.spectrum_x[1], metadata={'precursor_mz': x.precursor_mz}), axis=1)
-    ms2_data_refs_merge['mms_spectrum_y'] = ms2_data_refs_merge.apply(lambda x: mms.Spectrum(x.spectrum_y[0], x.spectrum_y[1], metadata={'precursor_mz': x.precursor_mz}), axis=1)
+    ms2_data_refs_merge['mms_spectrum_x'] = ms2_data_refs_merge.apply(lambda x: mms.Spectrum(x.spectrum_x[0], np.sqrt(x.spectrum_x[1]), metadata={'precursor_mz': x.precursor_mz}), axis=1)
+    ms2_data_refs_merge['mms_spectrum_y'] = ms2_data_refs_merge.apply(lambda x: mms.Spectrum(x.spectrum_y[0], np.sqrt(x.spectrum_y[1]), metadata={'precursor_mz': x.precursor_mz}), axis=1)
 
     ms2_data_refs_merge['mms_out'] = calculate_ms2_scores(ms2_data_refs_merge, frag_tolerance)
 
