@@ -85,6 +85,7 @@ workflows:
             filter_removed: True
             num_points: 5
             peak_height: 4e5
+            msms_frag_ratio: 0.3
             generate_analysis_outputs: True
             slurm_execute: True
   - name: Test-C18
