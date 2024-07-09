@@ -122,7 +122,7 @@ def score_ms2_data(ms2_data: pd.DataFrame, aligned_atlas_df: pd.DataFrame,
     ms2_data_refs_merge['reference_data_ratio'] = ms2_data_refs_merge['ref_frags']/ms2_data_refs_merge['data_frags']
     ms2_data_refs_merge['match_reference_ratio'] = ms2_data_refs_merge['matches']/ms2_data_refs_merge['ref_frags']
 
-    ms2_data_refs_merge.to_csv("/out/ms2_data_refs_merge.csv")
+    ms2_data_refs_merge = ms2_data_refs_merge.drop(['ref_frags', 'data_frags'], axis=1)
 
     return ms2_data_refs_merge
 
