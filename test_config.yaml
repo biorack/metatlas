@@ -124,6 +124,7 @@ workflows:
             peak_height: 1e6
             msms_score: 0.6
             msms_matches: 3
+            msms_frag_ratio: 0.3
             filter_removed: True
             generate_analysis_outputs: True
             slurm_execute: True
