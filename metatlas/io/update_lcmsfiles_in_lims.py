@@ -7,7 +7,7 @@ import argparse
 # you need this!
 # https://github.com/LabKey/labkey-api-python
 #
-# sys.path.insert(0,'/Users/bpb/repos/labkey-api-python/')
+sys.path.insert(0,'/global/common/software/m2650/labkey-api-python')
 # sys.path.insert(0,'/global/homes/b/bpb/repos/labkey-api-python/')
 # import labkey as lk
 from labkey.api_wrapper import APIWrapper
@@ -54,7 +54,7 @@ GETTER_SPEC = {'raw':{'extension':'.raw',
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
     api_key = fid.read().strip()
-labkey_server='metatlas.nersc.gov'
+labkey_server='metatlas.lbl.gov'
 project_name='LIMS/'
 api = APIWrapper(labkey_server, project_name, use_ssl=True,api_key=api_key)
 
@@ -142,7 +142,7 @@ def get_table_from_lims(table,columns=None):
         df = df[[c for c in df.columns if not c.startswith('_')]]
         return df
 
-def update_table_in_lims(df,table,method='update',max_size=1000):
+def update_table_in_lims(df,table,method='update',max_size=100):
 
     """
     Note: Do ~1000 rows at a time.  Any more and you get a 504 error.  Maybe increasing the timeout would help.
@@ -211,25 +211,30 @@ def update_lcmsrun_names(tables=['mzml_file','hdf5_file','raw_file']):
         temp['name'] = missing_from_lcmsruns
         update_table_in_lims(temp,'lcmsrun',method='insert')
 
-    #remove extra ones
-    if len(extra_in_lcmsruns)>0:
-        chunks = [extra_in_lcmsruns[x:x+10] for x in range(0, len(extra_in_lcmsruns), 10)]
-        for i,extra in enumerate(chunks):
-            sql = """SELECT Key FROM lcmsrun where name IN (%s);"""%','.join(['\'%s\''%e for e in extra])
-            # print(sql)
-            schema = 'lists'
-            sql_result = api.query.execute_sql(schema, sql,max_rows=1e7)
-            if sql_result is None:
-                print(('execute_sql: Failed to load results from ' + schema + '.' + table))
-            #     return None
-            else:
-                temp = pd.DataFrame(sql_result['rows'])
-                temp = temp[[c for c in temp.columns if not c.startswith('_')]]
-            #     return df
+    # # remove extra ones
+    # if len(extra_in_lcmsruns)>0:
+    #     lcmsruns = get_table_from_lims('lcmsrun',columns=['Key','name'])
+    #     temp = lcmsruns[lcmsruns['name'].isin(extra_in_lcmsruns)]
+    #     if temp.shape[0]>0:
+    #         print('LCMS run entries to remove:',temp.shape[0])
+    #         update_table_in_lims(temp,'lcmsrun',method='delete')
+#         chunks = [extra_in_lcmsruns[x:x+10] for x in range(0, len(extra_in_lcmsruns), 5)]
+#         for i,extra in enumerate(chunks):
+#             sql = """SELECT Key FROM lcmsrun where name IN (%s);"""%','.join(['\'%s\''%e for e in extra])
+#             # print(sql)
+#             schema = 'lists'
+#             sql_result = api.query.execute_sql(schema, sql,max_rows=1e7)
+#             if sql_result is None:
+#                 print(('execute_sql: Failed to load results from ' + schema + '.' + table))
+#             #     return None
+#             else:
+#                 temp = pd.DataFrame(sql_result['rows'])
+#                 temp = temp[[c for c in temp.columns if not c.startswith('_')]]
+#             #     return df
 
-            #if temp.shape[0]>0:
-            #    update_table_in_lims(temp,'lcmsrun',method='delete')
-            #    print('removing chunk %d'%i)
+#             if temp.shape[0]>0:
+#                 update_table_in_lims(temp,'lcmsrun',method='delete')
+#                 print('removing chunk %d'%i)
 
     return missing_from_lcmsruns,extra_in_lcmsruns
 
@@ -268,69 +273,6 @@ def get_lcmsrun_matrix():#labkey_server='metatlas-dev.nersc.gov',project_name='/
 
 
 
-def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None):#,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
-    """
-    gets current tasks and current files and determines if new tasks need to be made:
-
-    task will be:['mzml_to_hdf5','raw_to_mzml','mzml_to_spectralhits','mzml_to_pactolus']
-
-    """
-    input_type = task.split('_')[0]
-    output_type = task.split('_')[-1]
-
-    if file_conversion_tasks is None:
-        file_conversion_tasks = get_table_from_lims('file_conversion_task',columns=['Key','input_file','output_file','task','status'])
-    
-    if lcmsruns is None:
-        lcmsruns = get_lcmsrun_matrix()
-    if file_conversion_tasks.shape[0]>0:
-        done_input_files = lcmsruns.loc[pd.notna(lcmsruns['%s_filename'%input_type]),'%s_filename'%input_type]
-        done_output_files = lcmsruns.loc[pd.notna(lcmsruns['%s_filename'%output_type]),'%s_filename'%output_type]
-        inputfile_idx = file_conversion_tasks['input_file'].isin(done_input_files)
-        outputfile_idx = file_conversion_tasks['output_file'].isin(done_output_files)
-
-        task_idx = file_conversion_tasks['task']==task
-
-        # This finds where output file exists
-        done_tasks_idx = (task_idx) & (outputfile_idx)
-        if sum(done_tasks_idx)>0:
-            update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')
-            #,labkey_server=labkey_server,project_name=project_name)
-            print(('%s: There are %d tasks where output file exist and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
-
-
-        # This finds where input file is missing
-        done_tasks_idx = (task_idx) & (~inputfile_idx)
-        if sum(done_tasks_idx)>0:
-            update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')
-            #,labkey_server=labkey_server,project_name=project_name)
-            print(('%s: There are %d tasks where input file is missing and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
-
-    right_now_str = datetime.now().strftime("%Y%m%d %H:%M:%S")
-
-    idx = (pd.notna(lcmsruns['%s_filename'%input_type])) & (pd.isna(lcmsruns['%s_filename'%output_type]))
-
-    temp = pd.DataFrame()
-
-    temp['input_file'] = lcmsruns.loc[idx,'%s_filename'%input_type]
-    temp['output_file'] = temp['input_file'].apply(lambda x: re.sub('\%s$'%EXTENSIONS[input_type],'%s'%EXTENSIONS[output_type],x))
-    temp['task'] = task
-    temp['status'] = STATUS['initiation']
-    temp['log'] = 'detected: %s'%right_now_str
-    temp.reset_index(drop=True,inplace=True)
-    cols = temp.columns
-    if file_conversion_tasks.shape[0]>0:
-        temp = pd.merge(temp,file_conversion_tasks.add_suffix('_task'),left_on=['input_file','output_file'],right_on=['input_file_task','output_file_task'],how='outer',indicator=True)
-        new_tasks = temp[temp['_merge']=='left_only'].copy()
-    else:
-        new_tasks = temp
-    new_tasks = new_tasks[cols]
-    new_tasks.reset_index(drop=True,inplace=True)
-
-    print(("There are %d new tasks"%new_tasks.shape[0]))
-
-    if new_tasks.shape[0]>0:
-        update_table_in_lims(new_tasks,'file_conversion_task',method='insert')
 
 def update_file_table(file_table):
     file_type = file_table.split('_')[0]
@@ -339,40 +281,44 @@ def update_file_table(file_table):
     dates,files = get_files_from_disk(PROJECT_DIRECTORY,v['extension'])
     if len(files)>0:
         df = pd.DataFrame(data={'filename':files,'file_type':file_type,'timeepoch':dates})
-        df['basename'] = df['filename'].apply(os.path.basename)
-        df['name'] = df['filename'].apply(complex_name_splitter) #make a name for grouping associated content
+        # df['basename'] = df['filename'].apply(os.path.basename)
+        # df['name'] = df['filename'].apply(complex_name_splitter) #make a name for grouping associated content
     else:
         df = pd.DataFrame()
         df['filename'] = 'None'
         df['file_type'] = file_type
         df['timeepoch'] = 0
-        df['basename'] = 'None'
-        df['name'] = 'None'
+        # df['basename'] = 'None'
+        # df['name'] = 'None'
     
     print(('\tThere were %d files on disk'%len(files)))
 
-    cols = ['filename','name','Key']
+    cols = ['filename','Key']
     df_lims = get_table_from_lims(v['lims_table'],columns=cols)
+    # df_lims.drop_duplicates('filename',inplace=True)
     print(('\tThere were %d files from LIMS table %s'%(df_lims.shape[0],v['lims_table'])))
 
         
-    diff_df = pd.merge(df, df_lims,on=['filename','name'], how='outer', indicator='Exist')
+    diff_df = pd.merge(df, df_lims,on=['filename'], how='outer', indicator='Exist')
     diff_df = diff_df.loc[diff_df['Exist'] != 'both'] #(left_only, right_only, or both)
     print(('\tThere are %d different'%diff_df.shape[0]))
     print('')
 #         diff_df.fillna('',inplace=True)
     diff_df['parameters'] = 1
 
-    cols = ['file_type','filename','timeepoch','basename','name']
-    temp = diff_df.loc[diff_df['Exist']=='left_only',cols]
+    cols = ['file_type','filename','timeepoch']
+    temp = diff_df.loc[diff_df['Exist']=='left_only',cols].copy()
     if temp.shape[0]>0:
+        temp['name'] = temp['filename'].apply(complex_name_splitter)
+        temp['basename'] = temp['filename'].apply(lambda x: os.path.basename(x))
         update_table_in_lims(temp,file_table,method='insert')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
 
-    cols = ['Key','filename']
+    cols = ['Key']
     temp = diff_df.loc[diff_df['Exist']=='right_only',cols]
     temp['Key'] = temp['Key'].astype(int)
-    #if temp.shape[0]>0:
-    #    update_table_in_lims(temp,file_table,method='delete')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
+    # if temp.shape[0]>0:
+    #     update_table_in_lims(temp,file_table,method='delete')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
+    return temp
 #         df.to_csv('/global/homes/b/bpb/Downloads/%s_files.tab'%k,index=None,sep='\t')
 
 def str2bool(v):
@@ -418,10 +364,6 @@ def main():
             update_lcmsrun_matrix(t)
 
     # 4. remove any file conversion tasks that have already occured
-    # TODO!!!!!# TODO!!!!!# TODO!!!!!
-    # TODO!!!!!# TODO!!!!!# TODO!!!!!
-    # TODO!!!!!# TODO!!!!!# TODO!!!!!
-    # TODO!!!!!# TODO!!!!!# TODO!!!!!
     #if str2bool(args['update_fileconversion_tasks'])==True:
     #    # 5. populate any file conversion tasks that need to occur
     #    lcmsruns = get_lcmsrun_matrix() #this could be moved up abote to step 3 and save a few queries
