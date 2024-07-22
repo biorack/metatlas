@@ -34,6 +34,14 @@ MS2Aligned = Tuple[npt.NDArray[npt.NDArray[Any]], npt.NDArray[npt.NDArray[Any]]]
 #Misc Functions
 ################################################################################
 
+def jaccard_set(list1, list2):
+    """Define Jaccard Similarity function for two sets"""
+    if not list1 and not list2:
+        return None
+    intersection = len(list(set(list1).intersection(list2)))
+    union = (len(list1) + len(list2)) - intersection
+    return float(intersection) / union
+
 def make_feature_label(row,polarity_attr='polarity',mz_attr='mz',rt_attr='rt_peak'):
     """
     For consistency these are my preferred way to do this:
