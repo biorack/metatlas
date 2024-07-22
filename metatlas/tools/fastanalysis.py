@@ -373,8 +373,8 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
             final_df.loc[compound_idx, 'msms_numberofions'] = np.nan
             final_df.loc[compound_idx, 'msms_matchingions'] = ""
             final_df.loc[compound_idx, 'msms_score'] = np.nan
-        final_df.loc[compound_idx, 'msms_frag_ratio'] = float("%.4f" % max(ratios))
-        final_df.loc[compound_idx, 'msms_frag_jaccard'] = float("%.4f" % max(jaccards))
+        final_df.loc[compound_idx, 'msms_frag_ratio'] = float("%.4f" % ratios[0])
+        final_df.loc[compound_idx, 'msms_frag_jaccard'] = float("%.4f" % jaccards[0])
         final_df.loc[compound_idx, 'mz_adduct'] = cid.mz_references[0].adduct
         final_df.loc[compound_idx, 'mz_theoretical'] = float("%.4f" % mz_theoretical)
         final_df.loc[compound_idx, 'mz_measured'] = float("%.4f" % avg_mz_measured)
