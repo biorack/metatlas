@@ -2240,6 +2240,8 @@ def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str) -> pd.D
 
     inchi_msms_hits['score'] = msms_data['measured_precursor_intensity']
     inchi_msms_hits['num_matches'] = 0
+    inchi_msms_hits['msms_frag_ratio'] = 0.0
+    inchi_msms_hits['msms_frag_jaccard'] = 0.0
     inchi_msms_hits['spectrum'] = [np.array([np.array([]), np.array([])])] * len(inchi_msms_hits)
 
     return inchi_msms_hits
@@ -2342,7 +2344,7 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
     msms_hits_cols = ['database', 'id', 'file_name', 'msms_scan', 'score', 'num_matches',
                      'msv_query_aligned', 'msv_ref_aligned', 'name', 'adduct', 'inchi_key',
                      'precursor_mz', 'measured_precursor_mz',
-                     'measured_precursor_intensity']
+                     'measured_precursor_intensity', 'msms_frag_ratio', 'msms_frag_jaccard']
 
     if ref_df is None:
         msms_refs = load_msms_refs_file(ref_loc, pre_query, query, ref_dtypes, ref_index)
@@ -2385,7 +2387,29 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
     if not keep_nonmatches:
         msms_hits.dropna(subset=['database', 'id'], how='all', inplace=True)
 
-    return msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
+    for index, row in msms_hits.iterrows():
+        if not row['query_spectrum'][0].all() or not row['spectrum'][0].all():  # Check if the first element of 'query_spectrum' is an empty list
+            msms_hits.at[index, 'msms_frag_jaccard'] = 0.0
+            msms_hits.at[index, 'msms_frag_ratio'] = 0.0
+        else:
+            msms_hits.at[index, 'msms_frag_jaccard'] = sp.jaccard_set([round(x, 2) for x in row['query_spectrum'][0]], [round(y, 2) for y in row['spectrum'][0]])
+        
+        if row['spectrum'].any():
+            msms_hits.at[index, 'ref_frags'] = len(row['spectrum'][0])
+            if row['num_matches'] > 0 and msms_hits.at[index, 'ref_frags'].all() > 0:
+                msms_hits.at[index, 'msms_frag_ratio'] = row['num_matches'] / msms_hits.at[index, 'ref_frags']
+            else:
+                msms_hits.at[index, 'msms_frag_ratio'] = 0
+        else:
+            msms_hits.at[index, 'ref_frags'] = 0
+            msms_hits.at[index, 'msms_frag_ratio'] = 0
+
+    if 'ref_frags' in msms_hits.columns:
+        msms_hits = msms_hits.drop(['ref_frags'], axis=1)
+
+    msms_hits = msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
+
+    return msms_hits
 
 def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, group='index', share_y=True, save=True, output_loc=None, short_names_df=None, short_names_header=None, polarity='', overwrite=False, max_cpus=1, suffix='', max_plots_per_page=30):
     bad_parameters = {"group": group != "index", "save": not save,
