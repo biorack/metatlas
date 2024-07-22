@@ -2388,24 +2388,12 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
         msms_hits.dropna(subset=['database', 'id'], how='all', inplace=True)
 
     for index, row in msms_hits.iterrows():
-        if not row['query_spectrum'][0].all() or not row['spectrum'][0].all():  # Check if the first element of 'query_spectrum' is an empty list
+        if row['spectrum'].any() and row['query_spectrum'].any():
+            msms_hits.at[index, 'msms_frag_jaccard'] = sp.calc_jaccard_of_spectra(row)
+            msms_hits.at[index, 'msms_frag_ratio'] = sp.calc_data_to_ref_frag_ratio(row)
+        else:
             msms_hits.at[index, 'msms_frag_jaccard'] = 0.0
             msms_hits.at[index, 'msms_frag_ratio'] = 0.0
-        else:
-            msms_hits.at[index, 'msms_frag_jaccard'] = sp.jaccard_set([round(x, 2) for x in row['query_spectrum'][0]], [round(y, 2) for y in row['spectrum'][0]])
-        
-        if row['spectrum'].any():
-            msms_hits.at[index, 'ref_frags'] = len(row['spectrum'][0])
-            if row['num_matches'] > 0 and msms_hits.at[index, 'ref_frags'].all() > 0:
-                msms_hits.at[index, 'msms_frag_ratio'] = row['num_matches'] / msms_hits.at[index, 'ref_frags']
-            else:
-                msms_hits.at[index, 'msms_frag_ratio'] = 0
-        else:
-            msms_hits.at[index, 'ref_frags'] = 0
-            msms_hits.at[index, 'msms_frag_ratio'] = 0
-
-    if 'ref_frags' in msms_hits.columns:
-        msms_hits = msms_hits.drop(['ref_frags'], axis=1)
 
     msms_hits = msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
 
