@@ -119,13 +119,17 @@ def score_ms2_data(ms2_data: pd.DataFrame, aligned_atlas_df: pd.DataFrame,
     ms2_data_refs_merge['score'] = ms2_data_refs_merge['mms_out'].apply(lambda x: x['score'])
     ms2_data_refs_merge['matches'] = ms2_data_refs_merge['mms_out'].apply(lambda x: x['matches'])
 
-    ms2_data_refs_merge['match_reference_jaccard'] = ms2_data_refs_merge.apply(lambda row: sp.calc_jaccard_of_spectra([round(x, 2) for x in row['spectrum_x'][0]], [round(y, 2) for y in row['spectrum_y'][0]]), axis=1)
-    ms2_data_refs_merge['ref_frags'] = ms2_data_refs_merge['spectrum_y'].apply(lambda x: len(x[0]) if x.any() else 0)
-    ms2_data_refs_merge['data_frags'] = ms2_data_refs_merge['spectrum_x'].apply(lambda x: len(x[0]) if x.any() else 0)
-    ms2_data_refs_merge['reference_data_ratio'] = ms2_data_refs_merge['ref_frags'] / ms2_data_refs_merge['data_frags']
-    ms2_data_refs_merge['match_reference_ratio'] = ms2_data_refs_merge['matches'] / ms2_data_refs_merge['ref_frags']
-
-    ms2_data_refs_merge = ms2_data_refs_merge.drop(['ref_frags', 'data_frags'], axis=1)
+    for index, row in ms2_data_refs_merge.iterrows():
+        if row['spectrum_x'].any() and row['spectrum_y'].any():
+            # Rename columns in place to match the expected input for the targeted analysis function
+            row.rename({'spectrum_x': 'query_spectrum'}, inplace=True)
+            row.rename({'spectrum_y': 'spectrum'}, inplace=True)
+            row.rename({'matches': 'num_matches'}, inplace=True)
+            ms2_data_refs_merge.at[index, 'msms_frag_jaccard'] = sp.calc_jaccard_of_spectra(row)
+            ms2_data_refs_merge.at[index, 'msms_frag_ratio'] = sp.calc_data_to_ref_frag_ratio(row)
+        else:
+            ms2_data_refs_merge.at[index, 'msms_frag_jaccard'] = 0.0
+            ms2_data_refs_merge.at[index, 'msms_frag_ratio'] = 0.0
 
     return ms2_data_refs_merge
 
@@ -141,8 +145,8 @@ def filter_atlas_labels(ms1_data: pd.DataFrame, ms2_data_scored: pd.DataFrame, p
     if msms_score is not None or msms_matches is not None or msms_frag_ratio is not None or msms_frag_jaccard is not None:
         ms2_data_filtered = ms2_data_scored[ms2_data_scored['score'] >= msms_score] if msms_score is not None else ms2_data_scored
         ms2_data_filtered = ms2_data_filtered[ms2_data_filtered['matches'] >= msms_matches] if msms_matches is not None else ms2_data_filtered
-        ms2_data_filtered = ms2_data_filtered[ms2_data_filtered['match_reference_ratio'] >= msms_frag_ratio] if msms_frag_ratio is not None else ms2_data_filtered
-        ms2_data_filtered = ms2_data_filtered[ms2_data_filtered['match_reference_jaccard'] >= msms_frag_jaccard] if msms_frag_jaccard is not None else ms2_data_filtered
+        ms2_data_filtered = ms2_data_filtered[ms2_data_filtered['msms_frag_ratio'] >= msms_frag_ratio] if msms_frag_ratio is not None else ms2_data_filtered
+        ms2_data_filtered = ms2_data_filtered[ms2_data_filtered['msms_frag_jaccard'] >= msms_frag_jaccard] if msms_frag_jaccard is not None else ms2_data_filtered
         ms2_reduced_labels = set(ms2_data_filtered.label.tolist())
     else:
         ms2_reduced_labels = ms1_reduced_labels
@@ -153,8 +157,8 @@ def filter_atlas_labels(ms1_data: pd.DataFrame, ms2_data_scored: pd.DataFrame, p
     if msms_frag_ratio is not None and msms_frag_jaccard is not None and ms2_data_filtered is not None:
         frag_info_df = pd.DataFrame({
             'label': list(reduced_labels),
-            'max_match_reference_ratio': [ms2_data_filtered[ms2_data_filtered['label'] == label]['match_reference_ratio'].max() for label in reduced_labels],
-            'max_jaccard_similarity': [ms2_data_filtered[ms2_data_filtered['label'] == label]['match_reference_jaccard'].max() for label in reduced_labels]
+            'msms_frag_ratio': [ms2_data_filtered[ms2_data_filtered['label'] == label]['msms_frag_ratio'].max() for label in reduced_labels],
+            'msms_frag_jaccard': [ms2_data_filtered[ms2_data_filtered['label'] == label]['msms_frag_jaccard'].max() for label in reduced_labels]
         })
         return reduced_labels, frag_info_df
     
