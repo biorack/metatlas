@@ -119,7 +119,7 @@ def score_ms2_data(ms2_data: pd.DataFrame, aligned_atlas_df: pd.DataFrame,
     ms2_data_refs_merge['score'] = ms2_data_refs_merge['mms_out'].apply(lambda x: x['score'])
     ms2_data_refs_merge['matches'] = ms2_data_refs_merge['mms_out'].apply(lambda x: x['matches'])
 
-    ms2_data_refs_merge['match_reference_jaccard'] = ms2_data_refs_merge.apply(lambda row: sp.jaccard_set([round(x, 2) for x in row['spectrum_x'][0]], [round(y, 2) for y in row['spectrum_y'][0]]), axis=1)
+    ms2_data_refs_merge['match_reference_jaccard'] = ms2_data_refs_merge.apply(lambda row: sp.calc_jaccard_of_spectra([round(x, 2) for x in row['spectrum_x'][0]], [round(y, 2) for y in row['spectrum_y'][0]]), axis=1)
     ms2_data_refs_merge['ref_frags'] = ms2_data_refs_merge['spectrum_y'].apply(lambda x: len(x[0]) if x.any() else 0)
     ms2_data_refs_merge['data_frags'] = ms2_data_refs_merge['spectrum_x'].apply(lambda x: len(x[0]) if x.any() else 0)
     ms2_data_refs_merge['reference_data_ratio'] = ms2_data_refs_merge['ref_frags'] / ms2_data_refs_merge['data_frags']
