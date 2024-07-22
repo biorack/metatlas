@@ -425,6 +425,7 @@ def create_aligned_atlases(
 
             metob.store(aligned_filtered_atlas)
             aligned_filtered_atlas_df = ma_data.make_atlas_df(aligned_filtered_atlas)
+            logger.info("Writing aligned and filtered atlas to %s", out_atlas_file_name)
             write_utils.export_dataframe_die_on_diff(
                 aligned_filtered_atlas_df, out_atlas_file_name, "RT aligned atlas", index=False, float_format="%.6e"
             )
