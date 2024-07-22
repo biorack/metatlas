@@ -4,9 +4,73 @@
 import pytest
 
 import numpy as np
+import pandas as pd
 
 import metatlas.tools.spectralprocessing as sp
 
+
+def test_calc_data_to_ref_frag_ratio01():
+    num_matches = 5
+    spectrum = pd.Series([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
+    row = pd.Series({'num_matches': num_matches, 'spectrum': spectrum})
+    out = sp.calc_data_to_ref_frag_ratio(row)
+    assert out == 1.0
+
+def test_calc_data_to_ref_frag_ratio02():
+    num_matches = 1
+    spectrum = pd.Series([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
+    row = pd.Series({'num_matches': num_matches, 'spectrum': spectrum})
+    out = sp.calc_data_to_ref_frag_ratio(row)
+    assert out == 0.2
+
+def test_calc_data_to_ref_frag_ratio03():
+    num_matches = 0
+    spectrum = pd.Series([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
+    row = pd.Series({'num_matches': num_matches, 'spectrum': spectrum})
+    out = sp.calc_data_to_ref_frag_ratio(row)
+    assert out == 0.0
+
+def test_calc_data_to_ref_frag_ratio04():
+    num_matches = 0
+    spectrum = pd.Series([[],[]])
+    row = pd.Series({'num_matches': num_matches, 'spectrum': spectrum})
+    out = sp.calc_data_to_ref_frag_ratio(row)
+    assert out == 0.0
+
+def test_calc_jaccard_of_spectra01():
+    query_spectrum = pd.Series([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
+    spectrum = pd.Series([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
+    row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
+    out = sp.calc_jaccard_of_spectra(row)
+    assert out == 1.0
+
+def test_calc_jaccard_of_spectra02():
+    query_spectrum = pd.Series([[1.1], [10]])
+    spectrum = pd.Series([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
+    row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
+    out = sp.calc_jaccard_of_spectra(row)
+    assert out == 0.2
+
+def test_calc_jaccard_of_spectra03():
+    query_spectrum = pd.Series([[1.1, 1.3, 1.7, 1.9], [10, 100, 1000, 100, 10]])
+    spectrum = pd.Series([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
+    row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
+    out = sp.calc_jaccard_of_spectra(row)
+    assert out == 0.2857
+
+def test_calc_jaccard_of_spectra04():
+    query_spectrum = pd.Series([[1.1, 1.3, 1.7, 1.9], [10, 100, 1000, 100, 10]])
+    spectrum = pd.Series([[], []])
+    row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
+    out = sp.calc_jaccard_of_spectra(row)
+    assert out == 0.0
+
+def test_calc_jaccard_of_spectra05():
+    query_spectrum = pd.Series([[], []])
+    spectrum = pd.Series([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
+    row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
+    out = sp.calc_jaccard_of_spectra(row)
+    assert out == 0.0
 
 def array_equal(arr_a, arr_b, equal_nan=False):
     # https://numpy.org/neps/nep-0034-infer-dtype-is-object.html#usage-and-impact
