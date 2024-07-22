@@ -34,13 +34,31 @@ MS2Aligned = Tuple[npt.NDArray[npt.NDArray[Any]], npt.NDArray[npt.NDArray[Any]]]
 #Misc Functions
 ################################################################################
 
-def jaccard_set(list1, list2):
-    """Define Jaccard Similarity function for two sets"""
-    if not list1 and not list2:
-        return None
-    intersection = len(list(set(list1).intersection(list2)))
-    union = (len(list1) + len(list2)) - intersection
-    return float(intersection) / union
+def calc_data_to_ref_frag_ratio(row: pd.Series) -> float:
+    """Calculate the ratio of data to reference fragment intensity."""
+    if not row['spectrum'].any() or not row['num_matches']:
+        return 0.0
+    
+    ref_frags = len(row['spectrum'][0])
+    num_matches = row['num_matches']
+
+    return round(num_matches / ref_frags, 4)
+
+def calc_jaccard_of_spectra(row: pd.Series) -> float:
+    """Define Jaccard Similarity function for two lists of spectra, rounding values to 3 decimal places."""
+    if not row['query_spectrum'].any() or not row['spectrum'].any():
+        return 0.0
+
+    data_spectrum = row['query_spectrum'][0]
+    ref_spectrum = row['spectrum'][0]
+    
+    # Round values in both lists to 3 decimal places to remove noise
+    data_spectrum_rounded = [round(num, 3) for num in data_spectrum]
+    ref_spectrum_rounded = [round(num, 3) for num in ref_spectrum]
+    
+    intersection = len(list(set(data_spectrum_rounded).intersection(ref_spectrum_rounded)))
+    union = (len(data_spectrum_rounded) + len(ref_spectrum_rounded)) - intersection
+    return round(float(intersection) / union, 4)
 
 def make_feature_label(row,polarity_attr='polarity',mz_attr='mz',rt_attr='rt_peak'):
     """
