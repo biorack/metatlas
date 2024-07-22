@@ -147,7 +147,7 @@ def filter_atlas_labels(ms1_data: pd.DataFrame, ms2_data_scored: pd.DataFrame, p
     else:
         ms2_reduced_labels = ms1_reduced_labels
     
-    reduced_labels = ms1_reduced_labels.intersection(ms2_reduced_labels)
+    reduced_labels = list(ms1_reduced_labels.intersection(ms2_reduced_labels))
 
     # Put fragment ratio and jaccard similarity into the return to be appended to aligned filtered atlas
     if msms_frag_ratio is not None and msms_frag_jaccard is not None and ms2_data_filtered is not None:
