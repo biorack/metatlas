@@ -36,7 +36,7 @@ MS2Aligned = Tuple[npt.NDArray[npt.NDArray[Any]], npt.NDArray[npt.NDArray[Any]]]
 
 def calc_data_to_ref_frag_ratio(row: pd.Series) -> float:
     """Calculate the ratio of data to reference fragment intensity."""
-    if not row['spectrum'].all() or not row['num_matches']:
+    if row['spectrum'][0].size == 0:
         return 0.0
     
     ref_frags = len(row['spectrum'][0])
@@ -46,7 +46,7 @@ def calc_data_to_ref_frag_ratio(row: pd.Series) -> float:
 
 def calc_jaccard_of_spectra(row: pd.Series) -> float:
     """Define Jaccard Similarity function for two lists of spectra, rounding values to 3 decimal places."""
-    if not row['query_spectrum'].all() or not row['spectrum'].all():
+    if row['query_spectrum'][0].size == 0 or row['spectrum'][0].size == 0:
         return 0.0
 
     data_spectrum = row['query_spectrum'][0]
