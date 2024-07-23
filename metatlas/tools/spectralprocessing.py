@@ -46,7 +46,7 @@ def calc_data_to_ref_frag_ratio(row: pd.Series) -> float:
 
 def calc_jaccard_of_spectra(row: pd.Series) -> float:
     """Define Jaccard Similarity function for two lists of spectra, rounding values to 3 decimal places."""
-    if not row['query_spectrum'].ll() or not row['spectrum'].all():
+    if not row['query_spectrum'].all() or not row['spectrum'].all():
         return 0.0
 
     data_spectrum = row['query_spectrum'][0]
