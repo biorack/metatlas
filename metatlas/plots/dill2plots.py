@@ -2388,12 +2388,8 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
         msms_hits.dropna(subset=['database', 'id'], how='all', inplace=True)
 
     for index, row in msms_hits.iterrows():
-        if row['spectrum'].any() and row['query_spectrum'].any():
-            msms_hits.at[index, 'msms_frag_jaccard'] = sp.calc_jaccard_of_spectra(row)
-            msms_hits.at[index, 'msms_frag_ratio'] = sp.calc_data_to_ref_frag_ratio(row)
-        else:
-            msms_hits.at[index, 'msms_frag_jaccard'] = 0.0
-            msms_hits.at[index, 'msms_frag_ratio'] = 0.0
+        msms_hits.at[index, 'msms_frag_jaccard'] = sp.calc_jaccard_of_spectra(row)
+        msms_hits.at[index, 'msms_frag_ratio'] = sp.calc_data_to_ref_frag_ratio(row)
 
     msms_hits = msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
 
