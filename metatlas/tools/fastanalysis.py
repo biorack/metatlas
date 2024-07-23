@@ -77,7 +77,7 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
                              exclude_lcmsruns, exclude_groups)
     assert len(dataset) > 0
     metrics = ['msms_score', 'num_frag_matches', 'mz_centroid', 'mz_ppm', 'rt_peak', 'rt_delta',
-               'peak_height', 'peak_area', 'num_data_points', 'msms_frag_ratio', 'msms_frag_jaccard']
+               'peak_height', 'peak_area', 'num_data_points']
     ds_dir = output_loc / 'data_sheets' if data_sheets else None
     dfs = {m: None for m in metrics}
     for metric in ['peak_height', 'peak_area', 'rt_peak', 'mz_centroid']:
@@ -100,15 +100,10 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
     dfs['msms_score'] = dfs['mz_ppm'].copy()
     dfs['num_frag_matches'] = dfs['mz_ppm'].copy()
     dfs['rt_delta'] = dfs['mz_ppm'].copy()
-    dfs['msms_frag_ratio'] = dfs['mz_ppm'].copy()
-    dfs['msms_frag_jaccard'] = dfs['mz_ppm'].copy()
 
     passing['peak_height'] = (np.nan_to_num(dfs['peak_height'].values) >= min_peak_height).astype(float)
     passing['num_data_points'] = (np.nan_to_num(dfs['num_data_points'].values) >= min_num_data_points).astype(float)
 
-    #msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key', 'precursor_mz'])
-    #msms_hits_df = dp.get_msms_hits(metatlas_dataset, use_labels, ref_index=['database', 'id', 'inchi_key'])
-    #msms_hits_df.rename(columns={'inchi_key':'inchi_key_2'},inplace=True)
     msms_hits_df = msms_hits.copy()
     msms_hits_df.reset_index(inplace=True)
 
@@ -138,7 +133,7 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
                                     <= cid.mz_references[0].mz_tolerance*1e-6)]
 
         comp_msms_hits = comp_msms_hits.sort_values('score', ascending=False)
-        file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
+        file_idxs, scores, msv_sample_list, msv_ref_list, rt_list, ratios, jaccards = [], [], [], [], [], [], []
         if len(comp_msms_hits) > 0 and not np.isnan(np.concatenate(comp_msms_hits['msv_ref_aligned'].values, axis=1)).all():
             file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name'] if f in file_names]
             scores = comp_msms_hits['score'].values.tolist()
@@ -373,8 +368,12 @@ def make_stats_table(input_fname: Optional[Path] = None, input_dataset = [], msm
             final_df.loc[compound_idx, 'msms_numberofions'] = np.nan
             final_df.loc[compound_idx, 'msms_matchingions'] = ""
             final_df.loc[compound_idx, 'msms_score'] = np.nan
-        final_df.loc[compound_idx, 'msms_frag_ratio'] = float("%.4f" % ratios[0])
-        final_df.loc[compound_idx, 'msms_frag_jaccard'] = float("%.4f" % jaccards[0])
+        if len(ratios) > 0 and len(jaccards) > 0:
+            final_df.at[compound_idx, 'msms_frag_ratio'] = float("%.4f" % ratios[0])
+            final_df.at[compound_idx, 'msms_frag_jaccard'] = float("%.4f" % jaccards[0])
+        else:
+            final_df.at[compound_idx, 'msms_frag_ratio'] = np.nan
+            final_df.at[compound_idx, 'msms_frag_jaccard'] = np.nan
         final_df.loc[compound_idx, 'mz_adduct'] = cid.mz_references[0].adduct
         final_df.loc[compound_idx, 'mz_theoretical'] = float("%.4f" % mz_theoretical)
         final_df.loc[compound_idx, 'mz_measured'] = float("%.4f" % avg_mz_measured)
