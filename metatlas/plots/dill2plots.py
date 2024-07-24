@@ -1668,12 +1668,12 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
 
             for i, msv_sample in enumerate(np.split(msv_sample_scans, scan_idxs, axis=1)):
 
-                mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
+                mms_sample = Spectrum(mz=msv_sample[0], intensities=np.sqrt(msv_sample[1]), metadata={'precursor_mz':np.nan})
 
                 for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                     msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
 
-                    mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
+                    mms_ref = Spectrum(mz=msv_ref[0], intensities=np.sqrt(msv_ref[1]), metadata={'precursor_mz':np.nan})
 
                     score = cos.pair(mms_sample, mms_ref)['score'].item()
 
@@ -1952,14 +1952,14 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
             current_best_msv_ref = None
             current_best_rt = None
 
-            mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
+            mms_sample = Spectrum(mz=msv_sample[0], intensities=np.sqrt(msv_sample[1]), metadata={'precursor_mz':np.nan})
 
             for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                 msv_ref = np.array(frag['mz_intensities']).T
 
                 msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, 0.005)
 
-                mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
+                mms_ref = Spectrum(mz=msv_ref[0], intensities=np.sqrt(msv_ref[1]), metadata={'precursor_mz':np.nan})
 
                 score = cos.pair(mms_sample, mms_ref)['score'].item()
 
@@ -2187,7 +2187,7 @@ def build_msms_refs_spectra(msms_refs: pd.DataFrame) -> pd.DataFrame:
     """Converts MS2 spectral arrays from strings to numpy arrays and creates MatchMS spectra."""
 
     msms_refs['spectrum'] = msms_refs['spectrum'].apply(lambda s: np.array(json.loads(s)))
-    msms_refs['matchms_spectrum'] = msms_refs.apply(lambda s: Spectrum(s.spectrum[0], s.spectrum[1], metadata={'precursor_mz':s.precursor_mz}), axis=1)
+    msms_refs['matchms_spectrum'] = msms_refs.apply(lambda s: Spectrum(s.spectrum[0], np.sqrt(s.spectrum[1]), metadata={'precursor_mz':s.precursor_mz}), axis=1)
 
     return msms_refs
 
@@ -2426,7 +2426,13 @@ def make_identification_figure_v2(input_fname: Optional[Path] = None, input_data
         msms_hits_df = msms_hits.reset_index().sort_values('score', ascending=False)
     compound_names = ma_data.get_compound_names(data, use_labels)[0]
     file_names = ma_data.get_file_names(data)
-    match = pd.DataFrame()
+
+    match_dtypes = {'label': str,
+                    'file name': str,
+                    'Matching M/Zs above 1E-3*max': str,
+                    'All matching M/Zs': str}
+
+    match = pd.DataFrame(columns=match_dtypes).astype(match_dtypes)
     disable_interactive_plots()
     plt.clf()
     for compound_idx, _ in enumerate(compound_names):
@@ -2712,7 +2718,55 @@ def export_atlas_to_spreadsheet(atlas, output_filename=None):
     cols.extend([(c, ['mz_references', 0, c]) for c in ['mz', 'mz_tolerance', 'adduct']])
     cols.append(('polarity', ['mz_references', 0, 'detected_polarity']))
 
-    out = pd.DataFrame()
+    cols_dtypes = {'chebi_id': str,
+                   'chebi_url': str,
+                   'creation_time': float,
+                   'description': str,
+                   'formula': str,
+                   'head_id': str,
+                   'hmdb_id': str,
+                   'hmdb_url': str,
+                   'img_abc_id': str,
+                   'inchi': str,
+                   'inchi_key': str,
+                   'iupac_name': str,
+                   'kegg_id': str,
+                   'kegg_url': str,
+                   'last_modified': float,
+                   'lipidmaps_id': str,
+                   'lipidmaps_url': str,
+                   'metacyc_id': str,
+                   'mono_isotopic_molecular_weight': float,
+                   'name': str,
+                   'neutralized_2d_inchi': str,
+                   'neutralized_2d_inchi_key': str,
+                   'neutralized_inchi': str,
+                   'neutralized_inchi_key': str,
+                   'num_free_radicals': float,
+                   'number_components': float,
+                   'permanent_charge': float,
+                   'prev_uid': str,
+                   'pubchem_compound_id': str,
+                   'pubchem_url': str,
+                   'source': str,
+                   'synonyms': str,
+                   'unique_id': str,
+                   'username': str,
+                   'wikipedia_url': str,
+                   'label': str,
+                   'id_notes': str,
+                   'ms1_notes': str,
+                   'ms2_notes': str,
+                   'identification_notes': str,
+                   'rt_min': float,
+                   'rt_max': float,
+                   'rt_peak': float,
+                   'mz': float,
+                   'mz_tolerance': float,
+                   'adduct': str,
+                   'polarity': str}
+
+    out = pd.DataFrame(columns=cols_dtypes).astype(cols_dtypes)
     is_atlas = isinstance(atlas, metob.Atlas)
     compound_ids = atlas.compound_identifications if is_atlas else [i['identification'] for i in atlas[0]]
     for i, my_id in enumerate(compound_ids):
