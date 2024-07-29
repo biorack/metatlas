@@ -20,8 +20,13 @@ for f in recent_files:
     if f:
         mzm.remove_contaminant_from_mgf(f)
 
+##### Check status of mzmine jobs
+print('\nChecking and updating status of initialized or running mzmine jobs...')
+mzm.update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short='pos')
+mzm.update_mzmine_status_in_untargeted_tasks(polarity='negative',polarity_short='neg')
+
 ##### Zip up the output folders
-print("\nZipping up the output folders...")
+print("\nZipping up mzmine output folders for any recently completed projects...")
 df = mzm.get_table_from_lims('untargeted_tasks')
 df = df[~(df['parent_dir'].str.contains('DNA-SIP')) & ~(df['parent_dir'].str.contains('_RM'))]
 df = df[~(df['parent_dir'].str.contains(' '))]
