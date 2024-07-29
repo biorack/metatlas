@@ -736,7 +736,7 @@ def update_new_untargeted_tasks(update_lims=True):
     outdir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks'
  
     if len(new_folders)>0:
-        print('\tCreating metadata and file lists for new project(s)...')
+        print('\nCreating metadata and file lists for new project(s)...')
         # make the metadata sheets
         file_counts = {}
         metadata_files = {}
@@ -782,7 +782,7 @@ def update_new_untargeted_tasks(update_lims=True):
                     metadata_files[polarity][block[0]] = metadata_filename
                     filelist[polarity][block[0]] = block[1]['mzml_file']
     else:
-        print("\tNo new projects need output folders or metadata")
+        print("\nNo new projects need output folders or metadata!")
 
     if len(new_folders)>0:
         new_folders = pd.DataFrame(data={'parent_dir':new_folders,'num_pos_files':file_counts['positive'][new_folders],'num_neg_files':file_counts['negative'][new_folders]})
@@ -802,7 +802,7 @@ def update_new_untargeted_tasks(update_lims=True):
                     params_filename = build_untargeted_filename(outdir,row['parent_dir'],polarity,'batch-params-mzmine')
                     with open(mzmine_running_parameters,'r') as fid:
                         orig_params = fid.read()
-                    new_output = os.path.join(os.path.join(new_output,'%s_%s'%(row['parent_dir'],polarity)),'%s_%s'%(row['parent_dir'],polarity))
+                    new_output = os.path.join(os.path.join(outdir,'%s_%s'%(row['parent_dir'],polarity)),'%s_%s'%(row['parent_dir'],polarity))
                     custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_output)
                     with open(params_filename,'w') as fid:
                         fid.write('%s'%custom_params)
@@ -837,7 +837,7 @@ def update_new_untargeted_tasks(update_lims=True):
         if update_lims==True:
             update_table_in_lims(new_folders,'untargeted_tasks',method='insert',max_size=1000)
     else:
-        print("\tNo new projects need metadata")
+        print("\nNo new projects need metadata!")
 
     return new_folders
 
