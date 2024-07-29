@@ -84,6 +84,7 @@ SLURM_PERLMUTTER_HEADER = """#!/bin/bash
 """
 
 mzine_batch_params_file = "/global/common/software/m2650/mzmine_parameters/batch_files/mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/batch_files/IQX-mzmine-3.7.2-batchparams.xml"
 
 
 def kickoff():
@@ -794,16 +795,17 @@ def update_new_untargeted_tasks(update_lims=True):
                     basepath = os.path.join(outdir,'%s_%s'%(row['parent_dir'],polarity))
                     parent_dir = '%s_%s'%(row['parent_dir'],polarity)
                     
-                    # ADD IF STATEMENT HERE FOR SWITCHING BETWEEN MACHINES
+                    if "_IQX_" in row['parent_dir']:
+                        mzmine_running_parameters = mzine_batch_params_file_iqx
+                    else:
+                        mzmine_running_parameters = mzine_batch_params_file
                     params_filename = build_untargeted_filename(outdir,row['parent_dir'],polarity,'batch-params-mzmine')
-                    with open(mzine_batch_params_file,'r') as fid:
+                    with open(mzmine_running_parameters,'r') as fid:
                         orig_params = fid.read()
-                    new_output = os.path.join(outdir,'%s_%s'%(row['parent_dir'],polarity))
-                    new_output = os.path.join(new_output,'%s_%s'%(row['parent_dir'],polarity))
+                    new_output = os.path.join(os.path.join(new_output,'%s_%s'%(row['parent_dir'],polarity)),'%s_%s'%(row['parent_dir'],polarity))
                     custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_output)
                     with open(params_filename,'w') as fid:
                         fid.write('%s'%custom_params)
-                    
                     filelist_filename = os.path.join(outdir,'%s_%s'%(row['parent_dir'],polarity))
                     filelist_filename = os.path.join(filelist_filename,'%s_%s_filelist.txt'%(row['parent_dir'],polarity))          
                     file_list = [f for f in filelist[polarity][row['parent_dir']].tolist() if f is not None]
@@ -811,7 +813,6 @@ def update_new_untargeted_tasks(update_lims=True):
                         with open(filelist_filename,'w') as fid:
                             fid.write('%s'%'\n'.join(file_list))
                         write_mzmine_sbatch_and_runner(basepath,params_filename,parent_dir,filelist_filename)# put file selector here)
-                        #write_fbmn_sbatch_and_runner(basepath,parent_dir)
                 
         new_folders['file_conversion_complete'] = False
         new_folders['conforming_filenames'] = False
