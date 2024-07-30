@@ -47,7 +47,7 @@ if len(new_results) > 0:
     print("Copying files to untargeted folder on Google Drive...")
     for project in new_results:
         if os.path.exists(project):
-            cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --size-only {project} bpk_lbl_gdrive:/untargeted_outputs'
+            cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --size-only {project} bpb_lbl_gdrive:/untargeted_outputs'
             subprocess.check_output(cmd, shell=True)
             print("\tCopied %s to Google Drive.\n"%project)
         else:
