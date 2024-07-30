@@ -41,36 +41,43 @@ def test_calc_jaccard_of_spectra01():
     query_spectrum = np.array([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
     spectrum = np.array([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
     row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
-    out = sp.calc_jaccard_of_spectra(row)
+    out = sp.calc_jaccard_of_spectra(row, frag_mz_tolerance = 0.005)
     assert out == 1.0
 
 def test_calc_jaccard_of_spectra02():
     query_spectrum = np.array([[1.1], [10]])
     spectrum = np.array([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
     row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
-    out = sp.calc_jaccard_of_spectra(row)
+    out = sp.calc_jaccard_of_spectra(row, frag_mz_tolerance = 0.005)
     assert out == 0.2
 
 def test_calc_jaccard_of_spectra03():
     query_spectrum = np.array([[1.1, 1.3, 1.7, 1.9, 2.1], [10, 100, 1000, 100, 10]])
     spectrum = np.array([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
     row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
-    out = sp.calc_jaccard_of_spectra(row)
+    out = sp.calc_jaccard_of_spectra(row, frag_mz_tolerance = 0.005)
     assert out == 0.25
 
 def test_calc_jaccard_of_spectra04():
     query_spectrum = np.array([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
     spectrum = np.array([])
     row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
-    out = sp.calc_jaccard_of_spectra(row)
+    out = sp.calc_jaccard_of_spectra(row, frag_mz_tolerance = 0.005)
     assert out == 0.0
 
 def test_calc_jaccard_of_spectra05():
     query_spectrum = np.array([])
     spectrum = np.array([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
     row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
-    out = sp.calc_jaccard_of_spectra(row)
+    out = sp.calc_jaccard_of_spectra(row, frag_mz_tolerance = 0.005)
     assert out == 0.0
+
+def test_calc_jaccard_of_spectra06():
+    query_spectrum = np.array([[1.095, 1.205, 1.306, 1.304, 1.501], [10, 100, 1000, 100, 10]]) # Hit, Hit, Miss, Hit, Hit
+    spectrum = np.array([[1.1, 1.2, 1.3, 1.4, 1.5], [10, 100, 1000, 100, 10]])
+    row = pd.Series({'query_spectrum': query_spectrum, 'spectrum': spectrum})
+    out = sp.calc_jaccard_of_spectra(row, frag_mz_tolerance = 0.005)
+    assert out == 0.6667
 
 def array_equal(arr_a, arr_b, equal_nan=False):
     # https://numpy.org/neps/nep-0034-infer-dtype-is-object.html#usage-and-impact

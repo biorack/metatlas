@@ -35,7 +35,10 @@ MS2Aligned = Tuple[npt.NDArray[npt.NDArray[Any]], npt.NDArray[npt.NDArray[Any]]]
 ################################################################################
 
 def calc_data_to_ref_frag_ratio(row: pd.Series) -> float:
-    """Calculate the ratio of data to reference fragment intensity."""
+    """
+    Calculate the ratio of ion fragment in data that are also in the reference.
+    Do this by dividing the number of (pre-calculated) matches by the total reference fragments.
+    """
     if row['spectrum'].size == 0:
         return 0.0
     
@@ -45,22 +48,26 @@ def calc_data_to_ref_frag_ratio(row: pd.Series) -> float:
 
     return ratio
 
-def calc_jaccard_of_spectra(row: pd.Series) -> float:
-    """Define Jaccard Similarity function for two lists of spectra, rounding values to 3 decimal places."""
+def calc_jaccard_of_spectra(row: pd.Series, frag_mz_tolerance: float) -> float:
+    """
+    Define Jaccard Similarity function for two lists of spectra, given an mz tolerance.
+    Do this by finding overlapping and total peaks in the two spectra lists
+    """
     if row['spectrum'].size == 0 or row['query_spectrum'].size == 0:
         return 0.0
     
     data_spectrum = row['query_spectrum'][0].tolist()
     ref_spectrum = row['spectrum'][0].tolist()
     
-    # Round values in both lists to 3 decimal places to remove noise
-    data_spectrum_rounded = [round(num, 3) for num in data_spectrum]
-    ref_spectrum_rounded = [round(num, 3) for num in ref_spectrum]
+    intersection = []
+    for data_value in data_spectrum:
+        if np.any(np.isclose(data_value, ref_spectrum, atol=frag_mz_tolerance)):
+            intersection.append(data_value)
     
-    intersection = float(len(list(set(data_spectrum_rounded).intersection(ref_spectrum_rounded))))
-    union = float((len(data_spectrum_rounded) + len(ref_spectrum_rounded)) - intersection)
+    intersection_count = float(len(intersection))
+    union_count = float((len(data_spectrum) + len(ref_spectrum)) - intersection_count)
 
-    jaccard = round(intersection / union, 4)
+    jaccard = round(intersection_count / union_count, 4) if union_count != 0 else 0.0
 
     return jaccard
 
