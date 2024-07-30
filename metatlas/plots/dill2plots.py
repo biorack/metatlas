@@ -2392,7 +2392,7 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
         return msms_hits
     else:
         msms_hits['msms_frag_ratio'] = msms_hits.apply(sp.calc_data_to_ref_frag_ratio, axis=1)
-        msms_hits['msms_frag_jaccard'] = msms_hits.apply(sp.calc_jaccard_of_spectra, axis=1)
+        msms_hits['msms_frag_jaccard'] = msms_hits.apply(sp.calc_jaccard_of_spectra, axis=1, **{'frag_mz_tolerance': frag_mz_tolerance})
         msms_hits = msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
 
     return msms_hits
