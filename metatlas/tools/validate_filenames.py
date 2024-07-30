@@ -39,6 +39,7 @@ SYSTEMS = [
     "4800JBEI",
     "EXP120A",
     "IDX",
+    "IQX",
     "HPLC1",
     "EXP120B",
     "LTQXL",
