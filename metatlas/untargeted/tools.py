@@ -31,6 +31,7 @@ import scipy.stats
 from pyteomics import mgf
 sys.path.insert(0,'/global/homes/b/bkieft/metatlas/metatlas')
 from metatlas.datastructures import metatlas_objects as metob
+from metatlas.tools.validate_filenames import field_exists
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import subprocess
@@ -89,6 +90,15 @@ mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/b
 
 def kickoff():
     print('\nRunning script on: ', datetime.now())
+
+def recursive_chown(basepath, group_name):
+    gid = grp.getgrnam(group_name).gr_gid
+    for root, dirs, files in os.walk(basepath):
+        for dir_name in dirs:
+            os.chown(os.path.join(root, dir_name), -1, gid)
+        for file_name in files:
+            os.chown(os.path.join(root, file_name), -1, gid)
+    os.chown(basepath, -1, gid)  # Also change the ownership of the base directory itself
 
 def get_recent_mgf_files(output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', time_back=30):
 
@@ -760,7 +770,7 @@ def update_new_untargeted_tasks(update_lims=True):
                     basepath = os.path.join(outdir,parent_dir)
                     if not os.path.isdir(basepath):
                         os.mkdir(basepath)
-                        os.chown(basepath, -1, grp.getgrnam('metatlas').gr_gid)
+                        recursive_chown(basepath, 'metatlas')
                     metadata_filename = '%s_%s.tab'%(parent_dir,'metadata')
                     metadata_filename = os.path.join(basepath,metadata_filename)
                     temp = block[1][['mzml_file','sample_group']].copy()
@@ -795,7 +805,8 @@ def update_new_untargeted_tasks(update_lims=True):
                     basepath = os.path.join(outdir,'%s_%s'%(row['parent_dir'],polarity))
                     parent_dir = '%s_%s'%(row['parent_dir'],polarity)
                     
-                    if "_IQX_" in row['parent_dir']:
+                    _, validate_machine_name, _ = field_exists(PurePath(row['parent_dir']), field_num=6)
+                    if validate_machine_name in ("IQX", "IDX"):
                         mzmine_running_parameters = mzine_batch_params_file_iqx
                     else:
                         mzmine_running_parameters = mzine_batch_params_file
