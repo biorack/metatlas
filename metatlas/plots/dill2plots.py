@@ -2240,6 +2240,8 @@ def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str) -> pd.D
 
     inchi_msms_hits['score'] = msms_data['measured_precursor_intensity']
     inchi_msms_hits['num_matches'] = 0
+    inchi_msms_hits['msms_frag_ratio'] = 0.0
+    inchi_msms_hits['msms_frag_jaccard'] = 0.0
     inchi_msms_hits['spectrum'] = [np.array([np.array([]), np.array([])])] * len(inchi_msms_hits)
 
     return inchi_msms_hits
@@ -2342,7 +2344,7 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
     msms_hits_cols = ['database', 'id', 'file_name', 'msms_scan', 'score', 'num_matches',
                      'msv_query_aligned', 'msv_ref_aligned', 'name', 'adduct', 'inchi_key',
                      'precursor_mz', 'measured_precursor_mz',
-                     'measured_precursor_intensity']
+                     'measured_precursor_intensity', 'msms_frag_ratio', 'msms_frag_jaccard']
 
     if ref_df is None:
         msms_refs = load_msms_refs_file(ref_loc, pre_query, query, ref_dtypes, ref_index)
@@ -2385,7 +2387,15 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
     if not keep_nonmatches:
         msms_hits.dropna(subset=['database', 'id'], how='all', inplace=True)
 
-    return msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
+    if msms_hits.empty:
+        msms_hits = msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
+        return msms_hits
+    else:
+        msms_hits['msms_frag_ratio'] = msms_hits.apply(sp.calc_data_to_ref_frag_ratio, axis=1)
+        msms_hits['msms_frag_jaccard'] = msms_hits.apply(sp.calc_jaccard_of_spectra, axis=1, **{'frag_mz_tolerance': frag_mz_tolerance})
+        msms_hits = msms_hits[msms_hits_cols].set_index(['database', 'id', 'file_name', 'msms_scan'])
+
+    return msms_hits
 
 def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=None, include_groups=None, exclude_groups=None, group='index', share_y=True, save=True, output_loc=None, short_names_df=None, short_names_header=None, polarity='', overwrite=False, max_cpus=1, suffix='', max_plots_per_page=30):
     bad_parameters = {"group": group != "index", "save": not save,
