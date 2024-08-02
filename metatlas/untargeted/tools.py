@@ -17,6 +17,7 @@ import os
 import shutil
 import argparse
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime, time
 import time
 import subprocess
@@ -87,9 +88,58 @@ SLURM_PERLMUTTER_HEADER = """#!/bin/bash
 mzine_batch_params_file = "/global/common/software/m2650/mzmine_parameters/batch_files/mzmine-3.7.2-batchparams.xml"
 mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/batch_files/IQX-mzmine-3.7.2-batchparams.xml"
 
-
 def kickoff():
-    print('\nRunning script on: ', datetime.now())
+    print('Running script on:', datetime.now())
+
+def filter_common_bad_project_names(df: pd.DataFrame):
+    df = df[~(df['parent_dir'].str.contains(' '))]
+    df = df[~(df['parent_dir'].str.contains('&'))]
+    return df
+
+def write_fbmn_tasks_to_file(task_list: list):
+    """
+    Takes a list of dictionaries from submit_fbmn_jobs
+    and writes the fbmn task id to a file in the 
+    project directory at untarageted_tasks on perlmutter
+    """
+    for dataset in task_list:
+        experiment = dataset['experiment']
+        polarity = dataset['polarity']
+        task = dataset['response']['task']
+        depository = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks/'
+        filename = f'{depository}{experiment}_{polarity}/{experiment}_{polarity}_gnps2-fbmn-task.txt'
+        if task:
+            with open(filename,'w') as fid:
+                fid.write(f"{experiment}_{polarity}={task}\n")
+                print(f"FBMN queued and GNPS2 task file written to: {filename}")
+        else:
+            print("Error: GNPS2 FBMN task ID not found")
+            sys.exit(0)
+
+def submit_quickstart_fbmn(params,username,password):
+    
+    url = "https://gnps2.org/launchworkflow"
+
+    # First lets login with a session
+    session = requests.Session()
+    login_data = {"username": username, "password": password}
+    session.post("https://gnps2.org/login", data=login_data)
+
+    # Submitting the job
+    response = session.post(url, data=params)
+    return response.json()
+
+def get_untargeted_statuses(project_list):
+    lims_df = get_table_from_lims('untargeted_tasks')
+    lims_df = filter_common_bad_project_names(lims_df)
+    status_df_list = []
+    for project in project_list:
+        lims_df_filtered = lims_df[lims_df['parent_dir'] == project]
+        if not lims_df_filtered.empty:
+            status_df_list.append(lims_df_filtered[['parent_dir', 'mzmine_pos_status', 'mzmine_neg_status', 'fbmn_pos_status', 'fbmn_neg_status']])
+        else:
+            return f'Error: Status cannot be determined for {project}'
+    return pd.concat(status_df_list, axis=0)
 
 def recursive_chown(basepath, group_name):
     gid = grp.getgrnam(group_name).gr_gid
@@ -423,17 +473,19 @@ def build_untargeted_filename(output_dir,parent_dir,polarity,file_type):
     filename = os.path.join(pathname,filename)
     return filename
 
-def check_gnps_status(taskid):
-    url = 'https://gnps.ucsd.edu/ProteoSAFe/status_json.jsp?task=%s'%taskid
+def check_gnps2_status(taskid):
+    url = 'https://gnps2.org/status?task=%s'%taskid
     d = requests.get(url)
     try:
-        d = json.loads(d.text)
-        if 'status' in d:
-            return d['status'], float(d['workflow_version'].split('_')[-1])
+        soup = BeautifulSoup(d.content, 'html.parser')
+        version = soup.find("td", text="Version").find_next_sibling("td").text
+        status = soup.find("td", text="Status").find_next_sibling("td").text
+        if status and version:
+            return status, version
         else:
-            return 'N/A',0.0
+            return 'N/A','N/A'
     except:
-        return 'N/A',0.0
+        return 'N/A','N/A'
 
 def download_gnps_graphml(taskid,outfile):
     url = "https://gnps.ucsd.edu/ProteoSAFe/DownloadResultFile?task=%s&block=main&file=gnps_molecular_network_graphml/" % (taskid)
@@ -451,7 +503,8 @@ def submit_mzmine_jobs(polarity='positive',polarity_short='pos'):
     tasktype='mzmine'
     df = get_table_from_lims('untargeted_tasks')
     update_list = []
-    for i,row in df[df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation'].iterrows():
+    jobs_to_submit = df[df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation']
+    for i,row in jobs_to_submit.iterrows():
         pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
         runner_filename = os.path.join(pathname,'%s_%s_mzmine.sh'%(row['parent_dir'],polarity))
         if os.path.isfile(runner_filename)==True:
@@ -467,7 +520,78 @@ def submit_mzmine_jobs(polarity='positive',polarity_short='pos'):
                 '%s_%s_status'%(tasktype,polarity_short)]
         update_list_input = df.loc[df.index.isin(update_list),cols]
         update_table_in_lims(update_list_input,'untargeted_tasks',method='update')
-        
+
+def submit_fbmn_jobs(password = "", polarity='positive'):
+    ##### Pick up secret file and extract password
+    with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt','r') as fid:
+        t = fid.read()
+    t = t.split('\n')[0]
+    var, pword = t.split('=')
+    pword = pword.replace('"', '').replace("'", '').strip()
+    username = "bpbowen"
+    password = pword
+    if not password:
+        print("Password is required to submit FBMN jobs")
+        sys.exit(1)
+
+    task_list = []
+    df = get_table_from_lims('untargeted_tasks',columns=['Key','parent_dir','mzmine_pos_status','mzmine_neg_status','fbmn_pos_status','fbmn_neg_status'])
+    fbmn_jobs_waiting = df[(df['fbmn_pos_status'] == '13 waiting') & (df['fbmn_neg_status'] == '13 waiting')]
+    fbmn_jobs_waiting = fbmn_jobs_waiting[(fbmn_jobs_waiting['mzmine_pos_status'] == '07 complete') & (fbmn_jobs_waiting['mzmine_pos_status'] == '07 complete')]
+    if fbmn_jobs_waiting.empty:
+        print("No FBMN jobs to submit")
+        sys.exit(0)
+    project_list = fbmn_jobs_waiting['parent_dir'].tolist()
+    if len(project_list)>20:
+        print('There are more than 20 new FBMN jobs to submit, please check if this is accurate. Exiting script.')
+        sys.exit(0)
+    print("Submitting %s new FBMN jobs at GNPS2:"%(len(project_list)*2))
+    print("\t%s",project_list)
+
+    for project in project_list:
+        department = project.split('_')[1].lower()
+        if department =='eb':
+            department = 'egsb'
+        if not department in ['jgi','egsb']:
+            print(f'{project} does not have a valid department name in the second field')
+            continue
+        description = f'{project}_{polarity}'
+        spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project}_{polarity}/{project}_{polarity}.mgf'
+        quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project}_{polarity}/{project}_{polarity}_quant.csv'
+        metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project}_{polarity}/{project}_{polarity}_metadata.tab'
+        raw_data = f'USERUPLOAD/bpbowen/raw_data/{department}/{project}'
+        if not os.path.exists(raw_data.replace('USERUPLOAD/bpbowen/','/global/cfs/cdirs/metatlas/')):
+            print(f'{raw_data} does not exist')
+            continue
+        username = username
+        params = {
+                "description": description,
+                "workflowname": "feature_based_molecular_networking_workflow",
+                "featurefindingtool": "MZMINE",
+                "inputfeatures": quant_file,
+                "inputspectra": spectra_file,
+                "metadata_filename": metadata_file,
+                "input_libraries": "LIBRARYLOCATION/LC/LIBRARY",
+                "input_raw_spectra": raw_data,
+                "input_supplemental_edges": "",
+                "library_analog_search": "0",
+                "library_min_cosine": "0.7",
+                "library_min_matched_peaks": "3",
+                "library_topk": "20",
+                "min_peak_intensity": "0.0",
+                "networking_max_shift": "1999",
+                "networking_min_cosine": "0.7",
+                "networking_min_matched_peaks": "3",
+                "normalization": "None",
+                "pm_tolerance": "0.01",
+                "fragment_tolerance": "0.01",
+                "precursor_filter": "yes",
+                "api": "no"}
+        job_id = submit_quickstart_fbmn(params, username, password)
+        task_list.append({'experiment':project,'polarity':polarity,'response':job_id})
+    return task_list
+
+
 def update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short='pos'):
     """
     finds running mzmine tasks
@@ -484,10 +608,11 @@ def update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short=
         pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
         old_peakheight_filename = os.path.join(pathname,'%s_%s_MSMS_quant.csv'%(row['parent_dir'],polarity))
         peakheight_filename = os.path.join(pathname,'%s_%s_quant.csv'%(row['parent_dir'],polarity))
-        if (os.path.isfile(peakheight_filename)==True) | (os.path.isfile(old_peakheight_filename)==True):
+        if ((os.path.isfile(peakheight_filename) and os.path.getsize(peakheight_filename) > 10000) or \
+            (os.path.isfile(old_peakheight_filename) and os.path.getsize(old_peakheight_filename) > 10000)): ## Size of file with only header
             #the job was a success
             df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
-            df.loc[i,'%s_%s_status'%('fbmn',polarity_short)] = '01 initiation'
+            df.loc[i,'%s_%s_status'%('fbmn',polarity_short)] = '13 waiting'
             update_df.append(i)
     if len(update_df)>0:
         cols = ['Key',
@@ -495,7 +620,7 @@ def update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short=
                '%s_%s_status'%('fbmn',polarity_short)]
         update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
         
-def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='pos',latest_version=28.2):
+def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='pos'):
     """
     finds running fbmn tasks
     checks if they have uuid
@@ -505,53 +630,46 @@ def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='p
     """
     tasktype='fbmn'
     df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
     update_df = []
     c1 = df['%s_%s_status'%(tasktype,polarity_short)]=='04 running'
     c2 = df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation'
     c3 = df['%s_%s_status'%(tasktype,polarity_short)]=='08 hold'
     for i,row in df[(c1) | (c2) | (c3)].iterrows():
         pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
-        fbmn_filename = os.path.join(pathname,'%s_%s_gnps-uuid.txt'%(row['parent_dir'],polarity))
+        fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(row['parent_dir'],polarity))
         graphml_filename = os.path.join(pathname,'%s_%s_gnps-fbmn-network.graphml'%(row['parent_dir'],polarity))
         if os.path.isfile(fbmn_filename)==True:
             #the job was submitted
             with open(fbmn_filename,'r') as fid:
                 my_text = fid.read().strip()
             taskid = my_text.split('=')[-1]
-            status,version = check_gnps_status(taskid)
-            print('%s %.2f for %s'%(status,version,fbmn_filename))
-            if version<latest_version:
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '01 initiation'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '01 initiation'
-                download_gnps_graphml(taskid,graphml_filename)
-                update_df.append(i)
-            elif status=='DONE':          
+            status,version = check_gnps2_status(taskid)
+            #print('%s status on version %s for %s'%(status,version,fbmn_filename))
+            print("Updating FBMN job status of %s in LIMS as %s"%(row['parent_dir'],status))
+            if status=='DONE':          
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '01 initiation'
-                download_gnps_graphml(taskid,graphml_filename)
+                #download_gnps_graphml(taskid,graphml_filename)
                 update_df.append(i)
             elif status=='FAILED':          
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '08 hold'
                 update_df.append(i)
             elif status=='RUNNING':
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '08 hold'
                 update_df.append(i)
             else:
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '01 initiation'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '08 hold'
                 update_df.append(i)
-#         else:
-#             print('%s is not a file'%fbmn_filename)
+        # else:
+        #     print('%s is not a file. Have you run run_fbmn_at_gnps2.py?'%fbmn_filename)
     if len(update_df)>0:
         cols = ['Key',
                 '%s_%s_status'%(tasktype,polarity_short)] # ,               '%s_%s_status'%('gnps_msms_hits',polarity_short)
-        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')        
+        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
 
 
 
-def submit_fbmn_jobs(polarity='positive',polarity_short='pos',N=15):
+def submit_fbmn_jobs_old(polarity='positive',polarity_short='pos',N=15):
     """
     finds initiated mzmine tasks
     submit them
@@ -746,7 +864,7 @@ def update_new_untargeted_tasks(update_lims=True):
     outdir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks'
  
     if len(new_folders)>0:
-        print('\nCreating metadata and file lists for new project(s)...')
+        print('Creating metadata and file lists for new project(s)...')
         # make the metadata sheets
         file_counts = {}
         metadata_files = {}
@@ -792,7 +910,7 @@ def update_new_untargeted_tasks(update_lims=True):
                     metadata_files[polarity][block[0]] = metadata_filename
                     filelist[polarity][block[0]] = block[1]['mzml_file']
     else:
-        print("\nNo new projects need output folders or metadata!")
+        print("No new projects need output folders or metadata!")
 
     if len(new_folders)>0:
         new_folders = pd.DataFrame(data={'parent_dir':new_folders,'num_pos_files':file_counts['positive'][new_folders],'num_neg_files':file_counts['negative'][new_folders]})
@@ -807,6 +925,7 @@ def update_new_untargeted_tasks(update_lims=True):
                     
                     _, validate_machine_name, _ = field_exists(PurePath(row['parent_dir']), field_num=6)
                     if validate_machine_name in ("IQX", "IDX"):
+                        print("\tNote: Project %s an IQX or IDX project and will use a modified parameters file."%row['parent_dir'])
                         mzmine_running_parameters = mzine_batch_params_file_iqx
                     else:
                         mzmine_running_parameters = mzine_batch_params_file
@@ -846,9 +965,12 @@ def update_new_untargeted_tasks(update_lims=True):
         cols = [c for c in new_folders.columns if c.endswith('_neg_status')]
         new_folders.loc[new_folders['num_neg_files']==0,cols] = '12 not relevant'
         if update_lims==True:
+            # Remove any DNA SIP jobs from untargeted tasks in LIMS
+            dna_sip_projects_conditional = (new_folders['parent_dir'].str.contains('DNA-SIP')) & (new_folders['parent_dir'].str.contains('_RM'))
+            new_folders.loc[dna_sip_projects_conditional, new_folders.columns.str.contains('status')] = 'not relevant'
             update_table_in_lims(new_folders,'untargeted_tasks',method='insert',max_size=1000)
     else:
-        print("\nNo new projects need metadata!")
+        print("No new projects need metadata!")
 
     return new_folders
 
