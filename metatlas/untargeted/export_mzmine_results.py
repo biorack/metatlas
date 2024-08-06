@@ -12,7 +12,7 @@ mzm.kickoff()
 output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks'
 download_folder = '/global/cfs/cdirs/metatlas/projects/untargeted_outputs'
 
-# #### Remove contaminants from recent mgf files (202 ions for fluoranthene)
+#### Remove contaminants from recent mgf files (202 ions for fluoranthene)
 print("Removing fluoranthene from recent mgf files in mzmine results...")
 recent_files = mzm.get_recent_mgf_files(time_back=30)
 for f in recent_files:
@@ -20,9 +20,14 @@ for f in recent_files:
         mzm.remove_contaminant_from_mgf(f)
 
 ##### Check status of mzmine jobs
-print('Checking and updating status of initialized or running mzmine jobs...')
+print('Checking and updating status of initialized or running mzmine jobs in LIMS...')
 mzm.update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short='pos')
 mzm.update_mzmine_status_in_untargeted_tasks(polarity='negative',polarity_short='neg')
+
+##### Check status of fbmn jobs
+print('Checking and updating status of initialized or running fbmn jobs in LIMS...')
+mzm.update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='pos')
+mzm.update_fbmn_status_in_untargeted_tasks(polarity='negative',polarity_short='neg')
 
 ##### Zip up the output folders
 print("\nZipping up mzmine output folders for any recently completed projects...")

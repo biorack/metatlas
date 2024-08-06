@@ -14,6 +14,7 @@ from collections import Mapping
 import six
 from pathlib2 import PurePath
 import os
+import tarfile
 import shutil
 import argparse
 import requests
@@ -94,6 +95,7 @@ def kickoff():
 def filter_common_bad_project_names(df: pd.DataFrame):
     df = df[~(df['parent_dir'].str.contains(' '))]
     df = df[~(df['parent_dir'].str.contains('&'))]
+    df = df[~(df['parent_dir'].str.contains('Niyogi'))]
     return df
 
 def write_fbmn_tasks_to_file(task_list: list):
@@ -115,6 +117,50 @@ def write_fbmn_tasks_to_file(task_list: list):
         else:
             print("Error: GNPS2 FBMN task ID not found")
             sys.exit(0)
+
+def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metatlas/projects/untargeted_outputs',\
+                           output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', \
+                           upload=False, overwrite=False, direct_input=None):
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    df = df[(df['mzmine_pos_status'] == '07 complete') | (df['mzmine_neg_status'] == '07 complete')]
+    df = df[(df['fbmn_pos_status'] == '07 complete') | (df['fbmn_neg_status'] == '07 complete')]
+    if direct_input:
+        df = df[df['parent_dir'].isin(direct_input)]
+    if df.empty:
+        print("\tNo new untargeted results directories to zip!")
+        sys.exit(0)
+    for i,row in df.iterrows():
+        output_zip_archive = os.path.join(download_folder,'%s.zip'%row['parent_dir'])
+        mzmine_file = glob.glob(os.path.join(output_dir, row['parent_dir'], '*_quant.csv'))
+        fbmn_file = glob.glob(os.path.join(output_dir, row['parent_dir'], '*_gnps2-fbmn-library-results.tsv'))
+        neg_directory = os.path.join(output_dir, '%s_%s'%(row['parent_dir'], 'negative'))
+        pos_directory = os.path.join(output_dir, '%s_%s'%(row['parent_dir'], 'positive'))
+        if mzmine_file and fbmn_file:
+            if overwrite==True or not os.path.isfile(output_zip_archive):
+                if os.path.exists(neg_directory) and os.path.exists(pos_directory): # Has both polarity directories
+                    cmd = 'zip -rjuq %s %s %s'%(output_zip_archive,neg_directory,pos_directory)
+                elif os.path.exists(neg_directory) and not os.path.exists(pos_directory): # Only has negative polarity directory
+                    cmd = 'zip -rjuq %s %s'%(output_zip_archive,neg_directory)
+                elif not os.path.exists(neg_directory) and os.path.exists(pos_directory): # Only has positive polarity directory
+                    cmd = 'zip -rjuq %s %s'%(output_zip_archive,pos_directory)
+                else:
+                    print("\tWarning: No matching untargeted results directories found to zip for %s"%row['parent_dir'])
+                    continue
+                os.system(cmd)
+                recursive_chown(output_zip_archive, 'metatlas')
+                print("\tNew pos and neg untargeted results zipped to %s"%output_zip_archive)
+            if upload == True:
+                if os.path.exists(output_zip_archive):
+                    project_folder = os.path.basename(output_zip_archive)
+                    cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --size-only {output_zip_archive} ben_lbl_gdrive:/untargeted_outputs'
+                    subprocess.check_output(cmd, shell=True)
+                    check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+                    check_upload_out = subprocess.check_output(check_upload, shell=True)
+                    if check_upload_out.decode('utf-8').strip():
+                        print("\t\tGoogle Drive upload confirmed")
+                    else:
+                        print("\t\tWarning: Google Drive upload check for output directory failed")
 
 def submit_quickstart_fbmn(params,username,password):
     
@@ -150,33 +196,72 @@ def recursive_chown(basepath, group_name):
             os.chown(os.path.join(root, file_name), -1, gid)
     os.chown(basepath, -1, gid)  # Also change the ownership of the base directory itself
 
-def get_recent_mgf_files(output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', time_back=30):
+def download_from_url(url, target_path):
+    response = requests.get(url, stream=True)
+    if response.status_code == 200:
+        with open(target_path, 'wb') as f:
+            f.write(response.raw.read())
+        return True
+    else:
+        return False
 
+def download_fbmn_results(polarity='positive',polarity_short='pos',output_dir="",overwrite=False,direct_input=None):
+    """
+    finds complete fbmn tasks
+    downloads the results folder
+    renames and moves results to the untargeted_tasks folder
+    """
+    tasktype='fbmn'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input:
+        df = df[df['parent_dir'].isin(direct_input)]
+    df = df[df['%s_%s_status'%(tasktype,polarity_short)]=='07 complete']
+    for i,row in df.iterrows():
+        pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
+        fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(row['parent_dir'],polarity))
+        if os.path.isfile(fbmn_filename)==True:
+            with open(fbmn_filename,'r') as fid:
+                taskid = fid.read().split('=')[1].strip()
+            graphml_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-network.graphml'%(row['parent_dir'],polarity))
+            results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(row['parent_dir'],polarity))
+            gnps2_link_filename = os.path.join(pathname,'%s_%s_gnps2-page-link.txt'%(row['parent_dir'],polarity))
+            with open(gnps2_link_filename,'w') as fid:
+                fid.write(f"https://gnps2.org/status?task={taskid}\n")
+            if overwrite == True or not os.path.exists(graphml_filename):
+                graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
+                if not graphml_download:
+                    print("\tError: Failed to download graphml file for %s"%row['parent_dir'])
+            if overwrite == True or not os.path.exists(results_table_filename):
+                results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
+                if not results_table_download:
+                    print("\tError: Failed to download results table for %s"%row['parent_dir'])
+            if os.path.exists(graphml_filename):
+                recursive_chown(graphml_filename, 'metatlas')
+            if os.path.exists(results_table_filename):
+                recursive_chown(results_table_filename, 'metatlas')
+            if os.path.exists(gnps2_link_filename):
+                recursive_chown(gnps2_link_filename, 'metatlas')
+
+def get_recent_mgf_files(output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', time_back=30):
     # Get the current time
     now = time.time()
-
     # Calculate the time time_back days ago
     time_30_days_ago = now - time_back*24*60*60
-
     # Convert the time to the format used by the find command
     time_30_days_ago = time.strftime('%Y%m%d', time.gmtime(time_30_days_ago))
-
     # Run the find command with date modified
-    
     command = f"find {output_dir} -name '*.mgf' -type f -newermt {time_30_days_ago}"
     recent_files = subprocess.check_output(command, shell=True).decode().split('\n')
-
     return recent_files
 
 def remove_contaminant_from_mgf(f):
     if 'negative' in f:
         target = 202.07880
         diff = target * 5 / 1e6
-        
     elif 'positive' in f:
         target = 202.07770
         diff = target * 5 / 1e6
-
     else:
         print(f"Error: Could not determine polarity of file {f}")
         return
@@ -185,7 +270,6 @@ def remove_contaminant_from_mgf(f):
     with open(f, 'r') as file:
         # Read all lines from the file
         lines = file.readlines()
-
 
     # Filter the lines that contain a number within the range
     filtered_lines = [line for line in lines if not any(abs(float(num)-target)<diff for num in line.split() if num.replace('.', '', 1).isdigit())]
@@ -196,7 +280,6 @@ def remove_contaminant_from_mgf(f):
         with open(f, 'w') as file:
             # Write the lines back
             file.writelines(filtered_lines)
-
 
 def remove_untargeted_job(experiment,
                           outdir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
@@ -494,7 +577,7 @@ def download_gnps_graphml(taskid,outfile):
     with open(outfile, "w") as fid:
         fid.write(d.text)
 
-def submit_mzmine_jobs(polarity='positive',polarity_short='pos'):
+def submit_mzmine_jobs(polarity='positive',polarity_short='pos',direct_input=None):
     """
     finds initiated mzmine tasks
     submit them
@@ -504,6 +587,14 @@ def submit_mzmine_jobs(polarity='positive',polarity_short='pos'):
     df = get_table_from_lims('untargeted_tasks')
     update_list = []
     jobs_to_submit = df[df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation']
+    if direct_input:
+        jobs_to_submit = jobs_to_submit[jobs_to_submit['parent_dir'].isin(direct_input)]
+    if jobs_to_submit.empty:
+        print("No new mzmine jobs to submit")
+        sys.exit(0)
+    if len(jobs_to_submit['parent_dir']) > 20:
+        print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%len(jobs_to_submit['parent_dir']))
+        sys.exit(0)
     for i,row in jobs_to_submit.iterrows():
         pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
         runner_filename = os.path.join(pathname,'%s_%s_mzmine.sh'%(row['parent_dir'],polarity))
@@ -521,7 +612,7 @@ def submit_mzmine_jobs(polarity='positive',polarity_short='pos'):
         update_list_input = df.loc[df.index.isin(update_list),cols]
         update_table_in_lims(update_list_input,'untargeted_tasks',method='update')
 
-def submit_fbmn_jobs(password = "", polarity='positive'):
+def submit_fbmn_jobs(polarity='positive',direct_input=None):
     ##### Pick up secret file and extract password
     with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt','r') as fid:
         t = fid.read()
@@ -535,21 +626,24 @@ def submit_fbmn_jobs(password = "", polarity='positive'):
         sys.exit(1)
 
     task_list = []
-    df = get_table_from_lims('untargeted_tasks',columns=['Key','parent_dir','mzmine_pos_status','mzmine_neg_status','fbmn_pos_status','fbmn_neg_status'])
-    fbmn_jobs_waiting = df[(df['fbmn_pos_status'] == '13 waiting') & (df['fbmn_neg_status'] == '13 waiting')]
+    df = get_table_from_lims('untargeted_tasks',columns=['Key','parent_dir','modified','mzmine_pos_status','mzmine_neg_status','fbmn_pos_status','fbmn_neg_status'])
+    fbmn_jobs_waiting = df[(df['fbmn_pos_status'].isin(['01 initiation', '13 waiting'])) | (df['fbmn_neg_status'].isin(['01 initiation', '13 waiting']))]
     fbmn_jobs_waiting = fbmn_jobs_waiting[(fbmn_jobs_waiting['mzmine_pos_status'] == '07 complete') & (fbmn_jobs_waiting['mzmine_pos_status'] == '07 complete')]
+    if direct_input:
+        fbmn_jobs_waiting = fbmn_jobs_waiting[fbmn_jobs_waiting['parent_dir'].isin(direct_input)]
     if fbmn_jobs_waiting.empty:
         print("No FBMN jobs to submit")
         sys.exit(0)
     project_list = fbmn_jobs_waiting['parent_dir'].tolist()
     if len(project_list)>20:
-        print('There are more than 20 new FBMN jobs to submit, please check if this is accurate. Exiting script.')
+        print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%len(project_list))
+        print(project_list)
         sys.exit(0)
-    print("Submitting %s new FBMN jobs at GNPS2:"%(len(project_list)*2))
-    print("\t%s",project_list)
+    print("Submitting %s new %s mode FBMN jobs at GNPS2..."%(len(project_list),polarity))
 
     for project in project_list:
-        department = project.split('_')[1].lower()
+        _, validate_department, _ = field_exists(PurePath(project), field_num=1)
+        department = validate_department.lower()
         if department =='eb':
             department = 'egsb'
         if not department in ['jgi','egsb']:
@@ -592,35 +686,63 @@ def submit_fbmn_jobs(password = "", polarity='positive'):
     return task_list
 
 
-def update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short='pos'):
+def update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short='pos',direct_input=None):
     """
     finds running mzmine tasks
     checks if they have output
     changes to complete if yes
-    sets fbmn to initiation
     """
     tasktype='mzmine'
     df = get_table_from_lims('untargeted_tasks')
-    update_df = []
+    df = filter_common_bad_project_names(df)
+    if direct_input:
+        df = df[df['parent_dir'].isin(direct_input)]
+    update_list = []
     c1 = df['%s_%s_status'%(tasktype,polarity_short)]=='04 running'
     c2 = df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation'
-    for i,row in df[(c1) | (c2)].iterrows():
+    c3 = df['%s_%s_status'%(tasktype,polarity_short)]=='07 complete'
+    for i,row in df[(c1) | (c2) | (c3)].iterrows():
         pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
         old_peakheight_filename = os.path.join(pathname,'%s_%s_MSMS_quant.csv'%(row['parent_dir'],polarity))
         peakheight_filename = os.path.join(pathname,'%s_%s_quant.csv'%(row['parent_dir'],polarity))
-        if ((os.path.isfile(peakheight_filename) and os.path.getsize(peakheight_filename) > 10000) or \
-            (os.path.isfile(old_peakheight_filename) and os.path.getsize(old_peakheight_filename) > 10000)): ## Size of file with only header
-            #the job was a success
+        mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(row['parent_dir'],polarity))
+        metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(row['parent_dir'],polarity))
+        if (os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and (os.path.isfile(peakheight_filename) or os.path.isfile(old_peakheight_filename))):
+            print("\tUpdating MZmine job status to complete for %s"%(row['parent_dir']))
             df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
-            df.loc[i,'%s_%s_status'%('fbmn',polarity_short)] = '13 waiting'
-            update_df.append(i)
-    if len(update_df)>0:
+            feature_count, exctrl_count = calculate_feature_counts(peakheight_filename)
+            df.loc[i,'num_%s_features'%(polarity_short)] = feature_count
+            df.loc[i,'num_%s_features_in_exctrl'%(polarity_short)] = exctrl_count
+            update_list.append(i)
+    if len(update_list)>0:
         cols = ['Key',
                 '%s_%s_status'%(tasktype,polarity_short),
-               '%s_%s_status'%('fbmn',polarity_short)]
-        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
-        
-def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='pos'):
+                'num_%s_features'%(polarity_short),
+                'num_%s_features_in_exctrl'%(polarity_short)]
+        update_table_in_lims(df.loc[df.index.isin(update_list),cols],'untargeted_tasks',method='update')
+
+def calculate_feature_counts(results_table_filename=None):
+    data_table = pd.read_csv(results_table_filename, sep=',')
+    feature_columns = [col for col in data_table.columns if 'ExCtrl' not in col and 'mzML' in col]
+    if feature_columns:
+        feature_rows = data_table[data_table[feature_columns].gt(0).any(axis=1)]
+        feature_count = feature_rows.shape[0]
+    else:
+        feature_count = 0
+    if feature_count < 10:
+        print("\tWarning: Less than 10 features found in %s"%results_table_filename)
+
+    exctrl_columns = [col for col in data_table.columns if 'ExCtrl' in col]
+    if exctrl_columns:
+        exctrl_rows = data_table[data_table[exctrl_columns].gt(0).any(axis=1)]
+        exctrl_count = exctrl_rows.shape[0]
+    else:
+        exctrl_count = 0
+        print("\tWarning: No ExCtrl samples found in %s"%results_table_filename)
+
+    return feature_count, exctrl_count
+
+def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='pos', direct_input=None):
     """
     finds running fbmn tasks
     checks if they have uuid
@@ -631,14 +753,15 @@ def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='p
     tasktype='fbmn'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
+    if direct_input:
+        df = df[df['parent_dir'].isin(direct_input)]
     update_df = []
     c1 = df['%s_%s_status'%(tasktype,polarity_short)]=='04 running'
     c2 = df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation'
-    c3 = df['%s_%s_status'%(tasktype,polarity_short)]=='08 hold'
+    c3 = df['%s_%s_status'%(tasktype,polarity_short)]=='13 waiting'
     for i,row in df[(c1) | (c2) | (c3)].iterrows():
         pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
         fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(row['parent_dir'],polarity))
-        graphml_filename = os.path.join(pathname,'%s_%s_gnps-fbmn-network.graphml'%(row['parent_dir'],polarity))
         if os.path.isfile(fbmn_filename)==True:
             #the job was submitted
             with open(fbmn_filename,'r') as fid:
@@ -646,69 +769,25 @@ def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='p
             taskid = my_text.split('=')[-1]
             status,version = check_gnps2_status(taskid)
             #print('%s status on version %s for %s'%(status,version,fbmn_filename))
-            print("Updating FBMN job status of %s in LIMS as %s"%(row['parent_dir'],status))
             if status=='DONE':          
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
-                #download_gnps_graphml(taskid,graphml_filename)
+                #print("\tUpdating FBMN job status to complete for %s"%(row['parent_dir']))
                 update_df.append(i)
             elif status=='FAILED':          
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'
                 update_df.append(i)
-            elif status=='RUNNING':
+            elif status in ['RUNNING', 'QUEUED']:
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
                 update_df.append(i)
             else:
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '01 initiation'
                 update_df.append(i)
-        # else:
-        #     print('%s is not a file. Have you run run_fbmn_at_gnps2.py?'%fbmn_filename)
-    if len(update_df)>0:
-        cols = ['Key',
-                '%s_%s_status'%(tasktype,polarity_short)] # ,               '%s_%s_status'%('gnps_msms_hits',polarity_short)
-        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
-
-
-
-def submit_fbmn_jobs_old(polarity='positive',polarity_short='pos',N=15):
-    """
-    finds initiated mzmine tasks
-    submit them
-    changes to running
-    """
-    tasktype='fbmn'
-    df = get_table_from_lims('untargeted_tasks')
-#     df = df[(df['parent_dir'].str.contains('202'))] #  & (df['parent_dir'].str.contains('AK'))
-    update_df = []
-    count = 0
-    for i,row in df[df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation'].iterrows():
-        pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
-        runner_filename = os.path.join(pathname,'%s_%s_fbmn.sh'%(row['parent_dir'],polarity))
-        if os.path.isfile(runner_filename)==True:
-            mgf_filename = build_untargeted_filename(row['output_dir'],row['parent_dir'],polarity,'msms-mzmine3')
-            old_mgf_filename = build_untargeted_filename(row['output_dir'],row['parent_dir'],polarity,'msms-mzmine')
-            if os.path.isfile(mgf_filename):
-                mgf_filename = mgf_filename
-            elif os.path.isfile(old_mgf_filename):
-                mgf_filename = old_mgf_filename
-            if os.stat(mgf_filename).st_size > 0:
-                with open(runner_filename,'r') as fid:
-                    task = subprocess.call(fid.read(),shell=True)
-                    time.sleep(5)
-                    count += 1
-                    print(task)
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
-            else:
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
-                print(row['parent_dir'],polarity,'not relevant for fbmn')
-            update_df.append(i)
-        if count==N:
-            break
+        else:
+            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '13 waiting'
     if len(update_df)>0:
         cols = ['Key',
                 '%s_%s_status'%(tasktype,polarity_short)]
         update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
-
-
 
 def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_filename):
     mzmine_launcher = '/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-3.7.2/bin/MZmine -threads auto -t /pscratch/sd/b/bkieft/untargeted/tmp'
@@ -732,35 +811,6 @@ def write_fbmn_sbatch_and_runner(basepath,parent_dir):
     python_args = '--basedir %s --basename %s --override True'%(basepath,parent_dir)
     with open(runner_filename,'w') as fid:
         fid.write('%s %s %s\n'%(python_binary,python_file,python_args))
-
-def update_num_features():
-    df_tasks = get_table_from_lims('untargeted_tasks')
-    # Get num features
-    found = 0
-    keep_rows = []
-    for i,row in df_tasks.iterrows():
-        for polarity in ['positive','negative']:
-            peakheight = build_untargeted_filename(row['output_dir'],row['parent_dir'],polarity,'peak-height-mzmine')
-            if os.path.isfile(peakheight):
-                cmd = ['wc','-l','%s'%peakheight]
-                result = subprocess.run(cmd, stdout=subprocess.PIPE)
-        #         n = int(subprocess.check_output().split()[0])
-                num = result.stdout.split()[0]
-                if len(num)>0:
-                    num = int(int(num) - 1)
-                    if num != row['num_%s_features'%polarity[:3]]:
-                        df_tasks.loc[i,'num_%s_features'%polarity[:3]] = num
-                        keep_rows.append(i)
-                        print(num,row['num_%s_features'%polarity[:3]],result.stderr,result.stdout)
-                        print('')
-
-    cols = [c for c in df_tasks.columns if (c.endswith('_features')) & (c.startswith('num_'))]
-    cols = cols + ['Key']
-    print(cols)
-    if len(keep_rows)>0:
-        temp = df_tasks.loc[df_tasks.index.isin(keep_rows),cols].copy()
-        temp.fillna(0,inplace=True)
-        update_table_in_lims(temp,'untargeted_tasks',method='update')
 
 
 
@@ -816,7 +866,7 @@ def update_new_untargeted_tasks(update_lims=True):
     The strip command is because there is one folder that ends in a 
     space and labkey doesn't allow this
     """
-    print("\tFetching untargeted tasks from LIMS to identify new projects...")
+    print("\tSyncing LIMS and NERSC to identify new projects not yet in the untargeted task list...")
     df = get_table_from_lims('lcmsrun_plus')
     df = df[pd.notna(df['mzml_file'])]
     df['basename'] = df['mzml_file'].apply(os.path.basename)
@@ -910,7 +960,8 @@ def update_new_untargeted_tasks(update_lims=True):
                     metadata_files[polarity][block[0]] = metadata_filename
                     filelist[polarity][block[0]] = block[1]['mzml_file']
     else:
-        print("No new projects need output folders or metadata!")
+        print("No new projects need output folders or metadata! Exiting script.")
+        sys.exit(0)
 
     if len(new_folders)>0:
         new_folders = pd.DataFrame(data={'parent_dir':new_folders,'num_pos_files':file_counts['positive'][new_folders],'num_neg_files':file_counts['negative'][new_folders]})
@@ -925,7 +976,7 @@ def update_new_untargeted_tasks(update_lims=True):
                     
                     _, validate_machine_name, _ = field_exists(PurePath(row['parent_dir']), field_num=6)
                     if validate_machine_name in ("IQX", "IDX"):
-                        print("\tNote: Project %s an IQX or IDX project and will use a modified parameters file."%row['parent_dir'])
+                        print("\tNotice: Project %s an IQX or IDX project and will use a modified parameters file."%row['parent_dir'])
                         mzmine_running_parameters = mzine_batch_params_file_iqx
                     else:
                         mzmine_running_parameters = mzine_batch_params_file
@@ -943,7 +994,7 @@ def update_new_untargeted_tasks(update_lims=True):
                         with open(filelist_filename,'w') as fid:
                             fid.write('%s'%'\n'.join(file_list))
                         write_mzmine_sbatch_and_runner(basepath,params_filename,parent_dir,filelist_filename)# put file selector here)
-                
+
         new_folders['file_conversion_complete'] = False
         new_folders['conforming_filenames'] = False
         new_folders['mzmine_pos_status'] = '01 initiation'
