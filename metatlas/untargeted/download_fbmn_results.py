@@ -6,7 +6,11 @@ from metatlas.tools.validate_filenames import parent_dir_num_fields
 from pathlib2 import PurePath
 
 ##### Kick off the script
-mzm.start_script(script="run_fbmn.py")
+mzm.start_script(script="download_fbmn_results.py")
+
+# ##### Get ready for exporting results
+download_folder = '/global/cfs/cdirs/metatlas/projects/untargeted_outputs'
+output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks'
 
 ##### Get project list from CLI standard input and validate
 if len(sys.argv) > 1:
@@ -20,22 +24,22 @@ if len(sys.argv) > 1:
 else:
     project_list = []
 
-##### Submit new fbmn jobs to perlmutter
+##### Export untargeted results if mzmine and fbmn are complete
 if project_list:
-    print("\nNotice: Only executing script with user-selected projects...\n")
+    print("\nNotice: Only executing script with user-selected projects...")
     print('Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=project_list)
     print('\nChecking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=project_list)
-    print('\nSubmitting new FBMN jobs to GNPS2...')
-    mzm.submit_fbmn_jobs(direct_input=project_list)
+    print('\nChecking for completed FBMN jobs and downloading results...')
+    mzm.download_fbmn_results(output_dir=output_dir,overwrite=True,direct_input=project_list)
 else:
     print('\nChecking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks()
     print('\nChecking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks()
-    print('\nSubmitting new FBMN jobs to GNPS2...')
-    mzm.submit_fbmn_jobs()
+    print('\nChecking for completed FBMN jobs and downloading results...')
+    mzm.download_fbmn_results(output_dir=output_dir,overwrite=False)
 
 ##### Wrap up the script
-mzm.end_script(script="run_fbmn.py")
+mzm.end_script(script="download_fbmn_results.py")
