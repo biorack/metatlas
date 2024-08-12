@@ -8,7 +8,7 @@ from pathlib2 import PurePath
 ##### Kick off the script
 mzm.start_script(script="download_fbmn_results.py")
 
-# ##### Get ready for exporting results
+##### Set up the download and output directories
 download_folder = '/global/cfs/cdirs/metatlas/projects/untargeted_outputs'
 output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks'
 
@@ -26,19 +26,19 @@ else:
 
 ##### Export untargeted results if mzmine and fbmn are complete
 if project_list:
-    print("\nNotice: Only executing script with user-selected projects...")
-    print('Checking and updating status of MZmine jobs in LIMS...')
+    print("\nNotice! Only executing script with user-selected projects...\n")
+    print('Step 1/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=project_list)
-    print('\nChecking and updating status of FBMN jobs in LIMS...')
+    print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=project_list)
-    print('\nChecking for completed FBMN jobs and downloading results...')
+    print('\nStep 3/3: Checking for completed FBMN jobs and downloading results...')
     mzm.download_fbmn_results(output_dir=output_dir,overwrite=True,direct_input=project_list)
 else:
-    print('\nChecking and updating status of MZmine jobs in LIMS...')
+    print('\nStep 1/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks()
-    print('\nChecking and updating status of FBMN jobs in LIMS...')
+    print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks()
-    print('\nChecking for completed FBMN jobs and downloading results...')
+    print('\nStep 3/3: Checking for completed FBMN jobs and downloading results...')
     mzm.download_fbmn_results(output_dir=output_dir,overwrite=False)
 
 ##### Wrap up the script

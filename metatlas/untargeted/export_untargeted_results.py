@@ -26,22 +26,22 @@ else:
 
 ##### Export untargeted results if mzmine and fbmn are complete
 if project_list:
-    print("\nNotice: Only executing script with user-selected projects...")
-    print('Checking and updating status of MZmine jobs in LIMS...')
+    print("\nNotice! Only executing script with user-selected projects...\n")
+    print('Step 1/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=project_list)
-    print('\nChecking and updating status of FBMN jobs in LIMS...')
+    print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=project_list)
-    print("\nZipping up and (optionally) uploading output folders to gdrive...")
+    print("\nStep 3/3: Zipping up and (optionally) uploading output folders to gdrive...")
     mzm.zip_and_upload_untargeted_results(download_folder=download_folder,output_dir=output_dir,upload=True,overwrite=True, \
-                                          direct_input=project_list, min_features_admissible=50)
+                                          direct_input=project_list, min_features_admissible=0)
 else:
-    print('\nChecking and updating status of MZmine jobs in LIMS...')
+    print('\nStep 1/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks()
-    print('\nChecking and updating status of FBMN jobs in LIMS...')
+    print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks()
-    print("\nZipping up and (optionally) uploading output folders to gdrive...")
+    print("\nStep 3/3: Zipping up and (optionally) uploading output folders to gdrive...")
     mzm.zip_and_upload_untargeted_results(download_folder=download_folder,output_dir=output_dir,upload=True,overwrite=False, \
-                                          min_features_admissible=50)
+                                          min_features_admissible=0)
 
 ##### Wrap up the script
 mzm.end_script(script="export_untargeted_results.py")

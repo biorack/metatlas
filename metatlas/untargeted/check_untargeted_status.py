@@ -5,8 +5,13 @@ sys.path.insert(0,'/global/homes/b/bkieft/metatlas/')
 from metatlas.untargeted import tools as mzm
 from metatlas.tools.validate_filenames import parent_dir_num_fields
 
-# ##### Kick off the script
+##### Kick off the script
 mzm.start_script(script="check_untargeted_status.py")
+
+##### Check for CLI input
+if len(sys.argv) < 1:
+    print('Please provide a project name or list of project names separated by commas.')
+    sys.exit(1)
 
 ##### Get project list from CLI standard input and validate
 if len(sys.argv) > 1:
@@ -22,22 +27,19 @@ else:
 
 ##### Run updaters before retrieving status from LIMS and printing to stdout
 if project_list:
-    print("\nNotice: Only executing script with user-selected projects...")
-    print('Checking and updating status of MZmine jobs in LIMS...')
+    print('\nStep 1/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=project_list)
-    print('\nChecking and updating status of FBMN jobs in LIMS...')
+    print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=project_list)
-    print('\nPrinting job status for project queries...\n')
-    status_df = mzm.get_untargeted_status(direct_input=project_list)
+    print('\nStep 3/3: Printing job status for project queries...')
+    mzm.get_untargeted_status(direct_input=project_list)
 else:
-    print('\nChecking and updating status of MZmine jobs in LIMS...')
+    print('\nStep 1/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks()
-    print('\nChecking and updating status of FBMN jobs in LIMS...')
+    print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks()
-    print('\nPrinting job status for project queries...\n')
-    status_df = mzm.get_untargeted_status()
-
-print("\n",status_df.to_string(),"\n")
+    print('\nStep 3/3: Printing job status for project queries...')
+    mzm.get_untargeted_status()
 
 ##### Wrap up the script
 mzm.end_script(script="check_untargeted_status.py")
