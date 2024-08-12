@@ -11,6 +11,7 @@ mzm.start_script(script="export_untargeted_results.py")
 # ##### Get ready for exporting results
 download_folder = '/global/cfs/cdirs/metatlas/projects/untargeted_outputs'
 output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks'
+gnps2_doc_name="Untargeted_metabolomics_GNPS2_Guide.docx"
 
 ##### Get project list from CLI standard input and validate
 if len(sys.argv) > 1:
@@ -32,16 +33,17 @@ if project_list:
     print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=project_list)
     print("\nStep 3/3: Zipping up and (optionally) uploading output folders to gdrive...")
-    mzm.zip_and_upload_untargeted_results(download_folder=download_folder,output_dir=output_dir,upload=True,overwrite=True, \
-                                          direct_input=project_list, min_features_admissible=0)
+    mzm.zip_and_upload_untargeted_results(download_folder=download_folder,output_dir=output_dir,upload=True,overwrite_zip=True, \
+                                          overwrite_drive=True, direct_input=project_list, min_features_admissible=0, \
+                                          add_documentation=True, doc_name=gnps2_doc_name)
 else:
     print('\nStep 1/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks()
     print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks()
     print("\nStep 3/3: Zipping up and (optionally) uploading output folders to gdrive...")
-    mzm.zip_and_upload_untargeted_results(download_folder=download_folder,output_dir=output_dir,upload=True,overwrite=False, \
-                                          min_features_admissible=0)
+    mzm.zip_and_upload_untargeted_results(download_folder=download_folder,output_dir=output_dir,upload=True,overwrite_zip=True, \
+                                          overwrite_drive=True, min_features_admissible=0, add_documentation=True,doc_name=gnps2_doc_name)
 
 ##### Wrap up the script
 mzm.end_script(script="export_untargeted_results.py")
