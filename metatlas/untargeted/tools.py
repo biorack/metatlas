@@ -13,7 +13,7 @@ import time
 import subprocess
 import math
 sys.path.insert(0,'/global/homes/b/bkieft/metatlas/metatlas')
-from metatlas.tools.validate_filenames import field_exists
+import metatlas.tools.validate_filenames as vfn
 import subprocess
 import grp
 
@@ -109,7 +109,7 @@ def filter_common_bad_project_names(df: pd.DataFrame):
     df = df[~(df['parent_dir'].str.contains('_old'))]
     return df
 
-def write_fbmn_tasks_to_file(task_list: dict, outdir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks/'):
+def write_fbmn_tasks_to_file(task_list: dict, output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks'):
     """
     Takes a list of dictionaries from submit_fbmn_jobs
     and writes the fbmn task id to a file in the 
@@ -118,10 +118,10 @@ def write_fbmn_tasks_to_file(task_list: dict, outdir = '/global/cfs/cdirs/metatl
     experiment = task_list['experiment']
     polarity = task_list['polarity']
     task = task_list['response']['task']
-    filename = f'{outdir}{experiment}_{polarity}/{experiment}_{polarity}_gnps2-fbmn-task.txt'
+    filename = os.path.join(output_dir, '%s_%s'%(experiment, polarity), '%s_%s_gnps2-fbmn-task.txt'%(experiment, polarity))
     if task:
         with open(filename,'w') as fid:
-            fid.write(f"{experiment}_{polarity}={task}\n")
+            fid.write("%s_%s=%s\n"%(experiment,polarity,task))
             final_filename = os.path.basename(filename)
             tab_print("GNPS2 task file for %s mode written to %s"%(polarity,final_filename), 4)
     else:
@@ -667,7 +667,7 @@ def check_gnps2_status(taskid):
     except:
         return 'N/A','N/A'
 
-def submit_fbmn_jobs(direct_input=None,overwrite=False,outdir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks'):
+def submit_fbmn_jobs(direct_input=None,overwrite=False,validate_names=True,output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks'):
     """
     This function is called by run_fbmn.py
 
@@ -719,7 +719,10 @@ def submit_fbmn_jobs(direct_input=None,overwrite=False,outdir='/global/cfs/cdirs
                     tab_print("Warning! Overwrite is True and %s exists. Giving %s seconds to end process before submitting..."%(os.path.basename(fbmn_filename),wait), 2)
                     time.sleep(wait)
 
-                _, validate_department, _ = field_exists(PurePath(row['parent_dir']), field_num=1)
+                if validate_names is True:
+                    _, validate_department, _ = vfn.field_exists(PurePath(row['parent_dir']), field_num=1)
+                else:
+                    validate_department = project_name.split('_')[1]
                 department = validate_department.lower()
                 if department =='eb':
                     department = 'egsb'
@@ -744,7 +747,7 @@ def submit_fbmn_jobs(direct_input=None,overwrite=False,outdir='/global/cfs/cdirs
                 task_list = {'experiment':project,'polarity':polarity,'response':job_id}
                 tab_print("Submitted FBMN job.", 3)
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
-                write_fbmn_tasks_to_file(task_list,outdir)
+                write_fbmn_tasks_to_file(task_list,output_dir)
                 index_list.append(i)            
 
         if len(index_list) > 0:
@@ -1101,7 +1104,7 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_f
     with open(runner_filename,'w') as fid:
         fid.write('sbatch %s'%sbatch_filename)
 
-def write_metadata_per_new_project(df: pd.DataFrame,control="ExCtrl",raw_data_path="/") -> list:
+def write_metadata_per_new_project(df: pd.DataFrame,control="ExCtrl",raw_data_path="/",validate_names=True) -> list:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
     mzmine metadata for writing a new untargeted_tasks directory
@@ -1113,8 +1116,11 @@ def write_metadata_per_new_project(df: pd.DataFrame,control="ExCtrl",raw_data_pa
         df_filtered = df[df['parent_dir'] == parent_dir]
 
         # Finish raw_data path
-        _, validate_department, _ = field_exists(PurePath(parent_dir), field_num=1)
-        department = validate_department.lower()
+        if validate_names is True:
+            _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
+            department = validate_department.lower()
+        else:
+            department = parent_dir.split('_')[1].lower()
         if department =='eb':
             department = 'egsb'
         full_mzml_path = os.path.join(raw_data_path,department,parent_dir)
@@ -1130,16 +1136,40 @@ def write_metadata_per_new_project(df: pd.DataFrame,control="ExCtrl",raw_data_pa
             'QC' not in x.split('_')[12] and
             'InjBl' not in x.split('_')[12] and
             'ISTD' not in x.split('_')[12])].to_list()
-        positive_file_list = [os.path.join(full_mzml_path, file) for file in positive_file_subset]
-        positive_file_count = len(positive_file_list)
+        if positive_file_subset:
+            positive_file_list = [os.path.join(full_mzml_path, file) for file in positive_file_subset]
+            positive_file_count = len(positive_file_list)
+            if validate_names is True:
+                file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True) for file in positive_file_list]
+                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                    tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2)
+                    continue
+                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in positive_file_list]
+                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                    tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2)
+                    continue
+        else:
+            positive_file_count = 0
 
         negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
             lambda x: 'NEG' in x.split('_')[9] and 
             'QC' not in x.split('_')[12] and
             'InjBl' not in x.split('_')[12] and
             'ISTD' not in x.split('_')[12])].to_list()
-        negative_file_list = [os.path.join(full_mzml_path, file) for file in negative_file_subset]
-        negative_file_count = len(negative_file_list)
+        if negative_file_subset:
+            negative_file_list = [os.path.join(full_mzml_path, file) for file in negative_file_subset]
+            negative_file_count = len(negative_file_list)
+            if validate_names is True:
+                file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True) for file in negative_file_list]
+                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                    tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2)
+                    continue
+                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in negative_file_list]
+                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                    tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2)
+                    continue
+        else:
+            negative_file_count = 0
         
         # Counts and mzml list
         if positive_file_count > 0 and negative_file_count > 0:
@@ -1186,8 +1216,8 @@ def write_metadata_per_new_project(df: pd.DataFrame,control="ExCtrl",raw_data_pa
     return new_project_list
 
 def update_new_untargeted_tasks(update_lims=True,skip_update=False,background_designator="ExCtrl", \
-                                outdir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
-                                raw_data_dir='/global/cfs/cdirs/metatlas/raw_data'):
+                                output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
+                                raw_data_dir='/global/cfs/cdirs/metatlas/raw_data', validate_names=True):
     """
     This script is called by run_mzmine.py before the untargeted pipeline kicks off
 
@@ -1252,24 +1282,28 @@ def update_new_untargeted_tasks(update_lims=True,skip_update=False,background_de
     
     # Check for polarities by looking for positive and negative mzml files
     df_new = df[df['parent_dir'].isin(new_folders)]
-    new_project_info_list = write_metadata_per_new_project(df=df_new,control=background_designator,raw_data_path=raw_data_dir)
+    tab_print("Checking for polarities in new projects and validating mzml file names...", 1)
+    new_project_info_list = write_metadata_per_new_project(df=df_new,control=background_designator,raw_data_path=raw_data_dir,validate_names=validate_names)
     new_project_info_list_subset = [d for d in new_project_info_list if d.get('polarities') is not None]
 
     # Create metadata for new projects with relevant polarities
     if len(new_project_info_list_subset)>0:
         lims_untargeted_list = []
         for new_project_dict in new_project_info_list_subset:
-            polarity_list = new_project_dict['polarities']
             project_name = new_project_dict['parent_dir']
+            polarity_list = new_project_dict['polarities']
             tab_print("Working on %s..."%(project_name), 1)
 
             # Write some basic info to LIMS
             lims_untargeted_table_updater = {'parent_dir': project_name}
             lims_untargeted_table_updater['conforming_filenames'] = True
             lims_untargeted_table_updater['file_conversion_complete'] = True
-            lims_untargeted_table_updater['output_dir'] = outdir
-            _, validate_machine_name, _ = field_exists(PurePath(project_name), field_num=6)
-            if validate_machine_name in ("IQX", "IDX"):
+            lims_untargeted_table_updater['output_dir'] = output_dir
+            if validate_names is True:
+                _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
+            else:
+                validate_machine_name = project_name.split('_')[6]
+            if validate_machine_name.lower() in ("iqx", "idx"):
                 mzmine_running_parameters = mzine_batch_params_file_iqx
                 mzmine_parameter = 5
             else:
@@ -1281,7 +1315,7 @@ def update_new_untargeted_tasks(update_lims=True,skip_update=False,background_de
             for polarity in ['positive','negative']: # Don't initiate mzmine jobs on polarities that don't have sample mzmls
                 polarity_short = polarity[:3]
                 parent_dir = '%s_%s'%(project_name,polarity)
-                basepath = os.path.join(outdir,parent_dir)
+                basepath = os.path.join(output_dir,parent_dir)
                 metadata_header = f"{polarity_short}_metadata_file"
                 mzmine_status_header = f"mzmine_{polarity_short}_status"
                 fbmn_status_header = f"fbmn_{polarity_short}_status"
@@ -1301,7 +1335,7 @@ def update_new_untargeted_tasks(update_lims=True,skip_update=False,background_de
                     metadata_df.to_csv(metadata_filename, sep='\t', index=False)
                     
                     tab_print("%s MZmine parameter file (*_batch-params.xml)..."%(polarity), 3)
-                    params_filename = build_untargeted_filename(outdir,project_name,polarity,'batch-params-mzmine')
+                    params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
                     with open(mzmine_running_parameters,'r') as fid:
                         orig_params = fid.read()
                     new_param_path = os.path.join(basepath,parent_dir)

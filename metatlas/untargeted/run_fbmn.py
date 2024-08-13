@@ -36,14 +36,14 @@ if project_list:
     print('\nStep 3/4: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=project_list)
     print('\nStep 4/4: Submitting new FBMN jobs to GNPS2...')
-    mzm.submit_fbmn_jobs(direct_input=project_list,outdir=output_dir,overwrite=True)
+    mzm.submit_fbmn_jobs(direct_input=project_list,output_dir=output_dir,overwrite=True)
 else:
     print('\nStep 2/4: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks()
     print('\nStep 3/4: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks()
     print('\nStep 4/4: Submitting new FBMN jobs to GNPS2...')
-    mzm.submit_fbmn_jobs(outdir=output_dir,overwrite=False)
+    mzm.submit_fbmn_jobs(output_dir=output_dir,overwrite=False)
 
 ##### Wrap up the script
 mzm.end_script(script="run_fbmn.py")

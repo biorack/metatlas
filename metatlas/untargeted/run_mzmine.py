@@ -35,7 +35,7 @@ if project_list:
     mzm.submit_mzmine_jobs(direct_input=project_list,submit_only_new=False)
 else:
     print('\nStep 1/3: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')
-    new_projects = mzm.update_new_untargeted_tasks(update_lims=True,outdir=output_dir,raw_data_dir=raw_data_dir)
+    new_projects = mzm.update_new_untargeted_tasks(update_lims=True,output_dir=output_dir,raw_data_dir=raw_data_dir)
     print('\nStep 2/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks()
     print('\nStep 3/3: Submitting new MZmine jobs that are "initialized"...')
