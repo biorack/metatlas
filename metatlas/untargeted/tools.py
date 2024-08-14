@@ -184,20 +184,26 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                 if polarity_list is None:
                     logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(row['parent_dir']), 1))
                     continue
-                neg_mzmine_file = os.path.join(output_dir, '%s_negative'%row['parent_dir'], '%s_negative_peak-height.csv'%row['parent_dir'])
-                pos_mzmine_file = os.path.join(output_dir, '%s_positive'%row['parent_dir'], '%s_positive_peak-height.csv'%row['parent_dir'])
-                neg_fbmn_file = os.path.join(output_dir, '%s_negative'%row['parent_dir'], '%s_negative_gnps2-fbmn-library-results.tsv'%row['parent_dir'])
-                pos_fbmn_file = os.path.join(output_dir, '%s_positive'%row['parent_dir'], '%s_positive_gnps2-fbmn-library-results.tsv'%row['parent_dir'])
+                # Create variables for possible polarity directories and files
+                neg_directory = os.path.join(output_dir, '%s_%s'%(row['parent_dir'], 'negative'))
+                pos_directory = os.path.join(output_dir, '%s_%s'%(row['parent_dir'], 'positive'))
+                neg_mzmine_file = os.path.join(neg_directory, '%s_negative_peak-height.csv'%row['parent_dir'])
+                pos_mzmine_file = os.path.join(pos_directory, '%s_positive_peak-height.csv'%row['parent_dir'])
+                neg_fbmn_file = os.path.join(neg_directory, '%s_negative_gnps2-fbmn-library-results.tsv'%row['parent_dir'])
+                pos_fbmn_file = os.path.join(pos_directory, '%s_positive_gnps2-fbmn-library-results.tsv'%row['parent_dir'])
                 if 'negative' in polarity_list and 'positive' in polarity_list:
-                    # Check that mzmine and fbmn "marker" files exist, they've probably finished sucessfully (double-check since status need to all be 'complete')
+                    # Check that mzmine and fbmn "marker" files exist, they've probably finished sucessfully (double-check since status need to all be 'complete' above)
                     if os.path.exists(neg_mzmine_file) and os.path.exists(pos_mzmine_file) and os.path.exists(neg_fbmn_file) and os.path.exists(pos_fbmn_file):
+                        recursive_chown(neg_directory, 'metatlas')
+                        recursive_chown(pos_directory, 'metatlas')
                         neg_feature_counts = check_peak_height_table(neg_mzmine_file)
                         pos_feature_counts = check_peak_height_table(pos_mzmine_file)
                         if (neg_feature_counts + pos_feature_counts) > min_features_admissible:
-                            # if overwrite_zip==True and os.path.exists(output_zip_archive):
-                            #     wait = 10
-                            #     logging.warning(tab_print("Warning! Overwrite zip is True and %s exists. Giving %s seconds to end process before zipping over existing archive..."%(os.path.basename(output_zip_archive),wait), 1))
-                            #     time.sleep(wait)
+                            if direct_input is not None:
+                                if overwrite_zip==True and os.path.exists(output_zip_archive):
+                                    wait = 10
+                                    tab_print("Warning! Overwrite zip is True and %s exists. Giving %s seconds to end process before zipping over existing archive..."%(os.path.basename(output_zip_archive),wait), 1)
+                                    time.sleep(wait)
                             neg_directory = os.path.join(output_dir, '%s_%s'%(row['parent_dir'], 'negative'))
                             pos_directory = os.path.join(output_dir, '%s_%s'%(row['parent_dir'], 'positive'))
                             if add_documentation == True:
@@ -212,6 +218,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 cmd = 'zip -rjq - %s %s >%s'%(neg_directory,pos_directory,output_zip_archive)
                             os.system(cmd)
                             logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,row['parent_dir']), 1))
+                            recursive_chown(output_zip_archive, 'metatlas')
                             count += 1
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_to_google_drive(output_zip_archive,overwrite_drive)
@@ -220,12 +227,14 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             continue
                 elif not 'negative' in polarity_list and 'positive' in polarity_list:
                     if os.path.exists(pos_mzmine_file) and os.path.exists(pos_fbmn_file):
+                        recursive_chown(pos_directory, 'metatlas')
                         pos_feature_counts = check_peak_height_table(pos_mzmine_file)
                         if pos_feature_counts > min_features_admissible:
-                            # if overwrite_zip==True and os.path.exists(output_zip_archive):
-                            #     wait = 10
-                            #     logging.warning(tab_print("Warning! Overwrite zip is True and %s exists. Giving %s seconds to end process before zipping over existing archive..."%(os.path.basename(output_zip_archive),wait), 1))
-                            #     time.sleep(wait)
+                            if direct_input is not None:
+                                if overwrite_zip==True and os.path.exists(output_zip_archive):
+                                    wait = 10
+                                    tab_print("Warning! Overwrite zip is True and %s exists. Giving %s seconds to end process before zipping over existing archive..."%(os.path.basename(output_zip_archive),wait), 1)
+                                    time.sleep(wait)
                             pos_directory = os.path.join(output_dir, '%s_%s'%(row['parent_dir'], 'positive'))
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
@@ -239,6 +248,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 cmd = 'zip -rjq - %s >%s'%(pos_directory,output_zip_archive)
                             os.system(cmd)
                             logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,row['parent_dir']), 1))
+                            recursive_chown(output_zip_archive, 'metatlas')
                             count += 1
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_to_google_drive(output_zip_archive,overwrite_drive)
@@ -247,12 +257,14 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             continue
                 elif 'negative' in polarity_list and not 'positive' in polarity_list:
                     if os.path.exists(neg_mzmine_file) and os.path.exists(neg_fbmn_file):
+                        recursive_chown(neg_directory, 'metatlas')
                         neg_feature_counts = check_peak_height_table(neg_mzmine_file)
                         if neg_feature_counts > min_features_admissible:
-                            # if overwrite_zip==True and os.path.exists(output_zip_archive):
-                            #     wait = 10
-                            #     logging.warning(tab_print("Warning! Overwrite zip is True and %s exists. Giving %s seconds to end process before zipping over existing archive..."%(os.path.basename(output_zip_archive),wait), 1))
-                            #     time.sleep(wait)
+                            if direct_input is not None:
+                                if overwrite_zip==True and os.path.exists(output_zip_archive):
+                                    wait = 10
+                                    tab_print("Warning! Overwrite zip is True and %s exists. Giving %s seconds to end process before zipping over existing archive..."%(os.path.basename(output_zip_archive),wait), 1)
+                                    time.sleep(wait)
                             neg_directory = os.path.join(output_dir, '%s_%s'%(row['parent_dir'], 'negative'))
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
@@ -266,6 +278,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 cmd = 'zip -rjq - %s >%s'%(neg_directory,output_zip_archive)
                             os.system(cmd)
                             logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,row['parent_dir']), 1))
+                            recursive_chown(output_zip_archive, 'metatlas')
                             count += 1
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_to_google_drive(output_zip_archive,overwrite_drive)
@@ -514,12 +527,9 @@ def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untarg
                             count += 1
                         else:
                             logging.info(tab_print("Error: Failed to download results table", 2))
-                    if os.path.exists(graphml_filename):
-                        recursive_chown(graphml_filename, 'metatlas')
-                    if os.path.exists(results_table_filename):
-                        recursive_chown(results_table_filename, 'metatlas')
-                    if os.path.exists(gnps2_link_filename):
-                        recursive_chown(gnps2_link_filename, 'metatlas')
+
+                    recursive_chown(pathname, 'metatlas')
+                    
         if count > 0:
             logging.info(tab_print("All new FBMN results downloaded.", 1))
         else:
@@ -985,7 +995,6 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,skip_update=False
                 metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(row['parent_dir'],polarity))
                 if (os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and (os.path.isfile(peakheight_filename) or os.path.isfile(old_peakheight_filename))):
                     # MZmine is finished and status should be updated
-                    recursive_chown(pathname, 'metatlas')
                     logging.info(tab_print("Working on %s in %s mode"%(row['parent_dir'],polarity), 2))
                     logging.info(tab_print("All MZmine output files found in %s directory, continuing..."%(polarity), 3))
                     logging.info(tab_print("Calculating feature and background counts and updating LIMS table", 3))
@@ -1001,10 +1010,11 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,skip_update=False
                         df_filtered = filter_features_by_background(peakheight_filename,background_designator=background_designator,background_ratio=3)
                         df_filtered_path = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (row['parent_dir'], polarity))
                         df_filtered.to_csv(df_filtered_path, index=False)
-                        recursive_chown(df_filtered_path, 'metatlas')
                     else:
                         logging.warning(tab_print("Warning! Not writing filtered features to file because no features were found", 4))
-        
+
+                    recursive_chown(pathname, 'metatlas')
+
         if len(index_list) > 0:
             logging.info(tab_print("Updating statuses in LIMS table for %s projects..."%(len(index_list)), 1))
             index_list = list(set(index_list))
