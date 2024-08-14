@@ -32,6 +32,8 @@ def main():
 
     ##### Set arguments to pass to the pipeline steps and run some checks
     args = parser.parse_args()
+
+    ##### Check if the input arguments are valid
     if args.direct_input:
         args.direct_input = args.direct_input.split(',')
     if args.background_designator:
