@@ -32,14 +32,14 @@ if project_list:
     print('Step 1/2: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=project_list)
     print('\nStep 2/2: Submitting new MZmine jobs that are in the command line input...')
-    mzm.submit_mzmine_jobs(direct_input=project_list,submit_only_new=False)
+    mzm.submit_mzmine_jobs(direct_input=project_list)
 else:
     print('\nStep 1/3: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')
     new_projects = mzm.update_new_untargeted_tasks(update_lims=True,output_dir=output_dir,raw_data_dir=raw_data_dir)
     print('\nStep 2/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks()
     print('\nStep 3/3: Submitting new MZmine jobs that are "initialized"...')
-    mzm.submit_mzmine_jobs(new_projects=new_projects,submit_only_new=True)
+    mzm.submit_mzmine_jobs(new_projects=new_projects)
 
 ##### Wrap up the script
 mzm.end_script(script="run_mzmine.py")
