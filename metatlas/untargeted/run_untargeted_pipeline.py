@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 import logging
@@ -24,14 +25,32 @@ def main():
     parser.add_argument('--log_level', type=str, default='INFO', help='Logger level. One of [DEBUG, INFO, WARNING, ERROR, or CRITICAL]')
     parser.add_argument('--log_format', type=str, default='%(asctime)s - %(levelname)s - %(message)s', help='Logger format')
     parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a comma-separated list')
-
-    ##### Set arguments to pass to the pipeline steps
-    args = parser.parse_args()
-    if args.direct_input:
-        args.direct_input = args.direct_input.split(',')
+    parser.add_argument('--background_designator', type=str, default="TxCtrl,ExCtrl", help='Input control/background sample names from command line as a comma-separated list')
 
     ##### Configure logging
     mzm.call_logger(log_filename=args.log_file, log_level=args.log_level, log_format=args.log_format)
+
+    ##### Set arguments to pass to the pipeline steps and run some checks
+    args = parser.parse_args()
+    if args.direct_input:
+        args.direct_input = args.direct_input.split(',')
+    if args.background_designator:
+        args.background_designator = args.background_designator.split(',')
+    if args.overwrite_drive is True and args.gdrive_upload is False:
+        logging.error('Incompatible flags. Cannot overwrite google drive if not uploading to google drive.')
+        sys.exit(1)
+    if args.gnps2_doc_name is None and args.add_gnps2_documentation is True:
+        logging.error('Incompatible flags. Must provide GNPS2 document name if you want to add it to the zip.')
+        sys.exit(1)
+    if not os.path.exists(args.download_dir):
+        logging.error('Download directory does not exist. Please check flag.')
+        sys.exit(1)
+    if not os.path.exists(args.output_dir):
+        logging.error('Output directory does not exist. Please check flag.')
+        sys.exit(1)
+    if not os.path.exists(args.raw_data_dir):
+        logging.error('Raw data directory does not exist. Please check flag.')
+        sys.exit(1)
 
     ##### Kick off the script
     mzm.start_script(script="run_untargeted_pipeline.py")
@@ -39,10 +58,11 @@ def main():
     ##### Run the pipeline steps
     logging.info('Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')
     new_projects = mzm.update_new_untargeted_tasks(update_lims=args.update_lims, validate_names=args.validate_names, \
-                                                   output_dir=args.output_dir, raw_data_dir=args.raw_data_dir)
+                                                   output_dir=args.output_dir, raw_data_dir=args.raw_data_dir,
+                                                   background_designator=args.background_designator)
 
     logging.info('Step 2/7: Checking and updating status of MZmine jobs in LIMS...')
-    mzm.update_mzmine_status_in_untargeted_tasks(direct_input=args.direct_input)
+    mzm.update_mzmine_status_in_untargeted_tasks(direct_input=args.direct_input,background_designator=args.background_designator)
 
     logging.info('Step 3/7: Submitting new MZmine jobs that are "initialized"...')
     mzm.submit_mzmine_jobs(new_projects=new_projects, direct_input=args.direct_input)
