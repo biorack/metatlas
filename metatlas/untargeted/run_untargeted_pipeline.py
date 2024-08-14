@@ -6,32 +6,33 @@ import logging
 sys.path.insert(0,'/global/homes/b/bkieft/metatlas/')
 from metatlas.untargeted import tools as mzm
 
+##### Parse command line arguments
+parser = argparse.ArgumentParser(description='Run untargeted pipeline.')
+parser.add_argument('--download_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_outputs', help='Path to the download folder')
+parser.add_argument('--output_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_tasks', help='Path to the output directory')
+parser.add_argument('--raw_data_dir', type=str, default='/global/cfs/cdirs/metatlas/raw_data', help='Path to the raw data directory')
+parser.add_argument('--update_lims', type=bool, default=True, help='Update LIMS with new untargeted tasks')
+parser.add_argument('--validate_names', type=bool, default=True, help='Validate filenames and project names')
+parser.add_argument('--overwrite_zip',type=bool, default=False, help='Overwrite existing zip files in download folder')
+parser.add_argument('--overwrite_drive', type=bool, default=False, help='Overwrite existing zip files on google drive')
+parser.add_argument('--overwrite_fbmn', type=bool, default=False, help='Overwrite existing fbmn results files that are already in the output directory')
+parser.add_argument('--gdrive_upload', type=bool, default=True, help='Upload to google drive')
+parser.add_argument('--min_features', type=int, default=0, help='Set minimum number of MZmine features for a project polarity to be zipped')
+parser.add_argument('--add_gnps2_documentation', type=bool, default=True, help='File name of the GNPS2 documentation to add to project zips')
+parser.add_argument('--gnps2_doc_name', type=str, default='Untargeted_metabolomics_GNPS2_Guide.docx', help='File name of the GNPS2 documentation to add to project zips')
+parser.add_argument('--log_file', type=str, default='/global/homes/b/bkieft/metatlas/metatlas/untargeted/untargeted_pipeline_log.txt', help='Log file name with full path')
+parser.add_argument('--log_level', type=str, default='INFO', help='Logger level. One of [DEBUG, INFO, WARNING, ERROR, or CRITICAL]')
+parser.add_argument('--log_format', type=str, default='%(asctime)s - %(levelname)s - %(message)s', help='Logger format')
+parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a comma-separated list')
+parser.add_argument('--background_designator', type=str, default="TxCtrl,ExCtrl", help='Input control/background sample names from command line as a comma-separated list')
+
+##### Set arguments to pass to the pipeline steps and run some checks
+args = parser.parse_args()
+
 def main():
-    ##### Parse command line arguments
-    parser = argparse.ArgumentParser(description='Run untargeted pipeline.')
-    parser.add_argument('--download_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_outputs', help='Path to the download folder')
-    parser.add_argument('--output_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_tasks', help='Path to the output directory')
-    parser.add_argument('--raw_data_dir', type=str, default='/global/cfs/cdirs/metatlas/raw_data', help='Path to the raw data directory')
-    parser.add_argument('--update_lims', type=bool, default=True, help='Update LIMS with new untargeted tasks')
-    parser.add_argument('--validate_names', type=bool, default=True, help='Validate filenames and project names')
-    parser.add_argument('--overwrite_zip',type=bool, default=False, help='Overwrite existing zip files in download folder')
-    parser.add_argument('--overwrite_drive', type=bool, default=False, help='Overwrite existing zip files on google drive')
-    parser.add_argument('--overwrite_fbmn', type=bool, default=False, help='Overwrite existing fbmn results files that are already in the output directory')
-    parser.add_argument('--gdrive_upload', type=bool, default=True, help='Upload to google drive')
-    parser.add_argument('--min_features', type=int, default=0, help='Set minimum number of MZmine features for a project polarity to be zipped')
-    parser.add_argument('--add_gnps2_documentation', type=bool, default=True, help='File name of the GNPS2 documentation to add to project zips')
-    parser.add_argument('--gnps2_doc_name', type=str, default='Untargeted_metabolomics_GNPS2_Guide.docx', help='File name of the GNPS2 documentation to add to project zips')
-    parser.add_argument('--log_file', type=str, default='/global/homes/b/bkieft/metatlas/metatlas/untargeted/untargeted_pipeline_log.txt', help='Log file name with full path')
-    parser.add_argument('--log_level', type=str, default='INFO', help='Logger level. One of [DEBUG, INFO, WARNING, ERROR, or CRITICAL]')
-    parser.add_argument('--log_format', type=str, default='%(asctime)s - %(levelname)s - %(message)s', help='Logger format')
-    parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a comma-separated list')
-    parser.add_argument('--background_designator', type=str, default="TxCtrl,ExCtrl", help='Input control/background sample names from command line as a comma-separated list')
 
     ##### Configure logging
     mzm.call_logger(log_filename=args.log_file, log_level=args.log_level, log_format=args.log_format)
-
-    ##### Set arguments to pass to the pipeline steps and run some checks
-    args = parser.parse_args()
 
     ##### Check if the input arguments are valid
     if args.direct_input:
