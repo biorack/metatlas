@@ -172,7 +172,8 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
         logging.info(tab_print("No completed untargeted results to zip and upload!", 1))
         return
     if not df.empty:
-        logging.info(tab_print("%s project(s) found with complete mzmine and fbmn status."%(df.shape[0]), 1))
+        logging.info(tab_print("%s project(s) total with complete mzmine and fbmn status."%(df.shape[0]), 1))
+        count = 0
         for i,row in df.iterrows():
             output_zip_archive = os.path.join(download_folder,'%s.zip'%row['parent_dir'])
             polarity_list = check_for_polarities(output_dir,row['parent_dir'])
@@ -211,6 +212,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 cmd = 'zip -rjq - %s %s >%s'%(neg_directory,pos_directory,output_zip_archive)
                             os.system(cmd)
                             logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,row['parent_dir']), 1))
+                            count += 1
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_to_google_drive(output_zip_archive,overwrite_drive)
                         else:
@@ -237,6 +239,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 cmd = 'zip -rjq - %s >%s'%(pos_directory,output_zip_archive)
                             os.system(cmd)
                             logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,row['parent_dir']), 1))
+                            count += 1
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_to_google_drive(output_zip_archive,overwrite_drive)
                         else:
@@ -263,11 +266,14 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 cmd = 'zip -rjq - %s >%s'%(neg_directory,output_zip_archive)
                             os.system(cmd)
                             logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,row['parent_dir']), 1))
+                            count += 1
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_to_google_drive(output_zip_archive,overwrite_drive)
                         else:
                             logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(row['parent_dir'],min_features_admissible,polarity_list), 1))
                             continue
+        if count == 0:
+            logging.info(tab_print("No new untargeted projects to be zipped and uploaded.", 1))
 
 def check_peak_height_table(peak_height_file):
     """
@@ -302,14 +308,16 @@ def upload_to_google_drive(file_path: str, overwrite=False):
     or /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone listremotes
     """
     project_folder = os.path.basename(file_path)
-    if overwrite == True:
-        logging.info(tab_print("Uploading zip to Google Drive...", 2))
+    logging.info(tab_print("Uploading zip to Google Drive...", 2))
+    if overwrite == True: # Use --update flag in rclone to overwrite remote zip if it's older than the local zip
+        # Do the upload
         upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --update {file_path} ben_lbl_gdrive:/untargeted_outputs'
         try:
             subprocess.check_output(upload_command, shell=True)
         except:
-            logging.warning(tab_print("Warning! Google Drive upload failed with overwrite=%s with exception on %s"%(overwrite, upload_command), 3))
+            logging.warning(tab_print("Warning! Google Drive upload failed on upload with overwrite=%s with exception on command %s"%(overwrite, upload_command), 3))
             return
+        # Check that upload worked
         check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
@@ -318,31 +326,35 @@ def upload_to_google_drive(file_path: str, overwrite=False):
             else:
                 logging.warning(tab_print("Warning! Google Drive upload check failed. Upload may not have been successful.", 3))
         except:
-            logging.warning(tab_print("Warning! Google Drive upload failed with overwrite=%s with exception on %s"%(overwrite,check_upload_command), 3))
+            logging.warning(tab_print("Warning! Google Drive upload failed on upload check with overwrite=%s with exception on %s"%(overwrite,check_upload_command), 3))
             return
     if overwrite == False:
+        # Overwrite is False, so first check if the project folder already exists on Google Drive
         check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
                 logging.info(tab_print("Overwrite is False and Google Drive folder for %s already exists. Skipping upload..."%(project_folder), 2))
                 return
-            else:
-                logging.info(tab_print("Uploading zip to Google Drive...", 2))
+            else: # Do the upload with --ignore-existing just as a double-check since overwrite is False
                 upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --ignore-existing {file_path} ben_lbl_gdrive:/untargeted_outputs'
                 try:
                     subprocess.check_output(upload_command, shell=True)
-                    check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
-                    check_upload_out = subprocess.check_output(check_upload, shell=True)
-                    if check_upload_out.decode('utf-8').strip():
-                        logging.info(tab_print("Google Drive upload confirmed!", 3))
-                    else:
-                        logging.warning(tab_print("Warning! Google Drive upload check failed. Upload may not have been successful.", 3))
+                    try:
+                        check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+                        check_upload_out = subprocess.check_output(check_upload, shell=True)
+                        if check_upload_out.decode('utf-8').strip():
+                            logging.info(tab_print("Google Drive upload confirmed!", 3))
+                        else:
+                            logging.warning(tab_print("Warning! Google Drive upload check failed. Upload may not have been successful.", 3))
+                    except:
+                        logging.warning(tab_print("Warning! Google Drive upload check failed with overwrite=%s with exception on %s"%(overwrite,check_upload_command), 3))
+                        return
                 except:
-                    logging.warning(tab_print("Warning! Google Drive upload failed with overwrite=%s with exception on %s"%(overwrite,upload_command), 3))
+                    logging.warning(tab_print("Warning! Google Drive upload command failed with overwrite=%s with exception on %s"%(overwrite,upload_command), 3))
                     return
         except:
-            logging.warning(tab_print("Warning! Google Drive upload failed with overwrite=%s with exception on %s"%(overwrite,check_upload_command), 3))
+            logging.warning(tab_print("Warning! Google Drive check for existing zip failed with overwrite=%s with exception on %s"%(overwrite,check_upload_command), 3))
             return
 
 def submit_quickstart_fbmn(params="",username=""):
@@ -456,6 +468,7 @@ def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untarg
     if df.empty:
         logging.info(tab_print("No completed FBMN data to download!", 1))
     if not df.empty:
+        count = 0
         for i,row in df.iterrows():
             polarity_list = check_for_polarities(output_dir,row['parent_dir'])
             if polarity_list is None:
@@ -491,12 +504,14 @@ def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untarg
                         graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
                         if graphml_download:
                             logging.info(tab_print("Downloaded graphml file", 2))
+                            count += 1
                         else:
                             logging.info(tab_print("Error: Failed to download graphml file", 2))
                     if overwrite_fbmn == True or not os.path.exists(results_table_filename):
                         results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
                         if results_table_download:
                             logging.info(tab_print("Downloaded result table file", 2))
+                            count += 1
                         else:
                             logging.info(tab_print("Error: Failed to download results table", 2))
                     if os.path.exists(graphml_filename):
@@ -505,7 +520,10 @@ def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untarg
                         recursive_chown(results_table_filename, 'metatlas')
                     if os.path.exists(gnps2_link_filename):
                         recursive_chown(gnps2_link_filename, 'metatlas')
-        logging.info(tab_print("All new FBMN results downloaded.", 1))
+        if count > 0:
+            logging.info(tab_print("All new FBMN results downloaded.", 1))
+        else:
+            logging.info(tab_print("No new FBMN results to download!", 1))
 
 def get_recent_mgf_files(output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', time_back=30):
     """
@@ -686,6 +704,41 @@ def check_gnps2_status(taskid):
     except:
         return 'N/A','N/A'
 
+def sync_data_to_gnps2(synctype=['mgf','peak_height','metadata']):
+    if 'mgf' in synctype:
+        mgf_sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_mgf_to_gnps2.sh'
+        if os.path.exists(mgf_sync_cmd):
+            logging.info(tab_print("Syncing MGF files to GNPS2...", 1))
+            try:
+                os.system(mgf_sync_cmd)
+                logging.info(tab_print("MGF files synced to GNPS2.", 2))
+            except:
+                logging.warning(tab_print("Warning! Failed to sync MGF files to GNPS2", 2))
+        else:
+            logging.warning(tab_print("Warning! Could not find the script to sync MGF files to GNPS2", 2))
+    if 'peak_height' in synctype:
+        peak_height_sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_csv_to_gnps2.sh'
+        if os.path.exists(peak_height_sync_cmd):
+            logging.info(tab_print("Syncing peak height files to GNPS2...", 1))
+            try:
+                os.system(peak_height_sync_cmd)
+                logging.info(tab_print("Peak height files synced to GNPS2.", 2))
+            except:
+                logging.warning(tab_print("Warning! Failed to sync peak height files to GNPS2", 2))
+        else:
+            logging.warning(tab_print("Warning! Could not find the script to sync peak height files to GNPS2", 2))
+    if 'metadata' in synctype:
+        metadata_sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_tab_to_gnps2.sh'
+        if os.path.exists(metadata_sync_cmd):
+            logging.info(tab_print("Syncing metadata files to GNPS2...", 1))
+            try:
+                os.system(metadata_sync_cmd)
+                logging.info(tab_print("Metadata files synced to GNPS2.", 2))
+            except:
+                logging.warning(tab_print("Warning! Failed to sync metadata files to GNPS2", 2))
+        else:
+            logging.warning(tab_print("Warning! Could not find the script to sync metadata files to GNPS2", 2))
+
 def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,validate_names=True,output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks'):
     """
     This function is called by run_fbmn.py
@@ -713,8 +766,9 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,validate_names=True,
         logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
         return
     if not df.empty:
-        index_list = []
         logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status 'complete' to submit to GNPS2"%(df.shape[0],status_list), 1))
+        sync_data_to_gnps2(synctype=['mgf','peak_height','metadata'])
+        index_list = []
         for i,row in df.iterrows():
             project = row['parent_dir']
             logging.info(tab_print("Working on project %s:"%(project), 2))
@@ -727,11 +781,11 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,validate_names=True,
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%('mzmine',polarity_short)] != '07 complete':
                     logging.warning(tab_print("Warning! It looks like MZmine for %s mode for %s hasn't completed yet. Skipping..."%(project,polarity), 3))
                     continue
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! %s in %s mode has an error status. Attempting to resubmit..."%(project,polarity), 3))
-
                 pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(row['parent_dir'],polarity))
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.warning(tab_print("Warning! %s in %s mode has an error status. Attempting to resubmit..."%(project,polarity), 3))
+                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
                 if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==False:
                     continue
                 # if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==True:
@@ -890,7 +944,7 @@ def set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, ra
                 "api": "no"}
     return params
 
-def update_mzmine_status_in_untargeted_tasks(direct_input=None,skip_update=False):
+def update_mzmine_status_in_untargeted_tasks(direct_input=None,skip_update=False,background_designator=[]):
     """
     This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
     
@@ -930,10 +984,12 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,skip_update=False
                 mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(row['parent_dir'],polarity))
                 metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(row['parent_dir'],polarity))
                 if (os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and (os.path.isfile(peakheight_filename) or os.path.isfile(old_peakheight_filename))):
+                    # MZmine is finished and status should be updated
+                    recursive_chown(pathname, 'metatlas')
                     logging.info(tab_print("Working on %s in %s mode"%(row['parent_dir'],polarity), 2))
                     logging.info(tab_print("All MZmine output files found in %s directory, continuing..."%(polarity), 3))
                     logging.info(tab_print("Calculating feature and background counts and updating LIMS table", 3))
-                    feature_count, exctrl_count, msms_count = calculate_counts_for_lims_table(peakheight_filename,mgf_filename)
+                    feature_count, exctrl_count, msms_count = calculate_counts_for_lims_table(peakheight_filename,mgf_filename,background_designator=background_designator)
                     df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
                     df.loc[i,'num_%s_features'%(polarity_short)] = int(feature_count)
                     df.loc[i,'num_%s_features_in_exctrl'%(polarity_short)] = int(exctrl_count)
@@ -942,7 +998,7 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,skip_update=False
 
                     if feature_count > 0:
                         logging.info(tab_print("Filtering features by peak height ratio compared to background (control) signal and writing to file", 4))
-                        df_filtered = filter_features_by_background(peakheight_filename)
+                        df_filtered = filter_features_by_background(peakheight_filename,background_designator=background_designator,background_ratio=3)
                         df_filtered_path = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (row['parent_dir'], polarity))
                         df_filtered.to_csv(df_filtered_path, index=False)
                         recursive_chown(df_filtered_path, 'metatlas')
@@ -961,9 +1017,11 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,skip_update=False
             df.replace('NaN', 0, inplace=True)
             df.fillna(0, inplace=True)
             update_table_in_lims(df,'untargeted_tasks',method='update')
-    logging.info(tab_print("MZmine status update complete.", 1))
+            logging.info(tab_print("MZmine status update complete.", 1))
+        else:
+            logging.info(tab_print("No MZmine jobs to update!", 1))
 
-def filter_features_by_background(peakheight_filename=None,background_designator=["TxCtrl,ExCtrl"],background_ratio=3):
+def filter_features_by_background(peakheight_filename=None,background_designator=[],background_ratio=3):
     """
     Accepts a peakheight file and filters out features that have a max peak height in exp samples that is less than
     3 times the peak height in the control samples.
@@ -1005,7 +1063,7 @@ def filter_features_by_background(peakheight_filename=None,background_designator
         logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframe.", 5))
         return data_table.head(1)
 
-def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None, background_designator=["TxCtrl,ExCtrl"]):
+def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None, background_designator=[]):
     """
     Accepts a peakheight file and mgf file and returns the number of features
     in exp and and control samples found in the peakheightfile plus number of 
@@ -1016,7 +1074,8 @@ def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None,
     feature_count = 0
     msms_count = 0
     
-    exctrl_columns = [col for col in row.index if any(designator in col for designator in background_designator) and 'mzML' in col]
+    # Find the background designator string (default: ['ExCtrl','TxCtrl']) in the 13th element of each project name in the peak height table
+    exctrl_columns = [col for col in data_table[0] if len(col.split('_')) > 12 and any(designator in col.split('_')[12] for designator in background_designator) and 'mzML' in col]
     if exctrl_columns:
         exctrl_rows = data_table[data_table[exctrl_columns].gt(0).any(axis=1)]
         exctrl_count = int(exctrl_rows.shape[0])
@@ -1024,20 +1083,25 @@ def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None,
     else:
         logging.warning(tab_print("Warning! No ExCtrl samples found in peak height file", 4))
 
-    feature_columns = [col for col in row.index if any(designator not in col for designator in background_designator) and 'mzML' in col]
+    feature_columns = [col for col in data_table[0] if len(col.split('_')) > 12 and any(designator not in col.split('_')[12] for designator in background_designator) and 'mzML' in col]
     if feature_columns:
         feature_rows = data_table[data_table[feature_columns].gt(0).any(axis=1)]
         feature_count = int(feature_rows.shape[0])
         logging.info(tab_print("%s features in experimental samples"%(feature_count), 4))
-    if feature_count < 10:
-        logging.warning(tab_print("Warning! Less than 10 features found in peak height file", 4))
+    if feature_count < 2: # Exclude the header line
+        logging.warning(tab_print("Warning! No features found in peak height file", 4))
 
     if os.path.isfile(mgf_filename):
         cmd = 'cat %s | grep FEATURE_ID| wc -l'%mgf_filename
-        result = subprocess.run(cmd,stdout=subprocess.PIPE, shell=True)
-        if result:
-            msms_count = int(result.stdout.strip())
-            logging.info(tab_print("%s msms features in mgf file"%(msms_count), 4))
+        try:
+            result = subprocess.run(cmd,stdout=subprocess.PIPE, shell=True)
+            if result:
+                msms_count = int(result.stdout.strip())
+                logging.info(tab_print("%s msms features in mgf file"%(msms_count), 4))
+            else:
+                logging.warning(tab_print("Warning! Could not count msms features in mgf file", 4))
+        except:
+            logging.warning(tab_print("Warning! Could not count msms features in mgf file", 4))
 
     return feature_count, exctrl_count, msms_count
 
@@ -1107,7 +1171,9 @@ def update_fbmn_status_in_untargeted_tasks(direct_input=None,skip_update=False):
             df.replace('NaN', 0, inplace=True)
             df.fillna(0, inplace=True)
             update_table_in_lims(df,'untargeted_tasks',method='update')
-    logging.info(tab_print("FBMN status update complete.", 1))
+            logging.info(tab_print("FBMN status update complete.", 1))
+        else:
+            logging.info(tab_print("No FBMN jobs to update!", 1))
 
 def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_filename):
     """
@@ -1124,7 +1190,7 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_f
     with open(runner_filename,'w') as fid:
         fid.write('sbatch %s'%sbatch_filename)
 
-def write_metadata_per_new_project(df: pd.DataFrame,control=["TxCtrl","ExCtrl"],raw_data_path="/",validate_names=True) -> list:
+def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw_data_path="/",validate_names=True) -> list:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
     mzmine metadata for writing a new untargeted_tasks directory
@@ -1221,7 +1287,7 @@ def write_metadata_per_new_project(df: pd.DataFrame,control=["TxCtrl","ExCtrl"],
             metadata_df['sample_group'] = metadata_df['sample_group'].fillna('')
             metadata_df['sample_group'] = metadata_df['sample_group'].apply(lambda x: x.lower())
             ugroups = metadata_df['sample_group'].unique()
-            ugroups = [g for g in ugroups if any(c.lower() in g for c in control)]
+            ugroups = [g for g in ugroups if any(c.lower() in g for c in background_designator)]
             metadata_df.rename(columns={'basename': 'filename', 'sample_group': 'ATTRIBUTE_sampletype'}, inplace=True)
             metadata_df['filename'] = metadata_df['filename'].apply(lambda x: os.path.basename(x))
             cols = ['CONTROL', 'CASE', 'ATTRIBUTE_media']
@@ -1235,7 +1301,7 @@ def write_metadata_per_new_project(df: pd.DataFrame,control=["TxCtrl","ExCtrl"],
 
     return new_project_list
 
-def update_new_untargeted_tasks(update_lims=True,skip_update=False,background_designator=["TxCtrl","ExCtrl"], \
+def update_new_untargeted_tasks(update_lims=True,skip_update=False,background_designator=[], \
                                 output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
                                 raw_data_dir='/global/cfs/cdirs/metatlas/raw_data', validate_names=True):
     """
@@ -1303,7 +1369,7 @@ def update_new_untargeted_tasks(update_lims=True,skip_update=False,background_de
     # Check for polarities by looking for positive and negative mzml files
     df_new = df[df['parent_dir'].isin(new_folders)]
     logging.info(tab_print("Checking for polarities in new projects and validating mzml file names...", 1))
-    new_project_info_list = write_metadata_per_new_project(df=df_new,control=background_designator,raw_data_path=raw_data_dir,validate_names=validate_names)
+    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_path=raw_data_dir,validate_names=validate_names)
     new_project_info_list_subset = [d for d in new_project_info_list if d.get('polarities') is not None]
 
     # Create metadata for new projects with relevant polarities
