@@ -26,34 +26,14 @@ parser.add_argument('--log_format', type=str, default='%(asctime)s - %(levelname
 parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a comma-separated list')
 parser.add_argument('--background_designator', type=str, default="TxCtrl,ExCtrl", help='Input control/background sample names from command line as a comma-separated list')
 
-##### Set arguments to pass to the pipeline steps and run some checks
-args = parser.parse_args()
-
 def main():
+
+    ##### Set arguments to pass to the pipeline steps and run some checks
+    args = parser.parse_args()
+    check_args(args)
 
     ##### Configure logging
     mzm.call_logger(log_filename=args.log_file, log_level=args.log_level, log_format=args.log_format)
-
-    ##### Check if the input arguments are valid
-    if args.direct_input:
-        args.direct_input = args.direct_input.split(',')
-    if args.background_designator:
-        args.background_designator = args.background_designator.split(',')
-    if args.overwrite_drive is True and args.gdrive_upload is False:
-        logging.error('Incompatible flags. Cannot overwrite google drive if not uploading to google drive.')
-        sys.exit(1)
-    if args.gnps2_doc_name is None and args.add_gnps2_documentation is True:
-        logging.error('Incompatible flags. Must provide GNPS2 document name if you want to add it to the zip.')
-        sys.exit(1)
-    if not os.path.exists(args.download_dir):
-        logging.error('Download directory does not exist. Please check flag.')
-        sys.exit(1)
-    if not os.path.exists(args.output_dir):
-        logging.error('Output directory does not exist. Please check flag.')
-        sys.exit(1)
-    if not os.path.exists(args.raw_data_dir):
-        logging.error('Raw data directory does not exist. Please check flag.')
-        sys.exit(1)
 
     ##### Kick off the script
     mzm.start_script(script="run_untargeted_pipeline.py")
@@ -86,6 +66,28 @@ def main():
 
     ##### End the script
     mzm.end_script(script="run_untargeted_pipeline.py")
+
+def check_args(args):
+    ##### Check if the input arguments are valid
+    if args.direct_input:
+        args.direct_input = args.direct_input.split(',')
+    if args.background_designator:
+        args.background_designator = args.background_designator.split(',')
+    if args.overwrite_drive is True and args.gdrive_upload is False:
+        logging.error('Incompatible flags. Cannot overwrite google drive if not uploading to google drive.')
+        sys.exit(1)
+    if args.gnps2_doc_name is None and args.add_gnps2_documentation is True:
+        logging.error('Incompatible flags. Must provide GNPS2 document name if you want to add it to the zip.')
+        sys.exit(1)
+    if not os.path.exists(args.download_dir):
+        logging.error('Download directory does not exist. Please check flag.')
+        sys.exit(1)
+    if not os.path.exists(args.output_dir):
+        logging.error('Output directory does not exist. Please check flag.')
+        sys.exit(1)
+    if not os.path.exists(args.raw_data_dir):
+        logging.error('Raw data directory does not exist. Please check flag.')
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

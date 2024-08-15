@@ -434,7 +434,8 @@ def is_valid_file_name(
         logger.info("Validating file name for: %s", file_name)
     warnings = run_check_list(file_name, warn_checks)
     for warn in warnings:
-        logger.warning(warn)
+        if print_logger is True:
+            logger.warning(warn)
     errors = run_check_list(file_name, required_checks)
     for error in errors:
         logger.error(error)
