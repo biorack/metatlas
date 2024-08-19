@@ -8,6 +8,9 @@ from metatlas.tools.validate_filenames import parent_dir_num_fields
 ##### Kick off the script
 mzm.start_script(script="check_untargeted_status.py")
 
+##### Untargeted tasks dir
+download_dir="/global/cfs/cdirs/metatlas/projects/untargeted_tasks"
+
 ##### Check for CLI input
 if len(sys.argv) < 1:
     print('Please provide a project name or list of project names separated by commas.')
@@ -31,15 +34,15 @@ if project_list:
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=project_list)
     print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=project_list)
-    print('\nStep 3/3: Printing job status for project queries...')
-    mzm.get_untargeted_status(direct_input=project_list)
+    print('\nStep 3/3: Getting job status for untargeted project queries...')
+    mzm.get_untargeted_status(direct_input=project_list, check_modernity=True, download_dir=download_dir)
 else:
     print('\nStep 1/3: Checking and updating status of MZmine jobs in LIMS...')
     mzm.update_mzmine_status_in_untargeted_tasks()
     print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks()
-    print('\nStep 3/3: Printing job status for project queries...')
-    mzm.get_untargeted_status()
+    print('\nStep 3/3: Getting job status for all untargeted projects...')
+    mzm.get_untargeted_status(download_dir=download_dir, check_modernity=True)
 
 ##### Wrap up the script
 mzm.end_script(script="check_untargeted_status.py")
