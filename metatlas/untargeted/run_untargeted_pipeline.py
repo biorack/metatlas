@@ -26,12 +26,14 @@ def main():
     new_projects = mzm.update_new_untargeted_tasks(update_lims=args.update_lims, validate_names=args.validate_names, \
                                                    output_dir=args.output_dir, raw_data_dir=args.raw_data_dir,
                                                    background_designator=args.background_designator,skip_sync=step_bools[0])
+    
     ##### Step 2/7: Checking and updating status of MZmine jobs in LIMS
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=args.direct_input,background_designator=args.background_designator, \
                                                  skip_mzmine_status=step_bools[1])
 
     ##### Step 3/7: Submitting new MZmine jobs that are "initialized"
-    mzm.submit_mzmine_jobs(new_projects=new_projects, direct_input=args.direct_input,skip_mzmine_submit=step_bools[2])
+    mzm.submit_mzmine_jobs(new_projects=new_projects,direct_input=args.direct_input,skip_mzmine_submit=step_bools[2], \
+                           overwrite_mzmine=args.overwrite_mzmine)
 
     ##### Step 4/7: Checking and updating status of FBMN jobs in LIMS
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=args.direct_input,skip_fbmn_status=step_bools[3])
@@ -61,15 +63,16 @@ def add_arguments(parser):
     parser.add_argument('--overwrite_zip',type=bool, default=False, help='Overwrite existing zip files in download folder')
     parser.add_argument('--overwrite_drive', type=bool, default=False, help='Overwrite existing zip files on google drive')
     parser.add_argument('--overwrite_fbmn', type=bool, default=False, help='Overwrite existing fbmn results files that are already in the output directory')
+    parser.add_argument('--overwrite_mzmine', type=bool, default=False, help='Overwrite existing mzmine results files that are already in the output directory')
     parser.add_argument('--gdrive_upload', type=bool, default=True, help='Upload to google drive')
     parser.add_argument('--min_features', type=int, default=0, help='Set minimum number of MZmine features for a project polarity to be zipped')
     parser.add_argument('--add_gnps2_documentation', type=bool, default=True, help='File name of the GNPS2 documentation to add to project zips')
     parser.add_argument('--gnps2_doc_name', type=str, default='Untargeted_metabolomics_GNPS2_Guide.docx', help='File name of the GNPS2 documentation to add to project zips')
-    parser.add_argument('--log_file', type=str, default='/global/homes/b/bkieft/metatlas/metatlas/untargeted/untargeted_pipeline_log.txt', help='Log file name with full path')
+    parser.add_argument('--log_file', type=str, default='/global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline_log.txt', help='Log file name with full path')
     parser.add_argument('--log_level', type=str, default='INFO', help='Logger level. One of [DEBUG, INFO, WARNING, ERROR, or CRITICAL]')
     parser.add_argument('--log_format', type=str, default='%(asctime)s - %(levelname)s - %(message)s', help='Logger format')
     parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a CSV list')
-    parser.add_argument('--background_designator', type=str, default="TxCtrl,ExCtrl", help='Input control/background sample names from command line as a CSV list')
+    parser.add_argument('--background_designator', type=str, default="ExCtrl", help='Input control/background sample names from command line as a CSV list')
     parser.add_argument('--skip_steps', type=str, default=None, help='Skip pipeline step(s) with --direct_input. CSV list with elements [Sync,MZmine_Status,MZmine_Submit,FBMN_Status,FBMN_Submit,FBMN_Download,Zip_and_Upload]')
 
 def check_args(args):
