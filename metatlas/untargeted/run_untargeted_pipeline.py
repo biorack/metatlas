@@ -22,6 +22,9 @@ def main():
     ##### Kick off the script
     mzm.start_script(script="run_untargeted_pipeline.py")
 
+    ##### Write args to log for reference
+    logging.info(f'Arguments used: {args}')
+
     ##### Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
     new_projects = mzm.update_new_untargeted_tasks(update_lims=args.update_lims, validate_names=args.validate_names, \
                                                    output_dir=args.output_dir, raw_data_dir=args.raw_data_dir,
