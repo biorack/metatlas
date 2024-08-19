@@ -1229,7 +1229,7 @@ def filter_features_by_background(peakheight_filename=None,background_designator
     for i,row in data_table.iterrows():
         if i == 0:
             continue # skip the header
-        exctrl_columns = [col for col in row.index if any(designator in col for designator in background_designator) and 'mzML' in col]
+        exctrl_columns = [col for col in row.index if any(designator.lower() in col.lower() for designator in background_designator) and 'mzml' in col.lower()]
         exctrl_max = None
         feature_max = None
         if exctrl_columns:
@@ -1237,7 +1237,7 @@ def filter_features_by_background(peakheight_filename=None,background_designator
         else:
             logging.warning(tab_print("Warning! No background samples with designation %s could be found. Not filtering and returning empty dataframe."%(background_designator), 4))
             return data_table.head(1)
-        feature_columns = [col for col in row.index if any(designator not in col for designator in background_designator) and 'mzML' in col]
+        feature_columns = [col for col in row.index if any(designator.lower() not in col.lower() for designator in background_designator) and 'mzml' in col.lower()]
         if feature_columns:
             feature_max = row[feature_columns].max()
         else:
@@ -1273,7 +1273,7 @@ def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None,
     msms_count = 0
     
     # Find the background designator string (default: ['ExCtrl','TxCtrl']) in the 13th element of each project name in the peak height table
-    exctrl_columns = [col for col in data_table.head(1) if len(col.split('_')) > 12 and any(designator in col.split('_')[12] for designator in background_designator) and 'mzML' in col]
+    exctrl_columns = [col for col in data_table.head(1) if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
     if exctrl_columns:
         exctrl_rows = data_table[data_table[exctrl_columns].gt(0).any(axis=1)]
         exctrl_count = int(exctrl_rows.shape[0])
@@ -1281,7 +1281,7 @@ def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None,
     else:
         logging.warning(tab_print("Warning! No ExCtrl samples found in peak height file", 4))
 
-    feature_columns = [col for col in data_table.head(1) if len(col.split('_')) > 12 and any(designator not in col.split('_')[12] for designator in background_designator) and 'mzML' in col]
+    feature_columns = [col for col in data_table.head(1) if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
     if feature_columns:
         feature_rows = data_table[data_table[feature_columns].gt(0).any(axis=1)]
         feature_count = int(feature_rows.shape[0])
@@ -1504,7 +1504,7 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
 
     return new_project_list
 
-def update_new_untargeted_tasks(update_lims=True,skip_update=False,background_designator=[], \
+def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
                                 output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
                                 raw_data_dir='/global/cfs/cdirs/metatlas/raw_data', validate_names=True,
                                 skip_sync=False):
