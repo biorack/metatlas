@@ -21,7 +21,7 @@ def main():
 
     ##### Kick off the script
     start_message = mzm.start_script(script="run_untargeted_pipeline.py")
-    logging.info(start_message)
+    logging.info('\n' + start_message)
 
     ##### Write args to log for reference
     logging.info(f'Arguments used: {args}')
