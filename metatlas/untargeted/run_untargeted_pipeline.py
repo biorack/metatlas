@@ -20,7 +20,8 @@ def main():
     mzm.call_logger(log_filename=args.log_file, log_level=args.log_level, log_format=args.log_format)
 
     ##### Kick off the script
-    mzm.start_script(script="run_untargeted_pipeline.py")
+    start_message = mzm.start_script(script="run_untargeted_pipeline.py")
+    logging.info(start_message)
 
     ##### Write args to log for reference
     logging.info(f'Arguments used: {args}')
@@ -55,7 +56,8 @@ def main():
                                           add_documentation=args.add_gnps2_documentation,doc_name=args.gnps2_doc_name,direct_input=args.direct_input)
 
     ##### End the script
-    mzm.end_script(script="run_untargeted_pipeline.py")
+    end_message = mzm.end_script(script="run_untargeted_pipeline.py")
+    logging.info(end_message)
 
 def add_arguments(parser):
     parser.add_argument('--download_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_outputs', help='Path to the download folder')

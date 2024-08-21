@@ -61,14 +61,18 @@ def start_script(script=None):
     Kick off script with a timestamp for log
     """
     if script is not None:
-        logging.info(tab_print('Successfully started %s on %s:'%(script,datetime.now()), 0))
+        return tab_print('Successfully started %s on %s:'%(script,datetime.now()), 0)
+    else:
+        sys.exit("No script name provided to start_script")
 
 def end_script(script=None):
     """
     End script with a timestamp for log
     """
     if script is not None:
-        logging.info(tab_print('Successfully ended %s on %s:'%(script,datetime.now()), 0))
+        return tab_print('Successfully completed %s on %s:'%(script,datetime.now()), 0)
+    else:
+        sys.exit("No script name provided to end_script")
 
 def tab_print(message="",indent_level=0):
     """
@@ -176,7 +180,8 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
         return
     if not df.empty:
         logging.info(tab_print("%s project(s) total with complete mzmine and fbmn status."%(df.shape[0]), 1))
-        count = 0
+        zip_count = 0
+        upload_count = 0
         for i,row in df.iterrows():
             project_name = row['parent_dir']
             output_zip_archive = os.path.join(download_folder,'%s.zip'%project_name)
@@ -236,9 +241,11 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 recursive_chown(output_zip_archive, 'metatlas')
                             except:
                                 logging.warning(tab_print("Warning! Could not change ownership of %s."%(output_zip_archive), 2))
-                            count += 1
+                            zip_count += 1
                             if upload == True and os.path.exists(output_zip_archive):
-                                upload_to_google_drive(output_zip_archive,overwrite_drive)
+                                upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
+                                if upload_success:
+                                    upload_count += 1
                         else:
                             logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
                             continue
@@ -276,9 +283,11 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 recursive_chown(output_zip_archive, 'metatlas')
                             except:
                                 logging.warning(tab_print("Warning! Could not change ownership of %s."%(output_zip_archive), 2))
-                            count += 1
+                            zip_count += 1
                             if upload == True and os.path.exists(output_zip_archive):
-                                upload_to_google_drive(output_zip_archive,overwrite_drive)
+                                upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
+                                if upload_success:
+                                    upload_count += 1
                         else:
                             logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
                             continue
@@ -316,14 +325,20 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 recursive_chown(output_zip_archive, 'metatlas')
                             except:
                                 logging.warning(tab_print("Warning! Could not change ownership of %s."%(output_zip_archive), 2))
-                            count += 1
+                            zip_count += 1
                             if upload == True and os.path.exists(output_zip_archive):
-                                upload_to_google_drive(output_zip_archive,overwrite_drive)
+                                upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
+                                if upload_success:
+                                    upload_count += 1
                         else:
                             logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
                             continue
-        if count == 0:
-            logging.info(tab_print("No new untargeted projects to be zipped and uploaded.", 1))
+        
+        if zip_count == 0:
+            logging.info(tab_print("No new untargeted projects to be zipped.", 1))
+        
+        logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
+
 
 def check_peak_height_table(peak_height_file):
     """
@@ -366,18 +381,20 @@ def upload_to_google_drive(file_path: str, overwrite=False):
             subprocess.check_output(upload_command, shell=True)
         except:
             logging.critical(tab_print("Warning! Google Drive upload failed on upload with overwrite=%s with exception on command %s"%(overwrite, upload_command), 3))
-            return
+            return False
         # Check that upload worked
         check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
                 logging.info(tab_print("Google Drive upload confirmed!", 3))
+                return True
             else:
                 logging.warning(tab_print("Warning! Google Drive upload check failed. Upload may not have been successful.", 3))
+                return False
         except:
             logging.warning(tab_print("Warning! Google Drive upload failed on upload check with overwrite=%s with exception on %s"%(overwrite,check_upload_command), 3))
-            return
+            return False
     if overwrite == False:
         # Overwrite is False, so first check if the project folder already exists on Google Drive
         check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
@@ -385,7 +402,7 @@ def upload_to_google_drive(file_path: str, overwrite=False):
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
                 logging.info(tab_print("Overwrite is False and Google Drive folder for %s already exists. Skipping upload..."%(project_folder), 2))
-                return
+                return False
         except: # Nothing was returned from the check
             upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --ignore-existing {file_path} ben_lbl_gdrive:/untargeted_outputs'
             try:
@@ -395,14 +412,16 @@ def upload_to_google_drive(file_path: str, overwrite=False):
                     check_upload_out = subprocess.check_output(check_upload, shell=True)
                     if check_upload_out.decode('utf-8').strip():
                         logging.info(tab_print("Google Drive upload confirmed!", 3))
+                        return True
                     else:
                         logging.warning(tab_print("Warning! Google Drive upload check failed. Upload may not have been successful.", 3))
+                        return False
                 except:
                     logging.warning(tab_print("Warning! Google Drive upload check failed with overwrite=%s with exception on %s"%(overwrite,check_upload_command), 3))
-                    return
+                    return False
             except:
                 logging.critical(tab_print("Warning! Google Drive upload command failed with overwrite=%s with exception on %s"%(overwrite,upload_command), 3))
-                return
+                return False
 
 def submit_quickstart_fbmn(params="",username=""):
     """
@@ -429,7 +448,7 @@ def submit_quickstart_fbmn(params="",username=""):
     response = session.post(url, data=params)
     return response.json()
 
-def get_untargeted_status(direct_input=None,check_modernity=True,download_dir="/global/cfs/cdirs/metatlas/projects/untargeted_tasks"):
+def get_untargeted_status(direct_input=None,print_recent=None):
     """
     This function is called by check_untargeted_status.py
 
@@ -447,46 +466,35 @@ def get_untargeted_status(direct_input=None,check_modernity=True,download_dir="/
         return
     if not df.empty:
         # Get all projects in gdrive
-        all_gdrive_projects_cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs'
+        all_gdrive_projects_cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsl ben_lbl_gdrive:/untargeted_outputs'
         try:
             all_gdrive_projects = subprocess.check_output(all_gdrive_projects_cmd, shell=True)
-            all_gdrive_projects_list = all_gdrive_projects.decode('utf-8').strip().split(',')
-            all_gdrive_projects_list = [item for project in all_gdrive_projects_list 
-                                        for item in project.strip().split()]
+            all_gdrive_projects_list = all_gdrive_projects.decode('utf-8').strip().split('\n')
+            all_gdrive_projects_df = [row.split() for row in all_gdrive_projects_list]
+            all_gdrive_projects_df = pd.DataFrame(all_gdrive_projects_df)
         except:
             tab_print("Warning! Could not get list of projects from Google Drive. Skipping status report...", 1)
             return
-                
         for i,row in df.iterrows():
             project_name = row['parent_dir']
-            # Only report status of newer projects (those that have the gnps2-fbmn-task.txt file)
-            if check_modernity is True:
-                project_dirs = []
-                for polarity in ['positive','negative']:
-                    project_dir = os.path.join(download_dir, "%s_%s"%(project_name,polarity))
-                    if os.path.exists(project_dir):
-                        project_dirs.append(project_dir)
-                project_dirs_str = ' '.join(project_dirs)
-                check_modernity_command = f'ls {project_dirs_str} | grep "gnps2-fbmn-task.txt" | wc -l'
-                check_modernity_out = subprocess.run(check_modernity_command,stdout=subprocess.PIPE, shell=True)
-                if not check_modernity_out:
-                    tab_print("Warning! Project %s does not have any gnps2-fbmn-task.txt files. Skipping status report..."%(project_name), 1)
-                    continue
-                else:
-                    if int(check_modernity_out.stdout.strip()) == 0:
-                        tab_print("Warning! Project %s does not have any gnps2-fbmn-task.txt files. Skipping status report..."%(project_name), 1)
-                        continue
             archive = project_name + ".zip"
-            if archive in all_gdrive_projects_list:
+            if archive in all_gdrive_projects_df[3].values:
                 row['gdrive_status'] = '08 uploaded'
+                day = all_gdrive_projects_df[all_gdrive_projects_df[3] == archive][1].values[0]
+                time = all_gdrive_projects_df[all_gdrive_projects_df[3] == archive][2].values[0]
+                row['upload_date'] = f"{str(day)} {str(time)}"
             else:
                 row['gdrive_status'] = '14 not uploaded'
+                row['upload_date'] = 'NA'
 
-            status_df_list.append(row[['parent_dir', 'mzmine_pos_status', 'mzmine_neg_status', 'fbmn_pos_status', 'fbmn_neg_status', 'gdrive_status']])
+            status_df_list.append(row[['Modified', 'parent_dir', 'mzmine_pos_status', 'mzmine_neg_status', 'fbmn_pos_status', 'fbmn_neg_status', 'gdrive_status','upload_date']])
     
     total_status_df = pd.DataFrame(status_df_list)
     
-    print("\n",total_status_df.to_string())
+    if isinstance(print_recent, int):
+        print(total_status_df.tail(print_recent).to_csv(sep='\t', index=False))
+    else:
+        print(total_status_df.tail(print_recent).to_csv(sep='\t', index=False))
 
 def recursive_chown(basepath, group_name):
     """
@@ -1174,7 +1182,7 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_design
                             sqs_cmd = 'squeue --job %s | wc -l'%job_id
                             sqs_output = subprocess.run(sqs_cmd, shell=True, capture_output=True, text=True)
                             if int(sqs_output.stdout.strip()) != 2: # job is not running
-                                logging.warning("Warning! MZmine status for %s mode of %s is ['04 running'] but no job is running at NERSC. Changing to ['09 error']."%(polarity, project_name))
+                                logging.warning(tab_print("Warning! MZmine status for %s mode of %s is ['04 running'] but no job is running at NERSC. Changing to ['09 error']."%(polarity, project_name), 1))
                                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'    
                                 index_list.append(i)
                 if os.path.isfile(job_id_filename) and os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and \
@@ -1547,10 +1555,9 @@ def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
     dirs_with_m2_files = dirs_with_m2_files[dirs_with_m2_files].index.tolist()
     # Print parent_dirs with files less than 3 hours old
     if time_new_folders:
-        logging.warning(tab_print("Warning! There are data directories with files less than 3 hours old!", 2))
-        logging.info(tab_print("Skipping these projects:", 3))
+        logging.info(tab_print("Note: There are data directories with files less than 3 hours old! Skipping these for now:", 2))
         for folder in time_new_folders:
-            logging.info(tab_print(folder, 4))
+            logging.info(tab_print(folder, 3))
 
     # Get all folders in raw data table
     all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
@@ -1619,7 +1626,11 @@ def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
                 else: # Write directory/files to disk for present polarity and fill in LIMS columns
                     logging.info(tab_print("Writing MZmine submission input files...",2))
                     logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
-                    os.mkdir(basepath)
+                    if os.path.exists(basepath):
+                        logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 2))
+                        continue
+                    else:
+                        os.mkdir(basepath)
                     try:
                         recursive_chown(basepath, 'metatlas')
                     except:
