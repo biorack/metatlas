@@ -1,48 +1,43 @@
 import sys
-from pathlib2 import PurePath
 #sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/metatlas')
 sys.path.insert(0,'/global/homes/b/bkieft/metatlas/')
 from metatlas.untargeted import tools as mzm
-from metatlas.tools.validate_filenames import parent_dir_num_fields
+import argparse
 
-##### Kick off the script
-mzm.start_script(script="check_untargeted_status.py")
+def add_arguments(parser):
+    parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a CSV list')
+    parser.add_argument('--background_designator', type=str, default="ExCtrl", help='Input control/background sample names from command line as a CSV list')
+    parser.add_argument('--print_recent', type=int, default=50, help='Print status for the most recent N projects')
 
-##### Untargeted tasks dir
-download_dir="/global/cfs/cdirs/metatlas/projects/untargeted_tasks"
+def check_args(args):
+    ##### Check if the input arguments are valid
+    if args.direct_input:
+        args.direct_input = args.direct_input.split(',')
+    if args.background_designator:
+        args.background_designator = args.background_designator.split(',')
+    if args.direct_input is not None:
+        args.print_recent = 100000 # Print all projects if direct_input is specified
 
-##### Check for CLI input
-if len(sys.argv) < 1:
-    print('Please provide a project name or list of project names separated by commas.')
-    sys.exit(1)
+def main():
+    ##### Kick off the script
+    start_message = mzm.start_script(script="check_untargeted_status.py")
+    print(start_message)
 
-##### Get project list from CLI standard input and validate
-if len(sys.argv) > 1:
-    projects = sys.argv[1]
-    project_list = projects.split(',')
-    for project in project_list:
-        validate = parent_dir_num_fields(PurePath(project))
-        if not validate:
-            print(f'{project} is not a valid project name, exiting.')
-            sys.exit(1)
-else:
-    project_list = []
+    ##### Set arguments to pass to the pipeline steps and run some checks
+    parser = argparse.ArgumentParser(description='Run untargeted pipeline.')
+    add_arguments(parser)
+    args = parser.parse_args()
 
-##### Run updaters before retrieving status from LIMS and printing to stdout
-if project_list:
-    print('\nStep 1/3: Checking and updating status of MZmine jobs in LIMS...')
-    mzm.update_mzmine_status_in_untargeted_tasks(direct_input=project_list)
-    print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
-    mzm.update_fbmn_status_in_untargeted_tasks(direct_input=project_list)
-    print('\nStep 3/3: Getting job status for untargeted project queries...')
-    mzm.get_untargeted_status(direct_input=project_list, check_modernity=True, download_dir=download_dir)
-else:
-    print('\nStep 1/3: Checking and updating status of MZmine jobs in LIMS...')
-    mzm.update_mzmine_status_in_untargeted_tasks()
-    print('\nStep 2/3: Checking and updating status of FBMN jobs in LIMS...')
+    print('Step 1/3: Checking and updating status of MZmine jobs in LIMS...')
+    mzm.update_mzmine_status_in_untargeted_tasks(background_designator=args.background_designator)
+    print('Step 2/3: Checking and updating status of FBMN jobs in LIMS...')
     mzm.update_fbmn_status_in_untargeted_tasks()
-    print('\nStep 3/3: Getting job status for all untargeted projects...')
-    mzm.get_untargeted_status(download_dir=download_dir, check_modernity=True)
+    print('Step 3/3: Getting job status for untargeted projects...')
+    mzm.get_untargeted_status(direct_input=args.direct_input,print_recent=args.print_recent)
 
-##### Wrap up the script
-mzm.end_script(script="check_untargeted_status.py")
+    ##### End the script
+    end_message = mzm.end_script(script="check_untargeted_status.py")
+    print(end_message)
+
+if __name__ == "__main__":
+    main()
