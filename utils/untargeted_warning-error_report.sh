@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Debug: Check if the log file exists
-if [ ! -f /global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline_log.txt ]; then
+if [ ! -f /global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log ]; then
     echo "Log file does not exist."
     exit 1
 fi
@@ -30,12 +30,12 @@ END {
         }
     }
 }
-' /global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline_log.txt | grep -E "WARNING|CRITICAL|ERROR")
+' /global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log | grep -E "WARNING|CRITICAL|ERROR|Traceback")
 
 if [ -z "$errors" ]; then
     printf "There were no warnings or errors!\n\n"
 else
     printf 'Errors or warnings that occurred during last untargeted pipeline cycle:\n\n'
     printf '%s\n\n' "$errors"
-    printf 'Check log here: /global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline_log.txt\n\n'
+    printf 'Check log here: /global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log\n\n'
 fi

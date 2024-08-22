@@ -61,18 +61,20 @@ awk -v ts="$closest_timestamp" '
 
 # Count the number of errors and successes in project status table
 errors=$(cat "$temp_projects_subset" | grep "09 error" | wc -l)
-errored_projects=$(cat "$temp_projects_subset" | grep "09 error" | cut -f2)
+errored_projects=$(cat "$temp_projects_subset" | grep "09 error" | cut -f2 | sed 's/^/\t- /1')
 successes=$(grep -P "07 complete\t07 complete\t07 complete\t07 complete\t08 uploaded" "$temp_projects_subset" | wc -l)
+successful_projects=$(cat "$temp_projects_subset" | grep -P "07 complete\t07 complete\t07 complete\t07 complete\t08 uploaded" "$temp_projects_subset" | cut -f2,8 | rev | sed 's/ /\t/1' | rev | awk -F'\t' '{print $1" (Uploaded on "$2")"}' | sed 's/^/\t- /1')
 
 # Print the email summary report
 printf 'Untargeted project statuses in the last %s days (since %s):' "$timeback" "$closest_timestamp"
 printf '\n\n'
 printf 'Projects successfully completed and uploaded: %s\n' "$successes"
-printf 'Projects with potential errors: %s\n' "$errors"
+printf '%s\n' "$successful_projects"
+printf '\nProjects with potential errors: %s\n' "$errors"
 
 # Print a statement if errors are greater than 0
 if [ "$errors" -gt 0 ]; then
-    printf '\t- %s\n' "$errored_projects"
+    printf '%s\n' "$errored_projects"
 fi
 
 # Clean up temporary files
