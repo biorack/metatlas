@@ -167,8 +167,6 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
     df = filter_common_bad_project_names(df)
     if direct_input is not None:
         df = df[df['parent_dir'].isin(direct_input)]
-        overwrite_zip = True
-        overwrite_drive = True
     status_list = ['07 complete']
     if direct_input is None:
         df = subset_df_by_status(df,'fbmn',status_list)
@@ -207,15 +205,10 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             recursive_chown(neg_directory, 'metatlas')
                             recursive_chown(pos_directory, 'metatlas')
                         except:
-                            logging.warning(tab_print("Warning! Could not change ownership of %s or %s."%(neg_directory,pos_directory), 1))
+                            logging.info(tab_print("Note: Could not change group ownership of %s or %s."%(neg_directory,pos_directory), 1))
                         neg_feature_counts = check_peak_height_table(neg_mzmine_file)
                         pos_feature_counts = check_peak_height_table(pos_mzmine_file)
                         if (neg_feature_counts + pos_feature_counts) > min_features_admissible:
-                            if direct_input is not None:
-                                if overwrite_zip==True and os.path.exists(output_zip_archive):
-                                    wait = 10
-                                    tab_print("Warning! Overwrite zip is True and %s exists. Giving %s seconds to end process before zipping over existing archive..."%(os.path.basename(output_zip_archive),wait), 1)
-                                    time.sleep(wait)
                             neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
                             pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
                             # Get rid of the mzmine job id files
@@ -240,7 +233,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             try:
                                 recursive_chown(output_zip_archive, 'metatlas')
                             except:
-                                logging.warning(tab_print("Warning! Could not change ownership of %s."%(output_zip_archive), 2))
+                                logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
                             zip_count += 1
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
@@ -254,14 +247,9 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                         try:
                             recursive_chown(pos_directory, 'metatlas')
                         except:
-                            logging.warning(tab_print("Warning! Could not change ownership of %s."%(pos_directory), 1))
+                            logging.info(tab_print("Note: Could not change group ownership of %s."%(pos_directory), 1))
                         pos_feature_counts = check_peak_height_table(pos_mzmine_file)
                         if pos_feature_counts > min_features_admissible:
-                            if direct_input is not None:
-                                if overwrite_zip==True and os.path.exists(output_zip_archive):
-                                    wait = 10
-                                    tab_print("Warning! Overwrite zip is True and %s exists. Giving %s seconds to end process before zipping over existing archive..."%(os.path.basename(output_zip_archive),wait), 1)
-                                    time.sleep(wait)
                             pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
                             # Get rid of the mzmine job id files
                             pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
@@ -282,7 +270,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             try:
                                 recursive_chown(output_zip_archive, 'metatlas')
                             except:
-                                logging.warning(tab_print("Warning! Could not change ownership of %s."%(output_zip_archive), 2))
+                                logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
                             zip_count += 1
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
@@ -296,14 +284,9 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                         try:
                             recursive_chown(neg_directory, 'metatlas')
                         except:
-                            logging.warning(tab_print("Warning! Could not change ownership of %s."%(neg_directory), 1))
+                            logging.info(tab_print("Note: Could not change group ownership of %s."%(neg_directory), 1))
                         neg_feature_counts = check_peak_height_table(neg_mzmine_file)
                         if neg_feature_counts > min_features_admissible:
-                            if direct_input is not None:
-                                if overwrite_zip==True and os.path.exists(output_zip_archive):
-                                    wait = 10
-                                    tab_print("Warning! Overwrite zip is True and %s exists. Giving %s seconds to end process before zipping over existing archive..."%(os.path.basename(output_zip_archive),wait), 1)
-                                    time.sleep(wait)
                             neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
                             # Get rid of the mzmine job id files
                             neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
@@ -324,7 +307,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             try:
                                 recursive_chown(output_zip_archive, 'metatlas')
                             except:
-                                logging.warning(tab_print("Warning! Could not change ownership of %s."%(output_zip_archive), 2))
+                                logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
                             zip_count += 1
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
@@ -401,7 +384,7 @@ def upload_to_google_drive(file_path: str, overwrite=False):
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
-                logging.info(tab_print("Overwrite is False and Google Drive folder for %s already exists. Skipping upload..."%(project_folder), 2))
+                logging.info(tab_print("Note: Overwrite is False and Google Drive folder for %s already exists. Skipping upload..."%(project_folder), 2))
                 return False
         except: # Nothing was returned from the check
             upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --ignore-existing {file_path} ben_lbl_gdrive:/untargeted_outputs'
@@ -544,7 +527,6 @@ def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untarg
     df = filter_common_bad_project_names(df)
     if direct_input is not None:
         df = df[df['parent_dir'].isin(direct_input)]
-        overwrite_fbmn = True
     status_list = ['07 complete','09 error']
     if direct_input is None:
         df = subset_df_by_status(df,tasktype,status_list)
@@ -574,11 +556,6 @@ def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untarg
                     graphml_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-network.graphml'%(project_name,polarity))
                     results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(project_name,polarity))
                     gnps2_link_filename = os.path.join(pathname,'%s_%s_gnps2-page-link.txt'%(project_name,polarity))
-                    if direct_input is not None:
-                        if overwrite_fbmn==True and os.path.exists(graphml_filename) and os.path.exists(results_table_filename) and os.path.exists(gnps2_link_filename):
-                            wait = 10
-                            print("Warning! Overwrite is True and all FBMN files exist on disk. Giving %s seconds to end process before downloading..."%(wait))
-                            time.sleep(wait)
                     if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename) and os.path.exists(gnps2_link_filename):
                         continue
                     logging.info(tab_print("Downloading %s mode FBMN results for %s with task ID %s"%(polarity,project_name,taskid), 1))
@@ -603,7 +580,7 @@ def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untarg
                     try:
                         recursive_chown(pathname, 'metatlas')
                     except:
-                        logging.warning(tab_print("Warning! Could not change group ownership of %s"%(pathname), 3))
+                        logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 3))
         if count > 0:
             logging.info(tab_print("All new FBMN results downloaded.", 1))
         else:
@@ -871,7 +848,7 @@ def sync_raw_data_to_gnps2():
         logging.critical(tab_print("Warning! Could not find the sync script.", 2))
         return False
 
-def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,validate_names=True,output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',skip_fbmn_submit=False):
+def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',skip_fbmn_submit=False):
     """
     This function is called by run_fbmn.py
 
@@ -891,7 +868,6 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,validate_names=True,
     df = filter_common_bad_project_names(df)
     if direct_input is not None:
         df = df[df['parent_dir'].isin(direct_input)]
-        overwrite_fbmn = True
     status_list = ['13 waiting','09 error']
     if direct_input is None:
         df = subset_df_by_status(df,tasktype,status_list)
@@ -922,7 +898,6 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,validate_names=True,
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                     continue
                 if row['%s_%s_status'%('mzmine',polarity_short)] != '07 complete':
-                    logging.info(tab_print("Note: Did not submit FBMN for %s mode - MZmine is not complete yet (probably still running or errored). Skipping..."%(polarity), 2))
                     continue
                 if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==False:
                     continue
@@ -930,15 +905,8 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,validate_names=True,
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
                     logging.warning(tab_print("Warning! %s in %s mode has an error status. Attempting to resubmit..."%(project_name,polarity), 2))
                     os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
-                if direct_input is not None:
-                    if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==True:
-                        wait = 10
-                        print("Warning! Overwrite is True and %s exists. Giving %s seconds to end process before submitting..."%(os.path.basename(fbmn_filename),wait))
-                        time.sleep(wait)
-                if validate_names is True:
-                    _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
-                if validate_names is False:
-                    validate_department = project_name.split('_')[1]
+
+                _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
                 department = validate_department.lower()
                 if department =='eb':
                     department = 'egsb'
@@ -1030,7 +998,6 @@ def submit_mzmine_jobs(new_projects=None,direct_input=None,skip_mzmine_submit=Fa
     df = filter_common_bad_project_names(df)
     if direct_input is not None:
         df = df[df['parent_dir'].isin(direct_input)]
-        overwrite_mzmine=True
     else:
         if new_projects is not None and not new_projects.empty: # this means step 1 returned a dataframe of new projects to run
             df = df[df['parent_dir'].isin(new_projects['parent_dir'])]
@@ -1059,18 +1026,15 @@ def submit_mzmine_jobs(new_projects=None,direct_input=None,skip_mzmine_submit=Fa
                 polarity_short = polarity[:3]
                 mzmine_peak_height_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s_peak-height.csv'%(project_name,polarity))
                 mzmine_mgf_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
-                if os.path.exists(mzmine_peak_height_file) and os.path.exists(mzmine_mgf_file) and overwrite_mzmine is False:
-                    logging.info(tab_print("Overwrite is False and MZmine files for %s in %s mode already exist. Skipping submission..."%(project_name,polarity), 2))
+                if row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete' and overwrite_mzmine is False:
                     continue
-                if direct_input is not None:
-                    if os.path.exists(mzmine_peak_height_file) and os.path.exists(mzmine_mgf_file) and overwrite_mzmine is True:
-                        wait = 10
-                        print("Warning! Overwrite is True and MZmine results exist. Giving %s seconds to end process before submitting..."%(wait))
-                        time.sleep(wait)
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete':
+                if os.path.exists(mzmine_peak_height_file) and os.path.exists(mzmine_mgf_file) and overwrite_mzmine is False:
+                    logging.info(tab_print("Note: Overwrite is False and MZmine files for %s in %s mode already exist. Skipping submission..."%(project_name,polarity), 2))
+                    continue
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                     continue # skip the completed polarity if the other polarity is initiated or errored and needs to be (re)submitted
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.info(tab_print("Notice! MZmine task for %s in %s mode has error status. Attempting to resubmit..."%(project_name,polarity), 2))
+                    logging.info(tab_print("Note: MZmine task for %s in %s mode has error status. Attempting to resubmit..."%(project_name,polarity), 2))
                 parent_dir = '%s_%s'%(project_name,polarity)
                 pathname = os.path.join(row['output_dir'],parent_dir)
                 submission_script_filename = os.path.join(pathname,'%s_mzmine.sh'%(parent_dir))
@@ -1130,7 +1094,8 @@ def set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, ra
                 "api": "no"}
     return params
 
-def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_designator=[],skip_mzmine_status=False):
+def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_designator=[],skip_mzmine_status=False, \
+                                             background_ratio=5,zero_value=(2/3),nonpolar_solvent_front=0.5,polar_solvent_front=0.8):
     """
     This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
     
@@ -1174,8 +1139,12 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_design
                 mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(project_name,polarity))
                 metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(project_name,polarity))
                 mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(project_name,polarity))
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
-                    continue  ## This helps when one polarity is complete but the other is not
+                peak_height_filtered_filename = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (project_name, polarity))
+
+                if direct_input is None:
+                    if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
+                        continue  ## This helps when one polarity is complete but the other is not, so skipped the finished one
+
                 if os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and \
                      os.path.isfile(mzmine_output_filename) and (os.path.isfile(peakheight_filename) or os.path.isfile(old_peakheight_filename)):
                     # MZmine is finished and status should be updated
@@ -1191,16 +1160,18 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_design
 
                     if feature_count > 0:
                         logging.info(tab_print("Filtering features by peak height ratio compared to background (control) signal and writing to file", 4))
-                        df_filtered = create_filtered_peakheight_file(peakheight_filename,background_designator=background_designator,background_ratio=3,zero_value=(2/3))
-                        df_filtered_path = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (project_name, polarity))
-                        df_filtered.to_csv(df_filtered_path, index=False)
+                        df_filtered = create_filtered_peakheight_file(peakheight_filename,background_designator=background_designator, \
+                                                                      background_ratio=background_ratio,zero_value=zero_value, \
+                                                                      nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front)
+                        df_filtered.to_csv(peak_height_filtered_filename, index=False)
                     else:
-                        logging.warning(tab_print("Warning! Not writing filtered features to file because no features were found", 4))
+                        logging.warning(tab_print("Warning! No features were found, not writing a filtered peak height file.", 4))
 
                     try:
                         recursive_chown(pathname, 'metatlas')
                     except:
-                        logging.warning(tab_print("Warning! Could not change group ownership of %s"%(pathname), 2))
+                        logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 2))
+
                 else:
                     if row['%s_%s_status'%(tasktype,polarity_short)] == '04 running': # verify that it's actually still running, else change to error
                         if os.path.isfile(job_id_filename):
@@ -1228,7 +1199,8 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_design
         else:
             logging.info(tab_print("No MZmine jobs to update!", 1))
 
-def create_filtered_peakheight_file(peakheight_filename=None,background_designator=[],background_ratio=3,zero_value=(2/3)):
+def create_filtered_peakheight_file(peakheight_filename=None,background_designator=[],background_ratio=3,zero_value=(2/3), \
+                                    nonpolar_solvent_front=0.5,polar_solvent_front=0.8):
     """
     Accepts a peakheight file and filters out features that have a max peak height in exp samples that is less than
     3 times the peak height in the control samples.
@@ -1237,7 +1209,7 @@ def create_filtered_peakheight_file(peakheight_filename=None,background_designat
 
     # Get background (extraction control) and sample columns
     header = data_table.columns
-    empty_data_table = pd.DataFrame([list(header)])
+    empty_data_table = pd.DataFrame([list(header)[1:]])
     exctrl_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
     sample_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
 
@@ -1273,12 +1245,16 @@ def create_filtered_peakheight_file(peakheight_filename=None,background_designat
             data_table_filtered.replace(0, new_value, inplace=True)
 
             # Remove features in the solvent front
-            data_table_filtered = data_table_filtered[data_table_filtered['row retention time'] >= 0.75]
+            if peakheight_filename.split('_')[7] == "HILIC":
+                solvent_front = polar_solvent_front
+            else:
+                solvent_front = nonpolar_solvent_front
+            data_table_filtered = data_table_filtered[data_table_filtered['row retention time'] >= solvent_front]
 
             # Log the number of features removed
             difference = data_table.shape[0] - data_table_filtered.shape[0]
             logging.info(tab_print("%s features removed by background filter"%(difference), 5))
-            
+
             return data_table_filtered
         else:
             logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframe.", 5))
@@ -1302,15 +1278,11 @@ def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None,
         exctrl_rows = data_table[data_table[exctrl_columns].gt(0).any(axis=1)]
         exctrl_count = int(exctrl_rows.shape[0])
         logging.info(tab_print("%s features in control samples"%(exctrl_count), 4))
-    else:
-        logging.warning(tab_print("Warning! No background control samples found in peak height file", 4))
 
     if sample_columns:
         feature_rows = data_table[data_table[sample_columns].gt(0).any(axis=1)]
         feature_count = int(feature_rows.shape[0])
         logging.info(tab_print("%s features in experimental samples"%(feature_count), 4))
-    else:
-        logging.warning(tab_print("Warning! No experimental samples found in peak height file", 4))
 
     if feature_count <= 1: # Exclude the header line
         logging.warning(tab_print("Warning! No features found in peak height file", 4))
@@ -1652,7 +1624,7 @@ def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
                     try:
                         recursive_chown(basepath, 'metatlas')
                     except:
-                        logging.warning(tab_print("Warning! Could not change group ownership of %s"%(basepath), 2))
+                        logging.info(tab_print("Note: Could not change group ownership of %s"%(basepath), 2))
                     metadata_df = new_project_dict[polarity]['metadata_df']
                     metadata_filename = os.path.join(basepath,'%s_metadata.tab'%(parent_dir))
                     metadata_df.to_csv(metadata_filename, sep='\t', index=False)
