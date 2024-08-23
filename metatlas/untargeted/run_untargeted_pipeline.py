@@ -34,7 +34,9 @@ def main():
     
     ##### Step 2/7: Checking and updating status of MZmine jobs in LIMS
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=args.direct_input,background_designator=args.background_designator, \
-                                                 skip_mzmine_status=step_bools[1])
+                                                 skip_mzmine_status=step_bools[1],background_ratio=args.background_ratio, \
+                                                 zero_value=args.zero_value,nonpolar_solvent_front=args.nonpolar_solvent_front, \
+                                                 polar_solvent_front=args.polar_solvent_front)
 
     ##### Step 3/7: Submitting new MZmine jobs that are "initialized"
     mzm.submit_mzmine_jobs(new_projects=new_projects,direct_input=args.direct_input,skip_mzmine_submit=step_bools[2], \
@@ -44,8 +46,7 @@ def main():
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=args.direct_input,skip_fbmn_status=step_bools[3])
 
     ##### Step 5/7: Submitting new FBMN jobs to GNPS2
-    mzm.submit_fbmn_jobs(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, validate_names=args.validate_names, \
-                         direct_input=args.direct_input, skip_fbmn_submit=step_bools[4])
+    mzm.submit_fbmn_jobs(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, direct_input=args.direct_input, skip_fbmn_submit=step_bools[4])
 
     ##### Step 6/7: Checking for completed FBMN jobs and downloading results
     mzm.download_fbmn_results(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn,direct_input=args.direct_input, \
@@ -61,25 +62,35 @@ def main():
     logging.info(end_message)
 
 def add_arguments(parser):
-    parser.add_argument('--download_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_outputs', help='Path to the download folder')
+    ## Multiple functions
     parser.add_argument('--output_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_tasks', help='Path to the output directory')
+    parser.add_argument('--overwrite_fbmn', type=bool, default=False, help='Overwrite existing fbmn results files that are already in the output directory')
+    parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a CSV list')
+    parser.add_argument('--background_designator', type=str, default="ExCtrl", help='Input control/background sample names from command line as a CSV list')
+    parser.add_argument('--skip_steps', type=str, default=None, help='Skip pipeline step(s) with --direct_input. CSV list with elements [Sync,MZmine_Status,MZmine_Submit,FBMN_Status,FBMN_Submit,FBMN_Download,Zip_and_Upload]')
+    ## Step 1 only
     parser.add_argument('--raw_data_dir', type=str, default='/global/cfs/cdirs/metatlas/raw_data', help='Path to the raw data directory')
     parser.add_argument('--update_lims', type=bool, default=True, help='Update LIMS with new untargeted tasks')
     parser.add_argument('--validate_names', type=bool, default=True, help='Validate filenames and project names')
+    ## Step 2 only
+    parser.add_argument('--background_ratio', type=float, default=5, help='Ratio of background to sample intensity for filtering features')
+    parser.add_argument('--zero_value', type=float, default=(2/3), help='Proportion of the lowest intensity value from the experiment to use as replacement zero value')
+    parser.add_argument('--polar_solvent_front', type=float, default=0.8, help='Retention time to use as HILIC solvent front (mins) for filtering features')
+    parser.add_argument('--nonpolar_solvent_front', type=float, default=0.5, help='Retention time to use as C18/LIPID solvent front (mins) for filtering features')
+    ## Step 3 only
+    parser.add_argument('--overwrite_mzmine', type=bool, default=False, help='Overwrite existing mzmine results files that are already in the output directory')
+    ## Step 7 only
+    parser.add_argument('--download_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_outputs', help='Path to the download folder')
     parser.add_argument('--overwrite_zip',type=bool, default=False, help='Overwrite existing zip files in download folder')
     parser.add_argument('--overwrite_drive', type=bool, default=False, help='Overwrite existing zip files on google drive')
-    parser.add_argument('--overwrite_fbmn', type=bool, default=False, help='Overwrite existing fbmn results files that are already in the output directory')
-    parser.add_argument('--overwrite_mzmine', type=bool, default=False, help='Overwrite existing mzmine results files that are already in the output directory')
     parser.add_argument('--gdrive_upload', type=bool, default=True, help='Upload to google drive')
     parser.add_argument('--min_features', type=int, default=0, help='Set minimum number of MZmine features for a project polarity to be zipped')
     parser.add_argument('--add_gnps2_documentation', type=bool, default=True, help='File name of the GNPS2 documentation to add to project zips')
     parser.add_argument('--gnps2_doc_name', type=str, default='Untargeted_metabolomics_GNPS2_Guide.docx', help='File name of the GNPS2 documentation to add to project zips')
+    ## Logger/helper
     parser.add_argument('--log_file', type=str, default='/global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log', help='Log file name with full path')
     parser.add_argument('--log_level', type=str, default='INFO', help='Logger level. One of [DEBUG, INFO, WARNING, ERROR, or CRITICAL]')
     parser.add_argument('--log_format', type=str, default='%(asctime)s - %(levelname)s - %(message)s', help='Logger format')
-    parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a CSV list')
-    parser.add_argument('--background_designator', type=str, default="ExCtrl", help='Input control/background sample names from command line as a CSV list')
-    parser.add_argument('--skip_steps', type=str, default=None, help='Skip pipeline step(s) with --direct_input. CSV list with elements [Sync,MZmine_Status,MZmine_Submit,FBMN_Status,FBMN_Submit,FBMN_Download,Zip_and_Upload]')
 
 def check_args(args):
     ##### Check if the input arguments are valid
