@@ -19,6 +19,8 @@ untargeted metabolomics results for JGI users.
 - FBMN (feature-based molecular networking): a module of GNPS2 which runs molecular networking, a method to
   visualize and annotate the chemical space in non-targeted mass spectrometry data. This is the second
   major tool used in the pipeline.
+- Google Drive: all user results are uploaded to a [Google Drive folder](https://drive.google.com/drive/u/0/folders/1MBcSZe2L00-xRUEMSY46uwAW516lGHwo)
+  in the form of a zipped archive of MZmine, GNPS2, and any custom files (e.g., a GNPS2 guide in the same folder).
 
 ## Pipeline
 
@@ -141,7 +143,7 @@ Use the `--help` flag to print out all possible arguments that can be used to mo
 
 There are over a dozen flags that can be passed to the `run_untargeted_pipeline.py` script, but they all
 have default values which get passed during a typical run with the automated cronjob. If the untargeted pipeline - 
-or any individual steps therein - needs to be run outside the cronjob (e.g., to fasttrack a project or to fix
+or any individual steps therein - needs to be run outside the cronjob (e.g., to fast-track a project or to fix
 an error that occurred during the automated job), the flags come in handy. Here are some examples:
 
 ### Example 1
@@ -150,23 +152,23 @@ an error that occurred during the automated job), the flags come in handy. Here 
 --direct_input <project_1>,<project_2>,<project_3> --overwrite_mzmine True --overwrite_fbmn True --log_file </my/home/directory/custom_untargeted_run.log>
 ```
 This command will run all steps of the pipeline on just the three provided projects using the `--direct_input` flag with
-a comma-separated list of valid project names. Since you know that MZmine and FBMN have already been run on one or more of these projects,
-the `--overwrite_mzmine` and `--overwrite_fbmn` flags set to True are used to replace any existing MZmine and FBMN data on disk at NERSC with new data. 
-**An important note: since the untargeted pipeline is run in three cycles, you may have to run this command multiple times to get all steps**
-**to properly run since you're resubmitting MZmine and FBMN jobs**. For this reason, the `--log_file` flag is passed to monitor the progress of the pipeline
-in a personal directory. Make sure that the group permissions for the log file are set to `metatlas` so the pipeline can write to the log.
+a comma-separated list of valid project names. If you know that MZmine and FBMN have already been run on one or more of these projects,
+the `--overwrite_mzmine` and `--overwrite_fbmn` flags can be set to True and replace any existing MZmine and FBMN data on disk at NERSC with new data. 
+**An important note: since the untargeted pipeline needs multiple cycles to complete if you're running any of the "submit" steps (Steps 3 and 5),**
+**in this example you would have to run this command 3 times to get all steps to properly run since you're resubmitting MZmine and FBMN jobs**. 
+For this reason, the `--log_file` flag is passed to monitor the progress of the pipeline in a personal directory. Make sure that the group permissions
+for the log file are set to `metatlas` so the pipeline can write to the log.
 
 ### Example 2
 
 ```
 /global/common/software/m2650/python3-matchms/bin/python /global/homes/b/bkieft/metatlas/metatlas/untargeted/run_untargeted_pipeline.py
---direct_input <project_1> --min_features 1000 --log_file </my/home/directory/custom_untargeted_run.log> --overwrite_zip True --overwrite_drive True
+--direct_input <project_1> --overwrite_zip True --overwrite_drive True --gnps2_doc_name Updated_GNPS2_documentation.docx
 --skip_steps Sync,MZmine_Status,MZmine_Submit,FBMN_Status,FBMN_Submit,FBMN_Download
 ```
-This command will run only the final step (Step 7) on project_1 data, and only upload the results to Google Drive if the number of
-features in the MZmine `*peak-height.csv` is greater than 1,000. This command might be run if you want a new updated
-results archive to show up on Google Drive for the user (hence the `--overwrite_zip` and `--overwrite_drive` flags), but only if it meets the
-minimum threshold.
+This command will run only the final step (Step 7) on project_1 data. It will zip the project_1 results in the `untargeted_tasks` directory at NERSC
+and overwrite any existing archive (with a custom document from Google Drive) and then reupload and overwrite the archive to Google Drive. 
+This command might be run if you want a new updated results archive to show up on Google Drive for the user (hence the `--overwrite_zip` and `--overwrite_drive` flags) and have a different document included (using the `--gnps2_doc_name` flag).
 
 ### Example 3
 
@@ -191,10 +193,10 @@ analyst (default: `bkieft@lbl.gov`). To proactively catch warnings and errors ea
 (currently at `/global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log`) is queried every *N* number of pipeline cycles. This occurs with
 the following cascade:
 
-a. An `msdata` cronjob called `untargeted_warnings-errors_email_report` runs
-b. `email_untargeted_pipeline_errors-warnings.sh` (located in the `metatlas` repo), which calls the
-c. `untargeted_warning-error_report.sh` shell script (located in the `metatlas` repo), which compiles an error report and
-d. sends an email notification to recipients listed in `/global/cfs/cdirs/metatlas/raw_data/email_untargeted_errors-warnings` (located at NERSC)
+1. An `msdata` cronjob called `untargeted_warnings-errors_email_report` runs
+2. `email_untargeted_pipeline_errors-warnings.sh` (located in the `metatlas` repo), which calls the
+3. `untargeted_warning-error_report.sh` shell script (located in the `metatlas` repo), which compiles an error report and
+4. sends an email notification to recipients listed in `/global/cfs/cdirs/metatlas/raw_data/email_untargeted_errors-warnings` (located at NERSC)
 
 This checker currently runs once per day (at 8am PST) and is set to 4 cycles because the pipeline runs every 6 hours - so, a check every 24
 hours without gaps. `ERROR`, `WARNING`, and `Traceback` lines are reported in the email for the analyst to double-check.
@@ -205,11 +207,11 @@ Once per week (currently Monday at 8am), the number of successful and failed pro
 for the previous *N* days (currently 7) will be counted up and itemized, then emailed to a subset of the metabolomics team. This occurs with
 the following cascade:
 
-a. An `msdata` cronjob called `untargeted_project_email_report` runs
-b. `email_untargeted_project_report.sh` (located in the `metatlas` repo), which calls the
-c. `untargeted_project_summary_report.sh` shell script (located in the `metatlas` repo), which compiles a summary of projects statuses using
-d. the `check_untargeted_status.py` script (located in the `metatlas` repo) and
-d. sends an email notification to recipients listed in `/global/cfs/cdirs/metatlas/raw_data/email_untargeted_reports` (located at NERSC)
+1. An `msdata` cronjob called `untargeted_project_email_report` runs
+2. `email_untargeted_project_report.sh` (located in the `metatlas` repo), which calls the
+3. `untargeted_project_summary_report.sh` shell script (located in the `metatlas` repo), which compiles a summary of projects statuses using
+4. the `check_untargeted_status.py` script (located in the `metatlas` repo) and
+5. sends an email notification to recipients listed in `/global/cfs/cdirs/metatlas/raw_data/email_untargeted_reports` (located at NERSC)
 
 This notification system will print a list of all successfully completed projects that have been uploaded to Google Drive and will also print
 any projects which have an `error` status in any of the pipeline steps.
