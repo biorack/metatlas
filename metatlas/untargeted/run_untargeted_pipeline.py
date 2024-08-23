@@ -21,7 +21,8 @@ def main():
 
     ##### Kick off the script
     start_message = mzm.start_script(script="run_untargeted_pipeline.py")
-    logging.info('\n' + start_message)
+    logging.info('\n')
+    logging.info(start_message)
 
     ##### Write args to log for reference
     logging.info(f'Arguments used: {args}')
@@ -73,7 +74,7 @@ def add_arguments(parser):
     parser.add_argument('--min_features', type=int, default=0, help='Set minimum number of MZmine features for a project polarity to be zipped')
     parser.add_argument('--add_gnps2_documentation', type=bool, default=True, help='File name of the GNPS2 documentation to add to project zips')
     parser.add_argument('--gnps2_doc_name', type=str, default='Untargeted_metabolomics_GNPS2_Guide.docx', help='File name of the GNPS2 documentation to add to project zips')
-    parser.add_argument('--log_file', type=str, default='/global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline_log.txt', help='Log file name with full path')
+    parser.add_argument('--log_file', type=str, default='/global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log', help='Log file name with full path')
     parser.add_argument('--log_level', type=str, default='INFO', help='Logger level. One of [DEBUG, INFO, WARNING, ERROR, or CRITICAL]')
     parser.add_argument('--log_format', type=str, default='%(asctime)s - %(levelname)s - %(message)s', help='Logger format')
     parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a CSV list')
