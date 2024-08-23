@@ -1035,7 +1035,7 @@ def submit_mzmine_jobs(new_projects=None,direct_input=None,skip_mzmine_submit=Fa
         if new_projects is not None and not new_projects.empty: # this means step 1 returned a dataframe of new projects to run
             df = df[df['parent_dir'].isin(new_projects['parent_dir'])]
         else:
-            logging.info(tab_print("No new MZmine jobs initialized! If you need to run an project already in untargeted_tasks, use the flag --direct_input <project_name> and --skip_steps with all but the submit_mzmine step", 1))
+            logging.info(tab_print("No new MZmine jobs initialized! Use the --direct_input flag to bypass submitting initialized-only projects.", 1))
             return
     status_list = ['01 initiation','09 error']
     if direct_input is None:
@@ -1176,7 +1176,7 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_design
                 mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(project_name,polarity))
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
                     continue  ## This helps when one polarity is complete but the other is not
-                if os.path.isfile(job_id_filename) and os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and \
+                if os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and \
                      os.path.isfile(mzmine_output_filename) and (os.path.isfile(peakheight_filename) or os.path.isfile(old_peakheight_filename)):
                     # MZmine is finished and status should be updated
                     logging.info(tab_print("Working on %s in %s mode"%(project_name,polarity), 2))
@@ -1191,7 +1191,7 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_design
 
                     if feature_count > 0:
                         logging.info(tab_print("Filtering features by peak height ratio compared to background (control) signal and writing to file", 4))
-                        df_filtered = filter_features_by_background(peakheight_filename,background_designator=background_designator,background_ratio=3)
+                        df_filtered = create_filtered_peakheight_file(peakheight_filename,background_designator=background_designator,background_ratio=3,zero_value=(2/3))
                         df_filtered_path = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (project_name, polarity))
                         df_filtered.to_csv(df_filtered_path, index=False)
                     else:
@@ -1228,47 +1228,61 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_design
         else:
             logging.info(tab_print("No MZmine jobs to update!", 1))
 
-def filter_features_by_background(peakheight_filename=None,background_designator=[],background_ratio=3):
+def create_filtered_peakheight_file(peakheight_filename=None,background_designator=[],background_ratio=3,zero_value=(2/3)):
     """
     Accepts a peakheight file and filters out features that have a max peak height in exp samples that is less than
     3 times the peak height in the control samples.
     """
     data_table = pd.read_csv(peakheight_filename, sep=',')
-    features_to_keep = [0] # keep the header
-    for i,row in data_table.iterrows():
-        if i == 0:
-            continue # skip the header
-        exctrl_columns = [col for col in row.index if any(designator.lower() in col.lower() for designator in background_designator) and 'mzml' in col.lower()]
-        exctrl_max = None
-        feature_max = None
-        if exctrl_columns:
-            exctrl_max = row[exctrl_columns].max()
-        else:
-            logging.warning(tab_print("Warning! No background samples with designation %s could be found. Not filtering and returning empty dataframe."%(background_designator), 4))
-            return data_table.loc[features_to_keep]
-        feature_columns = [col for col in row.index if any(designator.lower() not in col.lower() for designator in background_designator) and 'mzml' in col.lower()]
-        if feature_columns:
-            feature_max = row[feature_columns].max()
-        else:
-            logging.warning(tab_print("Warning! No samples with features could be found. Not filtering and returning empty dataframe.", 4))
-            return data_table.loc[features_to_keep]
-        if exctrl_max and feature_max:
-            if feature_max > exctrl_max*background_ratio:
-                features_to_keep.append(i)
-        else:
-            logging.warning(tab_print("Warning! Could not calculate per-feature max intensities for peak height table. Not filtering and returning empty dataframe.", 4))
-            return data_table.loc[features_to_keep]
-    if len(features_to_keep) <= 1: # only the header row was retained
-        logging.warning(tab_print("Warning! No features passed the background filter. Returning empty dataframe.", 5))
-        return data_table.loc[features_to_keep]
-    elif len(features_to_keep) > 1:
-        data_table_filtered = data_table.loc[features_to_keep]
-        difference = data_table.shape[0] - data_table_filtered.shape[0]
-        logging.info(tab_print("%s features removed by background filter"%(difference), 5))
-        return data_table_filtered
+
+    # Get background (extraction control) and sample columns
+    header = data_table.columns
+    empty_data_table = pd.DataFrame([list(header)])
+    exctrl_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+    sample_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+
+    # Filter by comparing max peak heights in exctrl and sample columns
+    if not exctrl_columns and not sample_columns:
+        logging.warning(tab_print("Warning! No columns found in peak height table with designation %s. Returning empty dataframe."%(background_designator), 4))
+        return empty_data_table
     else:
-        logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframe.", 5))
-        return data_table.loc[features_to_keep]
+        features_to_keep = []
+        for i,row in data_table.iterrows():
+            if i == 0:
+                features_to_keep.append(i) # keep the header row
+                continue
+            exctrl_max = None
+            feature_max = None
+            exctrl_max = row[exctrl_columns].max()
+            feature_max = row[sample_columns].max()
+            if exctrl_max and feature_max:
+                if feature_max > exctrl_max*background_ratio:
+                    features_to_keep.append(i)
+        if len(features_to_keep) <= 1: # only the header row was retained
+            logging.warning(tab_print("Warning! No features passed the background filter. Returning empty dataframe.", 5))
+            return empty_data_table
+        elif len(features_to_keep) > 1:
+            # Do the filter
+            data_table_filtered = data_table.loc[features_to_keep]
+            data_table_filtered = data_table_filtered.loc[:, ~data_table_filtered.columns.str.contains('^Unnamed:')]
+            
+            # Replace zeros with a small value
+            values = data_table_filtered[sample_columns + exctrl_columns]
+            lowest_non_zero = values[values != 0].min().min()
+            new_value = lowest_non_zero * zero_value
+            data_table_filtered.replace(0, new_value, inplace=True)
+
+            # Remove features in the solvent front
+            data_table_filtered = data_table_filtered[data_table_filtered['row retention time'] >= 0.75]
+
+            # Log the number of features removed
+            difference = data_table.shape[0] - data_table_filtered.shape[0]
+            logging.info(tab_print("%s features removed by background filter"%(difference), 5))
+            
+            return data_table_filtered
+        else:
+            logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframe.", 5))
+            return empty_data_table
 
 def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None, background_designator=[]):
     """
@@ -1280,22 +1294,25 @@ def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None,
     exctrl_count = 0
     feature_count = 0
     msms_count = 0
-    
-    # Find the background designator string (default: ['ExCtrl','TxCtrl']) in the 13th element of each project name in the peak height table
     exctrl_columns = [col for col in data_table.head(1) if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+    sample_columns = [col for col in data_table.head(1) if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+
+    # Find the background designator string (default: ['ExCtrl']) in the 13th element of each project name in the peak height table
     if exctrl_columns:
         exctrl_rows = data_table[data_table[exctrl_columns].gt(0).any(axis=1)]
         exctrl_count = int(exctrl_rows.shape[0])
         logging.info(tab_print("%s features in control samples"%(exctrl_count), 4))
     else:
-        logging.warning(tab_print("Warning! No ExCtrl samples found in peak height file", 4))
+        logging.warning(tab_print("Warning! No background control samples found in peak height file", 4))
 
-    feature_columns = [col for col in data_table.head(1) if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
-    if feature_columns:
-        feature_rows = data_table[data_table[feature_columns].gt(0).any(axis=1)]
+    if sample_columns:
+        feature_rows = data_table[data_table[sample_columns].gt(0).any(axis=1)]
         feature_count = int(feature_rows.shape[0])
         logging.info(tab_print("%s features in experimental samples"%(feature_count), 4))
-    if feature_count < 2: # Exclude the header line
+    else:
+        logging.warning(tab_print("Warning! No experimental samples found in peak height file", 4))
+
+    if feature_count <= 1: # Exclude the header line
         logging.warning(tab_print("Warning! No features found in peak height file", 4))
 
     if os.path.isfile(mgf_filename):
