@@ -186,15 +186,30 @@ then the `--min_features` flag is used to check that at least 100 features passe
 
 ### Warning/Error Notifications for Automated Pipeline
 
-Because the untargeted pipeline runs as an `msdata` cronjob, errors and warnings that may need attention are emailed directly to an analyst
-(default: `bkieft@lbl.gov`). To proactively catch warnings and errors early that might break the pipeline, the pipeline log file
-(currently at `/global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log`) is queried every *N* number of pipeline cycles.
-The warning/error query happens via an `msdata` cronjob called `untargeted_warnings-errors_email_report` that currently runs once per day
-and is set to 4 cycles because the pipeline runs every 6 hours - so, a check every 24 hours. ERROR and WARNING logging lines are
-reported in the email for the analyst to double-check.
+Because the untargeted pipeline runs as a background `msdata` cronjob, errors and warnings that may need attention are emailed directly to an
+analyst (default: `bkieft@lbl.gov`). To proactively catch warnings and errors early that might spell doom for a project, the pipeline log file
+(currently at `/global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log`) is queried every *N* number of pipeline cycles. This occurs with
+the following cascade:
+
+a. An `msdata` cronjob called `untargeted_warnings-errors_email_report` runs
+b. `email_untargeted_pipeline_errors-warnings.sh` (located in the `metatlas` repo), which calls the
+c. `untargeted_warning-error_report.sh` shell script (located in the `metatlas` repo), which compiles an error report and
+d. sends an email notification to recipients listed in `/global/cfs/cdirs/metatlas/raw_data/email_untargeted_errors-warnings` (located at NERSC)
+
+This checker currently runs once per day (at 8am PST) and is set to 4 cycles because the pipeline runs every 6 hours - so, a check every 24
+hours without gaps. `ERROR`, `WARNING`, and `Traceback` lines are reported in the email for the analyst to double-check.
 
 ### Progress Notifications for Automated Pipeline
 
-Once per week, the number of successful and failed projects running through the automated untargeted pipeline for the previous *N*
-days will be counted up and emailed to a subset of the metabolomics team. This report is generated via the `msdata` cronjob
-`untargeted_project_email_report`. The job uses the script `check_untargeted_status.py`.
+Once per week (currently Monday at 8am), the number of successful and failed projects running through the automated untargeted pipeline
+for the previous *N* days (currently 7) will be counted up and itemized, then emailed to a subset of the metabolomics team. This occurs with
+the following cascade:
+
+a. An `msdata` cronjob called `untargeted_project_email_report` runs
+b. `email_untargeted_project_report.sh` (located in the `metatlas` repo), which calls the
+c. `untargeted_project_summary_report.sh` shell script (located in the `metatlas` repo), which compiles a summary of projects statuses using
+d. the `check_untargeted_status.py` script (located in the `metatlas` repo) and
+d. sends an email notification to recipients listed in `/global/cfs/cdirs/metatlas/raw_data/email_untargeted_reports` (located at NERSC)
+
+This notification system will print a list of all successfully completed projects that have been uploaded to Google Drive and will also print
+any projects which have an `error` status in any of the pipeline steps.
