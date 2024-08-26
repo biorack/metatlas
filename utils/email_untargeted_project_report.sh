@@ -9,7 +9,7 @@ if [ $# -ne 1 ]; then
 fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-addresses="$(cat "/global/cfs/cdirs/metatlas/raw_data/email_untargeted_errors-warnings")"
+addresses="$(cat "/global/cfs/cdirs/metatlas/raw_data/email_untargeted_reports")"
 
 # shellcheck disable=SC2086
 "${SCRIPT_DIR}/untargeted_project_summary_report.sh" "$1" | \
