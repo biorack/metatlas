@@ -15,7 +15,7 @@ fi
 
 cycles=$1
 
-printf 'Error and warning report for untargeted pipeline. Ran on %s\n\n' "$(date)"
+printf 'Error and warning report for untargeted pipeline.\n\t- Run on %s\n\n' "$(date)"
 
 printf 'Checked the last %s untargeted pipeline runs.\n\n' "$cycles"
 

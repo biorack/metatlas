@@ -9,7 +9,7 @@ fi
 
 timeback=$1
 
-printf 'Completion report for untargeted pipeline. Ran on %s\n\n' "$(date)"
+printf 'Completion report for untargeted pipeline.\n\t- Run on %s\n\n' "$(date +"%Y-%m-%d %H:%M:%S")"
 
 # Get the status of all projects
 cmd="/global/common/software/m2650/python3-matchms/bin/python /global/homes/b/bkieft/metatlas/metatlas/untargeted/check_untargeted_status.py --print_recent 100"
@@ -62,17 +62,23 @@ awk -v ts="$closest_timestamp" '
 # Count the number of errors and successes in project status table
 errors=$(cat "$temp_projects_subset" | grep "09 error" | wc -l)
 errored_projects=$(cat "$temp_projects_subset" | grep "09 error" | cut -f2 | sed 's/^/\t- /1')
+runnings=$(cat "$temp_projects_subset" | grep -E "04 running|01 initiation" | wc -l)
+running_projects=$(cat "$temp_projects_subset" | grep -E "04 running|01 initiation" | cut -f2 | sed 's/^/\t- /1')
 successes=$(grep -P "07 complete\t07 complete\t07 complete\t07 complete\t08 uploaded" "$temp_projects_subset" | wc -l)
 successful_projects=$(cat "$temp_projects_subset" | grep -P "07 complete\t07 complete\t07 complete\t07 complete\t08 uploaded" "$temp_projects_subset" | cut -f2,8 | rev | sed 's/ /\t/1' | rev | awk -F'\t' '{print $1" (Uploaded on "$2")"}' | sed 's/^/\t- /1')
 
 # Print the email summary report
-printf 'Untargeted project statuses in the last %s days (since %s):' "$timeback" "$closest_timestamp"
-printf '\n\n'
-printf '\nProjects with potential errors: %s\n' "$errors"
+printf 'Status of untargeted pipline runs in the last %s days (since %s)\n' "$timeback" "$target_timestamp"
+printf '\t- Closest run to target date (giving status of projects from this date): %s\n' "$closest_timestamp"
+printf '\nProjects unsuccessfully ended with error status: %s\n' "$errors"
 if [ "$errors" -gt 0 ]; then
     printf '%s\n' "$errored_projects"
 fi
-printf '\n\nProjects successfully completed and uploaded: %s\n' "$successes"
+printf '\nProjects currently running: %s\n' "$runnings"
+if [ "$runnings" -gt 0 ]; then
+    printf '%s\n' "$running_projects"
+fi
+printf '\nProjects successfully completed and uploaded: %s\n' "$successes"
 if [ "$successes" -gt 0 ]; then
     printf '%s\n' "$successful_projects"
 fi
