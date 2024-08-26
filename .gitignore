@@ -101,6 +101,3 @@ slurm-*.out
 
 # used in Docker.shifter build
 .version_info
-
-# untargeted log
-metatlas/untargeted/untargeted_pipeline_log.txt
