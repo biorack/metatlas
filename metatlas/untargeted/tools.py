@@ -473,11 +473,12 @@ def get_untargeted_status(direct_input=None,print_recent=None):
             status_df_list.append(row[['Modified', 'parent_dir', 'mzmine_pos_status', 'mzmine_neg_status', 'fbmn_pos_status', 'fbmn_neg_status', 'gdrive_status','upload_date']])
     
     total_status_df = pd.DataFrame(status_df_list)
-    
+    total_status_df = total_status_df.sort_values(by='Modified', ascending=True)
+
     if isinstance(print_recent, int):
         print(total_status_df.tail(print_recent).to_csv(sep='\t', index=False))
     else:
-        print(total_status_df.tail(print_recent).to_csv(sep='\t', index=False))
+        print(total_status_df.to_csv(sep='\t', index=False))
 
 def recursive_chown(basepath, group_name):
     """
