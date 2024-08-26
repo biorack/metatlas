@@ -12,6 +12,7 @@ timeback=$1
 printf 'Completion report for untargeted pipeline.\n\t- Run on %s\n\n' "$(date +"%Y-%m-%d %H:%M:%S")"
 
 # Get the status of all projects
+#cmd="/global/common/software/m2650/python3-matchms/bin/python /global/common/software/m2650/metatlas-repo/metatlas/untargeted/check_untargeted_status.py --print_recent 100"
 cmd="/global/common/software/m2650/python3-matchms/bin/python /global/homes/b/bkieft/metatlas/metatlas/untargeted/check_untargeted_status.py --print_recent 100"
 temp_status_table=$(mktemp)
 $cmd > "$temp_status_table"

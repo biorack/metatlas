@@ -12,6 +12,7 @@ from datetime import datetime, time
 import time
 import subprocess
 import math
+#sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/metatlas')
 sys.path.insert(0,'/global/homes/b/bkieft/metatlas/metatlas')
 import metatlas.tools.validate_filenames as vfn
 import subprocess
@@ -1381,7 +1382,7 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_f
     """
     Write the sbatch and runner files for mzmine submission via slurm
     """
-    mzmine_launcher = '/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-3.7.2/bin/MZmine -threads auto -t /pscratch/sd/b/bkieft/untargeted/tmp'
+    mzmine_launcher = '/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
 
     sbatch_filename = '%s_mzmine-sbatch.sbatch'%os.path.join(basepath,parent_dir)
     runner_filename = '%s_mzmine.sh'%os.path.join(basepath,parent_dir)

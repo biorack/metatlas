@@ -139,7 +139,7 @@ important checkpoints and features of each step are described below.
 
 Use the `--help` flag to print out all possible arguments that can be used to modulate/customize the pipeline:
 
-```/global/common/software/m2650/python3-matchms/bin/python /global/homes/b/bkieft/metatlas/metatlas/untargeted/run_untargeted_pipeline.py --help```
+```/global/common/software/m2650/python3-matchms/bin/python /global/common/software/m2650/metatlas-repo/metatlas/untargeted/run_untargeted_pipeline.py --help```
 
 There are over a dozen flags that can be passed to the `run_untargeted_pipeline.py` script, but they all
 have default values which get passed during a typical run with the automated cronjob. If the untargeted pipeline - 
@@ -148,7 +148,7 @@ an error that occurred during the automated job), the flags come in handy. Here 
 
 ### Example 1
 ```
-/global/common/software/m2650/python3-matchms/bin/python /global/homes/b/bkieft/metatlas/metatlas/untargeted/run_untargeted_pipeline.py
+/global/common/software/m2650/python3-matchms/bin/python /global/common/software/m2650/metatlas-repo/metatlas/untargeted/run_untargeted_pipeline.py
 --direct_input <project_1>,<project_2>,<project_3> --overwrite_mzmine True --overwrite_fbmn True --log_file </my/home/directory/custom_untargeted_run.log>
 ```
 This command will run all steps of the pipeline on just the three provided projects using the `--direct_input` flag with
@@ -162,7 +162,7 @@ for the log file are set to `metatlas` so the pipeline can write to the log.
 ### Example 2
 
 ```
-/global/common/software/m2650/python3-matchms/bin/python /global/homes/b/bkieft/metatlas/metatlas/untargeted/run_untargeted_pipeline.py
+/global/common/software/m2650/python3-matchms/bin/python /global/common/software/m2650/metatlas-repo/metatlas/untargeted/run_untargeted_pipeline.py
 --direct_input <project_1> --overwrite_zip True --overwrite_drive True --gnps2_doc_name Updated_GNPS2_documentation.docx
 --skip_steps Sync,MZmine_Status,MZmine_Submit,FBMN_Status,FBMN_Submit,FBMN_Download
 ```
@@ -173,7 +173,7 @@ This command might be run if you want a new updated results archive to show up o
 ### Example 3
 
 ```
-/global/common/software/m2650/python3-matchms/bin/python /global/homes/b/bkieft/metatlas/metatlas/untargeted/run_untargeted_pipeline.py
+/global/common/software/m2650/python3-matchms/bin/python /global/common/software/m2650/metatlas-repo/metatlas/untargeted/run_untargeted_pipeline.py
 --direct_input <project_1,project_2,project_3> --background_ratio 10 --polar_solvent_front 1.0 --overwrite_zip True --overwrite_drive True
 --min_features 100 --skip_steps Sync,MZmine_Submit,FBMN_Status,FBMN_Submit,FBMN_Download
 ```
