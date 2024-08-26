@@ -1,6 +1,5 @@
 import sys
-#sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/metatlas')
-sys.path.insert(0,'/global/homes/b/bkieft/metatlas/')
+sys.path.insert(0,'/global/common/software/m2650/metatlas-repo')
 from metatlas.untargeted import tools as mzm
 import argparse
 
