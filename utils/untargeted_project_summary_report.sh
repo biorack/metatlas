@@ -68,13 +68,13 @@ successful_projects=$(cat "$temp_projects_subset" | grep -P "07 complete\t07 com
 # Print the email summary report
 printf 'Untargeted project statuses in the last %s days (since %s):' "$timeback" "$closest_timestamp"
 printf '\n\n'
-printf 'Projects successfully completed and uploaded: %s\n' "$successes"
-printf '%s\n' "$successful_projects"
 printf '\nProjects with potential errors: %s\n' "$errors"
-
-# Print a statement if errors are greater than 0
 if [ "$errors" -gt 0 ]; then
     printf '%s\n' "$errored_projects"
+fi
+printf '\n\nProjects successfully completed and uploaded: %s\n' "$successes"
+if [ "$successes" -gt 0 ]; then
+    printf '%s\n' "$successful_projects"
 fi
 
 # Clean up temporary files
