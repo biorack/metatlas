@@ -37,7 +37,7 @@ def sort_atlas_csv(input_csv: str, column1: str, column2: str, istd_atlas: bool)
     """
     # Read the CSV file into a DataFrame
     df = pd.read_csv(input_csv)
-    
+
     # Sort the DataFrame based on the specified columns in ascending order
     if istd_atlas == True:
         if 'label' in df.columns:
@@ -52,7 +52,7 @@ def sort_atlas_csv(input_csv: str, column1: str, column2: str, istd_atlas: bool)
             sorted_df = df.sort_values(by=[column1, column2], ascending=[True, True])
     else:
         sorted_df = df.sort_values(by=[column1, column2], ascending=[True, True])
-    
+
     return(sorted_df)
 
 def create_msms_dataframe(df):
@@ -121,7 +121,7 @@ def arrange_ms2_data(metatlas_dataset: MetatlasDataset, do_centroid: bool) -> pd
                                   'measured_precursor_mz': measured_precursor_mz, 'measured_precursor_intensity': measured_precursor_intensity,
                                   'precursor_mz': precursor_mz, 'name': cid_name, 'adduct': adduct, 'inchi_key': inchi_key,
                                   'matchms_spectrum': matchms_spectrum, 'query_spectrum': spectrum, 'cid_pmz_tolerance': mz_tolerance,
-                                  'cid_rt_min': rt_min, 'cid_rt_max': rt_max})
+                                  'cid_rt_min': rt_min, 'cid_rt_max': rt_max, 'compound_idx': compound_idx})
 
     return pd.DataFrame(msms_data)
 

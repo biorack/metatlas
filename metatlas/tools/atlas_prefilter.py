@@ -13,6 +13,7 @@ from metatlas.io import feature_tools as ft
 import metatlas.plots.dill2plots as dp
 from metatlas.datastructures.analysis_identifiers import AnalysisIdentifiers
 from metatlas.datastructures.metatlas_dataset import MetatlasDataset
+from metatlas.tools.config import Analysis
 from metatlas.tools.notebook import in_papermill
 
 # Typing:
@@ -117,20 +118,28 @@ def score_ms2_data(ms2_data: pd.DataFrame, aligned_atlas_df: pd.DataFrame,
     ms2_data_refs_merge['score'] = ms2_data_refs_merge['mms_out'].apply(lambda x: x['score'])
     ms2_data_refs_merge['matches'] = ms2_data_refs_merge['mms_out'].apply(lambda x: x['matches'])
 
+    ms2_data_refs_merge['ref_frags'] = ms2_data_refs_merge['spectrum_y'].apply(lambda x: len(x[0]) if x.any() else 0)
+    ms2_data_refs_merge['data_frags'] = ms2_data_refs_merge['spectrum_x'].apply(lambda x: len(x[0]) if x.any() else 0)
+    ms2_data_refs_merge['reference_data_ratio'] = ms2_data_refs_merge['ref_frags'] / ms2_data_refs_merge['data_frags']
+    ms2_data_refs_merge['match_reference_ratio'] = ms2_data_refs_merge['matches'] / ms2_data_refs_merge['ref_frags']
+
+    ms2_data_refs_merge = ms2_data_refs_merge.drop(['ref_frags', 'data_frags'], axis=1)
+
     return ms2_data_refs_merge
 
 
 def filter_atlas_labels(ms1_data: pd.DataFrame, ms2_data_scored: pd.DataFrame, peak_height: Optional[float], num_points: Optional[int],
-                        msms_score: Optional[float], msms_matches: Optional[int]) -> set[str]:
+                        msms_score: Optional[float], msms_matches: Optional[int], msms_frag_ratio: Optional[int]) -> set[str]:
     """Filter atlas labels to include only those that pass the MS1 and MS2 thresholds."""
 
     ms1_data_filtered = ms1_data[ms1_data['peak_height'] >= peak_height] if peak_height is not None else ms1_data
     ms1_data_filtered = ms1_data_filtered[ms1_data_filtered['num_datapoints'] >= num_points] if num_points is not None else ms1_data_filtered
     ms1_reduced_labels = set(ms1_data_filtered.label.tolist())
 
-    if msms_score is not None or msms_matches is not None:
+    if msms_score is not None or msms_matches is not None or msms_frag_ratio is not None:
         ms2_data_filtered = ms2_data_scored[ms2_data_scored['score'] >= msms_score] if msms_score is not None else ms2_data_scored
         ms2_data_filtered = ms2_data_filtered[ms2_data_filtered['matches'] >= msms_matches] if msms_matches is not None else ms2_data_filtered
+        ms2_data_filtered = ms2_data_filtered[ms2_data_filtered['match_reference_ratio'] >= msms_frag_ratio] if msms_frag_ratio is not None else ms2_data_filtered
         ms2_reduced_labels = set(ms2_data_filtered.label.tolist())
     else:
         ms2_reduced_labels = ms1_reduced_labels
@@ -140,7 +149,7 @@ def filter_atlas_labels(ms1_data: pd.DataFrame, ms2_data_scored: pd.DataFrame, p
     return reduced_labels
 
 
-def filter_atlas(aligned_atlas, ids: AnalysisIdentifiers, analysis, data: MetatlasDataset):
+def filter_atlas(aligned_atlas, ids: AnalysisIdentifiers, analysis: Analysis, data: MetatlasDataset):
 
     aligned_atlas_df = make_atlas_df(aligned_atlas)
     sample_file_paths = get_sample_file_paths(ids)
@@ -150,14 +159,14 @@ def filter_atlas(aligned_atlas, ids: AnalysisIdentifiers, analysis, data: Metatl
     else:
         mz_tolerance = analysis.parameters.mz_tolerance_default
 
-    ms1_data, ms2_data = get_sample_data(aligned_atlas_df, sample_file_paths, mz_tolerance, data.extra_time, ids.polarity)
-    ms2_data_scored = score_ms2_data(ms2_data, aligned_atlas_df, ids.polarity,
+    ms1_data, ms2_data = get_sample_data(aligned_atlas_df, sample_file_paths, mz_tolerance, data.extra_time, analysis.parameters.polarity)
+    ms2_data_scored = score_ms2_data(ms2_data, aligned_atlas_df, analysis.parameters.polarity,
                                      analysis.parameters.msms_refs, analysis.parameters.frag_mz_tolerance)
 
     reduced_labels = filter_atlas_labels(ms1_data, ms2_data_scored, analysis.parameters.peak_height, analysis.parameters.num_points,
-                                         analysis.parameters.msms_score, analysis.parameters.msms_matches)
+                                         analysis.parameters.msms_score, analysis.parameters.msms_matches, analysis.parameters.msms_frag_ratio)
 
     aligned_filtered_atlas_df = aligned_atlas_df[aligned_atlas_df['label'].isin(reduced_labels)]
-    aligned_filtered_atlas = dp.get_atlas(aligned_atlas.name, aligned_filtered_atlas_df, ids.polarity, mz_tolerance)
+    aligned_filtered_atlas = dp.get_atlas(aligned_atlas.name, aligned_filtered_atlas_df, analysis.parameters.polarity, mz_tolerance)
 
     return aligned_filtered_atlas

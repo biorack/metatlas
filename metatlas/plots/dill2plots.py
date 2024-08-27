@@ -1668,12 +1668,12 @@ def file_with_max_score(data, frag_refs, compound_idx, filter_by):
 
             for i, msv_sample in enumerate(np.split(msv_sample_scans, scan_idxs, axis=1)):
 
-                mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
+                mms_sample = Spectrum(mz=msv_sample[0], intensities=np.sqrt(msv_sample[1]), metadata={'precursor_mz':np.nan})
 
                 for f, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                     msv_ref = sp.sort_ms_vector_by_mz(np.array(frag['mz_intensities']).T)
 
-                    mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
+                    mms_ref = Spectrum(mz=msv_ref[0], intensities=np.sqrt(msv_ref[1]), metadata={'precursor_mz':np.nan})
 
                     score = cos.pair(mms_sample, mms_ref)['score'].item()
 
@@ -1952,14 +1952,14 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
             current_best_msv_ref = None
             current_best_rt = None
 
-            mms_sample = Spectrum(mz=msv_sample[0], intensities=msv_sample[1], metadata={'precursor_mz':np.nan})
+            mms_sample = Spectrum(mz=msv_sample[0], intensities=np.sqrt(msv_sample[1]), metadata={'precursor_mz':np.nan})
 
             for ref_idx, frag in sp.filter_frag_refs(data, frag_refs, compound_idx, file_idx, filter_by).iterrows():
                 msv_ref = np.array(frag['mz_intensities']).T
 
                 msv_sample_aligned, msv_ref_aligned = sp.pairwise_align_ms_vectors(msv_sample, msv_ref, 0.005)
 
-                mms_ref = Spectrum(mz=msv_ref[0], intensities=msv_ref[1], metadata={'precursor_mz':np.nan})
+                mms_ref = Spectrum(mz=msv_ref[0], intensities=np.sqrt(msv_ref[1]), metadata={'precursor_mz':np.nan})
 
                 score = cos.pair(mms_sample, mms_ref)['score'].item()
 
@@ -2187,7 +2187,7 @@ def build_msms_refs_spectra(msms_refs: pd.DataFrame) -> pd.DataFrame:
     """Converts MS2 spectral arrays from strings to numpy arrays and creates MatchMS spectra."""
 
     msms_refs['spectrum'] = msms_refs['spectrum'].apply(lambda s: np.array(json.loads(s)))
-    msms_refs['matchms_spectrum'] = msms_refs.apply(lambda s: Spectrum(s.spectrum[0], s.spectrum[1], metadata={'precursor_mz':s.precursor_mz}), axis=1)
+    msms_refs['matchms_spectrum'] = msms_refs.apply(lambda s: Spectrum(s.spectrum[0], np.sqrt(s.spectrum[1]), metadata={'precursor_mz':s.precursor_mz}), axis=1)
 
     return msms_refs
 
@@ -2220,7 +2220,7 @@ def convert_to_centroid(sample_df):
         return sample_df[:, idx]
     return np.zeros((0, 0))
 
-def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str) -> pd.DataFrame:
+def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str, compound_idx: int) -> pd.DataFrame:
     """
     Create MSMS hits DataFrame with no corresponding match in MSMS refs.
 
@@ -2228,21 +2228,20 @@ def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str) -> pd.D
     Setting inchi_key to an empty string is necessary for correct plotting.
     """
 
+    compound_msms_hits = msms_data[msms_data['compound_idx'] == compound_idx].reset_index(drop=True).copy()
+
     if inchi_key is None:
-        inchi_msms_hits = msms_data[msms_data['inchi_key'].isnull()].reset_index(drop=True).copy()
-        inchi_msms_hits['inchi_key'] = ''
-    else:
-        inchi_msms_hits = msms_data[msms_data['inchi_key'] == inchi_key].reset_index(drop=True).copy()
+        compound_msms_hits['inchi_key'] = ''
 
-    inchi_msms_hits['database'] = np.nan
-    inchi_msms_hits['id'] = np.nan
-    inchi_msms_hits['adduct'] = ''
+    compound_msms_hits['database'] = np.nan
+    compound_msms_hits['id'] = np.nan
+    compound_msms_hits['adduct'] = ''
 
-    inchi_msms_hits['score'] = msms_data['measured_precursor_intensity']
-    inchi_msms_hits['num_matches'] = 0
-    inchi_msms_hits['spectrum'] = [np.array([np.array([]), np.array([])])] * len(inchi_msms_hits)
+    compound_msms_hits['score'] = compound_msms_hits['measured_precursor_intensity']
+    compound_msms_hits['num_matches'] = 0
+    compound_msms_hits['spectrum'] = [np.array([np.array([]), np.array([])])] * len(compound_msms_hits)
 
-    return inchi_msms_hits
+    return compound_msms_hits
 
 
 def score_matrix(cos: Type[CosineHungarian], references: List[SpectrumType], queries: List[SpectrumType]) -> npt.NDArray:
@@ -2280,16 +2279,24 @@ def score_matrix(cos: Type[CosineHungarian], references: List[SpectrumType], que
     return scores_array
 
 
-def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
+def get_hits_per_compound(cos: Type[CosineHungarian], compound_idx: int,
                           msms_data: pd.DataFrame, msms_refs: pd.DataFrame) -> pd.DataFrame:
     """
-    Get MSMS hits for an individual InChiKey.
+    Get MSMS hits for an individual compound index and InChiKey.
 
     If no key is given, or it isn't present in the MSMS refs, create nonmatched dummy hits DataFrame.
     """
+    unique_inchi_keys = msms_data[msms_data['compound_idx']==compound_idx]['inchi_key'].unique()
 
-    if inchi_key not in msms_refs['inchi_key'].tolist():
-        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
+    if len(unique_inchi_keys) > 1:
+        raise Exception('Only 1 inchi_key is allowed per compound name.')
+    elif len(unique_inchi_keys) == 0:
+        inchi_key = None
+    else:
+        inchi_key = unique_inchi_keys[0]
+
+    if inchi_key not in msms_refs['inchi_key'].tolist() or inchi_key is None:
+        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key, compound_idx)
         return nonmatched_msms_hits
 
     filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
@@ -2307,7 +2314,7 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
     inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
 
     if inchi_msms_hits.empty:
-        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
+        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key, compound_idx)
         return nonmatched_msms_hits
 
     return inchi_msms_hits
@@ -2366,15 +2373,14 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
     if len(msms_data) == 0:
         return pd.DataFrame(columns=msms_hits_cols).set_index(['database', 'id', 'file_name', 'msms_scan'])
 
-    data_inchi_keys = set(msms_data.inchi_key.tolist())
+    compound_names = ma_data.get_compound_names(metatlas_dataset)[0]
 
     cos = CosineHungarian(tolerance=frag_mz_tolerance)
 
     msms_hits = []
-    for inchi_key in tqdm(data_inchi_keys, unit='compound', disable=in_papermill()):
-
-        inchi_msms_hits = get_hits_per_compound(cos, inchi_key, msms_data, msms_refs)
-        msms_hits.append(inchi_msms_hits)
+    for compound_idx in tqdm(range(len(compound_names)), unit='compound', disable=in_papermill()):
+        compound_msms_hits = get_hits_per_compound(cos, compound_idx, msms_data, msms_refs)
+        msms_hits.append(compound_msms_hits)
 
     msms_hits = pd.concat(msms_hits)
 

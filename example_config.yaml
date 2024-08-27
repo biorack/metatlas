@@ -225,6 +225,7 @@ workflows:
             num_points: 3
             peak_height: 1e6
             msms_score: 0.6
+            msms_frag_ratio: 0.3
             generate_analysis_outputs: True
         - name: QC-NEG
           atlas:
@@ -281,6 +282,7 @@ workflows:
             num_points: 3
             peak_height: 1e6
             msms_score: 0.6
+            msms_frag_ratio: 0.3
             generate_analysis_outputs: True
   - name: Hybrid
     rt_alignment:
