@@ -865,13 +865,17 @@ class adjust_rt_for_selected_compound(object):
         out = []
         cid_mz_ref = cid.mz_references[0].mz
         cid_mass = cid.compound[0].mono_isotopic_molecular_weight
+        cid_inchikey_prefix = cid.compound[0].inchi_key.split('-')[0]
         for compound_iter_idx, _ in enumerate(self.data[0]):
             cpd_iter_id = self.data[0][compound_iter_idx]['identification']
             if len(cpd_iter_id.compound) == 0 or is_remove(ma_data.extract(cpd_iter_id, ["ms1_notes"])):
                 continue
             mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
             mz_ref = cpd_iter_id.mz_references[0].mz
-            if (mz_ref-0.005 <= cid_mz_ref <= mz_ref+0.005) or (mass-0.005 <= cid_mass <= mass+0.005):
+            inchikey_prefix = cpd_iter_id.compound[0].inchi_key.split('-')[0]
+            if (mz_ref-0.005 <= cid_mz_ref <= mz_ref+0.005) or \
+                (mass-0.005 <= cid_mass <= mass+0.005) or \
+                (cid_inchikey_prefix == inchikey_prefix):
                 out.append({'index': compound_iter_idx,
                             'label': cpd_iter_id.name if use_labels else cpd_iter_id.compound[0].name,
                             'rt': self.data.rts[compound_iter_idx],
