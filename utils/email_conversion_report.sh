@@ -16,6 +16,6 @@ addresses="$(cat "/global/cfs/cdirs/metatlas/raw_data/email_${1}_reports")"
 
 # shellcheck disable=SC2086
 "${SCRIPT_DIR}/conversion_report.sh" "$1" "$2" | \
-  mailx -s "${1} file conversion report"  -R "wjholtz@lbl.gov" ${addresses}
+  mailx -s "${1} file conversion report"  -R "bkieft@lbl.gov" ${addresses}
 
 printf "INFO: report generation and emailing complete\n" | ts
