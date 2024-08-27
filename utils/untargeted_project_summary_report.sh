@@ -1,19 +1,19 @@
 #!/bin/bash
 
 # Check if a timeback in days is provided
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <timeback>"
-    echo "Where <timeback> is the number of days to look back"
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <timeback> <department>"
+    echo "Where <timeback> is the number of days to look back and <department> is the department to filter on ('jgi' or 'eb')"
     exit 1
 fi
 
 timeback=$1
+department=$2
 
-printf 'Completion report for untargeted pipeline.\n\t- Run on %s\n\n' "$(date +"%Y-%m-%d %H:%M:%S")"
+printf '%s completion report for untargeted pipeline.\n\t- Run on %s\n\n' "${department^^}" "$(date +"%Y-%m-%d")"
 
 # Get the status of all projects
-#cmd="/global/common/software/m2650/python3-matchms/bin/python /global/common/software/m2650/metatlas-repo/metatlas/untargeted/check_untargeted_status.py --print_recent 100"
-cmd="/global/common/software/m2650/python3-matchms/bin/python /global/homes/b/bkieft/metatlas/metatlas/untargeted/check_untargeted_status.py --print_recent 100"
+cmd="/global/common/software/m2650/python3-matchms/bin/python /global/common/software/m2650/metatlas-repo/metatlas/untargeted/check_untargeted_status.py --print_recent 100"
 temp_status_table=$(mktemp)
 $cmd > "$temp_status_table"
 
@@ -60,17 +60,20 @@ awk -v ts="$closest_timestamp" '
     found { print }
 ' "$temp_sorted_file" > "$temp_projects_subset"
 
+# Get the relevant department for emails
+temp_projects_subset_filtered=$(mktemp)
+cat "$temp_projects_subset" | awk -F'_' -v dept="$department" 'tolower($2) == tolower(dept)' > "$temp_projects_subset_filtered"
+
 # Count the number of errors and successes in project status table
-errors=$(cat "$temp_projects_subset" | grep "09 error" | wc -l)
-errored_projects=$(cat "$temp_projects_subset" | grep "09 error" | cut -f2 | sed 's/^/\t- /1')
-runnings=$(cat "$temp_projects_subset" | grep -E "04 running|01 initiation" | wc -l)
-running_projects=$(cat "$temp_projects_subset" | grep -E "04 running|01 initiation" | cut -f2 | sed 's/^/\t- /1')
-successes=$(grep -P "07 complete\t07 complete\t07 complete\t07 complete\t08 uploaded" "$temp_projects_subset" | wc -l)
-successful_projects=$(cat "$temp_projects_subset" | grep -P "07 complete\t07 complete\t07 complete\t07 complete\t08 uploaded" "$temp_projects_subset" | cut -f2,8 | rev | sed 's/ /\t/1' | rev | awk -F'\t' '{print $1" (Uploaded on "$2")"}' | sed 's/^/\t- /1')
+errors=$(cat "$temp_projects_subset_filtered" | grep "09 error" | wc -l)
+errored_projects=$(cat "$temp_projects_subset_filtered" | grep "09 error" | cut -f2 | sed 's/^/\t- /1')
+runnings=$(cat "$temp_projects_subset_filtered" | grep -E "04 running|01 initiation" | wc -l)
+running_projects=$(cat "$temp_projects_subset_filtered" | grep -E "04 running|01 initiation" | cut -f2 | sed 's/^/\t- /1')
+successes=$(cat "$temp_projects_subset_filtered" | grep -P "07 complete\t07 complete\t07 complete\t07 complete\t08 uploaded" | wc -l)
+successful_projects=$(cat "$temp_projects_subset_filtered" | grep -P "07 complete\t07 complete\t07 complete\t07 complete\t08 uploaded" "$temp_projects_subset_filtered" | cut -f2,8 | rev | sed 's/ /\t/1' | rev | awk -F'\t' '{print $1" (Uploaded on "$2")"}' | sed 's/^/\t- /1')
 
 # Print the email summary report
-printf 'Status of untargeted pipline runs in the last %s days (since %s)\n' "$timeback" "$target_timestamp"
-printf '\t- Closest run to target date (giving status of projects from this date): %s\n' "$closest_timestamp"
+printf 'Status of %s untargeted pipline runs in the last %s days\n' "${department^^}" "$timeback"
 printf '\nProjects unsuccessfully ended with error status: %s\n' "$errors"
 if [ "$errors" -gt 0 ]; then
     printf '%s\n' "$errored_projects"
@@ -85,4 +88,4 @@ if [ "$successes" -gt 0 ]; then
 fi
 
 # Clean up temporary files
-rm "$temp_status_table" "$temp_status_table_subset" "$temp_sorted_file" "$temp_timestamps" "$temp_projects_subset"
+rm "$temp_status_table" "$temp_status_table_subset" "$temp_sorted_file" "$temp_timestamps" "$temp_projects_subset" "$temp_projects_subset_filtered"
