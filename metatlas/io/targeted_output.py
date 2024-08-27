@@ -250,6 +250,17 @@ def write_msms_fragment_ions(
     export_dataframe_die_on_diff(out_df, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
     return out_df
 
+    # Write two dataframes with different mz significant figures
+    # if "mz4" in out_df.columns:
+    #     out_df_mz2 = out_df.drop(columns=["mz4"])
+    #     out_df_mz2 = out_df_mz2.rename(columns={"mz2": "mz"})
+    #     path = data.ids.output_dir / f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut_mz2.csv"
+    #     export_dataframe_die_on_diff(out_df_mz2, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
+    # if "mz2" in out_df.columns:
+    #     out_df_mz4 = out_df.drop(columns=["mz2"])
+    #     out_df_mz4 = out_df_mz4.rename(columns={"mz4": "mz"})
+    #     path = data.ids.output_dir / f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut_mz4.csv"
+    #     export_dataframe_die_on_diff(out_df_mz4, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
 
 def get_max_precursor_intensity(data, compound_idx):
     """
@@ -299,9 +310,10 @@ def get_spectra_strings(
     mz_list, intensity_list = get_spectra(
         compound_data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity
     )
-    mz_str = str([f"{x:.2f}" for x in mz_list]).replace("'", "")
+    mz_str_2 = str([f"{x:.2f}" for x in mz_list]).replace("'", "")
+    mz_str_4 = str([f"{x:.4f}" for x in mz_list]).replace("'", "")
     intensity_str = str([int(x) for x in intensity_list]).replace("'", "")
-    spectra_str = str([mz_str, intensity_str]).replace("'", "")
+    spectra_str = str([mz_str_2, mz_str_4, intensity_str]).replace("'", "")
     name = compound_data["identification"].name
     run = Path(compound_data["lcmsrun"].hdf5_file).stem
     mz_peak = compound_data["data"]["ms1_summary"]["mz_peak"]
@@ -313,7 +325,8 @@ def get_spectra_strings(
         "rt_peak": rt_peak,
         "mz_peak": mz_peak,
         "spectrum": spectra_str,
-        "mz": mz_str,
+        "mz2": mz_str_2,
+        "mz4": mz_str_4,
         "intensity": intensity_str,
     }
 
