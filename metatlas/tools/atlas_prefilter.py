@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 from typing import TypeAlias, Optional
 from tqdm.notebook import tqdm
+import logging
 
 import matchms as mms
 from matchms.similarity import CosineHungarian
@@ -15,6 +16,8 @@ from metatlas.datastructures.analysis_identifiers import AnalysisIdentifiers
 from metatlas.datastructures.metatlas_dataset import MetatlasDataset
 from metatlas.tools.config import Analysis
 from metatlas.tools.notebook import in_papermill
+
+logger = logging.getLogger(__name__)
 
 # Typing:
 MS2Spectrum: TypeAlias = npt.NDArray[npt.NDArray[float]]
@@ -104,6 +107,9 @@ def score_ms2_data(ms2_data: pd.DataFrame, aligned_atlas_df: pd.DataFrame,
     This function merges the MSMS refs with the MS2 data collected from the samples for scoring
     and calculates scores and number of matching ions.
     """
+    if ms2_data.empty:
+        logging.warning('No MS2 data collected during pre-filter')
+        return pd.DataFrame(columns=['label', 'score', 'matches', 'match_reference_ratio'])
 
     msms_refs = load_and_filter_msms_refs_file(msms_refs_path, polarity)
 
@@ -131,6 +137,8 @@ def score_ms2_data(ms2_data: pd.DataFrame, aligned_atlas_df: pd.DataFrame,
 def filter_atlas_labels(ms1_data: pd.DataFrame, ms2_data_scored: pd.DataFrame, peak_height: Optional[float], num_points: Optional[int],
                         msms_score: Optional[float], msms_matches: Optional[int], msms_frag_ratio: Optional[int]) -> set[str]:
     """Filter atlas labels to include only those that pass the MS1 and MS2 thresholds."""
+    if ms1_data.empty:
+        logger.warning('No MS1 data collected during pre-filter')
 
     ms1_data_filtered = ms1_data[ms1_data['peak_height'] >= peak_height] if peak_height is not None else ms1_data
     ms1_data_filtered = ms1_data_filtered[ms1_data_filtered['num_datapoints'] >= num_points] if num_points is not None else ms1_data_filtered
