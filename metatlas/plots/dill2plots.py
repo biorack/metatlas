@@ -865,7 +865,7 @@ class adjust_rt_for_selected_compound(object):
         out = []
         cid_mz_ref = cid.mz_references[0].mz
         cid_mass = cid.compound[0].mono_isotopic_molecular_weight
-        if cid.compound[0].inchi_key:
+        if cid.compound[0].inchi_key is not None:
             try:
                 cid_inchikey_prefix = cid.compound[0].inchi_key.split('-')[0]
             except:
