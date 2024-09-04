@@ -1,299 +1,656 @@
-import numpy as np
 import sys
-import json
+sys.path.insert(0,'/global/common/software/m2650/labkey-api-python') # https://github.com/LabKey/labkey-api-python
+from labkey.api_wrapper import APIWrapper
+import numpy as np
 import pandas as pd
-import re
 import glob as glob
-import os
-from collections import defaultdict
-from xml.etree import cElementTree as ET
-from io import StringIO
-
-#from metatlas.datastructures import metatlas_objects as metob
-#from metatlas.io import metatlas_get_data_helper_fun as ma_data
-#from metatlas.plots import dill2plots as dp
-
-from metatlas.io.update_lcmsfiles_in_lims import EXTENSIONS
-
-# imports for the xml to dictionary round trip
-from collections import Mapping
-import six
 from pathlib2 import PurePath
-
+import os
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime, time
 import time
+import subprocess
+import math
+sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
+import metatlas.tools.validate_filenames as vfn
+import subprocess
+import grp
+import logging
+import ftplib
 
 BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
 BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
 
-
-# new stuff:
-
-import sys
-import os
-import shutil
-import pathlib
-import argparse
-from subprocess import call
-
-# you need this!
-# https://github.com/LabKey/labkey-api-python
-#
-# sys.path.insert(0,'/Users/bpb/repos/labkey-api-python/')
-# sys.path.insert(0,'/global/homes/b/bpb/repos/labkey-api-python/')
-# import labkey as lk
-from labkey.api_wrapper import APIWrapper
-import hashlib
-import requests
-import json
-import pandas as pd
-# import hashlib
-import numpy as np
-import re
-from datetime import datetime, time as dtime
-from subprocess import check_output
-import time
-import math
-# sys.path.insert(0,'/global/homes/b/bpb/repos/metatlas')
-# from metatlas.untargeted import mzmine_batch_tools_adap as mzm
-#from metatlas.plots import dill2plots as dp
-import collections
-from ast import literal_eval
-from copy import deepcopy
-import xmltodict
-import zipfile
-import re
-from rdkit import Chem
-
-from rdkit.Chem.rdMolDescriptors import CalcMolFormula
-from collections import Counter
-from rdkit.Chem.Descriptors import ExactMolWt
-from rdkit.Chem import rdMolDescriptors
-from rdkit.Chem import Descriptors
-from rdkit.ML.Descriptors import MoleculeDescriptors
-import re
-
-import scipy.stats
-
-
-def remove_untargeted_job(experiment,
-                          outdir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
-                          zipdir='/global/cfs/cdirs/metatlas/projects/untargeted_outputs'):
-
-    # remove untargeted zip file
-    zip_archive = os.path.join(zipdir,'%s.zip'%experiment)
-    if os.path.isfile(zip_archive):
-        os.remove(zip_archive)
-        print('removed %s'%zip_archive)
-
-    # remove untargeted output directory
-    for polarity in ['positive','negative']:
-        task_dir = os.path.join(outdir,'%s_%s'%(experiment,polarity))
-        if os.path.isdir(task_dir):
-            try:
-                shutil.rmtree(task_dir)
-                print('removed %s'%task_dir)
-            except OSError as e:
-                print ("Error: %s - %s." % (e.filename, e.strerror))
-
-    schema = 'lists'
-    # remove untargeted_tasks
-    sql = """SELECT Key, parent_dir FROM untargeted_tasks
-    WHERE parent_dir='%s';"""%(experiment)
-
-    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
-    if len(sql_result['rows'])>0:
-        df = pd.DataFrame(sql_result['rows'])
-        df = df[['Key']]
-        update_table_in_lims(df,'untargeted_tasks',method='delete')
-        print('removed tasks')
-
-    # remove untargeted_features
-    sql = """SELECT Key, experiment FROM untargeted_features
-    WHERE experiment='%s';"""%(experiment)
-
-    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
-    if len(sql_result['rows'])>0:
-        df = pd.DataFrame(sql_result['rows'])
-        df = df[['Key']]
-        update_table_in_lims(df,'untargeted_features',method='delete')
-        print('removed features')
-
-    # remove gnps_hits (feature_key)
-    sql = """SELECT Key, feature_key.experiment FROM gnps_hits
-    WHERE feature_key.experiment='%s';"""%(experiment)
-
-    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
-    if len(sql_result['rows'])>0:
-        df = pd.DataFrame(sql_result['rows'])
-        df = df[['Key']]
-        update_table_in_lims(df,'gnps_hits',method='delete')
-        print('removed gnps hits')
-
-
-def get_monoisotopic_mass(formula):
-    parts = re.findall("[A-Z][a-z]?|[0-9]+", formula)
-    mass = 0
-
-    for index in range(len(parts)):
-        if parts[index].isnumeric():
-            continue
-
-        multiplier = int(parts[index + 1]) if len(parts) > index + 1 and parts[index + 1].isnumeric() else 1
-        isotopeMass = Chem.PeriodicTable.GetMostCommonIsotopeMass(Chem.GetPeriodicTable(), parts[index])
-        mass += isotopeMass * multiplier
-
-    return mass
-
-
-
-def get_google_sheet(notebook_name = "Sheet name",
-                     token='/global/cfs/cdirs/metatlas/projects/google_sheets_auth/ipython to sheets demo-9140f8697062.json',
-                     sheet_name = 'Sheet1',
-                    literal_cols=None):
-    """
-    Returns a pandas data frame from the google sheet.
-    Assumes header row is first row.
-
-    To use the token hard coded in the token field,
-    the sheet must be shared with:
-    metatlas-ipython-nersc@ipython-to-sheets-demo.iam.gserviceaccount.com
-    Unique sheet names are a requirement of this approach.
-
-    """
-    import gspread
-    # from oauth2client.client import SignedJwtAssertionCredentials
-    from oauth2client.service_account import ServiceAccountCredentials
-#     scope = ['https://spreadsheets.google.com/feeds']
-#     scope = ['https://www.googleapis.com/auth/spreadsheets']
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    #this is deprecated as of january, but we have pinned the version of oauth2.
-    #see https://github.com/google/oauth2client/issues/401
-#     json_key = json.load(open(token))
-#     credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scope)
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
-    #here is the new way incase the version pin is removed
-    #credentials = ServiceAccountCredentials.from_json_keyfile_name(token, scope)
-
-    gc = gspread.authorize(credentials)
-    wks = gc.open(notebook_name)
-    istd_qc_data = wks.worksheet(sheet_name).get_all_values()
-    headers = istd_qc_data.pop(0)
-    df = pd.DataFrame(istd_qc_data,columns=headers)
-
-    # Use round trip through read_csv to infer dtypes
-    s = StringIO()
-    df.to_csv(s)
-    df2 = pd.read_csv(StringIO(s.getvalue()))
-    if 'Unnamed: 0' in df2.columns:
-        df2.drop(columns=['Unnamed: 0'],inplace=True)
-
-    #turn list elements into lists instead of strings
-    if literal_cols is not None:
-        for col in literal_cols:
-            df2[col] = df2[col].apply(literal_eval)
-    df2 = df2.fillna('')
-
-    return df2
-
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
     api_key = fid.read().strip()
-labkey_server='metatlas.nersc.gov'
+labkey_server='metatlas.lbl.gov'
 project_name='LIMS/'
 api = APIWrapper(labkey_server, project_name, use_ssl=True,api_key=api_key)
 
-def get_parent_folders_from_lcmsruns(get_groups=False):
-#     SELECT DISTINCT parent_dir FROM lcmsrun_plus
-    sql = """SELECT DISTINCT parent_dir FROM lcmsrun_plus"""
-    if get_groups==True:
-        sql = """SELECT
-lcmsrun.mzml_file.filename AS mzml_file,
-regexp_replace(lcmsrun.name, '.*/([^/]*)/[^/]*$', '\1') AS parent_dir,
+SLURM_PERLMUTTER_REALTIME_HEADER = """#!/bin/bash
+#SBATCH -N 1
+#SBATCH --error="slurm.err"
+#SBATCH --output="slurm.out"
+#SBATCH -A m1541
+#SBATCH -C cpu
+#SBATCH --qos=realtime
+#SBATCH -t 2:00:00
+"""
 
-split_part(regexp_replace(lcmsrun.name, '.*/[^/]*/([^/]*)$', '\1'), '_', 13) AS file_name_field_12
+SLURM_PERLMUTTER_HEADER = """#!/bin/bash
+#SBATCH -N 1
+#SBATCH --exclusive
+#SBATCH --error="slurm.err"
+#SBATCH --output="slurm.out"
+#SBATCH -A m2650
+#SBATCH -C cpu
+#SBATCH --qos=regular
+#SBATCH -t 3:00:00
+"""
 
-FROM lcmsrun"""
-    schema = 'lists'
-    sql_result = api.query.execute_sql(schema, sql,max_rows=1e6)
-    if sql_result is None:
-        print(('execute_sql: Failed to load results from ' + schema + '.' + table))
+mzine_batch_params_file = "/global/common/software/m2650/mzmine_parameters/batch_files/mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/batch_files/IQX-mzmine-3.7.2-batchparams.xml"
+
+def call_logger(log_filename: str, log_level: str, log_format: str):
+    logging.basicConfig(filename=log_filename, level=log_level, format=log_format, filemode='a')
+
+def start_script(script=None):
+    """
+    Kick off script with a timestamp for log
+    """
+    if script is not None:
+        return tab_print('Successfully started %s on %s:'%(script,datetime.now()), 0)
+    else:
+        sys.exit("No script name provided to start_script")
+
+def end_script(script=None):
+    """
+    End script with a timestamp for log
+    """
+    if script is not None:
+        return tab_print('Successfully completed %s on %s:'%(script,datetime.now()), 0)
+    else:
+        sys.exit("No script name provided to end_script")
+
+def tab_print(message="",indent_level=0):
+    """
+    Print a message with a specified number of tabs
+    """
+    return ("\t"*indent_level + message)
+
+def check_for_polarities(output_dir: str, parent_dir: str) -> list:
+    """
+    Check for positive and/or negative polarity directories on disk
+    to decide how to iterate through project
+    """
+    pos_dir = os.path.join(output_dir, "%s_%s"%(parent_dir, 'positive'))
+    neg_dir = os.path.join(output_dir, "%s_%s"%(parent_dir, 'negative'))
+    if os.path.exists(pos_dir) and os.path.exists(neg_dir):
+        return ['positive', 'negative']
+    elif os.path.exists(pos_dir) and not os.path.exists(neg_dir):
+        return ['positive']
+    elif not os.path.exists(pos_dir) and os.path.exists(neg_dir):
+        return ['negative']
+    else:
         return None
-    else:
-        df = pd.DataFrame(sql_result['rows'])
-        df = df[[c for c in df.columns if not c.startswith('_')]]
-        return df
 
-
-def get_files_from_disk(directory,extension):
+def subset_df_by_status(df: pd.DataFrame, tasktype: str, status: list, inverse=False) -> pd.DataFrame:
     """
-    Get on disk with date
+    Subset a dataframe by status in LIMS
     """
-    get_with_date = ''.join(['find %s -iname "*%s"' % (directory,extension),' -printf "%Ts SplitThat%p\n"'])
-    files = check_output(get_with_date, shell=True)
-    files = files.decode('utf-8').splitlines()
-    files = [f.split('SplitThat') for f in files]
-    dates = [int(f[0].strip()) for f in files]
-    files = [f[1].strip() for f in files]
-    return dates,files
+    if inverse == True:
+        df_subset = df[~df['%s_pos_status'%tasktype].isin(status) | ~df['%s_neg_status'%tasktype].isin(status)]
+    if inverse == False:
+        df_subset = df[df['%s_pos_status'%tasktype].isin(status) | df['%s_neg_status'%tasktype].isin(status)]
+    return df_subset
 
-def complex_name_splitter(filename,
-                          extensions=set(['raw', 'tab', 'gz', 'pactolus', 'mzML', 'd','h5']),
-                         strippath='/global/cfs/cdirs/metatlas/raw_data'):
+def filter_common_bad_project_names(df: pd.DataFrame):
+    """
+    Takes a df object (usually from exporting the LIMS untargeted tasks table) and removes
+    projects with common strings that are in untargeted tasks which should not be run
+    """
+    df = df[~(df['parent_dir'].str.contains(' '))]
+    df = df[~(df['parent_dir'].str.contains('&'))]
+    #df = df[~(df['parent_dir'].str.contains('Niyogi'))]
+    df = df[~(df['parent_dir'].str.contains('_partial'))]
+    df = df[~(df['parent_dir'].str.contains('_old'))]
+    return df
 
-    #Get the filename
-    if '/project/projectdirs' in filename:
-        filename = filename.replace('/project/projectdirs','/cfs/cdirs')
-    basename = os.path.basename(filename)
-    #Path is everything not filename
-    pathname = filename.replace(basename,'')
-    #Don't store the basepath since files will likely move
-    pathname = pathname.replace(strippath,'')
-    pathname = pathname.strip('/')
-
-    #remove extension, but keep any internal . separeted content
-    pieces = set(basename.split('.')) - extensions
-    name = '.'.join(pieces)
-    name = name.replace('_spectral-hits','')
-
-    #this will be a basename that has typically two folders
-    #ths should not have an extension
-    new_name = os.path.join(pathname,name)
-    return new_name
-
-def hash_bytestr_iter(bytesiter, hasher, ashexstr=False):
-    for block in bytesiter:
-        hasher.update(block)
-    return hasher.hexdigest() if ashexstr else hasher.digest()
-
-def make_sha256(afile, blocksize=65536):
-    sha = hashlib.sha256()
-    with open(afile, 'rb') as f:
-        while True:
-            data = f.read(blocksize)
-            if not data:
-                break
-            sha.update(data)
-    return format(sha.hexdigest())
-# def make_sha256(fname):
-#     return hash_bytestr_iter(file_as_blockiter(open(fname, 'rb')), hashlib.sha256())
-
-def get_acqtime_from_mzml(mzml_file):
-    startTimeStamp=None
-    with open(mzml_file) as mzml:
-        for line in mzml:
-            if 'startTimeStamp' in line:
-                startTimeStamp = line.split('startTimeStamp="')[1].split('"')[0].replace('T',' ').rstrip('Z')
-                break
-#     print startTimeStamp
-    if not '-infinity' in startTimeStamp:
-        date_object = datetime.strptime(startTimeStamp, '%Y-%m-%d %H:%M:%S')
-        utc_timestamp = int(time.mktime(date_object.timetuple()))
+def write_fbmn_tasks_to_file(task_list: dict, output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks'):
+    """
+    Takes a list of dictionaries from submit_fbmn_jobs
+    and writes the fbmn task id to a file in the 
+    project directory at untarageted_tasks on perlmutter
+    """
+    experiment = task_list['experiment']
+    polarity = task_list['polarity']
+    task = task_list['response']['task']
+    filename = os.path.join(output_dir, '%s_%s'%(experiment, polarity), '%s_%s_gnps2-fbmn-task.txt'%(experiment, polarity))
+    if task:
+        with open(filename,'w') as fid:
+            fid.write("%s_%s=%s\n"%(experiment,polarity,task))
+            final_filename = os.path.basename(filename)
+            logging.info(tab_print("GNPS2 task file for %s mode written to %s"%(polarity,final_filename), 3))
     else:
-        utc_timestamp = int(0)
-    return utc_timestamp
+        logging.warning(tab_print("Warning! GNPS2 FBMN task ID not found. File gnps2-fbmn-task.txt not written.", 3))
 
+def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metatlas/projects/untargeted_outputs', \
+                                      output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', \
+                                      upload=True, overwrite_zip=False, overwrite_drive=False, direct_input=None, \
+                                      min_features_admissible=0, add_documentation=True, \
+                                      doc_name=None,skip_zip_upload=False):
+    """
+    This function is called by export_untargeted_results.py
+    
+    Specify the download folder (where the zip files will be saved) and
+    the output folder (where task directories are located) in case the info
+    in the LIMS table is not accurate
+    
+    Upload is True (default) when the zip folder will be uploaded to Google Drive
+
+    Overwrite_zip is False (default) when the zip folder will not be created if it already exists in download_folder
+
+    Overwrite_drive is False (default) when the zipped folder will not be uploaded to Google Drive if it exists there already
+
+    Direct_input is None (default) when all available projects will undergo zip and upload. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+
+    Min_features_admissible is 0 (default) if you want the function to zip and upload only when there are more than 0 features
+    """
+    if skip_zip_upload:
+        logging.info("Skipping Step 7/7: Zipping up and (optionally) uploading output folders to gdrive...")
+        return
+    logging.info("Step 7/7: Zipping up and (optionally) uploading output folders to gdrive...")
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    status_list = ['07 complete']
+    if direct_input is None:
+        df = subset_df_by_status(df,'fbmn',status_list)
+        df = subset_df_by_status(df,'mzmine',status_list)
+        df = subset_df_by_status(df,'mzmine',['09 error'],inverse=True) # Make sure one of the polarities doesn't have an error
+        df = subset_df_by_status(df,'fbmn',['09 error'],inverse=True) # Make sure one of the polarities doesn't have an error
+    if df.empty:
+        logging.info(tab_print("No completed untargeted results to zip and upload!", 1))
+        return
+    if not df.empty:
+        logging.info(tab_print("%s project(s) total with complete mzmine and fbmn status."%(df.shape[0]), 1))
+        zip_count = 0
+        upload_count = 0
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            output_zip_archive = os.path.join(download_folder,'%s.zip'%project_name)
+            polarity_list = check_for_polarities(output_dir,project_name)
+            if overwrite_zip==False and os.path.exists(output_zip_archive):
+                #logging.warning(tab_print("Warning! Zip archive for %s exists. Set overwrite_zip to True if you want to replace. Skipping zip and upload..."%(project_name), 1))
+                continue
+            if overwrite_zip==True or not os.path.exists(output_zip_archive):
+                if polarity_list is None:
+                    logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
+                    continue
+                # Create variables for possible polarity directories and files
+                neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
+                pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
+                neg_mzmine_file = os.path.join(neg_directory, '%s_negative_peak-height.csv'%project_name)
+                pos_mzmine_file = os.path.join(pos_directory, '%s_positive_peak-height.csv'%project_name)
+                neg_fbmn_file = os.path.join(neg_directory, '%s_negative_gnps2-fbmn-library-results.tsv'%project_name)
+                pos_fbmn_file = os.path.join(pos_directory, '%s_positive_gnps2-fbmn-library-results.tsv'%project_name)
+                if 'negative' in polarity_list and 'positive' in polarity_list:
+                    # Check that mzmine and fbmn "marker" files exist, they've probably finished sucessfully (double-check since status need to all be 'complete' above)
+                    if os.path.exists(neg_mzmine_file) and os.path.exists(pos_mzmine_file) and os.path.exists(neg_fbmn_file) and os.path.exists(pos_fbmn_file):
+                        try:
+                            recursive_chown(neg_directory, 'metatlas')
+                            recursive_chown(pos_directory, 'metatlas')
+                        except:
+                            logging.info(tab_print("Note: Could not change group ownership of %s or %s."%(neg_directory,pos_directory), 1))
+                        neg_feature_counts = check_peak_height_table(neg_mzmine_file)
+                        pos_feature_counts = check_peak_height_table(pos_mzmine_file)
+                        if (neg_feature_counts + pos_feature_counts) > min_features_admissible:
+                            neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
+                            pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
+                            # Get rid of the mzmine job id files
+                            neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
+                            pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
+                            if os.path.exists(neg_mzmine_job_id_filename):
+                                os.remove(neg_mzmine_job_id_filename)
+                            if os.path.exists(pos_mzmine_job_id_filename):
+                                os.remove(pos_mzmine_job_id_filename)
+                            if add_documentation == True:
+                                logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
+                                doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
+                                if doc_present:
+                                    cmd = 'zip -rjq - %s %s %s >%s'%(neg_directory,pos_directory,os.path.join(download_folder,doc_name),output_zip_archive)
+                                else:
+                                    logging.warning(tab_print("Warning! Add documentation flag is True but GNPS2 user guide documentation not available. Not adding to zip...", 2))
+                                    cmd = 'zip -rjq - %s %s >%s'%(neg_directory,pos_directory,output_zip_archive)
+                            else:
+                                cmd = 'zip -rjq - %s %s >%s'%(neg_directory,pos_directory,output_zip_archive)
+                            os.system(cmd)
+                            logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,project_name), 1))
+                            try:
+                                recursive_chown(output_zip_archive, 'metatlas')
+                            except:
+                                logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
+                            zip_count += 1
+                            if upload == True and os.path.exists(output_zip_archive):
+                                upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
+                                if upload_success:
+                                    upload_count += 1
+                        else:
+                            logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
+                            continue
+                elif not 'negative' in polarity_list and 'positive' in polarity_list:
+                    if os.path.exists(pos_mzmine_file) and os.path.exists(pos_fbmn_file):
+                        try:
+                            recursive_chown(pos_directory, 'metatlas')
+                        except:
+                            logging.info(tab_print("Note: Could not change group ownership of %s."%(pos_directory), 1))
+                        pos_feature_counts = check_peak_height_table(pos_mzmine_file)
+                        if pos_feature_counts > min_features_admissible:
+                            pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
+                            # Get rid of the mzmine job id files
+                            pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
+                            if os.path.exists(pos_mzmine_job_id_filename):
+                                os.remove(pos_mzmine_job_id_filename)
+                            if add_documentation == True:
+                                logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
+                                doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
+                                if doc_present:
+                                    cmd = 'zip -rjq - %s %s >%s'%(pos_directory,os.path.join(download_folder,doc_name),output_zip_archive)
+                                else:
+                                    logging.warning(tab_print("Warning! Add documentation flag is True but GNPS2 user guide documentation not available. Not adding to zip...", 2))
+                                    cmd = 'zip -rjq - %s >%s'%(pos_directory,output_zip_archive)
+                            else:
+                                cmd = 'zip -rjq - %s >%s'%(pos_directory,output_zip_archive)
+                            os.system(cmd)
+                            logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,project_name), 1))
+                            try:
+                                recursive_chown(output_zip_archive, 'metatlas')
+                            except:
+                                logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
+                            zip_count += 1
+                            if upload == True and os.path.exists(output_zip_archive):
+                                upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
+                                if upload_success:
+                                    upload_count += 1
+                        else:
+                            logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
+                            continue
+                elif 'negative' in polarity_list and not 'positive' in polarity_list:
+                    if os.path.exists(neg_mzmine_file) and os.path.exists(neg_fbmn_file):
+                        try:
+                            recursive_chown(neg_directory, 'metatlas')
+                        except:
+                            logging.info(tab_print("Note: Could not change group ownership of %s."%(neg_directory), 1))
+                        neg_feature_counts = check_peak_height_table(neg_mzmine_file)
+                        if neg_feature_counts > min_features_admissible:
+                            neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
+                            # Get rid of the mzmine job id files
+                            neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
+                            if os.path.exists(neg_mzmine_job_id_filename):
+                                os.remove(neg_mzmine_job_id_filename)
+                            if add_documentation == True:
+                                logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
+                                doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
+                                if doc_present:
+                                    cmd = 'zip -rjq - %s %s >%s'%(neg_directory,os.path.join(download_folder,doc_name),output_zip_archive)
+                                else:
+                                    logging.warning(tab_print("Warning! Add documentation flag is True but GNPS2 user guide documentation not available. Not adding to zip...", 2))
+                                    cmd = 'zip -rjq - %s >%s'%(neg_directory,output_zip_archive)
+                            else:
+                                cmd = 'zip -rjq - %s >%s'%(neg_directory,output_zip_archive)
+                            os.system(cmd)
+                            logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,project_name), 1))
+                            try:
+                                recursive_chown(output_zip_archive, 'metatlas')
+                            except:
+                                logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
+                            zip_count += 1
+                            if upload == True and os.path.exists(output_zip_archive):
+                                upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
+                                if upload_success:
+                                    upload_count += 1
+                        else:
+                            logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
+                            continue
+        
+        if zip_count == 0:
+            logging.info(tab_print("No new untargeted projects to be zipped.", 1))
+        
+        logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
+
+
+def check_peak_height_table(peak_height_file):
+    """
+    Open the peak_height.csv file created by MZmine
+    and count the number of lines (minus the header)
+    """
+    cmd = 'cat %s | wc -l'%peak_height_file
+    result = subprocess.run(cmd,stdout=subprocess.PIPE, shell=True)
+    if result:
+        feature_counts = (int(result.stdout.strip())-1) # Subtract the header line
+        return feature_counts
+    else:
+        return 0
+
+def add_gnps2_documentation(download_folder: str, doc_name="Untargeted_metabolomics_GNPS2_Guide.docx"):
+    cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --update ben_lbl_gdrive:/untargeted_outputs/{doc_name} {download_folder}'
+    subprocess.check_output(cmd, shell=True)
+    check_download = f'ls -l {download_folder} | grep "{doc_name}"'
+    check_download_out = subprocess.check_output(check_download, shell=True)
+    if check_download_out.decode('utf-8').strip():
+        logging.info(tab_print("GNPS2 user guide documentation (%s) downloaded."%(doc_name), 2))
+        return True
+    else:
+        logging.warning(tab_print("Warning! GNPS2 user guide documentation not downloaded!", 2))
+        return False
+    
+def upload_to_google_drive(file_path: str, overwrite=False):
+    """
+    Upload a file (usually a zip) to the metabolomics untargeted outputs google
+    drive folder using rclone 
+    Check credentials in the rclone config file using /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone config file
+    or /global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone listremotes
+    """
+    project_folder = os.path.basename(file_path)
+    logging.info(tab_print("Uploading zip to Google Drive...", 2))
+    if overwrite == True: # Use --update flag in rclone to overwrite remote zip if it's older than the local zip
+        # Do the upload
+        upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --update {file_path} ben_lbl_gdrive:/untargeted_outputs'
+        try:
+            subprocess.check_output(upload_command, shell=True)
+        except:
+            logging.critical(tab_print("Warning! Google Drive upload failed on upload with overwrite=%s with exception on command %s"%(overwrite, upload_command), 3))
+            return False
+        # Check that upload worked
+        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+        try:
+            check_upload_out = subprocess.check_output(check_upload_command, shell=True)
+            if check_upload_out.decode('utf-8').strip():
+                logging.info(tab_print("Google Drive upload confirmed!", 3))
+                return True
+            else:
+                logging.warning(tab_print("Warning! Google Drive upload check failed. Upload may not have been successful.", 3))
+                return False
+        except:
+            logging.warning(tab_print("Warning! Google Drive upload failed on upload check with overwrite=%s with exception on %s"%(overwrite,check_upload_command), 3))
+            return False
+    if overwrite == False:
+        # Overwrite is False, so first check if the project folder already exists on Google Drive
+        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+        try:
+            check_upload_out = subprocess.check_output(check_upload_command, shell=True)
+            if check_upload_out.decode('utf-8').strip():
+                logging.info(tab_print("Note: Overwrite is False and Google Drive folder for %s already exists. Skipping upload..."%(project_folder), 2))
+                return False
+        except: # Nothing was returned from the check
+            upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --ignore-existing {file_path} ben_lbl_gdrive:/untargeted_outputs'
+            try:
+                subprocess.check_output(upload_command, shell=True)
+                try:
+                    check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+                    check_upload_out = subprocess.check_output(check_upload, shell=True)
+                    if check_upload_out.decode('utf-8').strip():
+                        logging.info(tab_print("Google Drive upload confirmed!", 3))
+                        return True
+                    else:
+                        logging.warning(tab_print("Warning! Google Drive upload check failed. Upload may not have been successful.", 3))
+                        return False
+                except:
+                    logging.warning(tab_print("Warning! Google Drive upload check failed with overwrite=%s with exception on %s"%(overwrite,check_upload_command), 3))
+                    return False
+            except:
+                logging.critical(tab_print("Warning! Google Drive upload command failed with overwrite=%s with exception on %s"%(overwrite,upload_command), 3))
+                return False
+
+def submit_quickstart_fbmn(params="",username=""):
+    """
+    Submit FBMN jobs by passing parameters
+    """
+    ##### Pick up secret file and extract password
+    with open('/global/homes/m/msdata/gnps2/gnps2_%s.txt'%username,'r') as fid:
+        t = fid.read()
+    t = t.split('\n')[0]
+    var, pword = t.split('=')
+    password = pword.replace('"', '').replace("'", '').strip()
+    if not password:
+        print("Password is required to submit FBMN jobs")
+        return
+
+    url = "https://gnps2.org/launchworkflow"
+
+    # First lets login with a session
+    session = requests.Session()
+    login_data = {"username": username, "password": password}
+    session.post("https://gnps2.org/login", data=login_data)
+
+    # Submitting the job
+    response = session.post(url, data=params)
+    return response.json()
+
+def get_untargeted_status(direct_input=None,print_recent=None):
+    """
+    This function is called by check_untargeted_status.py
+
+    Print the status of a user-defined list of projects
+    by calling this function with a csv list of project names
+    """
+    status_df_list = []
+    tab_print("Getting full table from LIMS...", 1)
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    if df.empty:
+        tab_print("Could not find untargeted tasks to report! Check that the input argument is a single comma-separated list", 1)
+        return
+    if not df.empty:
+        # Get all projects in gdrive
+        all_gdrive_projects_cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsl ben_lbl_gdrive:/untargeted_outputs'
+        try:
+            all_gdrive_projects = subprocess.check_output(all_gdrive_projects_cmd, shell=True)
+            all_gdrive_projects_list = all_gdrive_projects.decode('utf-8').strip().split('\n')
+            all_gdrive_projects_df = [row.split() for row in all_gdrive_projects_list]
+            all_gdrive_projects_df = pd.DataFrame(all_gdrive_projects_df)
+        except:
+            tab_print("Warning! Could not get list of projects from Google Drive. Skipping status report...", 1)
+            return
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            archive = project_name + ".zip"
+            if archive in all_gdrive_projects_df[3].values:
+                row['gdrive_status'] = '08 uploaded'
+                day = all_gdrive_projects_df[all_gdrive_projects_df[3] == archive][1].values[0]
+                time = all_gdrive_projects_df[all_gdrive_projects_df[3] == archive][2].values[0]
+                row['upload_date'] = f"{str(day)} {str(time)}"
+            else:
+                row['gdrive_status'] = '14 not uploaded'
+                row['upload_date'] = 'NA'
+
+            status_df_list.append(row[['Modified', 'parent_dir', 'mzmine_pos_status', 'mzmine_neg_status', 'fbmn_pos_status', 'fbmn_neg_status', 'gdrive_status','upload_date']])
+    
+    total_status_df = pd.DataFrame(status_df_list)
+    total_status_df = total_status_df.sort_values(by='Modified', ascending=True)
+
+    if isinstance(print_recent, int):
+        print(total_status_df.tail(print_recent).to_csv(sep='\t', index=False))
+    else:
+        print(total_status_df.to_csv(sep='\t', index=False))
+
+def recursive_chown(basepath, group_name):
+    """
+    Given a path (to a file or directory) this function will recursively (if directory)
+    change the group ownership to the specified group name
+    """
+    gid = grp.getgrnam(group_name).gr_gid
+    for root, dirs, files in os.walk(basepath):
+        for dir_name in dirs:
+            os.chown(os.path.join(root, dir_name), -1, gid)
+        for file_name in files:
+            os.chown(os.path.join(root, file_name), -1, gid)
+    os.chown(basepath, -1, gid)  # Also change the ownership of the base directory itself
+
+def download_from_url(url, target_path):
+    """
+    This function takes a URL and a target path (on disk) and downloads the contents
+    of the URL with requests.get() and writes the contents to the target path
+    """
+    response = requests.get(url, stream=True)
+    if response.status_code == 200:
+        with open(target_path, 'wb') as f:
+            f.write(response.raw.read())
+        return True
+    else:
+        return False
+
+def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',overwrite_fbmn=False,direct_input=None,skip_fbmn_download=False):
+    """
+    This function is called by download_fbmn_results.py
+
+    finds complete fbmn tasks (which also have complete mzmine status)
+    downloads the graphml and results table files
+    renames and moves results to the untargeted_tasks folder
+
+    Overwrite is False (default) when existing GNPS2 files in the untargeted_tasks folder will not be replaced
+
+    Direct_input is None (default) when files from GNPS2 for all available projects will be downloaded. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_fbmn_download:
+        logging.info('Skipping Step 6/7: Checking for completed FBMN jobs and downloading results...')
+        return
+    logging.info('Step 6/7: Checking for completed FBMN jobs and downloading results...')
+    tasktype='fbmn'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    status_list = ['07 complete','09 error']
+    if direct_input is None:
+        df = subset_df_by_status(df,tasktype,status_list)
+        df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before downloading fbmn
+    if df.empty:
+        logging.info(tab_print("No completed FBMN data to download!", 1))
+    if not df.empty:
+        count = 0
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            polarity_list = check_for_polarities(output_dir,project_name)
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    continue
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.warning(tab_print("Warning! FBMN task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
+                    continue
+                pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
+                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
+                if os.path.isfile(fbmn_filename)==True:
+                    with open(fbmn_filename,'r') as fid:
+                        taskid = fid.read().split('=')[1].strip()
+                    graphml_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-network.graphml'%(project_name,polarity))
+                    results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(project_name,polarity))
+                    gnps2_link_filename = os.path.join(pathname,'%s_%s_gnps2-page-link.txt'%(project_name,polarity))
+                    if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename) and os.path.exists(gnps2_link_filename):
+                        continue
+                    logging.info(tab_print("Downloading %s mode FBMN results for %s with task ID %s"%(polarity,project_name,taskid), 1))
+                    if overwrite_fbmn == True or not os.path.exists(gnps2_link_filename):
+                        with open(gnps2_link_filename,'w') as fid:
+                            fid.write(f"https://gnps2.org/status?task={taskid}\n")
+                            logging.info(tab_print("Wrote GNPS2 link", 2))
+                    if overwrite_fbmn == True or not os.path.exists(graphml_filename):
+                        graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
+                        if graphml_download:
+                            logging.info(tab_print("Downloaded graphml file", 2))
+                            count += 1
+                        else:
+                            logging.critical(tab_print("Error: Failed to download graphml file", 2))
+                    if overwrite_fbmn == True or not os.path.exists(results_table_filename):
+                        results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
+                        if results_table_download:
+                            logging.info(tab_print("Downloaded result table file", 2))
+                            count += 1
+                        else:
+                            logging.critical(tab_print("Error: Failed to download results table", 2))
+                    try:
+                        recursive_chown(pathname, 'metatlas')
+                    except:
+                        logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 3))
+        if count > 0:
+            logging.info(tab_print("All new FBMN results downloaded.", 1))
+        else:
+            logging.info(tab_print("No new FBMN results to download!", 1))
+
+def get_recent_mgf_files(output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', time_back=30):
+    """
+    This finds all recent mgf files in all folders in output_dir
+    and passes them to the remove_contaimant_from_mgf function
+    """
+    # Get the current time
+    now = time.time()
+    # Calculate the time time_back days ago
+    time_30_days_ago = now - time_back*24*60*60
+    # Convert the time to the format used by the find command
+    time_30_days_ago = time.strftime('%Y%m%d', time.gmtime(time_30_days_ago))
+    # Run the find command with date modified
+    command = f"find {output_dir} -name '*.mgf' -type f -newermt {time_30_days_ago}"
+    recent_files = subprocess.check_output(command, shell=True).decode().split('\n')
+    return recent_files
+
+def remove_contaminant_from_mgf(f):
+    """
+    This accepts a file path to an mgf file and removes the contaminant
+    peak(s) from the file
+    """
+    if 'negative' in f:
+        target = 202.07880
+        diff = target * 5 / 1e6
+    elif 'positive' in f:
+        target = 202.07770
+        diff = target * 5 / 1e6
+    else:
+        logging.critical(tab_print("Error: Could not determine polarity of file %s"%(f), 1))
+        return
+    
+    # Open the file for reading
+    with open(f, 'r') as file:
+        # Read all lines from the file
+        lines = file.readlines()
+
+    # Filter the lines that contain a number within the range
+    filtered_lines = [line for line in lines if not any(abs(float(num)-target)<diff for num in line.split() if num.replace('.', '', 1).isdigit())]
+    
+    if len(filtered_lines)<len(lines):
+        removed_lines = len(lines)-len(filtered_lines)
+        file_path = os.path.basename(f)
+        logging.info(tab_print("Deleting %s lines from %s"%(removed_lines,file_path), 1))
+        # Open the file for writing
+        with open(f, 'w') as file:
+            # Write the lines back
+            file.writelines(filtered_lines)
+
+def remove_mgf_contaminants(output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', time_back=30):
+    """
+    This script is called in run_fbmn.py before submitting to GNPS2
+
+    This wrapper script will call the two relevant functions
+    """
+    recent_files = get_recent_mgf_files(output_dir=output_dir,time_back=time_back)
+    for f in recent_files:
+        if f:
+            remove_contaminant_from_mgf(f)
 
 def get_table_from_lims(table,columns=None,max_rows=1e6):
+    """
+    Downloads table from LIMS and returns a pandas dataframe.
+    Table should be the name of a valid "list" in LIMS
+    """
     if columns is None:
         sql = """SELECT * FROM %s;"""%table
     else:
@@ -302,7 +659,7 @@ def get_table_from_lims(table,columns=None,max_rows=1e6):
     schema = 'lists'
     sql_result = api.query.execute_sql(schema, sql,max_rows=max_rows,timeout=10000)
     if sql_result is None:
-        print(('execute_sql: Failed to load results from ' + schema + '.' + table))
+        print(('Execute_sql: Failed to load results from ' + schema + '.' + table))
         return None
     else:
         df = pd.DataFrame(sql_result['rows'])
@@ -315,19 +672,13 @@ def update_table_in_lims(df,table,method='update',max_size=1000,pause_time=None)
     Note: Do ~1000 rows at a time.  Any more and you get a 504 error.  Maybe increasing the timeout would help.
     In the header, timeout is a variable that gets set.  Check to see what its set to.  Maybe increasing it would let
     more rows be updated at a time
-
+    
     method can be 'update','insert',or 'delete'
 
     Use it like this:
     update_table_in_lims(df_lims,'mzml_files')
     whatever is in 'name' or 'Key' will replace whatever used to be there with the other columns
     """
-#     if columns is None:
-#         cols = df.columns
-#     else:
-#         cols = pd.unique([index_column] + columns)
-    # One of the cols needs to be the index column (almost always: Key or Name)
-    import time
     N = math.ceil(float(df.shape[0]) / max_size)
     for sub_df in np.array_split(df, N):
         payload = sub_df.to_dict('records')
@@ -338,213 +689,9 @@ def update_table_in_lims(df,table,method='update',max_size=1000,pause_time=None)
         elif method=='delete':
             api.query.delete_rows('lists', table, payload,timeout=10000)
         else:
-            print(('ERROR: Nothing to do.  Method %s is not programmed'%method))
-        print('updated %d rows in %s'%(df.shape[0],table))
+            logging.critical(tab_print('ERROR: Nothing to do.  Method %s is not programmed'%(method), 2))
         if pause_time is not None:
-            time.sleep(pause_time)    # Pause this many seconds
-            print('pausing for %d seconds'%pause_time)
-
-def get_union_of_all_lcms_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']):
-    # sort out the lcmsrun table
-    sql = ['select name from %s'%t for t in tables]
-    sql = ' union '.join(sql)
-
-#     con = lk.utils.create_server_context(labkey_server, project_name, use_ssl=True,)
-    # base execute_sql
-    schema = 'lists'
-    sql_result = api.query.execute_sql(schema, sql,max_rows=1e6)
-    if sql_result is None:
-        print(('execute_sql: Failed to load results from ' + schema + '.' + table))
-    else:
-        return [r['name'] for r in sql_result['rows']]
-
-
-def update_lcmsrun_names(tables=['mzml_file','hdf5_file','pactolus_file','raw_file','spectralhits_file']):
-    #get all the names in the various raw data tables
-    names = get_union_of_all_lcms_names(tables)
-    #get all the names in lcmsrun (rawdata relationship) table
-    lcmsruns = get_table_from_lims('lcmsrun',columns=['name'])
-    lcmsruns = lcmsruns['name'].tolist()
-
-    # this is likeley a recently uploaded file that was just created
-    missing_from_lcmsruns = list(set(names) - set(lcmsruns))
-
-    #hopefully there aren't any of these, but always good to check
-    extra_in_lcmsruns = list(set(lcmsruns) - set(names))
-
-    #add missing ones
-    if len(missing_from_lcmsruns)>0:
-        temp = pd.DataFrame()
-        temp['name'] = missing_from_lcmsruns
-        update_table_in_lims(temp,'lcmsrun',method='insert')
-
-    #remove extra ones
-    if len(extra_in_lcmsruns)>0:
-        sql = """SELECT Key FROM lcmsrun where name IN (%s);"""%','.join(['\'%s\''%e for e in extra_in_lcmsruns])
-        # print(sql)
-        schema = 'lists'
-        sql_result = api.query.execute_sql(schema, sql,max_rows=1e6)
-        if sql_result is None:
-            print(('execute_sql: Failed to load results from ' + schema + '.' + table))
-        #     return None
-        else:
-            temp = pd.DataFrame(sql_result['rows'])
-            temp = temp[[c for c in temp.columns if not c.startswith('_')]]
-        #     return df
-
-        if temp.shape[0]>0:
-            update_table_in_lims(temp,'lcmsrun',method='delete')
-
-    return missing_from_lcmsruns,extra_in_lcmsruns
-
-def update_lcmsrun_matrix(file_type):
-    lcmsruns = get_table_from_lims('lcmsrun',columns=['Key','name',file_type])
-    lcmsruns.fillna(-1,inplace=True) #replace None indices so absolute value below has something to work on
-    lcmsruns.rename(columns={file_type:'%s_existing'%file_type},inplace=True)
-    data = get_table_from_lims(file_type,columns=['Key','name'])
-
-    df = pd.merge(lcmsruns,data,on='name',how='inner')
-    df.rename(columns={'Key_x':'Key','Key_y':file_type},inplace=True)
-    df = df[abs(df['%s_existing'%file_type]-df[file_type])>0]
-    df.drop(columns=['name','%s_existing'%file_type],inplace=True)
-    print((df.shape))
-
-    if df.shape[0]>0:
-        update_table_in_lims(df,'lcmsrun',method='update')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
-    print('done updating')
-
-def get_lcmsrun_matrix():#labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
-    sql = 'select '
-    for f in ['mzml','hdf5','raw','spectralhits','pactolus']:
-        sql = '%s %s_file.filename as %s_filename,'%(sql,f,f)
-    sql = '%s from lcmsrun'%sql
-
-    # base execute_sql
-    schema = 'lists'
-    sql_result = api.query.execute_sql(schema, sql,max_rows=1e8)
-    if sql_result is None:
-        print(('execute_sql: Failed to load results from ' + schema + '.' + table))
-        return None
-    else:
-        lcmsruns = pd.DataFrame(sql_result['rows'])
-        return lcmsruns
-
-
-
-def update_file_conversion_tasks(task,lcmsruns=None,file_conversion_tasks=None):#,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
-    """
-    gets current tasks and current files and determines if new tasks need to be made:
-
-    task will be:['mzml_to_hdf5','raw_to_mzml','mzml_to_spectralhits','mzml_to_pactolus']
-
-    """
-    input_type = task.split('_')[0]
-    output_type = task.split('_')[-1]
-
-    if file_conversion_tasks is None:
-        file_conversion_tasks = get_table_from_lims('file_conversion_task',columns=['Key','input_file','output_file','task','status'])
-    # task_idx = file_conversion_tasks['task']==task
-
-    if lcmsruns is None:
-        lcmsruns = get_lcmsrun_matrix()
-
-    done_input_files = lcmsruns.loc[pd.notna(lcmsruns['%s_filename'%input_type]),'%s_filename'%input_type]
-    done_output_files = lcmsruns.loc[pd.notna(lcmsruns['%s_filename'%output_type]),'%s_filename'%output_type]
-
-    task_idx = file_conversion_tasks['task']==task
-    inputfile_idx = file_conversion_tasks['input_file'].isin(done_input_files)
-    outputfile_idx = file_conversion_tasks['output_file'].isin(done_output_files)
-
-    # This finds where output file exists
-    done_tasks_idx = (task_idx) & (outputfile_idx)
-    if sum(done_tasks_idx)>0:
-        update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')#,labkey_server=labkey_server,project_name=project_name)
-        print(('%s: There are %d tasks where output file exist and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
-
-
-    # This finds where input file is missing
-    done_tasks_idx = (task_idx) & (~inputfile_idx)
-    if sum(done_tasks_idx)>0:
-        update_table_in_lims(file_conversion_tasks.loc[done_tasks_idx,['Key']],'file_conversion_task',method='delete')#,labkey_server=labkey_server,project_name=project_name)
-        print(('%s: There are %d tasks where input file is missing and will be removed'%(task,file_conversion_tasks[done_tasks_idx].shape[0])))
-
-    right_now_str = datetime.now().strftime("%Y%m%d %H:%M:%S")
-
-    idx = (pd.notna(lcmsruns['%s_filename'%input_type])) & (pd.isna(lcmsruns['%s_filename'%output_type]))
-
-    temp = pd.DataFrame()
-
-    temp['input_file'] = lcmsruns.loc[idx,'%s_filename'%input_type]
-    temp['output_file'] = temp['input_file'].apply(lambda x: re.sub('\%s$'%EXTENSIONS[input_type],'%s'%EXTENSIONS[output_type],x))
-    temp['task'] = task
-    temp['status'] = STATUS['initiation']
-    temp['log'] = 'detected: %s'%right_now_str
-    temp.reset_index(drop=True,inplace=True)
-    cols = temp.columns
-
-    temp = pd.merge(temp,file_conversion_tasks.add_suffix('_task'),left_on=['input_file','output_file'],right_on=['input_file_task','output_file_task'],how='outer',indicator=True)
-    new_tasks = temp[temp['_merge']=='left_only'].copy()
-    new_tasks = new_tasks[cols]
-    new_tasks.reset_index(drop=True,inplace=True)
-
-    print(("There are %d new tasks"%new_tasks.shape[0]))
-
-    if new_tasks.shape[0]>0:
-        update_table_in_lims(new_tasks,'file_conversion_task',method='insert')
-
-def update_file_table(file_table):
-    file_type = file_table.split('_')[0]
-    v = GETTER_SPEC[file_type]
-    print(('Getting %s files from disk'%(file_type)))
-    dates,files = get_files_from_disk(PROJECT_DIRECTORY,v['extension'])
-    if len(files)>0:
-        df = pd.DataFrame(data={'filename':files,'file_type':file_type,'timeepoch':dates})
-        df['basename'] = df['filename'].apply(os.path.basename)
-        df['name'] = df['filename'].apply(complex_name_splitter) #make a name for grouping associated content
-    else:
-        df = pd.DataFrame()
-        df['filename'] = 'None'
-        df['file_type'] = file_type
-        df['timeepoch'] = 0
-        df['basename'] = 'None'
-        df['name'] = 'None'
-
-    print(('\tThere were %d files on disk'%len(files)))
-
-    cols = ['filename','name','Key']
-    df_lims = get_table_from_lims(v['lims_table'],columns=cols)
-    print(('\tThere were %d files from LIMS table %s'%(df_lims.shape[0],v['lims_table'])))
-
-
-    diff_df = pd.merge(df, df_lims,on=['filename','name'], how='outer', indicator='Exist')
-    diff_df = diff_df.loc[diff_df['Exist'] != 'both'] #(left_only, right_only, or both)
-    print(('\tThere are %d different'%diff_df.shape[0]))
-    print('')
-#         diff_df.fillna('',inplace=True)
-    diff_df['parameters'] = 1
-
-    cols = ['file_type','filename','timeepoch','basename','name']
-    temp = diff_df.loc[diff_df['Exist']=='left_only',cols]
-    if temp.shape[0]>0:
-        update_table_in_lims(temp,file_table,method='insert')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
-
-    cols = ['Key','filename']
-    temp = diff_df.loc[diff_df['Exist']=='right_only',cols]
-    temp['Key'] = temp['Key'].astype(int)
-    if temp.shape[0]>0:
-        update_table_in_lims(temp,file_table,method='delete')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
-#         df.to_csv('/global/homes/b/bpb/Downloads/%s_files.tab'%k,index=None,sep='\t')
-
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
-
+            time.sleep(pause_time)
 
 def build_untargeted_filename(output_dir,parent_dir,polarity,file_type):
     """
@@ -564,7 +711,8 @@ def build_untargeted_filename(output_dir,parent_dir,polarity,file_type):
                 'metadata':'_metadata.tab',
                 'fbmn-errlog':'fbmn.err',
                 'fbmn-outlog':'fbmn.out',
-                'gnps-download':'_gnps-download.zip'}
+                'gnps-download':'_gnps-download.zip',
+                ''msms-mzmine3':'.mgf'}
     """
     file_spec = {'peak-area-mzmine':'peak-area.csv',
                 'mzmine-runner':'_mzmine.sh',
@@ -585,2187 +733,938 @@ def build_untargeted_filename(output_dir,parent_dir,polarity,file_type):
                 'gnps-download':'_gnps-download.zip',
                 'blink-hits':'_blinkhits.csv.gz',
                 'blink-network-hits':'_blinknetworkhits.csv.gz',
-                'simile-hits':'_similehits.csv.gz'}
+                'simile-hits':'_similehits.csv.gz',
+                'msms-mzmine3':'.mgf'}
     pathname = os.path.join(output_dir,'%s_%s'%(parent_dir,polarity))
     filename = '%s_%s%s'%(parent_dir,polarity,file_spec[file_type])
     filename = os.path.join(pathname,filename)
     return filename
 
-def check_gnps_status(taskid):
-    url = 'https://gnps.ucsd.edu/ProteoSAFe/status_json.jsp?task=%s'%taskid
+def check_gnps2_status(taskid):
+    """
+    This function takes a alphanumeric task ID from a GNPS2 run
+    and returns the status and version of the run from a static
+    HTML page (accessible to anyone)
+    """
+    url = 'https://gnps2.org/status?task=%s'%taskid
     d = requests.get(url)
     try:
-        d = json.loads(d.text)
-        if 'status' in d:
-            return d['status'], float(d['workflow_version'].split('_')[-1])
+        soup = BeautifulSoup(d.content, 'html.parser')
+        version = soup.find("td", text="Version").find_next_sibling("td").text
+        status = soup.find("td", text="Status").find_next_sibling("td").text
+        if status and version:
+            return status, version
         else:
-            return 'N/A',0.0
+            return 'N/A','N/A'
     except:
-        return 'N/A',0.0
+        return 'N/A','N/A'
 
-def download_gnps_graphml(taskid,outfile):
-    url = "https://gnps.ucsd.edu/ProteoSAFe/DownloadResultFile?task=%s&block=main&file=gnps_molecular_network_graphml/" % (taskid)
-    positive_graphml = "%s.graphml"%taskid
-    d = requests.get(url)
-    with open(outfile, "w") as fid:
-        fid.write(d.text)
+def check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
+    
+    ##### Pick up secret file and extract password
+    with open('/global/homes/m/msdata/gnps2/gnps2_%s.txt'%username,'r') as fid:
+        t = fid.read()
+    t = t.split('\n')[0]
+    var, pword = t.split('=')
+    password = pword.replace('"', '').replace("'", '').strip()
+    if not password:
+        print("Password is required to submit FBMN jobs")
+        return
 
-def submit_mzmine_jobs(polarity='positive',polarity_short='pos'):
-    """
-    finds initiated mzmine tasks
-    submit them
-    changes to running
-    """
-    tasktype='mzmine'
-    df = get_table_from_lims('untargeted_tasks')
-    update_df = []
-    for i,row in df[df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation'].iterrows():
-        pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
-        runner_filename = os.path.join(pathname,'%s_%s_mzmine.sh'%(row['parent_dir'],polarity))
-        if os.path.isfile(runner_filename)==True:
-            with open(runner_filename,'r') as fid:
-                task = call(fid.read(),shell=True)
-                print(task)
-            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
-            update_df.append(i)
-    if len(update_df)>0:
-        cols = ['Key',
-                '%s_%s_status'%(tasktype,polarity_short)]
-        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
+    remote_directory="/untargeted_tasks"
+    remote_host="ftp.gnps2.org"
+    remote_port=6541
+    data_dir = project + "_" + polarity
 
-def update_mzmine_status_in_untargeted_tasks(polarity='positive',polarity_short='pos'):
-    """
-    finds running mzmine tasks
-    checks if they have output
-    changes to complete if yes
-    sets fbmn to initiation
-    """
-    tasktype='mzmine'
-    df = get_table_from_lims('untargeted_tasks')
-    update_df = []
-    c1 = df['%s_%s_status'%(tasktype,polarity_short)]=='04 running'
-    c2 = df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation'
-    for i,row in df[(c1) | (c2)].iterrows():
-        pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
-        peakheight_filename = os.path.join(pathname,'%s_%s_peak-height.csv'%(row['parent_dir'],polarity))
-        if os.path.isfile(peakheight_filename)==True:
-            #the job was a success
-            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
-            df.loc[i,'%s_%s_status'%('fbmn',polarity_short)] = '01 initiation'
-            update_df.append(i)
-    if len(update_df)>0:
-        cols = ['Key',
-                '%s_%s_status'%(tasktype,polarity_short),
-               '%s_%s_status'%('fbmn',polarity_short)]
-        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
+    ftp = ftplib.FTP()
+    ftp.connect(host=remote_host,port=remote_port,timeout=120)
+    ftp.login(user=username,passwd=password)
+    ftp.cwd(remote_directory)
 
-def update_fbmn_status_in_untargeted_tasks(polarity='positive',polarity_short='pos',latest_version=28.2):
-    """
-    finds running fbmn tasks
-    checks if they have uuid
-    checks their status
-    changes to complete if yes
-    sets spectral hits to initiation
-    """
-    tasktype='fbmn'
-    df = get_table_from_lims('untargeted_tasks')
-    update_df = []
-    c1 = df['%s_%s_status'%(tasktype,polarity_short)]=='04 running'
-    c2 = df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation'
-    c3 = df['%s_%s_status'%(tasktype,polarity_short)]=='08 hold'
-    for i,row in df[(c1) | (c2) | (c3)].iterrows():
-        pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
-        fbmn_filename = os.path.join(pathname,'%s_%s_gnps-uuid.txt'%(row['parent_dir'],polarity))
-        graphml_filename = os.path.join(pathname,'%s_%s_gnps-fbmn-network.graphml'%(row['parent_dir'],polarity))
-        if os.path.isfile(fbmn_filename)==True:
-            #the job was submitted
-            with open(fbmn_filename,'r') as fid:
-                my_text = fid.read().strip()
-            taskid = my_text.split('=')[-1]
-            status,version = check_gnps_status(taskid)
-            print('%s %.2f for %s'%(status,version,fbmn_filename))
-            if version<latest_version:
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '01 initiation'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '01 initiation'
-                download_gnps_graphml(taskid,graphml_filename)
-                update_df.append(i)
-            elif status=='DONE':
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '01 initiation'
-                download_gnps_graphml(taskid,graphml_filename)
-                update_df.append(i)
-            elif status=='FAILED':
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '08 hold'
-                update_df.append(i)
-            elif status=='RUNNING':
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '08 hold'
-                update_df.append(i)
-            else:
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '01 initiation'
-#                 df.loc[i,'%s_%s_status'%('gnps_msms_hits',polarity_short)] = '08 hold'
-                update_df.append(i)
-#         else:
-#             print('%s is not a file'%fbmn_filename)
-    if len(update_df)>0:
-        cols = ['Key',
-                '%s_%s_status'%(tasktype,polarity_short)] # ,               '%s_%s_status'%('gnps_msms_hits',polarity_short)
-        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
+    remote_directories = ftp.nlst()
 
-def write_new_mzmine_params(gsheet_params,my_polarity,files,basepath,parent_dir):
-    """
-    takes the generic mzmine parameters
-    changes it to the correct polarity
-    adds in the files
-    saves the xml file
-    """
-    params = deepcopy(gsheet_params)
-
-            #     new_basename = os.path.join(m['basedir'],'output')
-            #replace the polarity in the crop filter module
-    for k,v in params.items():
-        if 'polarity' in k:
-            params[k] = my_polarity.upper()
-
-    # #rename all the output files
-    for k,v in params.items():
-        try:
-            if 'placeholder_filename' in v:
-                if 'gnps-job' in v:
-                    params[k] = v.replace('placeholder_filename',parent_dir)
-                else:
-                    params[k] = v.replace('placeholder_filename',os.path.join(basepath,parent_dir))
-        except TypeError:
-            pass
-
-    # #This is a good place to make the values strings.  The xml maker needs strings later on so might as well do it here
-    str_d = {}
-    for k,v in params.items():
-        str_d[k] = str(v)
-
-    # # #unflatten it
-    param_dict_unflat = unflatten(str_d)
-    files_filename = '%s_filelist.txt'%os.path.join(basepath,parent_dir)
-    file_list = [f for f in files.tolist() if f is not None]
-    if len(file_list)>0:
-        with open(files_filename,'w') as fid:
-            fid.write('%s'%'\n'.join(file_list))
-
-
-    new_raw_data = {'@method': 'net.sf.mzmine.modules.rawdatamethods.rawdataimport.RawDataImportModule',
-                    'parameter': {'@name': 'Raw data file names',
-                                  'file': file_list}}
-    # new_raw_data['parameter']['file'] = mzmine_things[i]['file_list']
-    param_dict_unflat['batch']['batchstep'].insert(0,new_raw_data)# str_d.keys()
-
-    xml_string = xmltodict.unparse(param_dict_unflat)
-
-    batch_filename = '%s_batch-params.xml'%os.path.join(basepath,parent_dir)
-    with open(batch_filename,'w') as fid:
-        fid.write('%s'%xml_string)
-    return batch_filename
-
-
-def submit_fbmn_jobs(polarity='positive',polarity_short='pos',N=15):
-    """
-    finds initiated mzmine tasks
-    submit them
-    changes to running
-    """
-    tasktype='fbmn'
-    df = get_table_from_lims('untargeted_tasks')
-#     df = df[(df['parent_dir'].str.contains('202'))] #  & (df['parent_dir'].str.contains('AK'))
-    update_df = []
-    count = 0
-    for i,row in df[df['%s_%s_status'%(tasktype,polarity_short)]=='01 initiation'].iterrows():
-        pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
-        runner_filename = os.path.join(pathname,'%s_%s_fbmn.sh'%(row['parent_dir'],polarity))
-        if os.path.isfile(runner_filename)==True:
-            mgf_filename = build_untargeted_filename(row['output_dir'],row['parent_dir'],polarity,'msms-mzmine')
-            if os.stat(mgf_filename).st_size > 0:
-                with open(runner_filename,'r') as fid:
-                    task = call(fid.read(),shell=True)
-                    time.sleep(5)
-                    count += 1
-                    print(task)
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
-            else:
-                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
-                print(row['parent_dir'],polarity,'not relevant for fbmn')
-            update_df.append(i)
-        if count==N:
-            break
-    if len(update_df)>0:
-        cols = ['Key',
-                '%s_%s_status'%(tasktype,polarity_short)]
-        update_table_in_lims(df.loc[df.index.isin(update_df),cols],'untargeted_tasks',method='update')
-
-def get_mzmine_param_dict(gdrive_file='params20190719_v2p39_IsotopeFilter_ADAP_DeDup',param_id=2):
-    gsheet_params = get_google_sheet(notebook_name=gdrive_file,sheet_name='Sheet1')
-
-    new_cols = []
-    for c in gsheet_params.columns:
-        if c.startswith('('):
-            new_cols.append(literal_eval(c))
+    if data_dir in remote_directories:
+        ftp.cwd(data_dir)
+        files = ftp.nlst()
+        required_files = [f"{project}_{polarity}_peak-height.csv",
+                          f"{project}_{polarity}_metadata.tab",
+                          f"{project}_{polarity}.mgf"]
+        all_files_exist = all(file in files for file in required_files)
+        if all_files_exist:
+            return True
         else:
-            new_cols.append(c)
-    gsheet_params.columns=new_cols
+            return False
+    else:
+        return False
 
-    gsheet_params = gsheet_params[gsheet_params['param_id']==param_id]
-    gsheet_params = gsheet_params.to_dict(orient='records')[-1]
-    gsheet_params.pop('param_id',None)
+def sync_mzmine_results_to_gnps2():
+    sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_mzmine_results_to_gnps2.sh'
+    if os.path.exists(sync_cmd):
+        logging.info(tab_print("Syncing MZmine results (.tab, .csv, .mgf) at NERSC with GNPS2 before submitting FBMN job...", 1))
+        try:
+            result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
+            stdout = result.stdout.splitlines()
+            if stdout:
+                for line in stdout:
+                    logging.info(tab_print(line, 2))
+            stderr = result.stderr.splitlines()
+            if stderr:
+                for line in stderr:
+                    if "Permission denied" not in line: # Niyogi project has permission denied error
+                        logging.critical(tab_print("Sync script returned errors:", 2))
+                        logging.critical(tab_print(line, 3))
+                        return False
+            logging.info(tab_print("All MZmine results files at NERSC synced with GNPS2.", 2))
+            return True
+        except:
+            logging.critical(tab_print("Warning! Sync command failed.", 2))
+            return False
+    else:
+        logging.critical(tab_print("Warning! Could not find the sync script.", 2))
+        return False
 
-    gsheet_params = collections.OrderedDict(gsheet_params)
-    return gsheet_params
+def sync_raw_data_to_gnps2():
+    sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_raw_data_to_gnps2.sh'
+    if os.path.exists(sync_cmd):
+        logging.info(tab_print("Syncing raw data (.mzML) at NERSC with GNPS2 before submitting FBMN job...", 1))
+        try:
+            result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
+            stdout = result.stdout.splitlines()
+            if stdout:
+                for line in stdout:
+                    logging.info(tab_print(line, 2))
+            stderr = result.stderr.splitlines()
+            if stderr:
+                for line in stderr:
+                    if "Permission denied" not in line: # Niyogi project has permission denied error
+                        logging.critical(tab_print("Sync script returned errors:", 2))
+                        logging.critical(tab_print(line, 3))
+                        return False
+            logging.info(tab_print("All raw data files at NERSC synced with GNPS2.", 2))
+            return True
+        except:
+            logging.critical(tab_print("Warning! Sync command failed.", 2))
+            return False
+    else:
+        logging.critical(tab_print("Warning! Could not find the sync script.", 2))
+        return False
 
-gsheet_params = get_mzmine_param_dict()
-gsheet_params_idx = get_mzmine_param_dict(param_id=5)
+def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',skip_fbmn_submit=False):
+    """
+    This function is called by run_fbmn.py
 
-def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,num_files):
-    mzmine_launcher = get_latest_mzmine_binary(version='MZmine-2.39')
+    finds waiting or errored fbmn tasks (which also have complete mzmine status)
+    submits the tasks to GNPS2
+    updates the LIMS table with status running if successful
+
+    Direct_input is None (default) when all waiting or errorer tasks will be considered for submission. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_fbmn_submit:
+        logging.info('Skipping Step 5/7: Submitting new FBMN jobs to GNPS2...')
+        return
+    logging.info('Step 5/7: Submitting new FBMN jobs to GNPS2...')
+    tasktype = 'fbmn'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    status_list = ['13 waiting','09 error']
+    if direct_input is None:
+        df = subset_df_by_status(df,tasktype,status_list)
+        df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before submitting fbmn
+        df = subset_df_by_status(df,'mzmine',['09 error'], inverse=True) # Do not submit if mzmine has any error statuses
+    if df.empty:
+        logging.info(tab_print("No new FBMN jobs to submit!", 1))
+        return
+    if df.shape[0] > 20:
+        logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
+        return
+    if not df.empty:
+        logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2"%(df.shape[0],status_list), 1))
+        index_list = []
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            logging.info(tab_print("Working on project %s:"%(project_name), 1))
+            polarity_list = check_for_polarities(row['output_dir'],project_name)
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                pathname = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity))
+                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
+                
+                # Bail out conditions
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    continue
+                if row['%s_%s_status'%('mzmine',polarity_short)] != '07 complete':
+                    continue
+                if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==False:
+                    continue
+
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.warning(tab_print("Warning! %s in %s mode has an error status. Attempting to resubmit..."%(project_name,polarity), 2))
+                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
+
+                _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
+                department = validate_department.lower()
+                if department =='eb':
+                    department = 'egsb'
+                if not department in ['jgi','egsb']:
+                    logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Skipping..."%(project_name), 2))
+                    continue
+                
+                # Check that mzmine files are at GNPS2. If they're not, try to sync them
+                logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
+                files_all_exist = check_for_mzmine_files_at_gnps2(project_name,polarity,username="bpbowen")
+                if files_all_exist is False:
+                    logging.info(tab_print("Note: MZmine results were not at GNPS2. Attempting to sync now...", 2))
+                    mzmine_synced = sync_mzmine_results_to_gnps2()
+                    if mzmine_synced is True:
+                        logging.info(tab_print("MZmine results synced with GNPS2. Rechecking project files.", 3))
+                        files_all_exist = check_for_mzmine_files_at_gnps2(project_name,polarity,username="bpbowen")
+                        if files_all_exist is False:
+                            logging.critical(tab_print("Warning! Could not sync mzmine results with GNPS2. Not submitting any new FBMN jobs.", 3))
+                            return
+                    else:
+                        logging.critical(tab_print("Warning! Could not sync mzmine results and raw data with GNPS2. Not submitting any new FBMN jobs.", 2))
+                        return
+
+                description = '%s_%s'%(project_name,polarity)
+                spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
+                quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_quant.csv'
+                metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_metadata.tab'
+                raw_data = f'USERUPLOAD/bpbowen/raw_data/{department}/{project_name}'
+                mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
+                mgf_lines = count_mgf_lines(mgf_filename)
+                if mgf_lines == 0:
+                    logging.warning(tab_print("Warning! %s in %s mode has mgf file but no mgf data. Skipping..."%(project_name, polarity), 2))
+                    continue
+                if not os.path.exists(raw_data.replace('USERUPLOAD/bpbowen/','/global/cfs/cdirs/metatlas/')):
+                    logging.warning(tab_print("Warning! %s does not have raw data. Skipping..."%(project_name), 2))
+                    continue
+                params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
+                job_id = submit_quickstart_fbmn(params, "bpbowen")
+                task_list = {'experiment':project_name,'polarity':polarity,'response':job_id}
+                logging.info(tab_print("Submitted FBMN job for %s mode and set LIMS status to ['04 running']."%(polarity), 2))
+                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
+                write_fbmn_tasks_to_file(task_list,output_dir)
+                index_list.append(i)
+
+        if len(index_list) > 0:
+            index_list = list(set(index_list))
+            cols = ['Key',
+                    '%s_neg_status'%(tasktype),
+                    '%s_pos_status'%(tasktype)]
+            df = df.loc[df.index.isin(index_list),cols]
+            df.replace('NaN', 0, inplace=True)
+            df.fillna(0, inplace=True)
+            update_table_in_lims(df,'untargeted_tasks',method='update')
+            logging.info(tab_print("FBMN submission(s) complete. Use GNPS2 *gnps2-page-link.txt to monitor progress.", 1))
+
+def count_mgf_lines(mgf_file):
+    """
+    Before submitting a job to GNPS2, check if the mgf file from mzmine has any data
+    by providing its path on disk
+    """
+    if os.path.isfile(mgf_file):
+        cmd = 'cat %s | grep END | grep IONS | wc -l'%mgf_file
+        result = subprocess.run(cmd,stdout=subprocess.PIPE, shell=True)
+        if result:
+            msms_count = int(result.stdout.strip())
+            return msms_count
+        else:
+            return 0
+    else:
+        return 0
+
+def submit_mzmine_jobs(new_projects=None,direct_input=None,skip_mzmine_submit=False,overwrite_mzmine=False):
+    """
+    This function is called by run_mzmine.py
+
+    finds initiated mzmine tasks
+    submits the tasks as mzmine jobs on perlmutter
+    updates the LIMS table with status running if successful
+
+    Direct_input is None (default) when all initated tasks will be considered for submission. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_mzmine_submit:
+        logging.info('Skipping Step 3/7: Submitting new MZmine jobs...')
+        return
+    logging.info('Step 3/7: Submitting new MZmine jobs...')
+    tasktype = 'mzmine'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    else:
+        if new_projects is not None and not new_projects.empty: # this means step 1 returned a dataframe of new projects to run
+            df = df[df['parent_dir'].isin(new_projects['parent_dir'])]
+        else:
+            logging.info(tab_print("No new MZmine jobs initialized! Use the --direct_input flag to bypass submitting initialized-only projects.", 1))
+            return
+    status_list = ['01 initiation','09 error']
+    if direct_input is None:
+        df = subset_df_by_status(df,tasktype,status_list)
+    if df.empty:
+        logging.info(tab_print("No new MZmine jobs to submit!", 1))
+        return
+    if df.shape[0] > 20:
+        logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
+        return
+    if not df.empty:
+        index_list = []
+        logging.info(tab_print("Total of %s new MZmine job(s) with status %s to submit"%(df.shape[0],status_list), 1))
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            polarity_list = check_for_polarities(row['output_dir'],project_name)
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                mzmine_peak_height_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s_peak-height.csv'%(project_name,polarity))
+                mzmine_mgf_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
+                if row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete' and overwrite_mzmine is False:
+                    continue
+                if os.path.exists(mzmine_peak_height_file) and os.path.exists(mzmine_mgf_file) and overwrite_mzmine is False:
+                    logging.info(tab_print("Note: Overwrite is False and MZmine files for %s in %s mode already exist. Skipping submission..."%(project_name,polarity), 2))
+                    continue
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    continue # skip the completed polarity if the other polarity is initiated or errored and needs to be (re)submitted
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.info(tab_print("Note: MZmine task for %s in %s mode has error status. Attempting to resubmit..."%(project_name,polarity), 2))
+                parent_dir = '%s_%s'%(project_name,polarity)
+                pathname = os.path.join(row['output_dir'],parent_dir)
+                submission_script_filename = os.path.join(pathname,'%s_mzmine.sh'%(parent_dir))
+                if os.path.isfile(submission_script_filename)==True:
+                    with open(submission_script_filename,'r') as fid:
+                        logging.info(tab_print("Submitting %s mode mzmine job for project %s"%(polarity, project_name), 2))
+                        cmd = fid.read()
+                        sbatch_output = subprocess.run(cmd, shell=True,stdout=subprocess.PIPE)
+                        sbatch_output_str = sbatch_output.stdout.decode('utf-8').replace('\n', '')
+                        logging.info(tab_print("%s"%(sbatch_output_str), 3))
+                        job_id = sbatch_output_str.split()[-1]
+                        job_id_filename = os.path.join(pathname,'%s_mzmine-job-id.txt'%(parent_dir))
+                        with open(job_id_filename,'w') as fid:
+                            fid.write("%s=%s\n"%(parent_dir,job_id))
+                            logging.info(tab_print("Wrote job ID to file and setting status to ['04 running].", 3))
+                    index_list.append(i)
+                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
+        
+        if len(index_list) > 0:
+            index_list = list(set(index_list))
+            cols = ['Key',
+                    '%s_neg_status'%(tasktype),
+                    '%s_pos_status'%(tasktype)]
+            df = df.loc[df.index.isin(index_list),cols]
+            df.replace('NaN', 0, inplace=True)
+            df.fillna(0, inplace=True)
+            update_table_in_lims(df,'untargeted_tasks',method='update')
+            logging.info(tab_print("MZmine submission(s) complete. Use squeue to monitor progress.", 1))
+    
+def set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data):
+    """
+    Hard coded parameters and user-defined parameters are formatted by passing
+    the arguments for file location
+    """
+    params = {
+                "description": description,
+                "workflowname": "feature_based_molecular_networking_workflow",
+                "featurefindingtool": "MZMINE",
+                "inputfeatures": quant_file,
+                "inputspectra": spectra_file,
+                "metadata_filename": metadata_file,
+                "input_libraries": "LIBRARYLOCATION/LC/LIBRARY",
+                "input_raw_spectra": raw_data,
+                "input_supplemental_edges": "",
+                "library_analog_search": "0",
+                "library_min_cosine": "0.7",
+                "library_min_matched_peaks": "3",
+                "library_topk": "20",
+                "min_peak_intensity": "0.0",
+                "networking_max_shift": "1999",
+                "networking_min_cosine": "0.7",
+                "networking_min_matched_peaks": "3",
+                "normalization": "None",
+                "pm_tolerance": "0.01",
+                "fragment_tolerance": "0.01",
+                "precursor_filter": "yes",
+                "api": "no"}
+    return params
+
+def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_designator=[],skip_mzmine_status=False, \
+                                             background_ratio=5,zero_value=(2/3),nonpolar_solvent_front=0.5,polar_solvent_front=0.8):
+    """
+    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
+    
+    finds initiated or running mzmine tasks
+    checks if they have valid output
+    updates the LIMS table with status complete if successful
+
+    Direct_input is None (default) when all initated or running tasks haven't produced output yet. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_mzmine_status:
+        logging.info('Skipping Step 2/7: Checking and updating status of MZmine jobs in LIMS...')
+        return
+    logging.info('Step 2/7: Checking and updating status of MZmine jobs in LIMS...')
+    tasktype = 'mzmine'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    status_list = ['01 initiation','04 running','09 error']
+    if direct_input is None:
+        df = subset_df_by_status(df,tasktype,status_list)
+    if df.empty:
+        logging.info(tab_print("No MZmine jobs to update!", 1))
+    if not df.empty:
+        #logging.info(tab_print("Total of %s project(s) with MZmine status %s to attempt to update"%(df.shape[0],status_list), 1))
+        index_list = []
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            polarity_list = check_for_polarities(row['output_dir'],project_name)
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                pathname = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity))
+                parent_dir = '%s_%s'%(project_name,polarity)
+                job_id_filename = os.path.join(pathname,'%s_mzmine-job-id.txt'%(parent_dir))
+                old_peakheight_filename = os.path.join(pathname,'%s_%s_MSMS_quant.csv'%(project_name,polarity))
+                peakheight_filename = os.path.join(pathname,'%s_%s_peak-height.csv'%(project_name,polarity))
+                mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(project_name,polarity))
+                metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(project_name,polarity))
+                mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(project_name,polarity))
+                peak_height_filtered_filename = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (project_name, polarity))
+
+                if direct_input is None:
+                    if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
+                        continue  ## This helps when one polarity is complete but the other is not, so skipped the finished one
+
+                if os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and \
+                     os.path.isfile(mzmine_output_filename) and (os.path.isfile(peakheight_filename) or os.path.isfile(old_peakheight_filename)):
+                    # MZmine is finished and status should be updated
+                    logging.info(tab_print("Working on %s in %s mode"%(project_name,polarity), 2))
+                    logging.info(tab_print("All MZmine output files found in %s directory, continuing..."%(polarity), 3))
+                    logging.info(tab_print("Calculating feature and background counts and updating LIMS table", 3))
+                    feature_count, exctrl_count, msms_count = calculate_counts_for_lims_table(peakheight_filename,mgf_filename,background_designator=background_designator)
+                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
+                    df.loc[i,'num_%s_features'%(polarity_short)] = int(feature_count)
+                    df.loc[i,'num_%s_features_in_exctrl'%(polarity_short)] = int(exctrl_count)
+                    df.loc[i,'num_%s_msms'%(polarity_short)] = int(msms_count)
+                    index_list.append(i)
+
+                    if feature_count > 0:
+                        logging.info(tab_print("Filtering features by peak height ratio compared to background (control) signal and writing to file", 4))
+                        df_filtered = create_filtered_peakheight_file(peakheight_filename,background_designator=background_designator, \
+                                                                      background_ratio=background_ratio,zero_value=zero_value, \
+                                                                      nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front)
+                        df_filtered.to_csv(peak_height_filtered_filename, index=False)
+                    else:
+                        logging.warning(tab_print("Warning! No features were found, not writing a filtered peak height file.", 4))
+
+                    try:
+                        recursive_chown(pathname, 'metatlas')
+                    except:
+                        logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 2))
+
+                else:
+                    if row['%s_%s_status'%(tasktype,polarity_short)] == '04 running': # verify that it's actually still running, else change to error
+                        if os.path.isfile(job_id_filename):
+                            with open(job_id_filename,'r') as fid:
+                                job_id = fid.read().strip().split('=')[-1]
+                                sqs_cmd = 'squeue --job %s | wc -l'%job_id
+                                sqs_output = subprocess.run(sqs_cmd, shell=True, capture_output=True, text=True)
+                                if int(sqs_output.stdout.strip()) != 2: # job is not running
+                                    logging.critical(tab_print("Warning! MZmine status for %s mode of %s is ['04 running'] but no job is running at NERSC. Changing to ['09 error']."%(polarity, project_name), 1))
+                                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'    
+                                    index_list.append(i)
+        if len(index_list) > 0:
+            logging.info(tab_print("Updating statuses in LIMS table for %s projects..."%(len(index_list)), 1))
+            index_list = list(set(index_list))
+            cols = ['Key',
+                    '%s_neg_status'%(tasktype),'%s_pos_status'%(tasktype),
+                    'num_pos_features', 'num_neg_features',
+                    'num_neg_features_in_exctrl','num_pos_features_in_exctrl',
+                    'num_neg_msms','num_pos_msms']
+            df = df.loc[df.index.isin(index_list),cols]
+            df.replace('NaN', 0, inplace=True)
+            df.fillna(0, inplace=True)
+            update_table_in_lims(df,'untargeted_tasks',method='update')
+            logging.info(tab_print("MZmine status update complete.", 1))
+        else:
+            logging.info(tab_print("No MZmine jobs to update!", 1))
+
+def create_filtered_peakheight_file(peakheight_filename=None,background_designator=[],background_ratio=3,zero_value=(2/3), \
+                                    nonpolar_solvent_front=0.5,polar_solvent_front=0.8):
+    """
+    Accepts a peakheight file and filters out features that have a max peak height in exp samples that is less than
+    3 times the peak height in the control samples.
+    """
+    data_table = pd.read_csv(peakheight_filename, sep=',')
+
+    # Get background (extraction control) and sample columns
+    header = data_table.columns
+    empty_data_table = pd.DataFrame([list(header)[1:]])
+    exctrl_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+    sample_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+
+    # Filter by comparing max peak heights in exctrl and sample columns
+    if not exctrl_columns and not sample_columns:
+        logging.warning(tab_print("Warning! No columns found in peak height table with designation %s. Returning empty dataframe."%(background_designator), 4))
+        return empty_data_table
+    else:
+        features_to_keep = []
+        for i,row in data_table.iterrows():
+            if i == 0:
+                features_to_keep.append(i) # keep the header row
+                continue
+            exctrl_max = None
+            feature_max = None
+            exctrl_max = row[exctrl_columns].max()
+            feature_max = row[sample_columns].max()
+            if exctrl_max and feature_max:
+                if feature_max > exctrl_max*background_ratio:
+                    features_to_keep.append(i)
+        if len(features_to_keep) <= 1: # only the header row was retained
+            logging.warning(tab_print("Warning! No features passed the background filter. Returning empty dataframe.", 5))
+            return empty_data_table
+        elif len(features_to_keep) > 1:
+            # Do the filter
+            data_table_filtered = data_table.loc[features_to_keep]
+            data_table_filtered = data_table_filtered.loc[:, ~data_table_filtered.columns.str.contains('^Unnamed:')]
+            
+            # Replace zeros with a small value
+            values = data_table_filtered[sample_columns + exctrl_columns]
+            lowest_non_zero = values[values != 0].min().min()
+            new_value = lowest_non_zero * zero_value
+            data_table_filtered.replace(0, new_value, inplace=True)
+
+            # Remove features in the solvent front
+            if peakheight_filename.split('_')[7] == "HILIC":
+                solvent_front = polar_solvent_front
+            else:
+                solvent_front = nonpolar_solvent_front
+            data_table_filtered = data_table_filtered[data_table_filtered['row retention time'] >= solvent_front]
+
+            # Log the number of features removed
+            difference = data_table.shape[0] - data_table_filtered.shape[0]
+            logging.info(tab_print("%s features removed by background filter"%(difference), 5))
+
+            return data_table_filtered
+        else:
+            logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframe.", 5))
+            return empty_data_table
+
+def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None, background_designator=[]):
+    """
+    Accepts a peakheight file and mgf file and returns the number of features
+    in exp and and control samples found in the peakheightfile plus number of 
+    feature ids in mgf file.
+    """
+    data_table = pd.read_csv(peakheight_filename, sep=',')
+    exctrl_count = 0
+    feature_count = 0
+    msms_count = 0
+    exctrl_columns = [col for col in data_table.head(1) if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+    sample_columns = [col for col in data_table.head(1) if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+
+    # Find the background designator string (default: ['ExCtrl']) in the 13th element of each project name in the peak height table
+    if exctrl_columns:
+        exctrl_rows = data_table[data_table[exctrl_columns].gt(0).any(axis=1)]
+        exctrl_count = int(exctrl_rows.shape[0])
+        logging.info(tab_print("%s features in control samples"%(exctrl_count), 4))
+
+    if sample_columns:
+        feature_rows = data_table[data_table[sample_columns].gt(0).any(axis=1)]
+        feature_count = int(feature_rows.shape[0])
+        logging.info(tab_print("%s features in experimental samples"%(feature_count), 4))
+
+    if feature_count <= 1: # Exclude the header line
+        logging.warning(tab_print("Warning! No features found in peak height file", 4))
+
+    if os.path.isfile(mgf_filename):
+        cmd = 'cat %s | grep FEATURE_ID| wc -l'%mgf_filename
+        try:
+            result = subprocess.run(cmd,stdout=subprocess.PIPE, shell=True)
+            if result:
+                msms_count = int(result.stdout.strip())
+                logging.info(tab_print("%s msms features in mgf file"%(msms_count), 4))
+            else:
+                logging.warning(tab_print("Warning! Could not count msms features in mgf file", 4))
+        except:
+            logging.warning(tab_print("Warning! Could not count msms features in mgf file", 4))
+
+    return feature_count, exctrl_count, msms_count
+
+def update_fbmn_status_in_untargeted_tasks(direct_input=None,skip_fbmn_status=False):
+    """
+    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
+    
+    finds running or waiting fbmn tasks
+    checks if they have valid output
+    updates the LIMS table with status complete if successful
+
+    Direct_input is None (default) when all running or waiting tasks haven't produced output yet. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_fbmn_status:
+        logging.info('Skipping Step 4/7: Checking and updating status of FBMN jobs in LIMS...')
+        return
+    logging.info('Step 4/7: Checking and updating status of FBMN jobs in LIMS...')
+    tasktype='fbmn'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    status_list = ['04 running','13 waiting','09 error']
+    if direct_input is None:
+        df = subset_df_by_status(df,tasktype,status_list)
+    if df.empty:
+        logging.info(tab_print("No FBMN jobs to update!", 1))
+    if not df.empty:
+        index_list = []
+        #logging.info(tab_print("Total of %s project(s) with FBMN status %s to attempt to update"%(df.shape[0],status_list), 1))
+        for i,row in df.iterrows():
+            polarity_list = check_for_polarities(row['output_dir'],row['parent_dir'])
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(row['parent_dir']), 1))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
+                    continue ## This helps when one polarity is complete but the other is not
+                pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
+                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(row['parent_dir'],polarity))
+                if os.path.isfile(fbmn_filename)==True:
+                    with open(fbmn_filename,'r') as fid:
+                        my_text = fid.read().strip()
+                    taskid = my_text.split('=')[-1]
+                    status,version = check_gnps2_status(taskid)
+                    index_list.append(i)
+                    if status=='DONE':
+                        if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '07 complete':
+                            logging.info(tab_print("Updating FBMN job status for %s in %s mode to complete"%(row['parent_dir'],polarity), 1))
+                            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
+                    elif status=='FAILED':
+                        if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '09 error':
+                            logging.info(tab_print("Updating FBMN job status for %s in %s mode to error"%(row['parent_dir'],polarity), 1))
+                            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'
+                    elif status in ['RUNNING','QUEUED']:
+                        if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '04 running':
+                            logging.info(tab_print("Updating FBMN job status for %s in %s mode to running"%(row['parent_dir'],polarity), 1))
+                            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
+                    elif status =='N/A':
+                        logging.critical(tab_print("Warning! Could not get status from GNPS2 for %s in %s mode"%(row['parent_dir'],polarity), 1))
+                    else:
+                        if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '13 waiting':
+                            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '13 waiting'
+        if len(index_list) > 0:
+            index_list = list(set(index_list))
+            cols = ['Key',
+                    '%s_neg_status'%(tasktype),
+                    '%s_pos_status'%(tasktype)]
+            df = df.loc[df.index.isin(index_list),cols]
+            df.replace('NaN', 0, inplace=True)
+            df.fillna(0, inplace=True)
+            update_table_in_lims(df,'untargeted_tasks',method='update')
+            logging.info(tab_print("FBMN status update complete.", 1))
+        else:
+            logging.info(tab_print("No FBMN jobs to update!", 1))
+
+def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_filename):
+    """
+    Write the sbatch and runner files for mzmine submission via slurm
+    """
+    mzmine_launcher = '/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
+
     sbatch_filename = '%s_mzmine-sbatch.sbatch'%os.path.join(basepath,parent_dir)
     runner_filename = '%s_mzmine.sh'%os.path.join(basepath,parent_dir)
-    s = '%s %s\necho MZMINE IS DONE\n\n\n'%(mzmine_launcher,batch_filename)
+    s = '%s -batch %s -input %s\necho MZMINE IS DONE\n\n\n'%(mzmine_launcher,batch_filename,filelist_filename)
 
-    hostname = os.environ['NERSC_HOST']
-    if (num_files<51) & (hostname=='cori'):
-        with open(sbatch_filename,'w') as fid:
-            fid.write('%s\n%s\n'%(SLURM_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
-        with open(runner_filename,'w') as fid:
-            fid.write('sbatch %s'%sbatch_filename)
-    elif (num_files>=51) & (hostname=='cori'):
-        with open(sbatch_filename,'w') as fid:
-            fid.write('%s\n%s\n'%(SLURM_BIGMEM_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
-        with open(runner_filename,'w') as fid:
-            fid.write('module load esslurm\n')
-            fid.write('sbatch %s\n'%sbatch_filename)
-            fid.write('module unload esslurm\n')
-    # elif (num_files<100) & (hostname=='perlmutter'):
-    #     with open(sbatch_filename,'w') as fid:
-    #         fid.write('%s\n%s\n'%(SLURM_PERLMUTTER_REALTIME_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
-    #     with open(runner_filename,'w') as fid:
-    #         fid.write('sbatch %s'%sbatch_filename)
-    else:# we are not on Cori!
-        with open(sbatch_filename,'w') as fid:
-            fid.write('%s\n%s\n'%(SLURM_PERLMUTTER_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
-        with open(runner_filename,'w') as fid:
-            fid.write('sbatch %s'%sbatch_filename)
-
-        # Write the large memory sbatch file irregardless
-        with open(sbatch_filename,'r') as fid:
-            p_sbatch = fid.read()
-        # print(p_sbatch)
-        error_line = [s for s in p_sbatch.split('\n') if '#SBATCH --error' in s][-1]
-        error_line = error_line.replace('mzmine.err','mzmine-cori-bigmem.err')
-        out_line = [s for s in p_sbatch.split('\n') if '#SBATCH --output' in s][-1]
-        out_line = out_line.replace('mzmine.out','mzmine-cori-bigmem.out')
-        new_header = SLURM_BIGMEM_HEADER.split('\n')
-        new_header = [error_line if '--error' in n else n for n in new_header]
-        new_header = [out_line if '--out' in n else n for n in new_header]
-        new_header = '\n'.join(new_header)
-        # print(error_line)
-        # print(out_line)
-        p_sbatch = [s for s in p_sbatch.split('\n') if not s.startswith('#')]
-        p_sbatch = '\n'.join(p_sbatch)
-        new_sbatch = new_header + p_sbatch
-        # print(new_sbatch)
-        # print('\n\n\n')
-        new_filename = sbatch_filename.replace('mzmine-sbatch','coribigmem-mzmine-sbatch')
-        with open(new_filename,'w') as fid:
-            fid.write(new_sbatch)
-
-
-def write_fbmn_sbatch_and_runner(basepath,parent_dir):
-    runner_filename = '%s_fbmn.sh'%os.path.join(basepath,parent_dir)
-
-    python_binary = '/global/common/software/m2650/python3-metatlas-cori/bin/python'
-    python_file = '/global/homes/b/bpb/repos/metatlas/metatlas/untargeted/send_to_gnps.py'
-    python_args = '--basedir %s --basename %s --override True'%(basepath,parent_dir)
+    with open(sbatch_filename,'w') as fid:
+        fid.write('%s\n%s\n'%(SLURM_PERLMUTTER_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
     with open(runner_filename,'w') as fid:
-        fid.write('%s %s %s\n'%(python_binary,python_file,python_args))
+        fid.write('sbatch %s'%sbatch_filename)
 
-def update_num_features():
-    import subprocess
-    df_tasks = get_table_from_lims('untargeted_tasks')
-    # Get num features
-    found = 0
-    keep_rows = []
-    for i,row in df_tasks.iterrows():
-        for polarity in ['positive','negative']:
-            peakheight = build_untargeted_filename(row['output_dir'],row['parent_dir'],polarity,'peak-height-mzmine')
-            if os.path.isfile(peakheight):
-                cmd = ['wc','-l','%s'%peakheight]
-                result = subprocess.run(cmd, stdout=subprocess.PIPE)
-        #         n = int(subprocess.check_output().split()[0])
-                num = result.stdout.split()[0]
-                if len(num)>0:
-                    num = int(int(num) - 1)
-                    if num != row['num_%s_features'%polarity[:3]]:
-                        df_tasks.loc[i,'num_%s_features'%polarity[:3]] = num
-                        keep_rows.append(i)
-                        print(num,row['num_%s_features'%polarity[:3]],result.stderr,result.stdout)
-                        print('')
-
-    cols = [c for c in df_tasks.columns if (c.endswith('_features')) & (c.startswith('num_'))]
-    cols = cols + ['Key']
-    print(cols)
-    if len(keep_rows)>0:
-        temp = df_tasks.loc[df_tasks.index.isin(keep_rows),cols].copy()
-        temp.fillna(0,inplace=True)
-        update_table_in_lims(temp,'untargeted_tasks',method='update')
-
-
-from pyteomics import mgf
-import numpy as np
-import scipy.sparse as sp
-def read_mgf(filename):
-    df = []
-    with mgf.MGF(filename) as reader:
-        for spectrum in reader:
-    #         count += 1
-            d = spectrum['params']
-            d['spectrum'] = np.array([spectrum['m/z array'],spectrum['intensity array']])
-            d['pepmass'] = d['pepmass'][0]
-            df.append(d)
-    ref_df = pd.DataFrame(df)
-    return ref_df
-
-
-def update_num_msms():
-    import subprocess
-    df_tasks = get_table_from_lims('untargeted_tasks')
-    # Get num features
-    found = 0
-    keep_rows = []
-    for i,row in df_tasks.iterrows():
-        for polarity in ['positive','negative']:
-            filename = build_untargeted_filename(row['output_dir'],row['parent_dir'],polarity,'msms-mzmine')
-            if os.path.isfile(filename):
-                cmd = 'cat %s | grep FEATURE_ID| wc -l'%filename
-                result = subprocess.run(cmd,stdout=subprocess.PIPE, shell=True)
-                num = result.stdout.strip()
-                if len(num)>0:
-                    num = int(num)
-                    if num != row['num_%s_msms'%polarity[:3]]:
-                        df_tasks.loc[i,'num_%s_msms'%polarity[:3]] = num
-                        keep_rows.append(i)
-                        print(num,row['num_%s_msms'%polarity[:3]],result.stderr,result.stdout)
-#                         print('')
-
-    cols = [c for c in df_tasks.columns if (c.endswith('_msms')) & (c.startswith('num_'))]
-    cols = cols + ['Key']
-    print(cols)
-    if len(keep_rows)>0:
-        temp = df_tasks.loc[df_tasks.index.isin(keep_rows),cols].copy()
-        temp.fillna(0,inplace=True)
-        update_table_in_lims(temp,'untargeted_tasks',method='update')
-
-
-def update_new_untargeted_tasks(update_lims=True):
+def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw_data_path="/",validate_names=True) -> list:
     """
+    Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
+    mzmine metadata for writing a new untargeted_tasks directory
+    """
+    new_project_list = []
+    # Iterate through each unique parent_dir
+    for parent_dir in df['parent_dir'].unique():
+        # Filter the DataFrame for the current parent_dir
+        df_filtered = df[df['parent_dir'] == parent_dir]
+
+        # Finish raw_data path
+        if validate_names is True:
+            _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
+            department = validate_department.lower()
+        if validate_names is False:
+            department = parent_dir.split('_')[1].lower()
+        if department =='eb':
+            department = 'egsb'
+        full_mzml_path = os.path.join(raw_data_path,department,parent_dir)
+
+        # Initialize info dict
+        project_dict = {'parent_dir': parent_dir}
+        project_dict['positive'] = {}
+        project_dict['negative'] = {}
+
+        # Determine which polarities need metadata
+        positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
+            lambda x: 'POS' in x.split('_')[9] and 
+            'QC' not in x.split('_')[12] and
+            'InjBl' not in x.split('_')[12] and
+            'ISTD' not in x.split('_')[12])].to_list()
+        if positive_file_subset:
+            positive_file_list = [os.path.join(full_mzml_path, file) for file in positive_file_subset]
+            positive_file_count = len(positive_file_list)
+            if validate_names is True:
+                file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in positive_file_list]
+                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                    logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                    continue
+                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in positive_file_list]
+                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                    logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                    continue
+        else:
+            positive_file_count = 0
+
+        negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
+            lambda x: 'NEG' in x.split('_')[9] and 
+            'QC' not in x.split('_')[12] and
+            'InjBl' not in x.split('_')[12] and
+            'ISTD' not in x.split('_')[12])].to_list()
+        if negative_file_subset:
+            negative_file_list = [os.path.join(full_mzml_path, file) for file in negative_file_subset]
+            negative_file_count = len(negative_file_list)
+            if validate_names is True:
+                file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in negative_file_list]
+                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                    logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                    continue
+                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in negative_file_list]
+                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                    logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                    continue
+        else:
+            negative_file_count = 0
+        
+        # Counts and mzml list
+        if positive_file_count > 0 and negative_file_count > 0:
+            project_dict['polarities'] = ['positive', 'negative']
+            logging.info(tab_print("Project %s has both polarities with %s positive and %s negative files"%(parent_dir,positive_file_count,negative_file_count), 2))
+            project_dict['negative']['file_count'] = negative_file_count
+            project_dict['positive']['file_count'] = positive_file_count
+            project_dict['negative']['file_list'] = negative_file_list
+            project_dict['positive']['file_list'] = positive_file_list
+        elif positive_file_count > 0:
+            logging.info(tab_print("Project %s has positive mode only with %s files"%(parent_dir,positive_file_count), 2))
+            project_dict['polarities'] = ['positive']
+            project_dict['positive']['file_count'] = positive_file_count
+            project_dict['positive']['file_list'] = positive_file_list
+        elif negative_file_count > 0:
+            logging.info(tab_print("Project %s has negative mode only with %s files"%(parent_dir,negative_file_count), 2))
+            project_dict['polarities'] = ['negative']        
+            project_dict['negative']['file_count'] = negative_file_count
+            project_dict['negative']['file_list'] = negative_file_list
+        else:
+            project_dict['polarities'] = [None]
+            continue
+
+        for polarity in project_dict['polarities']:
+            # Create metadata dataframe
+            polarity_short = polarity[:3].upper()
+            metadata_df = df_filtered[['basename', 'sample_group']].copy()
+            metadata_df['basename'] = metadata_df['basename'].fillna('')
+            metadata_df['sample_group'] = metadata_df['sample_group'].fillna('')
+            metadata_df['sample_group'] = metadata_df['sample_group'].apply(lambda x: x.lower())
+            ugroups = metadata_df['sample_group'].unique()
+            ugroups = [g for g in ugroups if any(c.lower() in g for c in background_designator)]
+            metadata_df.rename(columns={'basename': 'filename', 'sample_group': 'ATTRIBUTE_sampletype'}, inplace=True)
+            metadata_df['filename'] = metadata_df['filename'].apply(lambda x: os.path.basename(x))
+            cols = ['CONTROL', 'CASE', 'ATTRIBUTE_media']
+            for i, g in enumerate(ugroups):
+                if i < len(cols):
+                    metadata_df.loc[:, cols[i]] = g
+            metadata_df = metadata_df[metadata_df['filename'].str.split('_').str[9].str.contains(polarity_short, na=False)]
+            project_dict[polarity]['metadata_df'] = metadata_df
+
+        new_project_list.append(project_dict)
+
+    return new_project_list
+
+def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
+                                output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
+                                raw_data_dir='/global/cfs/cdirs/metatlas/raw_data', validate_names=True,
+                                skip_sync=False):
+    """
+    This script is called by run_mzmine.py before the untargeted pipeline kicks off
+
     given all directories that are in the table for potential untargeted tasks
     and all the directories in the raw data folders
     return all the directories in the raw data folders
     that are not in the untargeted tasks
-
-    The strip command is because there is one folder that ends in a
+    
+    The strip command is because there is one folder that ends in a 
     space and labkey doesn't allow this
     """
-
-
+    if skip_sync:
+        logging.info('Skipping Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
+        return
+    logging.info('Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
+    # Get lcmsrun table and subset
     df = get_table_from_lims('lcmsrun_plus')
     df = df[pd.notna(df['mzml_file'])]
     df['basename'] = df['mzml_file'].apply(os.path.basename)
     df.sort_values('timeepoch',ascending=False,inplace=True)
     df.drop_duplicates(['basename','parent_dir'],inplace=True)
-
     df.drop(columns=['mzml_file_container'],inplace=True)
     df.replace('',np.nan,inplace=True)
 
-    #Check that files have been sitting around for at least 3 hours (note time zones may vary)
-    time_check = df.groupby('parent_dir')['timeepoch'].max() < (time.time()-3*60*60)
-    time_check_folders = time_check[time_check==True].index.tolist()
-
-
+    # Get untargeted tasks table
     df_untargeted = get_table_from_lims('untargeted_tasks')
+    
+    logging.info(tab_print("Comparing LIMS untargeted tasks with raw files on disk...", 1))
 
+    #Check that files in lcmsruns table have been sitting around for at least 3 hours (note time zones may vary)
+    time_old = df.groupby('parent_dir')['timeepoch'].max() < (time.time()-3*60*60)
+    time_new = df.groupby('parent_dir')['timeepoch'].max() >= (time.time()-3*60*60)
+    time_old_folders = time_old[time_old==True].index.tolist()
+    time_new_folders = time_new[time_new==True].index.tolist()
+    #Check that files have "M2" in the name
+    dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any('_MS2_' in filename for filename in x))
+    dirs_with_m2_files = dirs_with_m2_files[dirs_with_m2_files].index.tolist()
+    # Print parent_dirs with files less than 3 hours old
+    if time_new_folders:
+        logging.info(tab_print("Note: There are data directories with files less than 3 hours old! Skipping these for now:", 2))
+        for folder in time_new_folders:
+            logging.info(tab_print(folder, 3))
+
+    # Get all folders in raw data table
     all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
-
     all_folders = [a.strip() for a in all_folders]
+
+    # Get all folders in untargeted tasks table
     if df_untargeted.shape[0]>0:
         folders_in_tasks = df_untargeted['parent_dir']
         folders_in_tasks = [a.strip() for a in folders_in_tasks]
     else:
         folders_in_tasks = []
-    print(len(all_folders),len(folders_in_tasks))
-    new_folders = np.setdiff1d(all_folders,folders_in_tasks,)
-    print(len(new_folders),len(all_folders),len(folders_in_tasks))
-    new_folders = list(set(new_folders) & set(time_check_folders))
-    print(len(new_folders),len(all_folders),len(folders_in_tasks))
 
+    # Find difference between lcmsrun table and untargeted table to find projects to initiate
+    logging.info(tab_print("Finding new projects to initate...", 1))
+    new_folders = np.setdiff1d(all_folders,folders_in_tasks)
+    new_folders = list(set(new_folders) & set(time_old_folders) & set(dirs_with_m2_files))
+    if len(new_folders) == 0:
+        logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
+        return None
+    
+    # Check for polarities by looking for positive and negative mzml files
+    df_new = df[df['parent_dir'].isin(new_folders)]
+    logging.info(tab_print("Checking for polarities in new projects and validating mzml file names...", 1))
+    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_path=raw_data_dir,validate_names=validate_names)
+    new_project_info_list_subset = [d for d in new_project_info_list if d.get('polarities') is not None]
 
-    # get file counts
-    pos_count = df[df['polarity']=='POS'].groupby('parent_dir')['mzml_file'].count()
-    neg_count = df[df['polarity']=='NEG'].groupby('parent_dir')['mzml_file'].count()
-    missing = np.setdiff1d(new_folders,pos_count.index.tolist())
-    for m in missing:
-        pos_count[m] = 0
-    missing = np.setdiff1d(new_folders,neg_count.index.tolist())
-    for m in missing:
-        neg_count[m] = 0
+    # Create metadata for new projects with relevant polarities
+    if len(new_project_info_list_subset)>0:
+        lims_untargeted_list = []
+        for new_project_dict in new_project_info_list_subset:
+            project_name = new_project_dict['parent_dir']
+            polarity_list = new_project_dict['polarities']
+            logging.info(tab_print("Working on %s..."%(project_name), 1))
 
-    outdir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks'
+            # Write some basic info to LIMS
+            lims_untargeted_table_updater = {'parent_dir': project_name}
+            lims_untargeted_table_updater['conforming_filenames'] = True
+            lims_untargeted_table_updater['file_conversion_complete'] = True
+            lims_untargeted_table_updater['output_dir'] = output_dir
+            if validate_names is True:
+                _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
+            if validate_names is False:
+                validate_machine_name = project_name.split('_')[6]
+            if validate_machine_name.lower() in ("iqx", "idx"):
+                mzmine_running_parameters = mzine_batch_params_file_iqx
+                mzmine_parameter = 5
+            else:
+                mzmine_running_parameters = mzine_batch_params_file
+                mzmine_parameter = 2
+            lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
+            lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
 
-
-#     idx1 = ~df_untargeted['mzmine_pos_status'].str.contains('complete')
-#     idx2 = ~df_untargeted['mzmine_pos_status'].str.contains('not relevant')
-#     idx3 = ~df_untargeted['mzmine_neg_status'].str.contains('complete')
-#     idx4 = ~df_untargeted['mzmine_neg_status'].str.contains('not relevant')
-#     df_untargeted_new = df_untargeted[(idx1) | (idx2)]
-#     df_untargeted_new = df_untargeted[(idx3) | (idx4)]
-#     print(df.shape[0])
-#     df = df[df['parent_dir'].isin(df_untargeted_new['parent_dir'])]
-#     print(df.shape[0])
-    print('making metadata pos')
-    # make the metadata sheets
-    files = df[df['polarity']=='POS'].groupby('parent_dir')
-    files = [(d,g) for d,g in files]
-    pos_metadata_files = {}
-    pos_filelist = {}
-    for block in files:
-        my_polarity = 'positive'
-        polarity_short = 'pos'
-        parent_dir = '%s_%s'%(block[0],my_polarity)
-        basepath = os.path.join(outdir,parent_dir)
-        if not os.path.isdir(basepath):
-            os.mkdir(basepath)
-        metadata_filename = '%s_%s.tab'%(parent_dir,'metadata')
-        metadata_filename = os.path.join(basepath,metadata_filename)
-        temp = block[1][['mzml_file','sample_group']].copy()
-        temp['mzml_file'] = temp['mzml_file'].fillna('')
-        temp['sample_group'] = temp['sample_group'].fillna('')
-        temp['sample_group'] = temp['sample_group'].apply(lambda x: x.lower())
-        ugroups = temp['sample_group'].unique()
-        ugroups = [g for g in ugroups if 'exctrl' in g]
-        temp.rename(columns={'mzml_file':'filename','sample_group':'ATTRIBUTE_sampletype'},inplace=True)
-        temp['filename'] = temp['filename'].apply(lambda x: os.path.basename(x))
-        cols = ['CONTROL','CASE','ATTRIBUTE_media']
-        for i,g in enumerate(ugroups):
-            if i<(len(cols)):
-                temp[cols[i]] = g
-#             else:
-#                 print('too many controls!!! %s'%g)
-        if not os.path.isfile(metadata_filename):
-            temp.to_csv(metadata_filename,sep='\t',index=False)
-        pos_metadata_files[block[0]] = metadata_filename
-        pos_filelist[block[0]] = block[1]['mzml_file']
-
-    print('making metadata neg')
-    # make the metadata sheets
-    files = df[df['polarity']=='NEG'].groupby('parent_dir')
-    files = [(d,g) for d,g in files]
-    neg_metadata_files = {}
-    neg_filelist = {}
-    for block in files:
-        my_polarity = 'negative'
-        polarity_short = 'neg'
-        parent_dir = '%s_%s'%(block[0],my_polarity)
-        basepath = os.path.join(outdir,parent_dir)
-        if not os.path.isdir(basepath):
-            os.mkdir(basepath)
-        metadata_filename = '%s_%s.tab'%(parent_dir,'metadata')
-        metadata_filename = os.path.join(basepath,metadata_filename)
-        temp = block[1][['mzml_file','sample_group']].copy()
-        temp['mzml_file'] = temp['mzml_file'].fillna('')
-        temp['sample_group'] = temp['sample_group'].fillna('')
-        temp['sample_group'] = temp['sample_group'].apply(lambda x: x.lower())
-        ugroups = temp['sample_group'].unique()
-        ugroups = [g for g in ugroups if 'exctrl' in g]
-        temp.rename(columns={'mzml_file':'filename','sample_group':'ATTRIBUTE_sampletype'},inplace=True)
-        temp['filename'] = temp['filename'].apply(lambda x: os.path.basename(x))
-        cols = ['CONTROL','CASE','ATTRIBUTE_media']
-        for i,g in enumerate(ugroups):
-            if i<(len(cols)):
-                temp[cols[i]] = g
-#             else:
-#                 print('too many controls!!! %s'%g)
-        if not os.path.isfile(metadata_filename):
-            temp.to_csv(metadata_filename,sep='\t',index=False)
-        neg_metadata_files[block[0]] = metadata_filename
-        neg_filelist[block[0]] = block[1]['mzml_file']
-
-    print('There are %d new_folders'%len(new_folders))
-    if len(new_folders)>0:
-        new_folders = pd.DataFrame(data={'parent_dir':new_folders,'num_pos_files':pos_count[new_folders],'num_neg_files':neg_count[new_folders]})
-        new_folders['pos_metadata_file'] = ''
-        new_folders['neg_metadata_file'] = ''
-        for i,row in new_folders.iterrows():
-            if row['parent_dir'] in pos_metadata_files.keys():
-                new_folders.loc[i,'pos_metadata_file'] = pos_metadata_files[row['parent_dir']]
-                basepath = os.path.join(outdir,'%s_%s'%(row['parent_dir'],'positive'))
-                parent_dir = '%s_%s'%(row['parent_dir'],'positive')
-                if '_idx_' in parent_dir.lower():
-                    batch_filename = write_new_mzmine_params(gsheet_params_idx,'positive',pos_filelist[row['parent_dir']],basepath,parent_dir)
-                else:
-                    batch_filename = write_new_mzmine_params(gsheet_params,'positive',pos_filelist[row['parent_dir']],basepath,parent_dir)
-                write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,pos_filelist[row['parent_dir']].shape[0])
-                write_fbmn_sbatch_and_runner(basepath,parent_dir)
-            if row['parent_dir'] in neg_metadata_files.keys():
-                new_folders.loc[i,'neg_metadata_file'] = neg_metadata_files[row['parent_dir']]
-                basepath = os.path.join(outdir,'%s_%s'%(row['parent_dir'],'negative'))
-                parent_dir = '%s_%s'%(row['parent_dir'],'negative')
-                if '_idx_' in parent_dir.lower():
-                    batch_filename = write_new_mzmine_params(gsheet_params_idx,'negative',neg_filelist[row['parent_dir']],basepath,parent_dir)
-                else:
-                    batch_filename = write_new_mzmine_params(gsheet_params,'negative',neg_filelist[row['parent_dir']],basepath,parent_dir)
-                write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,neg_filelist[row['parent_dir']].shape[0])
-                write_fbmn_sbatch_and_runner(basepath,parent_dir)
-
-        new_folders['file_conversion_complete'] = False
-        new_folders['conforming_filenames'] = False
-        new_folders['mzmine_pos_status'] = '01 initiation'
-        new_folders['mzmine_neg_status'] = '01 initiation'
-        new_folders['fbmn_pos_status'] = '13 waiting'
-        new_folders['fbmn_neg_status'] = '13 waiting'
-        new_folders['gnps_msms_hits_pos_status'] = '08 hold'
-        new_folders['gnps_msms_hits_neg_status'] = '08 hold'
-        new_folders['output_dir'] = outdir
-        new_folders['mzmine_parameter_sheet'] = 'params20190719_v2p39_IsotopeFilter_ADAP_DeDup'
-        if '_idx_' in parent_dir.lower():
-            new_folders['mzmine_parameter_row'] = 5
-        else:
-            new_folders['mzmine_parameter_row'] = 2
-        new_folders['conforming_filenames'] = True
-        new_folders['file_conversion_complete'] = True
-        cols = [c for c in new_folders.columns if c.endswith('_pos_status')]
-        new_folders.loc[new_folders['num_pos_files']==0,cols] = '12 not relevant'
-        cols = [c for c in new_folders.columns if c.endswith('_neg_status')]
-        new_folders.loc[new_folders['num_neg_files']==0,cols] = '12 not relevant'
-        if update_lims==True:
-            update_table_in_lims(new_folders,'untargeted_tasks',method='insert',max_size=1000)
-    return new_folders
-
-
-def count_scans_by_class(x):
-    d = {}
-    for i in [0.4,0.5,0.7,0.9]:
-        d['MQScore_gte_%.1f'%i] = len(x.loc[x['MQScore']>=i,'#Scan#'].unique())
-    for i in [3,6,9,12,15]:
-        d['SharedPeaks_gte_%d'%i] = len(x.loc[x['SharedPeaks']>=i,'#Scan#'].unique())
-    return pd.Series(d, index=d.keys())
-
-def get_gnps_hits(parent_dir,output_dir,polarity,status,override=False):
-    gnps_uuid_file = build_untargeted_filename(output_dir,
-                                 parent_dir,
-                                     polarity,
-                                     'gnps-uuid-fbmn')
-    gnps_zip_output_file = os.path.join(os.path.dirname(gnps_uuid_file),'%s_%s_gnps-download.zip'%(parent_dir,polarity))
-    # if (os.path.isfile(gnps_uuid_file)) & ('complete' in status):
-    #     with open(gnps_uuid_file,'r') as fid:
-    #         url = fid.read()
-    #     gnps_uuid = url.split('=')[-1]
-    if os.path.isfile(gnps_zip_output_file):
-        with zipfile.ZipFile(gnps_zip_output_file, 'r') as archive:
-            hits_file = [f for f in archive.namelist() if 'DB_result' in f]
-            if len(hits_file)>0:
-                hits_file = hits_file[-1]
-                with archive.open(hits_file) as hits_fid:
+            for polarity in ['positive','negative']: # Don't initiate mzmine jobs on polarities that don't have sample mzmls
+                polarity_short = polarity[:3]
+                parent_dir = '%s_%s'%(project_name,polarity)
+                basepath = os.path.join(output_dir,parent_dir)
+                metadata_header = f"{polarity_short}_metadata_file"
+                mzmine_status_header = f"mzmine_{polarity_short}_status"
+                fbmn_status_header = f"fbmn_{polarity_short}_status"
+                file_count_header = f"num_{polarity_short}_files"
+                if polarity not in polarity_list: # Write blank columns to LIMS and skip writing directory/files to disk
+                    lims_untargeted_table_updater[metadata_header] = ""
+                    lims_untargeted_table_updater[file_count_header] = 0
+                    lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
+                    lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
+                else: # Write directory/files to disk for present polarity and fill in LIMS columns
+                    logging.info(tab_print("Writing MZmine submission input files...",2))
+                    logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
+                    if os.path.exists(basepath):
+                        logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 2))
+                        continue
+                    else:
+                        os.mkdir(basepath)
                     try:
-                        df = pd.read_csv(hits_fid,sep='\t')
+                        recursive_chown(basepath, 'metatlas')
                     except:
-                        df = None
-
-                return df
-    return None
-
-
-
-def download_file_from_server_endpoint(server_endpoint,local_file_path):
-    response=requests.post(server_endpoint)
-    if response.status_code==200:
-        # Write the file contents in the response to a file specified by local_file_path
-        with open(local_file_path,'wb') as local_file:
-            for chunk in response.iter_content(chunk_size=128):
-                local_file.write(chunk)
-    else:
-        print('Can not do this one: %s'%os.path.basename(local_file_path))
-
-def get_gnps_zipfile(parent_dir,output_dir,polarity,status,override=False):
-    gnps_uuid_file = build_untargeted_filename(output_dir,
-                                 parent_dir,
-                                     polarity,
-                                     'gnps-uuid-fbmn')
-#     print(gnps_uuid_file)
-#     print(polarity)
-    gnps_zip_output_file = os.path.join(os.path.dirname(gnps_uuid_file),'%s_%s_gnps-download.zip'%(parent_dir,polarity))
-    if (os.path.isfile(gnps_uuid_file)) & ('complete' in status):
-        if (override==True) | (not os.path.isfile(gnps_zip_output_file)):
-            with open(gnps_uuid_file,'r') as fid:
-                url = fid.read()
-            my_uuid = url.split('=')[-1]
-            gnps_url = "https://gnps.ucsd.edu/ProteoSAFe/DownloadResult?task=%s&view=download_cytoscape_data&show=true"%my_uuid
-            print(gnps_url)
-            print(gnps_zip_output_file)
-            download_file_from_server_endpoint(gnps_url, gnps_zip_output_file)
-            print('')
-    else:
-        print('FAIL',parent_dir,status)
-#     <batchstep method="net.sf.mzmine.modules.peaklistmethods.orderpeaklists.OrderPeakListsModule">
-#         <parameter name="Peak lists" type="BATCH_LAST_PEAKLISTS"/>
-#     </batchstep>
-
-
-
-def melt_dataframe(ph,md):
-#     df.drop(columns=['filename','sample'],inplace=True)
-    # df.fillna(0.0,inplace=True)
-    feature_cols = ['feature_id','mz','rt']
-    var_cols = [c for c in ph.columns if c.endswith('mzML')]
-    df = ph.melt(id_vars=feature_cols,value_vars=var_cols)#,var_name='value')
-    # df = df[~pd.isna(df['value'])]
-    df['value'].fillna(0.0,inplace=True)
-    df['value'] = df['value'].astype(float)
-    df = pd.merge(df,md,left_on='variable',right_on='filename')
-    df.drop(columns=['variable'],inplace=True)
-    df.reset_index(inplace=True,drop=True)
-    return df
-
-def calc_background(df,background='exctrl',background_ratio=3.0):
-    exctrl = df[df['sampletype'].str.contains(background.lower())].groupby(['feature_id','sampletype'])['value'].max().reset_index()
-    sample = df[~df['sampletype'].str.contains(background.lower())].groupby(['feature_id','sampletype'])['value'].max().reset_index()
-    ratio_df = pd.merge(exctrl.add_suffix('_exctrl'),sample.add_suffix('_sample'),left_on='feature_id_exctrl',right_on='feature_id_sample')
-    ratio_df['ratio'] = ratio_df['value_sample']/(1+ratio_df['value_exctrl'])
-    good_features = ratio_df.loc[ratio_df['ratio']>background_ratio,'feature_id_sample'].unique()
-    all_features = ratio_df['feature_id_sample'].unique()
-    bad_features = list(set(all_features) - set(good_features))
-    rm_count = len(all_features) - len(good_features)
-    print('Please remove %d features out of %d'%(rm_count,len(all_features)))
-    if len(bad_features)==0:
-        good_features = df['feature_id'].unique()
-    return good_features,bad_features
-
-
-
-
-
-
-#copy files here to keep I/O off low-performance filesystems
-DATA_PATH = '/global/cscratch1/sd/bpb/raw_data'
-
-#we don't need to request haswell on genepool partition of Cori
-#remove this line
-#SBATCH -C haswell
-
-# /////////////////////////////////////////////////////////////////////
-# /////////////////// REALTIME QUEUE SBATCH PARAMS ////////////////////
-# # /////////////////////////////////////////////////////////////////////
-SLURM_HEADER = """#!/bin/bash
-#SBATCH -t 04:00:00
-#SBATCH -C haswell
-#SBATCH -N 1
-#SBATCH --error="slurm.err"
-#SBATCH --output="slurm.out"
-#SBATCH -q realtime
-#SBATCH -A m1541
-#SBATCH --exclusive
-module load java
-
-"""
-
-#SBATCH -L project
-
-
-SLURM_PERLMUTTER_REALTIME_HEADER = """#!/bin/bash
-#SBATCH -N 1
-#SBATCH --error="slurm.err"
-#SBATCH --output="slurm.out"
-#SBATCH -A m1541
-#SBATCH -C cpu
-#SBATCH --qos=realtime
-#SBATCH -t 2:00:00
-
-"""
-
-SLURM_PERLMUTTER_HEADER = """#!/bin/bash
-#SBATCH -N 1
-#SBATCH --exclusive
-#SBATCH --error="slurm.err"
-#SBATCH --output="slurm.out"
-#SBATCH -A m342
-#SBATCH -C cpu
-#SBATCH --qos=regular
-#SBATCH -t 12:00:00
-
-
-"""
-
-
-# /////////////////////////////////////////////////////////////////////
-# # /////////////////// CORI BIGMEME QUEUE SBATCH PARAMS ////////////////////
-# # /////////////////////////////////////////////////////////////////////
-# SLURM_HEADER = """#!/bin/bash
-# #SBATCH -N 1
-# #SBATCH -A m1541
-# #SBATCH -t 00:30:00
-
-# #SBATCH --clusters=escori
-# #SBATCH --qos=bigmem
-# #SBATCH --job-name=my_big_job
-# #SBATCH --mem=550GB
-# """
-
-# /////////////////////////////////////////////////////////////////////
-# /////////////////// CORI REGULAR SBATCH PARAMS //////////////////////
-# /////////////////////////////////////////////////////////////////////
-# SLURM_HEADER = """#!/bin/bash
-# #SBATCH -N 1 -c 64
-# #SBATCH --exclusive
-# #SBATCH --error="slurm.err"
-# #SBATCH --output="slurm.out"
-# #SBATCH --qos=genepool
-# #SBATCH -A pkscell
-# #SBATCH -t 24:00:00
-# #SBATCH -L project
-
-# """
-
-
-#Alicia Clum: The best nodes we have right now are ExVivo, they are 1.5 Tb nodes and very fast you can submit there by changing to --qos=jgi_shared and adding -C skylake. Prior to submitting you must type "module load esslurm" since these nodes are controlled by a different scheduler.
-# Set the python to this one:
-#/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-2.39/startMZmine_NERSC_Headless_Cori_exvivo.sh
-# /////////////////////////////////////////////////////////////////////
-# /////////////////// SKYLAKE 1.5TB QUEUE SBATCH PARAMS ///////////////
-# /////////////////////////////////////////////////////////////////////
-SLURM_BIGMEM_HEADER = """#!/bin/bash
-#SBATCH -N 1
-#SBATCH --exclusive
-#SBATCH --error="slurm.err"
-#SBATCH --output="slurm.out"
-#SBATCH --qos=jgi_shared
-#SBATCH -A pkscell
-#SBATCH -C skylake
-#SBATCH -t 48:00:00
-#SBATCH -L project
-
-"""
-
-
-def calc_hit_vector(n,df):
-    """
-    for 0,1,2 n will be 3
-    for 0,1,2,3 n will be 4
-    df is the count from true_positives
-    this function makes it a percentation of hits will sum n or more hits in last element
-    """
-    m = np.zeros((n))
-    s = df['count']/df['count'].sum()
-    nf = df['num_features']
-    for i in s.index:
-        if (i>(len(m)-1)) & (len(m) >1):
-            m_idx = len(m)-1
-        else:
-            m_idx = nf[i]
-        m[m_idx] = m[m_idx] + s[i]
-    return m
-
-def summarize_results(n,true_pos_filename,base_path,project_path,feature_table_extension,rt_column,mz_column,headerrows,sep,mz_tolerance,rt_tolerance):
-    """
-    """
-    path  = os.path.join(base_path,project_path)
-    feature_file = glob.glob(os.path.join(path,'*%s'%feature_table_extension))
-    if len(feature_file)>0:
-        feature_file = feature_file[-1]
-    else:
-        return np.zeros(n),np.zeros(n), 0
-
-    new_path = os.path.join(path,'true_pos_results')
-    if not os.path.isdir(new_path):
-        os.mkdir(new_path)
-
-    new_basename = os.path.basename(feature_file).replace(feature_table_extension,'height.xlsx')
-    output_filename = os.path.join(new_path,new_basename)
-    if os.path.isfile(feature_file): #has the file been made already?
-        with open(feature_file,'r') as fid:
-            s = fid.read()
-
-        if len(s)>0: #does the file have anything in it?
-            df_experimental = pd.read_csv(feature_file,sep=sep,skiprows=headerrows)
-            if df_experimental.shape[0] > 0: #are there any rows?
-                if 'hilic' in feature_file.lower():
-                    sheetname = 'HILIC_POS'
-                    df_true_pos = pd.read_excel(true_pos_filename,sheet_name=sheetname)
-                else:
-                    sheetname = 'CSH_POS'
-                    df_true_pos = pd.read_excel(true_pos_filename,sheet_name=sheetname)
-                istd_count,bio_count,df_grouped,df_hits,total_count = prepare_true_positive_and_export(output_filename,df_experimental,df_true_pos,rt_column=rt_column,mz_column=mz_column,mz_tolerance=mz_tolerance,rt_tolerance=rt_tolerance)
-                return calc_hit_vector(n,istd_count), calc_hit_vector(n,bio_count), total_count.loc[0,'total']
-    return np.zeros(n),np.zeros(n), 0
-
-def make_count_of_knowns(df_hits,df_true_pos):
-    df_grouped = df_hits[['true_pos_index','CompoundName_truepos','experimental_feature_idx']]
-    df_grouped.set_index(['CompoundName_truepos'],inplace=True)
-
-    df_grouped = df_grouped.groupby(['true_pos_index']).count()
-    df_grouped = pd.merge(df_grouped,df_true_pos,left_index=True,right_index=True,how='outer')
-    df_grouped.rename(columns={'experimental_feature_idx':'num_features'},inplace=True)
-    return df_grouped
-
-def map_features_to_known(df_experimental,df_true_pos,rt_column='row retention time',mz_column='row m/z',mz_tolerance=0.01,rt_tolerance=0.1):
-    feature_array = df_experimental[[mz_column,rt_column]].values
-    reference_array = df_true_pos[['MZ','RT']].values
-
-    idx = np.isclose(feature_array[:,None,:], reference_array, rtol=0.0, atol=[mz_tolerance,rt_tolerance]).all(axis=2) #order is m/z, rt, polarity
-    feature_idx, reference_idx = np.where(idx)
-
-    df_hits = df_true_pos.loc[reference_idx].copy()
-    df_hits['experimental_feature_idx'] = feature_idx
-    df_hits = pd.merge(df_hits,df_true_pos,left_index=True,right_index=True,how='outer',suffixes=['_x','_truepos'])
-    df_hits.drop(columns=['%s_x'%c for c in df_true_pos.columns],inplace=True)
-    df_hits = pd.merge(df_hits,df_experimental,how='left',left_on='experimental_feature_idx',right_index=True,suffixes=['_truepos','_experimental'])
-    df_hits.index.name = 'true_pos_index'
-    df_hits.reset_index(inplace=True)
-    return df_hits
-
-def summarize_count_per_type(df_grouped,cpd_type='ISTD'):
-    """
-    cpd_type is either 'ISTD' or 'TargetCPD'
-    """
-    cpd_count = df_grouped[df_grouped['Type']==cpd_type][['num_features','MZ']].groupby('num_features').count()
-    cpd_count.reset_index(inplace=True)
-    cpd_count.rename(columns={'MZ':'count'},inplace=True)
-    return cpd_count
-
-def prepare_true_positive_and_export(output_filename,df_experimental,df_true_pos,rt_column='row retention time',mz_column='row m/z',mz_tolerance=0.01,rt_tolerance=0.1):
-    df_hits = map_features_to_known(df_experimental,df_true_pos,rt_column=rt_column,mz_column=mz_column,mz_tolerance=0.01,rt_tolerance=0.1)
-    df_grouped = make_count_of_knowns(df_hits,df_true_pos)
-    istd_count = summarize_count_per_type(df_grouped,cpd_type='ISTD')
-    bio_count = summarize_count_per_type(df_grouped,cpd_type='TargetCPD')
-    params = pd.DataFrame(columns=['mz_tolerance','rt_tolerance'],data=[[mz_tolerance,rt_tolerance]])
-    total_count = pd.DataFrame(columns=['total'],data=[[df_experimental.shape[0]]])
-
-    # Create a Pandas Excel writer using XlsxWriter as the engine.
-    with pd.ExcelWriter(output_filename, engine='xlsxwriter') as writer:
-        # Write each dataframe to a different worksheet.
-        params.to_excel(writer, sheet_name='params')
-        istd_count.to_excel(writer, sheet_name='istd_count')
-        bio_count.to_excel(writer, sheet_name='bio_count')
-        df_grouped.to_excel(writer, sheet_name='df_grouped')
-        df_hits.to_excel(writer, sheet_name='df_hits')
-        total_count.to_excel(writer, sheet_name='total')
-    return istd_count,bio_count,df_grouped,df_hits,total_count
-    # Close the Pandas Excel writer and output the Excel file.
-#     writer.save()
-
-def mzmine_xml_to_csv(xml_file,csv_file=None,pop_input_files=True,return_df=True):
-    """
-    given an xml file, turn it into a csv
-    optionally return either a dict of the steps or a dataframe of the steps
-    """
-    with open(xml_file,'r') as fid:
-        xml_str = fid.read()
-
-    d = xml_to_dict(xml_str)
-
-#     t = dict_to_etree(d)
-#     indent_tree(t)
-#     s1 = tree_to_xml(t)
-
-    # pop out the files
-    if pop_input_files==True:
-        raw_data_import = d['batch']['batchstep'].pop(0)
-        original_file_list = raw_data_import['parameter']['file']
-
-    # This is a dict representation of all the steps
-    dflat = flatten(d,enumerate_types=(list,))
-
-    # This is a tabular representation of all the steps
-    df = pd.DataFrame([(k,v) for (k,v) in dflat.items()],columns=['parameter','value']).sort_values('parameter').set_index('parameter',drop=True)
-    if csv_file is not None:
-        df.to_csv(csv_file)
-
-    if return_df==True:
-        return df #return the dataframe of the steps
-    else:
-        return dflat #return the dict of the steps
-
-
-def make_task_and_job(params):#basedir,basename,polarity,files):
-    if not os.path.exists(params['basedir']):
-        os.mkdir(params['basedir'])
-
-    xml_str = get_batch_file_template()
-    d = xml_to_dict(xml_str)
-
-    # #     Initialize the task and give it values from the user supplied form
-    task = metob.MZMineTask()
-    task.polarity = params['polarity']
-    task.lcmsruns = params['files']
-    task.min_peak_duration = params['min_peak_duration']
-    task.max_peak_duration = params['max_peak_duration']
-    task.rt_tol_perfile = params['rt_tol_perfile']
-    task.rt_tol_multifile = params['rt_tol_multifile']
-    task.min_num_scans = params['min_num_scans']
-    task.smoothing_scans = params['smoothing_scans']
-    task.group_intensity_threshold = params['group_intensity_threshold']
-    task.min_peak_height = params['min_peak_height']
-    task.ms1_noise_level = params['ms1_noise_level']
-    task.ms2_noise_level = params['ms2_noise_level']
-    task.mz_tolerance = params['mz_tolerance']
-    task.peak_to_valley_ratio = params['peak_to_valley_ratio']
-    task.min_rt = params['min_rt']
-    task.max_rt = params['max_rt']
-    task.representative_isotope = params['representative_isotope']
-    task.remove_isotopes = params['remove_isotopes']
-    task.min_peaks_in_row = params['min_peaks_in_row']
-    task.peak_with_msms = params['peak_with_msms']
-    task.chromatographic_threshold = params['chromatographic_threshold']
-    task.search_for_minimum_rt_range = params['search_for_minimum_rt_range']
-    task.minimum_relative_height = params['minimum_relative_height']
-    task.mz_range_scan_pairing = params['mz_range_scan_pairing']
-    task.rt_range_scan_pairing = params['rt_range_scan_pairing']
-    task.gapfill_intensity_tolerance = params['gapfill_intensity_tolerance']
-    task.output_csv_height = os.path.join(params['basedir'],'%s_%s_peak_height.csv'%(params['basename'],task.polarity))
-    task.output_csv_area = os.path.join(params['basedir'],'%s_%s_peak_area.csv'%(params['basename'],task.polarity))
-    task.output_workspace = os.path.join(params['basedir'],'%s_%s.mzmine'%(params['basename'],task.polarity))
-    task.output_mgf = os.path.join(params['basedir'],'%s_%s.mgf'%(params['basename'],task.polarity))
-    task.input_xml = os.path.join(params['basedir'],'logs','%s_%s.xml'%(params['basename'],task.polarity))
-    task.mzmine_launcher = get_latest_mzmine_binary(version=params['mzmine_version'])
-
-    new_d = replace_files(d,params['files'])
-    new_d = configure_crop_filter(new_d,task.polarity,params['files'],min_rt=task.min_rt,max_rt=task.max_rt)
-
-    new_d = configure_mass_detection(new_d,task.ms1_noise_level,task.ms2_noise_level)
-
-    new_d = configure_chromatogram_builder(new_d,task.min_num_scans,task.group_intensity_threshold,task.min_peak_height,task.mz_tolerance)
-
-    new_d = configure_smoothing(new_d,task.smoothing_scans)
-
-    new_d = configure_peak_deconvolution(new_d,
-                                         task.min_peak_height,
-                                         task.minimum_relative_height,
-                                         task.search_for_minimum_rt_range,
-                                         task.chromatographic_threshold,
-                                         task.peak_to_valley_ratio,
-                                         task.min_peak_duration,
-                                         task.max_peak_duration)
-
-    new_d = configure_isotope_search(new_d,
-                                         task.mz_tolerance,
-                                         task.rt_tol_perfile,
-                                         task.representative_isotope,
-                                         task.remove_isotopes,
-                                    task.polarity)
-
-    new_d = configure_join_aligner(new_d,task.mz_tolerance,task.rt_tol_multifile)
-
-    new_d = configure_gap_filling(new_d,task.mz_tolerance,task.rt_tol_multifile,task.gapfill_intensity_tolerance)
-
-    new_d = configure_rows_filter(new_d,task.min_peaks_in_row,task.peak_with_msms)
-
-    new_d = configure_output(new_d,
-                                 task.output_csv_height,
-                                task.output_csv_area,
-                                 task.output_workspace,
-                                 task.output_mgf)
-
-
-    t = dict_to_etree(new_d)
-    indent_tree(t)
-    xml_batch_str = tree_to_xml(t,filename=task.input_xml)
-    job_runner = '%s %s'%(task.mzmine_launcher,task.input_xml)
-    return job_runner
-
-
-def create_job_script(m):
-    """
-
-    This is the first function that runs when a user initializes a new untargeted workflow
-
-    """
-
-    #setup directories
-    if not os.path.isdir(m['basedir']):
-        os.mkdir(m['basedir'])
-    dirs_to_make = ['job_scripts','logs','intermediate_results','%s_%s'%(m['basename'],m['polarity'])]
-    for d in dirs_to_make:
-        if not os.path.isdir(os.path.join(m['basedir'],d)):
-            os.mkdir(os.path.join(m['basedir'],d))
-
-    job_cmd = make_task_and_job(m)#['basedir'],m['basename'],m['polarity'],m['files'])
-
-
-    sbatch_file_name = os.path.join(m['basedir'],'job_scripts','%s_%s.sbatch'%(m['basename'],m['polarity']))
-    denovo_sbatch_file_name = os.path.join(m['basedir'],'job_scripts','%s_%s_denovo.sbatch'%(m['basename'],m['polarity']))
-    err_file_name = os.path.join(m['basedir'],'logs','%s_%s.err'%(m['basename'],m['polarity']))
-    out_file_name = os.path.join(m['basedir'],'logs','%s_%s.out'%(m['basename'],m['polarity']))
-#     job_cmd_filtered = make_targeted_mzmine_job(m['basedir'],m['basename'],m['polarity'],m['files'])
-    params_filename = os.path.join(m['basedir'],'logs','%s_%s_params.json'%(m['basename'],m['polarity']))
-    new_params_filename = os.path.join(m['basedir'],'logs','%s_%s_params-used.json'%(m['basename'],m['polarity']))
-
-    copy_params_command = "cp '%s' '%s'"%(params_filename,new_params_filename)
-
-
-    with open(sbatch_file_name,'w') as fid:
-        fid.write('%s\n'%SLURM_HEADER.replace('slurm.err',err_file_name).replace('slurm.out',out_file_name))
-        fid.write('%s\n'%copy_params_command)
-        fid.write('%s\n'%job_cmd)
-
-#     bad_words = ['qos', '-p','-C','-L','-t','-N']
-#     bad_time = '#SBATCH -t 24:00:00'
-#     good_time = '#SBATCH -t 24:00:00\n'
-
-#     bad_node = '-N 1 -c 64'
-#     good_node = '#SBATCH -N 1 -c 64\n'
-
-
-#     with open(sbatch_file_name) as oldfile, open(denovo_sbatch_file_name, 'w') as newfile:
-#         for line in oldfile:
-#             if not any(bad_word in line for bad_word in bad_words):
-#                 newfile.write(line)
-#             if bad_time in line:
-#                 newfile.write(good_time)
-#             if bad_node in line:
-#                 newfile.write(good_node)
-#                 newfile.write('#SBATCH --mem=494G\n')
-
-
-    return sbatch_file_name
-
-
-
-def filter_features(experiment,rt_cutoff=1,polarity='positive',output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks/'):
-    mgf_file = build_untargeted_filename(output_dir,experiment,polarity,'msms-mzmine')
-    ph_file =  build_untargeted_filename(output_dir,experiment,polarity,'peak-height-mzmine')
-    md_file =  build_untargeted_filename(output_dir,experiment,polarity,'metadata')
-
-    ph = pd.read_csv(ph_file)
-    print(ph.shape)
-    cols = ph.columns
-    cols = [c.replace(' Peak height','') for c in cols]
-    ph.columns = cols
-    cols = [c for c in cols if not 'Unnamed:' in c]
-    ph = ph[cols]
-    rename_cols = {'row ID':'feature_id','row m/z':'mz','row retention time':'rt'}
-    ph.rename(columns=rename_cols,inplace=True)
-
-
-    md = pd.read_csv(md_file,sep='\t')
-    md.rename(columns={'ATTRIBUTE_sampletype':'sampletype'},inplace=True)
-    md.fillna('',inplace=True)
-    md['sampletype'] = md['sampletype'].astype(str)
-    md['sampletype'] = md['sampletype'].apply(lambda x: x.lower())
-    if any([e for e in  md['sampletype'].tolist() if 'exctrl' in e]):
-        md['filename'] = md['filename'].apply(lambda x: os.path.basename(x))
-
-    df = melt_dataframe(ph,md)
-    df = df[~df['sampletype'].str.startswith('qc')]
-    good_features,bad_features = calc_background(df,background_ratio=50)#,background='media-control')
-    print(len(good_features),len(bad_features))
-    df = df[df['feature_id'].isin(good_features)]
-    idx = df['rt']>rt_cutoff
-    print('there are %d in the solvent front that will be removed'%sum(~idx))
-    df = df[idx]
-    df['polarity'] = polarity
-    # df_range = df.groupby(['feature_id','mz','rt'])['value'].agg({'max':lambda x: x.max(),'range':lambda x: (x.max()+1) / (x.min()+1)})
-    df_avg_temp = df.groupby(['feature_id','polarity','sampletype']).mean()
-    df_avg_temp.reset_index(inplace=True)
-    cols = ['feature_id','polarity','mz','rt']
-    if 'mz' in df_avg_temp.columns:
-        df_range = df_avg_temp.groupby(cols).agg(max=('value', np.max),range=('value', lambda x: (x.max()+1)/(x.min()+1)))
-
-        df_range = df.groupby(['feature_id','polarity','mz','rt']).agg(max=('value', np.max),range=('value', lambda x: (x.max()+1)/(x.min()+1)))
-        df_range.reset_index(inplace=True,drop=False)
-
-        df_range = df_range[(df_range['max']>1e6)]
-        # df_range = df_range[(df_range['range']>10) & (df_range['max']>1e6)]
-        df_range.reset_index(inplace=True,drop=True)
-        if df_range.shape[0]>0:
-            df = pd.merge(df,df_range,how='inner',on=cols)
-            df.drop(columns=['max','range'],inplace=True)
-        else:
-            df = None
-    else:
-        df = None
-    return df
-
-
-def update_feature_table():
-    df_tasks = get_table_from_lims('untargeted_tasks',columns=['parent_dir','output_dir','mzmine_pos_status','mzmine_neg_status'])
-    df_tasks = df_tasks.melt(id_vars=['parent_dir','output_dir'],value_vars=['mzmine_pos_status','mzmine_neg_status'])
-    df_tasks = df_tasks[df_tasks['value']=='07 complete']
-    df_tasks['polarity'] = df_tasks['variable'].apply(lambda x: 'positive' if x.split('_')[1]=='pos' else 'negative')
-
-    sql = "SELECT DISTINCT experiment,polarity FROM untargeted_features;"
-    print(sql)
-    schema = 'lists'
-    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
-    done_experiments = pd.DataFrame(sql_result['rows'])
-
-    if done_experiments.shape[0]>0:
-        print(df_tasks.shape)
-        df_tasks = pd.merge(df_tasks,done_experiments,left_on=['parent_dir','polarity'],right_on=['experiment','polarity'],how='left',indicator=True)
-        df_tasks = df_tasks[df_tasks['_merge']=='left_only']
-        df_tasks.drop(columns=['experiment','_merge'],inplace=True)
-        print(df_tasks.shape)
-
-
-    for i,row in df_tasks.iterrows():
-        experiment = row['parent_dir']
-        polarity = row['polarity']
-        print(experiment)
-        temp = filter_features(experiment,polarity=polarity)
-        if (temp is not None):
-            if ('CONTROL' in temp.columns):
-                temp.drop(columns=['CONTROL'],inplace=True)
-            temp['experiment'] = experiment
-            temp['polarity'] = polarity
-            # temp.drop(columns=['filename'],inplace=True)
-            # cols = temp.columns
-            # cols = [c for c in cols if c != 'value']
-            # temp = temp.groupby(cols).mean()
-            temp.reset_index(inplace=True)
-            cols = ['feature_id','experiment','polarity','mz','rt']
-            quant_cols = ['value','filename','sampletype']
-            temp = temp[cols + quant_cols]
-            temp.sort_values('value',ascending=False,inplace=True)
-            temp.drop_duplicates(subset=cols,inplace=True)
-        else:
-            print(experiment)
-            temp = pd.DataFrame()
-            temp['experiment'] = [experiment]
-            temp['polarity'] = [polarity]
-        update_table_in_lims(temp,'untargeted_features',method='insert')
-
-
-
-
-def update_gnps_hits_table(output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks/'):
-    print('Updating GNPS hits')
-    df_hits_db = get_table_from_lims('gnps_hits',columns=['feature_key'])
-    df_features = get_table_from_lims('untargeted_features',columns=['Key','experiment','polarity','feature_id'],max_rows=1e9)
-    cols = ['experiment','polarity']
-    all_experiments = df_features[cols].drop_duplicates(subset=cols)
-
-    if df_hits_db.shape[0]>0:
-        done_experiments = df_features.loc[df_features['Key'].isin(df_hits_db['feature_key']),cols].drop_duplicates()
-        todo_experiments = pd.merge(all_experiments,done_experiments,how='left',indicator=True)
-        todo_experiments = todo_experiments[todo_experiments['_merge']=='left_only']
-        todo_experiments.drop(columns=['_merge'],inplace=True)
-    else:
-        todo_experiments = all_experiments.copy()
-    print('Getting GNPS Hits for',todo_experiments.shape[0],'experiments')
-
-    for i,row in todo_experiments.iterrows():
-        print(row)
-        experiment = row['experiment']
-        polarity = row['polarity']
-
-        hits = get_gnps_hits(experiment,output_dir,
-                                 polarity,'complete',override=True)
-
-        if hits is not None:
-            hits = hits[pd.notna(hits['Smiles'])]
-            hits = hits[pd.notna(hits['InChIKey'])]
-            no_hits=False # set this to true if there are not any hits to update a dummy row to the table
-
-            if hits.shape[0]>0:
-                hits.rename(columns={'#Scan#':'feature_id','MQScore':'score'},inplace=True)
-                hits.columns = [c.lower() for c in hits.columns]
-                hits.sort_values('score',ascending=False,inplace=True)
-                hits.drop_duplicates(subset=['feature_id','inchikey'],inplace=True)
-
-                ##### Add any new compounds to the compounds table #####
-                compounds = get_table_from_lims('gnps_compounds',columns=['inchikey'])
-                cols_compound_db = ['inchikey','compound_name','smiles']
-                df_compound = hits[cols_compound_db].copy()
-                df_compound.drop_duplicates(subset=['inchikey'],inplace=True)
-                df_compound = pd.merge(df_compound,compounds,on='inchikey',how='left',indicator=True)
-                df_compound = df_compound[df_compound['_merge']=='left_only']
-                if df_compound.shape[0]>0:
-                    print('updating compounds')
-                    update_table_in_lims(df_compound,'gnps_compounds',method='insert')
-
-                ##### Add hits to the hits table #####
-                hits_cols = ['feature_id','score','adduct','sharedpeaks', 'massdiff','inchikey']
-                hits_slice = df_features[(df_features['experiment']==experiment) & (df_features['polarity']==polarity)].copy()
-                hits_slice = pd.merge(hits_slice,hits[hits_cols],on='feature_id',how='inner')
-                if hits_slice.shape[0]>0:
-                    hits_slice.rename(columns={'Key':'feature_key'},inplace=True)
-                    hits_slice.drop(columns=['feature_id','experiment','polarity'],inplace=True)
-                    update_table_in_lims(hits_slice,'gnps_hits',method='insert')
-                else:
-                    no_hits = True
+                        logging.info(tab_print("Note: Could not change group ownership of %s"%(basepath), 2))
+                    metadata_df = new_project_dict[polarity]['metadata_df']
+                    metadata_filename = os.path.join(basepath,'%s_metadata.tab'%(parent_dir))
+                    metadata_df.to_csv(metadata_filename, sep='\t', index=False)
+                    
+                    logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
+                    params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                    with open(mzmine_running_parameters,'r') as fid:
+                        orig_params = fid.read()
+                    new_param_path = os.path.join(basepath,parent_dir)
+                    custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                    with open(params_filename,'w') as fid:
+                        fid.write('%s'%custom_params)
+
+                    logging.info(tab_print("%s mzML path list file (*_filelist.txt)"%(polarity), 3))
+                    file_list = new_project_dict[polarity]['file_list']
+                    filelist_filename = os.path.join(basepath,'%s_filelist.txt'%(parent_dir))
+                    with open(filelist_filename,'w') as fid:
+                        for mzml in file_list:
+                            fid.write('%s\n'%mzml)
+
+                    logging.info(tab_print("%s sbatch submission script and runner files (*.sh, *.sbatch)"%(polarity), 3))
+                    write_mzmine_sbatch_and_runner(basepath,params_filename,parent_dir,filelist_filename)
+
+                    lims_untargeted_table_updater[metadata_header] = metadata_filename
+                    lims_untargeted_table_updater[file_count_header] = new_project_dict[polarity]['file_count']
+                    lims_untargeted_table_updater[mzmine_status_header] = '01 initiation'
+                    lims_untargeted_table_updater[fbmn_status_header] = '13 waiting'
+
+            lims_untargeted_list.append(lims_untargeted_table_updater)
+
+        lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
+
+        if update_lims is True:
+            if lims_untargeted_df.shape[0] > 0:
+                logging.info(tab_print("Updating LIMS table with %s new projects..."%(lims_untargeted_df.shape[0]), 1))
+                update_table_in_lims(lims_untargeted_df,'untargeted_tasks',method='insert',max_size=1000)
+                logging.info(tab_print("LIMS untargeted tasks table update complete.", 2))
             else:
-                no_hits = True
-        else:
-            no_hits = True
-
-        if no_hits==True:
-            # This is a placeholder entry in the table so that jobs with no hits will be removed from future queue
-            # Add one row that has a feature
-            print('no hits:',experiment,polarity)
-            hits_slice = df_features[(df_features['experiment']==experiment) & (df_features['polarity']==polarity)].copy()
-            min_feature_key = hits_slice['Key'].min()
-            hits_slice = hits_slice[hits_slice['Key']==min_feature_key]
-            hits_slice.rename(columns={'Key':'feature_key'},inplace=True)
-            hits_slice.drop(columns=['feature_id','experiment','polarity'],inplace=True)
-            update_table_in_lims(hits_slice,'gnps_hits',method='insert')
-
-def update_gnps_compound_properties():
-    sql = "SELECT DISTINCT inchikey FROM gnps_compound_properties;"
-
-    print('NEW BATCH of compound properties to calculate')
-    schema = 'lists'
-    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
-    done_compounds = pd.DataFrame(sql_result['rows'])
-
-    # Updating Compounds That need properties
-    df = get_table_from_lims('gnps_compounds',columns=['inchikey','smiles'])
-    print(df.shape)
-    if done_compounds.shape[0]>0:
-        df = df[~df['inchikey'].isin(done_compounds['inchikey'])]
-    print(df.shape)
-
-
-    idx = (pd.notna(df['smiles'])) & (pd.notna(df['inchikey'])) & (df['smiles']!='')
-    df = df[idx]
-    df.loc[idx,'smiles'] = df.loc[idx,'smiles'].apply(lambda x: x.strip())
-    df.loc[idx,'mol'] = df.loc[idx,'smiles'].apply(lambda x: Chem.MolFromSmiles(x))
-    idx = pd.notna(df['mol'])
-    df = df[idx]
-
-    print(df.shape)
-    if df.shape[0]>0:
-        descriptor_names = list(rdMolDescriptors.Properties.GetAvailableProperties())
-        get_descriptors = rdMolDescriptors.Properties(descriptor_names)
-
-        def mol_to_descriptors(mol):
-            descriptors = get_descriptors.ComputeProperties(mol)
-            return descriptors
-
-
-        des_list = [x[0] for x in Descriptors._descList]
-        calculator = MoleculeDescriptors.MolecularDescriptorCalculator(des_list)
-
-
-        descriptors = []
-
-        for i,row in df.iterrows():
-            # print(row['inchikey'],row['smiles'])
-            out = {'inchikey':row['inchikey']}
-            d = list(mol_to_descriptors(row['mol']))
-            for j,dd in enumerate(d):
-                out['property: %s'%descriptor_names[j]] = dd
-            d = list(calculator.CalcDescriptors(row['mol']))
-            for j,dd in enumerate(d):
-                out['descriptor: %s'%des_list[j]] = dd
-            descriptors.append(out)
-            # print('done\n')
-
-        descriptors = pd.DataFrame(descriptors)
-
-        cols = [c for c in descriptors.columns if not 'inchikey' in c]
-        descriptors = descriptors.melt(id_vars='inchikey',value_vars=cols)
-        descriptors['type'] = descriptors['variable'].apply(lambda x: 'property' if 'property' in x else 'descriptor')
-        descriptors['variable'] = descriptors['variable'].apply(lambda x: x.split(':')[-1].strip())
-        update_table_in_lims(descriptors,'gnps_compound_properties',method='insert',max_size=5000)
-
-def mean_confidence_interval(data, confidence=0.95):
-    data = data['value'].values
-    a = 1.0 * np.array(data)
-    n = len(a)
-    m = np.mean(a)
-    if n>1:
-        se = scipy.stats.sem(a)
-        h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
-        return pd.Series({'mean':m,'lower_bound': m-h,'upper_bound':m+h,'num_replicates':n,'standard_error':se})
-    else:
-        return pd.Series({'mean':m,'lower_bound': 0,'upper_bound':0,'num_replicates':n,'standard_error':0})
-
-
-def update_untargeted_treatments():
-    print('getting master list of features')
-    sql = """SELECT Key as Key,feature_id,experiment,polarity FROM untargeted_features"""
-
-    schema = 'lists'
-    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
-    df = pd.DataFrame(sql_result['rows'])
-    sql = "SELECT DISTINCT feature FROM untargeted_treatments;"
-    df = df[pd.notna(df['feature_id'])]
-
-    print('there are %d features'%df.shape[0])
-
-    print('getting treatment groups')
-    sql_result = api.query.execute_sql(schema, sql,max_rows=int(1e9))
-    done_features = pd.DataFrame(sql_result['rows'])
-    print('there are %d features by treatments'%done_features.shape[0])
-
-    if done_features.shape[0]>0:
-        df = df[~df['Key'].isin(done_features['feature'])]
-        print('After removing done features, there are %d features'%df.shape[0])
-
-    if df.shape[0]>0:
-        todo_experiments = df.copy()
-        todo_experiments.drop_duplicates(subset=['experiment','polarity'],inplace=True)
-        for i,row in todo_experiments.iterrows():
-            print('working on %s %s mode'%(row['experiment'],row['polarity']))
-            new_features = filter_features(row['experiment'],rt_cutoff=1,polarity=row['polarity'])
-            if (new_features is not None) and (new_features.shape[0]>0):
-                new_features['polarity'] = row['polarity']
-                new_features['experiment'] = row['experiment']
-                new_features = pd.merge(new_features,df,on=['feature_id','experiment','polarity'],how='inner')
-                new_features.rename(columns={'Key':'feature'},inplace=True)
-                new_features.drop(columns=['feature_id','experiment','polarity'],inplace=True)
-                print('it has %d features by treatments'%new_features.shape[0])
-
-                g = new_features.groupby(['feature','sampletype'])[['value','mz']].apply(lambda x: mean_confidence_interval(x))
-                g.reset_index(inplace=True,drop=False)
-                update_table_in_lims(g,'untargeted_treatments',method='insert',max_size=500)
-
-
-
-
-
-#####################################################
-#####################################################
-########         mzmine setup scripts        ########
-#####################################################
-#####################################################
-
-
-
-
-def remove_duplicate_files(files):
-    file_names = []
-    unique_files = []
-    for f in files:
-        if not f.name in file_names:
-            unique_files.append(f.mzml_file)
-            file_names.append(f.name)
-    return unique_files
-
-def get_files(groups,filename_substring,file_filters,keep_strings,is_group=False,return_mzml=True):
-    """
-    if is_group is False, gets files from the experiment/folder name and filters with file_filters
-
-    if is_group is True, gets files from the metatlas group name and filters with file_filters
-
-    """
-
-    for i,g in enumerate(groups):
-        if is_group == True:
-        # get files as a metatlas group
-            groups = dp.select_groups_for_analysis(name = g,do_print=False,
-                                                   most_recent = True,
-                                                   remove_empty = True,
-                                                   include_list = [], exclude_list = file_filters)#['QC','Blank'])
-            new_files = []
-            for each_g in groups:
-                for f in each_g.items:
-                    new_files.append(f)
-        else:
-            new_files = metob.retrieve('Lcmsruns',experiment=g,name=filename_substring,username='*')
-        if i == 0:
-            all_files = new_files
-        else:
-            all_files.extend(new_files)
-        if len(new_files) == 0:
-            print('##### %s has ZERO files!'%g)
-
-    # only keep files that don't have substrings in list
-    if len(file_filters) > 0:
-        for i,ff in enumerate(file_filters):
-            if i == 0:
-                files = [f for f in all_files if not ff in f.name]
-            else:
-                files = [f for f in files if not ff in f.name]
-    else:
-        files = all_files
-
-    # kick out any files that don't match atleast one of the keep_strings
-    keep_this = []
-    filter_used = [] #good to keep track if a filter isn't used.  likely a typo
-    if len(keep_strings) > 0:
-        for i,ff in enumerate(files):
-            keep_this.append(any([True if f in ff.name else False for f in keep_strings]))
-        for i,ff in enumerate(keep_strings):
-            filter_used.append(any([True if ff in f.name else False for f in files]))
-        if not all(filter_used):
-            for i,f in enumerate(filter_used):
-                if f==False:
-                    print('%s keep string is not used'%keep_strings[i])
-
-        files = [files[i] for i,j in enumerate(keep_this) if j==True]
-
-    files = remove_duplicate_files(files)
-    return files
-
-
-def make_targeted_mzmine_job(basedir,basename,polarity,files):
-    if not os.path.exists(basedir):
-        os.mkdir(basedir)
-
-    xml_str = get_targeted_batch_file_template()
-    d = xml_to_dict(xml_str)
-
-    task = metob.MZMineTask()
-    task.polarity = polarity
-    task.lcmsruns = files
-    new_d = replace_files(d,files)
-
-    project_name = '%s_%s'%(basename,task.polarity)
-    task.output_workspace = os.path.join(basedir,project_name,'%s_%s.mzmine'%(basename,task.polarity))
-    task.input_xml = os.path.join(basedir,'logs','%s_%s_filtered.xml'%(basename,task.polarity))
-
-    task.mzmine_launcher = get_latest_mzmine_binary()
-
-    # new_d = configure_crop_filter(new_d,task.polarity,files)
-    # new_d = configure_targeted_peak_detection(new_d,peak_list_filename,intensity_tolerance=1e-4,noise_level=1e4,mz_tolerance=20,rt_tolerance=0.5)
-    new_d = configure_workspace_output(new_d,task.output_workspace)
-
-    t = dict_to_etree(new_d)
-    indent_tree(t)
-    xml_batch_str = tree_to_xml(t,filename=task.input_xml)
-    job_runner = '%s %s'%(task.mzmine_launcher,task.input_xml)
-    return job_runner
-
-def configure_targeted_peak_detection(new_d,peak_list_filename,intensity_tolerance=1e-4,noise_level=1e4,mz_tolerance=20,rt_tolerance=0.5):
-    """
-    Name suffix: Suffix to be added to the peak list name.
-
-    Peak list file: Path of the csv file containing the list of peaks to be detected. The csv file should have three columns.
-    The first column should contain the expected M/Z, the second column the expected RT and the third the peak name. Each peak should be in a different row.
-
-    Field separator: Character(s) used to separate fields in the peak list file.
-
-    Ignore first line: Check to ignore the first line of peak list file.
-
-    Intensity tolerance: This value sets the maximum allowed deviation from expected shape of a peak in chromatographic direction.
-
-    Noise level: The minimum intensity level for a data point to be considered part of a chromatogram. All data points below this intensity level are ignored.
-
-    MZ Tolerance: Maximum allowed m/z difference to find the peak
-
-    RT tolerance: Maximum allowed retention time difference to find the peak
-    """
-    # Set the noise floor
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'TargetedPeakDetectionModule' in d['@method']][0]
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Peak list file' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%s'%peak_list_filename
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Intensity tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.6f'%(intensity_tolerance)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Noise level' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.6f'%(noise_level)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Retention time tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.6f'%(rt_tolerance)
-
-    return new_d
-
-def configure_crop_filter(new_d,polarity,files,min_rt=0.01,max_rt=100,fps_string='FPS'):
-    """
-
-    """
-    # identify the element for this change
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CropFilterModule' in d['@method']][0]
-    # Set the filter string
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Raw data files' in d['@name']][0]
-    if any([fps_string in f for f in files]):
-        new_d['batch']['batchstep'][idx]['parameter'][idx2]['name_pattern'] = '*FPS*'
-    else:
-        new_d['batch']['batchstep'][idx]['parameter'][idx2]['name_pattern'] = '*'
-
-    # Set the polarity
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Scans' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['polarity'] = polarity.upper()
-
-    #set the rt min and rt max use the same idx2 as polarity
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['retention_time'] = {'max':'%.4f'%max_rt,'min':'%.4f'%min_rt}
-
-    # new_d['batch']['batchstep'][idx]['parameter'][idx2]['ms_level'] = '1-2'
-
-    return new_d
-
-def configure_mass_detection(new_d,ms1_noise_level=1e4,ms2_noise_level=1e2):
-    """
-
-    """
-    # Find the module
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'MassDetectionModule' in d['@method']]
-    #The first idx will be for MS1 and the second will be for MS2
-
-    # Set the MS1 attributes
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter']) if 'Mass detector' in d['@name']][0]
-    idx3 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['module']) if 'Centroid' in d['@name']][0]
-    new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['module'][idx3]['parameter']['#text'] = '%.2f'%(ms1_noise_level)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter']) if 'Scans' in d['@name']][0]
-    new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['ms_level'] = '1'
-
-    # Set the MS2 attributes
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter']) if 'Mass detector' in d['@name']][0]
-    idx3 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['module']) if 'Centroid' in d['@name']][0]
-    new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['module'][idx3]['parameter']['#text'] = '%.2f'%(ms2_noise_level)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter']) if 'Scans' in d['@name']][0]
-    new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['ms_level'] = '2'
-
-
-    return new_d
-
-def configure_smoothing(new_d,smoothing_scans):
-    """
-#        <batchstep method="net.sf.mzmine.modules.peaklistmethods.peakpicking.smoothing.SmoothingModule">
-#         <parameter name="Peak lists" type="BATCH_LAST_PEAKLISTS"/>
-#         <parameter name="Filename suffix">smoothed</parameter>
-#         <parameter name="Filter width">9</parameter>
-#         <parameter name="Remove original peak list">false</parameter>
-#     </batchstep>
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'SmoothingModule' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Filter width' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(smoothing_scans)
-
-    return new_d
-
-
-def configure_chromatogram_builder(new_d,min_num_scans,group_intensity_threshold,min_peak_height,mz_tolerance):
-    """
-    new_d = configure_chromatogram_builder(new_d,task.min_num_scans,task.group_intensity_threshold,task.min_peak_height,task.mz_tolerance)
-
-#     <batchstep method="net.sf.mzmine.modules.masslistmethods.ADAPchromatogrambuilder.ADAPChromatogramBuilderModule">
-#         <parameter name="Raw data files" type="ALL_FILES"/>
-#         <parameter name="Scans">
-#             <ms_level>1</ms_level>
-#         </parameter>
-#         <parameter name="Mass list">masses</parameter>
-#         <parameter name="Min group size in # of scans">5</parameter>
-#         <parameter name="Group intensity threshold">1000000.0</parameter>
-#         <parameter name="Min highest intensity">80000.0</parameter>
-#         <parameter name="m/z tolerance">
-#             <absolutetolerance>0.002</absolutetolerance>
-#             <ppmtolerance>7.0</ppmtolerance>
-#         </parameter>
-#         <parameter name="Suffix">chromatograms</parameter>
-#     </batchstep>
-
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'ADAPChromatogramBuilderModule' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Min group size' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(min_num_scans)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Group intensity threshold' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(group_intensity_threshold)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Min highest intensity' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(min_peak_height)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-
-    return new_d
-
-def configure_adap_peak_deconvolution(new_d,min_peak_height,minimum_relative_height,search_for_minimum_rt_range,chromatographic_threshold,min_sn_ratio,min_peak_duration,max_peak_duration):
-    """
-    <parameter name="Algorithm" selected="Wavelets (ADAP)">
-
-    <module name="Wavelets (ADAP)">
-                <parameter name="S/N threshold">3.0</parameter>
-                <parameter name="S/N estimator" selected="Intensity window SN">
-                    <module name="Intensity window SN"/>
-                    <module name="Wavelet Coeff. SN">
-                        <parameter name="Peak width mult.">1.0</parameter>
-                        <parameter name="abs(wavelet coeffs.)">true</parameter>
-                    </module>
-                </parameter>
-                <parameter name="min feature height">4500.0</parameter>
-                <parameter name="coefficient/area threshold">60.0</parameter>
-                <parameter name="Peak duration range">
-                    <min>0.0</min>
-                    <max>0.5</max>
-                </parameter>
-                <parameter name="RT wavelet range">
-                    <min>0.0</min>
-                    <max>0.1</max>
-                </parameter>
-            </module>
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DeconvolutionModule' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Algorithm' in d['@name']][0]
-    idx3 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module']) if 'Local minimum search' in d['@name']][0]
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Chromatographic threshold' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%chromatographic_threshold
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Search minimum in RT range (min)' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%search_for_minimum_rt_range
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Minimum relative height' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%minimum_relative_height
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Minimum absolute height' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%min_peak_height
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Min ratio of peak top/edge' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%min_sn_ratio
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Peak duration range (min)' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['min'] = '%.3f'%min_peak_duration
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['max'] = '%.3f'%max_peak_duration
-    return new_d
-
-def configure_lms_peak_deconvolution(new_d,min_peak_height,minimum_relative_height,search_for_minimum_rt_range,chromatographic_threshold,min_sn_ratio,min_peak_duration,max_peak_duration):
-    """
-    <parameter name="Algorithm" selected="Local minimum search">
-                <module name="Local minimum search">
-                <parameter name="Chromatographic threshold">0.75</parameter>
-                <parameter name="Search minimum in RT range (min)">0.02</parameter>
-                <parameter name="Minimum relative height">0.002</parameter>
-                <parameter name="Minimum absolute height">90000.0</parameter>
-                <parameter name="Min ratio of peak top/edge">1.03</parameter>
-                <parameter name="Peak duration range (min)">
-                    <min>0.03</min>
-                    <max>1.0</max>
-                </parameter>
-            </module>
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DeconvolutionModule' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Algorithm' in d['@name']][0]
-    idx3 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module']) if 'Local minimum search' in d['@name']][0]
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Chromatographic threshold' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%chromatographic_threshold
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Search minimum in RT range (min)' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%search_for_minimum_rt_range
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Minimum relative height' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%minimum_relative_height
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Minimum absolute height' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%min_peak_height
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Min ratio of peak top/edge' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['#text'] = '%.3f'%min_sn_ratio
-    idx4 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter']) if 'Peak duration range (min)' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['min'] = '%.3f'%min_peak_duration
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['module'][idx3]['parameter'][idx4]['max'] = '%.3f'%max_peak_duration
-    return new_d
-
-def configure_isotope_search(new_d,mz_tolerance,rt_tol_perfile,representative_isotope,remove_isotopes,polarity):
-    """
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'Isotope' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Retention time tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(rt_tol_perfile)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Representative isotope' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%s'%(representative_isotope)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Remove original peaklist' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%s'%(str(remove_isotopes).lower())
-
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'Adduct' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'RT tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(rt_tol_perfile)
-    if polarity == 'negative':
-        idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Adducts' in d['@name']][0]
-        #the default is setup for positive mode adducts.
-        #only change them if you are in negative mode
-        for i,a in enumerate(new_d['batch']['batchstep'][idx]['parameter'][idx2]['adduct']):
-            if a['@selected'] == 'true':
-                new_d['batch']['batchstep'][idx]['parameter'][idx2]['adduct'][i]['@selected'] = 'false'
-            else:
-                new_d['batch']['batchstep'][idx]['parameter'][idx2]['adduct'][i]['@selected'] = 'true'
-
-    return new_d
-
-def configure_join_aligner(new_d,mz_tolerance,rt_tol_multifile):
-    """
-    # Join aligner has these scores:
-#             <parameter name="Minimum absolute intensity">3000.0</parameter>
-#             <parameter name="Minimum score">0.6</parameter>
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'JoinAlignerModule' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Retention time tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(rt_tol_multifile)
-
-#     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Minimum absolute intensity' in d['@name']][0]
-#     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = 3000#'%.3f'%(mz_tolerance)
-
-#     idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Minimum score' in d['@name']][0]
-#     new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = 0.6#'%.3f'%(rt_tol_multifile)
-
-    return new_d
-
-def configure_rows_filter(new_d,min_peaks_in_row,peak_with_msms):
-    """
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'RowsFilterModule' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Minimum peaks in a row' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%d'%min_peaks_in_row
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Minimum peaks in an isotope pattern' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%d'%min_peaks_in_row
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Keep only peaks with MS2 scan (GNPS)' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%d'%peak_with_msms
-    return new_d
-
-def configure_duplicate_filter(new_d,mz_tolerance,rt_tol_perfile):
-    """
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'DuplicateFilterModule' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'RT tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(rt_tol_perfile)
-    return new_d
-
-def configure_gap_filling(new_d,mz_tolerance,gapfill_intensity_tolerance,rt_tol_multifile):
-    """
-    #     <batchstep method="net.sf.mzmine.modules.peaklistmethods.gapfilling.peakfinder.multithreaded.MultiThreadPeakFinderModule">
-#         <parameter name="Peak lists" type="BATCH_LAST_PEAKLISTS"/>
-#         <parameter name="Name suffix">gap-filled</parameter>
-#         <parameter name="Intensity tolerance">0.05</parameter>
-#         <parameter name="m/z tolerance">
-#             <absolutetolerance>0.001</absolutetolerance>
-#             <ppmtolerance>5.0</ppmtolerance>
-#         </parameter>
-#         <parameter name="Retention time tolerance" type="absolute">0.03</parameter>
-#         <parameter name="Remove original peak list">false</parameter>
-#     </batchstep>
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'gapfilling.peakfinder' in d['@method']][0]
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Intensity tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(gapfill_intensity_tolerance)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Retention time tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = '%.3f'%(rt_tol_multifile)
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'm/z tolerance' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['ppmtolerance'] = '%.3f'%(mz_tolerance)
-
-
-    return new_d
-
-def configure_output(new_d,output_csv_height,output_csv_area,output_workspace,output_mgf):
-    """
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CSVExportModule' in d['@method']]
-    #the first will be height the second will be area
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[0]]['parameter']) if 'Filename' in d['@name']][0]
-    new_d['batch']['batchstep'][idx[0]]['parameter'][idx2]['#text'] = output_csv_height
-
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx[1]]['parameter']) if 'Filename' in d['@name']][0]
-    new_d['batch']['batchstep'][idx[1]]['parameter'][idx2]['#text'] = output_csv_area
-
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'GNPSExportModule' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Filename' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = output_mgf
-
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'ProjectSaveAsModule' in d['@method']][0]
-    new_d['batch']['batchstep'][idx]['parameter']['#text'] = output_workspace
-    return new_d
-
-def configure_csv_output(new_d,output_csv):
-    """
-
-    """
-    idx = [i for i,d in enumerate(new_d['batch']['batchstep']) if 'CSVExportModule' in d['@method']][0]
-    idx2 = [i for i,d in enumerate(new_d['batch']['batchstep'][idx]['parameter']) if 'Filename' in d['@name']][0]
-    new_d['batch']['batchstep'][idx]['parameter'][idx2]['#text'] = output_csv
-    return new_d
-
-def indent_tree(elem, level=0):
-    i = "\n" + level*"  "
-    if len(elem):
-        if not elem.text or not elem.text.strip():
-            elem.text = i + "  "
-        if not elem.tail or not elem.tail.strip():
-            elem.tail = i
-        for elem in elem:
-            indent_tree(elem, level+1)
-        if not elem.tail or not elem.tail.strip():
-            elem.tail = i
-    else:
-        if level and (not elem.tail or not elem.tail.strip()):
-            elem.tail = i
-
-def get_targeted_batch_file_template(loc='do_not_change_batch_file_targeted_peak_list.xml'):
-    """
-    return string of text from the template batch file
-    """
-    with open(os.path.join(BATCH_FILE_PATH,loc),'r') as fid:
-        file_text = fid.read()
-    return file_text
-
-def get_batch_file_template(loc='bootcamp_adap_template.xml'):
-    """
-    return string of text from the template batch file
-    """
-    with open(os.path.join(BATCH_FILE_PATH,loc),'r') as fid:
-        file_text = fid.read()
-    return file_text
-
-def get_latest_mzmine_binary(system='Cori',version='most_recent'):
-    """
-    Returns the path to the mzmine launch script.
-    Default is most recent.  Alternatively specify the folder containng version you want
-
-    for example:
-        version='MZmine-2.23'
-    will use the launch script in that folder
-
-    wget $(curl -s https://api.github.com/repos/mzmine/mzmine2/releases/v2.33 | grep 'browser_' | cut -d\" -f4) -O mzmine_latest.zip
-
-
-    # To setup the most recent mzmine binary, follow these steps
-    cd /project/projectdirs/metatlas/projects/mzmine_parameters/MZmine
-    wget $(curl -s https://api.github.com/repos/mzmine/mzmine2/releases/latest | grep 'browser_' | cut -d\" -f4) -O mzmine_latest.zip
-    unzip mzmine_latest.zip
-    # change directories into latest mzmine download
-    # cd MZmine-XXXX
-    cp ../MZmine-2.24/startMZmine_NERSC_* .
-    cd /project/projectdirs/metatlas/projects/
-    chgrp -R metatlas mzmine_parameters
-    chmod -R 770 mzmine_parameters
-    """
-    mzmine_versions = glob.glob(os.path.join(BINARY_PATH,'*' + os.path.sep))
-    if version == 'most_recent':
-        most_recent = sorted([os.path.basename(m) for m in mzmine_versions if 'MZmine-' in m])[-1]
-    else:
-        most_recent = [m.split(os.path.sep)[-2] for m in mzmine_versions if version in m][-1]
-    launch_script = os.path.join(os.path.join(BINARY_PATH,most_recent),'startMZmine_NERSC_Headless_%s.sh'%system)
-    if os.path.isfile(launch_script):
-        return launch_script
-    else:
-        print('See the docstring, the launch script seems to be missing.')
-
-def replace_files(d,file_list):
-    """
-    Replace files for mzmine task
-
-    Inputs:
-    d: an xml derived dictionary of batch commands
-    file_list: a list of full paths to mzML files
-
-    Outputs:
-    d: an xml derived dict with new files in it
-    """
-    for i,step in enumerate(d['batch']['batchstep']):
-        if 'RawDataImportModule' in step['@method']:
-            d['batch']['batchstep'][i]['parameter']['file'] = file_list
-    return d
-
-
-
-
-
-def tree_to_xml(t,filename=None):
-    """
-
-    """
-    xml_str = ET.tostring(t)
-    if filename:
-        with open(filename,'w') as fid:
-            fid.write(xml_str)
-    return xml_str
-
-
-
-def dict_to_etree(d):
-    """
-    Convert a python dictionary to an xml str
-    http://stackoverflow.com/questions/7684333/converting-xml-to-dictionary-using-elementtree
-
-    Example:
-    from collections import defaultdict
-    from xml.etree import cElementTree as ET
-
-    try:
-        basestring
-    except NameError:  # python3
-        basestring = str
-
-    #d is a python dictionary
-    ET.tostring(dict_to_etree(d))
-
-    """
-    def _to_etree(d, root):
-        print(type(d),d)
-        print('\n\n\n')
-        if not d:
-            pass
-
-        if type(d) is {}.values().__class__:
-            d = list(d.values)
-
-        if isinstance(d, str):
-            root.text = d
-        elif isinstance(d, dict):
-            for k,v in d.items():
-                assert isinstance(k, str)
-                if k.startswith('#'):
-                    assert k == '#text' and isinstance(v, str)
-                    root.text = v
-                elif k.startswith('@'):
-                    assert isinstance(v, str)
-                    root.set(k[1:], v)
-                elif isinstance(v, list):
-                    for e in v:
-                        _to_etree(e, ET.SubElement(root, k))
-                else:
-                    _to_etree(v, ET.SubElement(root, k))
-#         elif isinstance(d,dict_values):
-#             d = [d]
-#             _to_etree(d,ET.SubElement(root, k))
-        else: assert d == 'invalid type', (type(d), d)
-    assert isinstance(d, dict) and len(d) == 1
-    tag, body = next(iter(d.items()))
-    node = ET.Element(tag)
-    _to_etree(body, node)
-    return node
-
-def xml_to_dict(xml_str):
-    """
-    Convert an xml file into a python dictionary.
-    http://stackoverflow.com/questions/7684333/converting-xml-to-dictionary-using-elementtree
-
-    Example:
-    from xml.etree import cElementTree as ET
-    filename = '/global/homes/b/bpb/batch_params/xmlfile.xml'
-    with open(filename,'r') as fid:
-        xml_str = fid.read()
-
-    d = xml_to_dict(xml_str)
-    """
-    t = ET.XML(xml_str)
-    d = etree_to_dict(t)
-    return d
-
-def etree_to_dict(t):
-    """
-    Convert an xml tree into a python dictionary.
-    http://stackoverflow.com/questions/7684333/converting-xml-to-dictionary-using-elementtree
-
-    """
-
-    d = {t.tag: {} if t.attrib else None}
-    children = list(t)
-    if children:
-        dd = defaultdict(list)
-        for dc in map(etree_to_dict, children):
-            for k, v in six.iteritems(dc):
-                dd[k].append(v)
-        d = {t.tag: {k:v[0] if len(v) == 1 else v for k, v in six.iteritems(dd)}}
-    if t.attrib:
-        d[t.tag].update(('@' + k, v) for k, v in six.iteritems(t.attrib))
-    if t.text:
-        text = t.text.strip()
-        if children or t.attrib:
-            if text:
-                d[t.tag]['#text'] = text
-        else:
-            d[t.tag] = text
-    return d
-
-
-
-##########################################################
-#### From Here ###########################################
-### https://github.com/ianlini/flatten-dict ##############
-##########################################################
-##########################################################
-
-
-
-def tuple_reducer(k1, k2):
-    if k1 is None:
-        return (k2,)
-    else:
-        return k1 + (k2,)
-
-
-def path_reducer(k1, k2):
-    import os.path
-    if k1 is None:
-        return k2
-    else:
-        return os.path.join(k1, k2)
-
-
-
-def tuple_splitter(flat_key):
-    return flat_key
-
-
-def path_splitter(flat_key):
-    keys = PurePath(flat_key).parts
-    return keys
-
-REDUCER_DICT = {
-    'tuple': tuple_reducer,
-    'path': path_reducer,
-}
-
-SPLITTER_DICT = {
-    'tuple': tuple_splitter,
-    'path': path_splitter,
-}
-
-
-def flatten(d, reducer='tuple', inverse=False, enumerate_types=()):
-    """Flatten `Mapping` object.
-
-    Parameters
-    ----------
-    d : dict-like object
-        The dict that will be flattened.
-    reducer : {'tuple', 'path', Callable}
-        The key joining method. If a `Callable` is given, the `Callable` will be
-        used to reduce.
-        'tuple': The resulting key will be tuple of the original keys.
-        'path': Use `os.path.join` to join keys.
-    inverse : bool
-        Whether you want invert the resulting key and value.
-    enumerate_types : Sequence[type]
-        Flatten these types using `enumerate`.
-        For example, if we set `enumerate_types` to ``(list,)``,
-        `list` indices become keys: ``{'a': ['b', 'c']}`` -> ``{('a', 0): 'b', ('a', 1): 'c'}``.
-
-    Returns
-    -------
-    flat_dict : dict
-    """
-    enumerate_types = tuple(enumerate_types)
-    flattenable_types = (Mapping,) + enumerate_types
-    if not isinstance(d, flattenable_types):
-        raise ValueError("argument type %s is not in the flattenalbe types %s"
-                         % (type(d), flattenable_types))
-
-    if isinstance(reducer, str):
-        reducer = REDUCER_DICT[reducer]
-    flat_dict = {}
-
-    def _flatten(d, parent=None):
-        key_value_iterable = enumerate(d) if isinstance(d, enumerate_types) else six.viewitems(d)
-        for key, value in key_value_iterable:
-            flat_key = reducer(parent, key)
-            if isinstance(value, flattenable_types):
-                _flatten(value, flat_key)
-            else:
-                if inverse:
-                    flat_key, value = value, flat_key
-                if flat_key in flat_dict:
-                    raise ValueError("duplicated key '{}'".format(flat_key))
-                flat_dict[flat_key] = value
-
-    _flatten(d)
-    return flat_dict
-
-
-# def nested_set_dict(d, keys, value):
-#     """Set a value to a sequence of nested keys
-
-#     Parameters
-#     ----------
-#     d : Mapping
-#     keys : Sequence[str]
-#     value : Any
-#     """
-#     assert keys
-#     key = keys[0]
-#     if len(keys) == 1:
-#         if key in d:
-#             raise ValueError("duplicated key '{}'".format(key))
-#         d[key] = value
-#         return
-#     d = d.setdefault(key, {})
-#     nested_set_dict(d, keys[1:], value)
-
-
-def nested_set_dict(d, keys, value):
-    """Set a value to a sequence of nested keys
-
-    Parameters
-    ----------
-    d : Mapping
-    keys : Sequence[str]
-    value : Any
-    """
-    assert keys
-    key = keys[0]
-    if len(keys) == 1:
-        if type(d) == list:
-            d.append(value)
-        else:
-            d[key] = value
-        return
-
-    # the type is a string so make a dict if none exists
-    if type(keys[1]) == int:
-        if key in d:
-            pass
-        else:
-            d[key] = []
-        d = d[key]
-    elif type(key)==int:
-        if (key+1) > len(d):
-            d.append({})
-        d = d[key]
-    else:
-        d = d.setdefault(key, {})
-    nested_set_dict(d, keys[1:], value)
-
-
-def unflatten(d, splitter='tuple', inverse=False):
-    """Unflatten dict-like object.
-
-    Parameters
-    ----------
-    d : dict-like object
-        The dict that will be unflattened.
-    splitter : {'tuple', 'path', Callable}
-        The key splitting method. If a Callable is given, the Callable will be
-        used to split.
-        'tuple': Use each element in the tuple key as the key of the unflattened dict.
-        'path': Use `pathlib.Path.parts` to split keys.
-
-    Tester
-    d1 = {'a':{'b':[{'c1':'nested1!','d1':[{'e1':'so_nested1!!!'}]},
-               {'c2':'nested2!','d2':[{'e2':'so_nested2!!!'}]},
-               {'c3':'nested3!','d3':[{'e3':'so_nested3!!!'}]},
-               {'c4':'nested4!','d4':[{'e4':'so_nested4a!!!'},
-                                      {'e4':'so_nested4b!!!'},
-                                      {'e4':'so_nested4c!!!'},
-                                      {'e4':'so_nested4d!!!'},
-                                      {'e4':'so_nested4e!!!'}]}]}}
-
-    Returns
-    -------
-    unflattened_dict : dict
-    """
-    if isinstance(splitter, str):
-        splitter = SPLITTER_DICT[splitter]
-
-    kv = sorted([(k,v) for (k,v) in d.items()])
-    unflattened_dict = {}
-    for kkvv in kv:
-        key_tuple = kkvv[0]
-        value = kkvv[1]
-        nested_set_dict(unflattened_dict, key_tuple, value)
-
-    return unflattened_dict
+                logging.info(tab_print("LIMS does not need updating!", 1))
+    
+    logging.info(tab_print("Exported new project info for MZmine submission.", 1))
+    return lims_untargeted_df

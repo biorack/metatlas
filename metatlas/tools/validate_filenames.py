@@ -39,6 +39,7 @@ SYSTEMS = [
     "4800JBEI",
     "EXP120A",
     "IDX",
+    "IQX",
     "HPLC1",
     "EXP120B",
     "LTQXL",
@@ -399,11 +400,11 @@ beyond_minimal_checks = [
 warn_only_checks: List[Callable] = []
 
 
-def validate_file_name(file_name: Path, minimal: bool = False) -> bool:
+def validate_file_name(file_name: Path, minimal: bool = False, print_logger=True) -> bool:
     """Run set of validation functions on a file name"""
     required_checks = minimal_checks + ([] if minimal else beyond_minimal_checks)
     warn_checks = (beyond_minimal_checks if minimal else []) + warn_only_checks
-    return is_valid_file_name(file_name, required_checks, warn_checks)
+    return is_valid_file_name(file_name, required_checks, warn_checks, print_logger=print_logger)
 
 
 def get_validation_messages(file_name: Path, minimal: bool = False) -> Tuple[List[str], List[str]]:
@@ -419,7 +420,7 @@ def run_check_list(file_name: Path, checks: Sequence[Check]) -> List[str]:
 
 
 def is_valid_file_name(
-    file_name: Path, required_checks: Sequence[Check], warn_checks: Sequence[Check]
+    file_name: Path, required_checks: Sequence[Check], warn_checks: Sequence[Check], print_logger=True
 ) -> bool:
     """
     inputs:
@@ -429,10 +430,12 @@ def is_valid_file_name(
 
        checks are functions that return [] if valid or a list of messages if not valid
     """
-    logger.info("Validating file name for: %s", file_name)
+    if print_logger is True:
+        logger.info("Validating file name for: %s", file_name)
     warnings = run_check_list(file_name, warn_checks)
     for warn in warnings:
-        logger.warning(warn)
+        if print_logger is True:
+            logger.warning(warn)
     errors = run_check_list(file_name, required_checks)
     for error in errors:
         logger.error(error)
@@ -440,11 +443,14 @@ def is_valid_file_name(
     num_error = len(errors)
     if num_error == 0:
         if num_warn == 0:
-            logger.info("Passed filename validation: %s", file_name)
+            if print_logger is True:
+                logger.info("Passed filename validation: %s", file_name)
         else:
-            logger.info("Passed filename validation, but had %d warnings: %s", num_warn, file_name)
+            if print_logger is True:
+                logger.info("Passed filename validation, but had %d warnings: %s", num_warn, file_name)
         return True
-    logger.info(
+    if print_logger is True:
+        logger.info(
         "Failed filename validation with %d errors and %d warnings: %s", num_error, num_warn, file_name
     )
     return False

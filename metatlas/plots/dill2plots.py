@@ -2231,7 +2231,6 @@ def convert_to_centroid(sample_df):
         return sample_df[:, idx]
     return np.zeros((0, 0))
 
-
 def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str, compound_idx: int) -> pd.DataFrame:
     """
     Create MSMS hits DataFrame with no corresponding match in MSMS refs.
@@ -2242,12 +2241,17 @@ def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str, compoun
 
     compound_msms_hits = msms_data[msms_data['compound_idx'] == compound_idx].reset_index(drop=True).copy()
 
-    if inchi_key is None:
-        compound_msms_hits['inchi_key'] = ''
+    compound_msms_hits = msms_data[msms_data['compound_idx'] == compound_idx].reset_index(drop=True).copy()
 
-    compound_msms_hits['database'] = np.nan
-    compound_msms_hits['id'] = np.nan
-    compound_msms_hits['adduct'] = ''
+    if inchi_key is None:
+        inchi_msms_hits = msms_data[msms_data['inchi_key'].isnull()].reset_index(drop=True).copy()
+        inchi_msms_hits['inchi_key'] = ''
+    else:
+        inchi_msms_hits = msms_data[msms_data['inchi_key'] == inchi_key].reset_index(drop=True).copy()
+
+    inchi_msms_hits['database'] = np.nan
+    inchi_msms_hits['id'] = np.nan
+    inchi_msms_hits['adduct'] = ''
 
     compound_msms_hits['score'] = compound_msms_hits['measured_precursor_intensity']
     compound_msms_hits['num_matches'] = 0
@@ -2255,6 +2259,7 @@ def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str, compoun
     compound_msms_hits['msms_frag_jaccard'] = 0.0
     compound_msms_hits['spectrum'] = [np.array([np.array([]), np.array([])])] * len(compound_msms_hits)
 
+    return compound_msms_hits
     return compound_msms_hits
 
 
@@ -2293,16 +2298,24 @@ def score_matrix(cos: Type[CosineHungarian], references: List[SpectrumType], que
     return scores_array
 
 
-def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
+def get_hits_per_compound(cos: Type[CosineHungarian], compound_idx: int,
                           msms_data: pd.DataFrame, msms_refs: pd.DataFrame) -> pd.DataFrame:
     """
-    Get MSMS hits for an individual InChiKey.
+    Get MSMS hits for an individual compound index and InChiKey.
 
     If no key is given, or it isn't present in the MSMS refs, create nonmatched dummy hits DataFrame.
     """
+    unique_inchi_keys = msms_data[msms_data['compound_idx']==compound_idx]['inchi_key'].unique()
 
-    if inchi_key not in msms_refs['inchi_key'].tolist():
-        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
+    if len(unique_inchi_keys) > 1:
+        raise Exception('Only 1 inchi_key is allowed per compound name.')
+    elif len(unique_inchi_keys) == 0:
+        inchi_key = None
+    else:
+        inchi_key = unique_inchi_keys[0]
+
+    if inchi_key not in msms_refs['inchi_key'].tolist() or inchi_key is None:
+        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key, compound_idx)
         return nonmatched_msms_hits
 
     filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
@@ -2320,7 +2333,7 @@ def get_hits_per_compound(cos: Type[CosineHungarian], inchi_key: str,
     inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
 
     if inchi_msms_hits.empty:
-        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key)
+        nonmatched_msms_hits = create_nonmatched_msms_hits(msms_data, inchi_key, compound_idx)
         return nonmatched_msms_hits
 
     return inchi_msms_hits
@@ -2379,15 +2392,14 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
     if len(msms_data) == 0:
         return pd.DataFrame(columns=msms_hits_cols).set_index(['database', 'id', 'file_name', 'msms_scan'])
 
-    data_inchi_keys = set(msms_data.inchi_key.tolist())
+    compound_names = ma_data.get_compound_names(metatlas_dataset)[0]
 
     cos = CosineHungarian(tolerance=frag_mz_tolerance)
 
     msms_hits = []
-    for inchi_key in tqdm(data_inchi_keys, unit='compound', disable=in_papermill()):
-
-        inchi_msms_hits = get_hits_per_compound(cos, inchi_key, msms_data, msms_refs)
-        msms_hits.append(inchi_msms_hits)
+    for compound_idx in tqdm(range(len(compound_names)), unit='compound', disable=in_papermill()):
+        compound_msms_hits = get_hits_per_compound(cos, compound_idx, msms_data, msms_refs)
+        msms_hits.append(compound_msms_hits)
 
     msms_hits = pd.concat(msms_hits)
 
