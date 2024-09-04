@@ -2241,25 +2241,17 @@ def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str, compoun
 
     compound_msms_hits = msms_data[msms_data['compound_idx'] == compound_idx].reset_index(drop=True).copy()
 
-    compound_msms_hits = msms_data[msms_data['compound_idx'] == compound_idx].reset_index(drop=True).copy()
-
     if inchi_key is None:
-        inchi_msms_hits = msms_data[msms_data['inchi_key'].isnull()].reset_index(drop=True).copy()
-        inchi_msms_hits['inchi_key'] = ''
-    else:
-        inchi_msms_hits = msms_data[msms_data['inchi_key'] == inchi_key].reset_index(drop=True).copy()
+        compound_msms_hits['inchi_key'] = ''
 
-    inchi_msms_hits['database'] = np.nan
-    inchi_msms_hits['id'] = np.nan
-    inchi_msms_hits['adduct'] = ''
+    compound_msms_hits['database'] = np.nan
+    compound_msms_hits['id'] = np.nan
+    compound_msms_hits['adduct'] = ''
 
     compound_msms_hits['score'] = compound_msms_hits['measured_precursor_intensity']
     compound_msms_hits['num_matches'] = 0
-    compound_msms_hits['msms_frag_ratio'] = 0.0
-    compound_msms_hits['msms_frag_jaccard'] = 0.0
     compound_msms_hits['spectrum'] = [np.array([np.array([]), np.array([])])] * len(compound_msms_hits)
 
-    return compound_msms_hits
     return compound_msms_hits
 
 
