@@ -865,13 +865,14 @@ class adjust_rt_for_selected_compound(object):
         out = []
         cid_mz_ref = cid.mz_references[0].mz
         cid_mass = cid.compound[0].mono_isotopic_molecular_weight
-        if not cid.compound[0].inchi_key:
+        if cid.compound[0].inchi_key != '':
             try:
                 cid_inchikey_prefix = cid.compound[0].inchi_key.split('-')[0]
             except:
-                logger.warning("Inchi key is anomalous for %d.", self.compound_idx)
+                logger.warning("Inchi key is anomalous for compound %d.", self.compound_idx)
                 cid_inchikey_prefix = None
         else:
+            logger.warning("Compound %d does not have inchi key.", self.compound_idx)
             cid_inchikey_prefix = None
         for compound_iter_idx, _ in enumerate(self.data[0]):
             cpd_iter_id = self.data[0][compound_iter_idx]['identification']
@@ -879,7 +880,11 @@ class adjust_rt_for_selected_compound(object):
                 continue
             mass = cpd_iter_id.compound[0].mono_isotopic_molecular_weight
             mz_ref = cpd_iter_id.mz_references[0].mz
-            inchikey_prefix = cpd_iter_id.compound[0].inchi_key.split('-')[0]
+            try:
+                inchikey_prefix = cpd_iter_id.compound[0].inchi_key.split('-')[0]
+            except:
+                logger.warning("Inchi key is anomalous for compound %d.", cpd_iter_id.compound[0].name)
+                cid_inchikey_prefix = ''
             if (mz_ref-0.005 <= cid_mz_ref <= mz_ref+0.005) or \
                 (mass-0.005 <= cid_mass <= mass+0.005) or \
                 (cid_inchikey_prefix == inchikey_prefix):
