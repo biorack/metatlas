@@ -712,6 +712,12 @@ class adjust_rt_for_selected_compound(object):
         self.peak_flag_radio.set_radio_props({'facecolor':'white'})
         self.lin_log_radio.set_radio_props({'facecolor':'white'})
         self.msms_flag_radio.set_radio_props({'facecolor':'white'})
+        for label in self.peak_flag_radio.labels:
+            label.set_color('white')
+        for label in self.lin_log_radio.labels:
+            label.set_color('white')
+        for label in self.msms_flag_radio.labels:
+            label.set_color('white')
 
     def update_plots(self):
         self.msms_zoom_factor = 1
