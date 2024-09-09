@@ -107,14 +107,14 @@ def score_ms2_data(ms2_data: pd.DataFrame, aligned_atlas_df: pd.DataFrame,
     This function merges the MSMS refs with the MS2 data collected from the samples for scoring
     and calculates scores and number of matching ions.
     """
-    if ms2_data.empty:
-        logging.warning('No MS2 data collected during pre-filter')
-        return pd.DataFrame(columns=['label', 'score', 'matches', 'match_reference_ratio'])
-
     msms_refs = load_and_filter_msms_refs_file(msms_refs_path, polarity)
 
     ms2_data_refs_merge = pd.merge(ms2_data, aligned_atlas_df[['label', 'inchi_key']], on='label')
     ms2_data_refs_merge = pd.merge(ms2_data_refs_merge, msms_refs[['id', 'inchi_key', 'spectrum']], on='inchi_key')
+
+    if ms2_data_refs_merge.empty:
+        logging.warning('No matching MS2 data collected during pre-filter')
+        return pd.DataFrame(columns=['label', 'score', 'matches', 'match_reference_ratio'])
 
     ms2_data_refs_merge['mms_spectrum_x'] = ms2_data_refs_merge.apply(lambda x: mms.Spectrum(x.spectrum_x[0], x.spectrum_x[1], metadata={'precursor_mz': x.precursor_mz}), axis=1)
     ms2_data_refs_merge['mms_spectrum_y'] = ms2_data_refs_merge.apply(lambda x: mms.Spectrum(x.spectrum_y[0], x.spectrum_y[1], metadata={'precursor_mz': x.precursor_mz}), axis=1)
