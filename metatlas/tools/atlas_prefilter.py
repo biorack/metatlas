@@ -58,8 +58,8 @@ def get_sample_data(aligned_atlas_df: pd.DataFrame, sample_files: list[str], ppm
         ms1_data.append(data['ms1_summary'])
         ms2_data.append(ms2_summary)
 
-    ms1_data = pd.concat(ms1_data)
-    ms2_data = pd.concat(ms2_data)
+    ms1_data = pd.concat(ms1_data).reset_index(drop=True)
+    ms2_data = pd.concat(ms2_data).reset_index(drop=True)
 
     ms2_data['spectrum'] = ms2_data['spectrum'].apply(order_ms2_spectrum)
 
