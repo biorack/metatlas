@@ -341,7 +341,14 @@ def untargeted_file_rename(target_dir="", abridged_filenames=True):
     pid = old_project_name.split('_')[3]
     chromatography = old_project_name.split('_')[7]
     polarity = old_project_name.split('_')[9]
-    new_project_name = f"{date}_{department}_{submitter}_{pid}_{chromatography}_{polarity}"
+    
+    if not any(substring.lower() in department.lower() for substring in ['JGI', 'EB', 'EGSB']) or \
+        any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
+        any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
+            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
+            return
+    else:
+        new_project_name = f"{date}_{department}_{submitter}_{pid}_{chromatography}_{polarity}"
 
     for root, dirs, files in os.walk(target_dir):
         for file in files:
