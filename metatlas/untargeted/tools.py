@@ -140,7 +140,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                       output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', \
                                       upload=True, overwrite_zip=False, overwrite_drive=False, direct_input=None, \
                                       min_features_admissible=0, add_documentation=True, \
-                                      doc_name=None,skip_zip_upload=False):
+                                      doc_name=None,skip_zip_upload=False,abridged_filenames=True):
     """
     This function is called by export_untargeted_results.py
     
@@ -212,12 +212,14 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
                             pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
                             # Get rid of the mzmine job id files
-                            neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
-                            pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
+                            neg_mzmine_job_id_filename = os.path.join(neg_directory,'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
+                            pos_mzmine_job_id_filename = os.path.join(pos_directory,'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
                             if os.path.exists(neg_mzmine_job_id_filename):
                                 os.remove(neg_mzmine_job_id_filename)
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
+                            untargeted_file_rename(target_dir=neg_directory, abridged_filenames=abridged_filenames)
+                            untargeted_file_rename(target_dir=pos_directory, abridged_filenames=abridged_filenames)
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
                                 doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
@@ -255,6 +257,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
+                            untargeted_file_rename(target_dir=pos_directory, abridged_filenames=abridged_filenames)
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
                                 doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
@@ -292,6 +295,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
                             if os.path.exists(neg_mzmine_job_id_filename):
                                 os.remove(neg_mzmine_job_id_filename)
+                            untargeted_file_rename(target_dir=neg_directory, abridged_filenames=abridged_filenames)
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
                                 doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
@@ -321,6 +325,38 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
             logging.info(tab_print("No new untargeted projects to be zipped.", 1))
         
         logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
+
+
+def untargeted_file_rename(target_dir="", abridged_filenames=True):
+    if not abridged_filenames:
+        return
+    if target_dir == "":
+        logging.warning(tab_print("Warning! No target directory provided for renaming untargeted results files, but rename function is set to True.", 1))
+        return
+
+    old_project_name = os.path.basename(target_dir)
+    date = old_project_name.split('_')[0]
+    department = old_project_name.split('_')[1]
+    submitter = old_project_name.split('_')[2]
+    pid = old_project_name.split('_')[3]
+    chromatography = old_project_name.split('_')[7]
+    polarity = old_project_name.split('_')[9]
+    
+    if not any(substring.lower() in department.lower() for substring in ['JGI', 'EB', 'EGSB']) or \
+        any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
+        any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
+            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
+            return
+    else:
+        new_project_name = f"{date}_{department}_{submitter}_{pid}_{chromatography}_{polarity}"
+
+    for root, dirs, files in os.walk(target_dir):
+        for file in files:
+            if old_project_name in file:
+                new_file = file.replace(old_project_name, new_project_name)
+                os.rename(os.path.join(root, file), os.path.join(root, new_file))
+    
+    logging.info(tab_print(f"Files for project {old_project_name} renamed with new prefix: {new_project_name}", 1))
 
 
 def check_peak_height_table(peak_height_file):
