@@ -218,8 +218,8 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 os.remove(neg_mzmine_job_id_filename)
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
-                            untargeted_file_rename(target_dir=neg_directory, abridged_filenames=True)
-                            untargeted_file_rename(target_dir=pos_directory, abridged_filenames=True)
+                            untargeted_file_rename(target_dir=neg_directory, abridged_filenames=abridged_filenames)
+                            untargeted_file_rename(target_dir=pos_directory, abridged_filenames=abridged_filenames)
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
                                 doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
@@ -257,7 +257,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
-                            untargeted_file_rename(target_dir=pos_directory, abridged_filenames=True)
+                            untargeted_file_rename(target_dir=pos_directory, abridged_filenames=abridged_filenames)
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
                                 doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
@@ -295,7 +295,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
                             if os.path.exists(neg_mzmine_job_id_filename):
                                 os.remove(neg_mzmine_job_id_filename)
-                            untargeted_file_rename(target_dir=neg_directory, abridged_filenames=True)
+                            untargeted_file_rename(target_dir=neg_directory, abridged_filenames=abridged_filenames)
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
                                 doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
@@ -330,7 +330,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
 def untargeted_file_rename(target_dir="", abridged_filenames=True):
     if not abridged_filenames:
         return
-    if not target_dir:
+    if target_dir == "":
         logging.warning(tab_print("Warning! No target directory provided for renaming untargeted results files, but rename function is set to True.", 1))
         return
 
