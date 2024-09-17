@@ -328,7 +328,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
 
 
 def untargeted_file_rename(target_dir="", abridged_filenames=True):
-    if not abridged_filenames:
+    if abridged_filenames is False:
         return
     if target_dir == "":
         logging.warning(tab_print("Warning! No target directory provided for renaming untargeted results files, but rename function is set to True.", 1))
@@ -342,10 +342,12 @@ def untargeted_file_rename(target_dir="", abridged_filenames=True):
     chromatography = old_project_name.split('_')[7]
     polarity = old_project_name.split('_')[9]
     
+    # Check if project name follows the standard naming convention
     if not any(substring.lower() in department.lower() for substring in ['JGI', 'EB', 'EGSB']) or \
-        any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
-        any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
+       not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
+       not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
             logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
+            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, department, submitter, pid, chromatography, polarity), 2))
             return
     else:
         new_project_name = f"{date}_{department}_{submitter}_{pid}_{chromatography}_{polarity}"
@@ -356,7 +358,7 @@ def untargeted_file_rename(target_dir="", abridged_filenames=True):
                 new_file = file.replace(old_project_name, new_project_name)
                 os.rename(os.path.join(root, file), os.path.join(root, new_file))
     
-    logging.info(tab_print(f"Files for project {old_project_name} renamed with new prefix: {new_project_name}", 1))
+    logging.info(tab_print(f"Untargeted results files for project {old_project_name} renamed with new prefix: {new_project_name}", 1))
 
 
 def check_peak_height_table(peak_height_file):
