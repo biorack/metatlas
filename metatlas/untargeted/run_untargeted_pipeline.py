@@ -54,7 +54,8 @@ def main():
     ##### Step 7/7: Zipping up and (optionally) uploading output folders to gdrive
     mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir,upload=args.gdrive_upload,overwrite_zip=args.overwrite_zip, \
                                           overwrite_drive=args.overwrite_drive, min_features_admissible=args.min_features, skip_zip_upload=step_bools[6], \
-                                          add_documentation=args.add_gnps2_documentation,doc_name=args.gnps2_doc_name,direct_input=args.direct_input)
+                                          add_documentation=args.add_gnps2_documentation,doc_name=args.gnps2_doc_name,direct_input=args.direct_input, \
+                                          abridged_filenames=args.abridged_filenames)
 
     ##### End the script
     end_message = mzm.end_script(script="run_untargeted_pipeline.py")
@@ -86,6 +87,7 @@ def add_arguments(parser):
     parser.add_argument('--min_features', type=int, default=0, help='Set minimum number of MZmine features for a project polarity to be zipped')
     parser.add_argument('--add_gnps2_documentation', type=bool, default=True, help='File name of the GNPS2 documentation to add to project zips')
     parser.add_argument('--gnps2_doc_name', type=str, default='Untargeted_metabolomics_GNPS2_Guide.docx', help='File name of the GNPS2 documentation to add to project zips')
+    parser.add_argument('--abridged_filenames', type=bool, default=True, help='Use abridged filenames in the zipped folders. Can be set to False for non-conforming project names')
     ## Logger/helper
     parser.add_argument('--log_file', type=str, default='/global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log', help='Log file name with full path')
     parser.add_argument('--log_level', type=str, default='INFO', help='Logger level. One of [DEBUG, INFO, WARNING, ERROR, or CRITICAL]')
