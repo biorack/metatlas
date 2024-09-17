@@ -344,9 +344,10 @@ def untargeted_file_rename(target_dir="", abridged_filenames=True):
     
     # Check if project name follows the standard naming convention
     if not any(substring.lower() in department.lower() for substring in ['JGI', 'EB', 'EGSB']) or \
-        any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
-        any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
+       not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
+       not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
             logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
+            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, department, submitter, pid, chromatography, polarity), 2))
             return
     else:
         new_project_name = f"{date}_{department}_{submitter}_{pid}_{chromatography}_{polarity}"
