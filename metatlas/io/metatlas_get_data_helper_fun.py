@@ -44,14 +44,12 @@ def sort_atlas_csv(input_csv: str, column1: str, column2: str, istd_atlas: bool)
             if not df['label'].str.contains('unlabeled').any():
                 logger.info("Warning: The designation 'unlabeled' does not appear in the 'label' column. Only set 'istd_atlas' to True if this is an internal standard atlas with isotopic labeling. Exiting!")
                 sys.exit(1)
-            df['rt_peak'] = df.apply(lambda row: row['rt_peak'] + 0.1 if 'unlabeled' in row['label'] else row['rt_peak'], axis=1)
-            sorted_df = df.sort_values(by=[column1, column2], ascending=[True, True])
-            sorted_df['rt_peak'] = sorted_df.apply(lambda row: row['rt_peak'] - 0.1 if 'unlabeled' in row['label'] else row['rt_peak'], axis=1)
+            sorted_df = df.sort_values(by=[column1, column2], ascending=[True, False]) # Sort small->large for column1 (rt peak), large->small for column2 (mz)
         else:
             logger.info("Warning: The 'label' column is missing. Not sorting with heavy isotope compound first even though 'istd_atlas' is set to True.")
-            sorted_df = df.sort_values(by=[column1, column2], ascending=[True, True])
+            sorted_df = df.sort_values(by=[column1, column2], ascending=[True, False])
     else:
-        sorted_df = df.sort_values(by=[column1, column2], ascending=[True, True])
+        sorted_df = df.sort_values(by=[column1, column2], ascending=[True, False])
 
     return(sorted_df)
 
