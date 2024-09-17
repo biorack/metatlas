@@ -39,6 +39,7 @@ def write_atlas_to_csv(metatlas_dataset, overwrite=False):
 def write_identifications_spreadsheet(
     metatlas_dataset,
     analysis_parameters,
+    metatlas_workflow,
     min_intensity=1e4,
     rt_tolerance=0.5,
     mz_tolerance=20,
@@ -88,6 +89,7 @@ def write_identifications_spreadsheet(
     export_dataframe_die_on_diff(scores_df, scores_path, "scores", overwrite=overwrite, float_format="%.8e")
     output_sheetname = f"{ids.project}_{ids.workflow}_{ids.analysis}_Identifications.xlsx"
     fa.make_stats_table(
+        workflow_name=metatlas_workflow.name,
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
         output_loc=ids.additional_output_dir,
@@ -370,7 +372,7 @@ def generate_standard_outputs(
     data.ids.set_output_state(params, "gui")
     write_atlas_to_csv(data, overwrite=overwrite)
     write_tics(data, overwrite=overwrite, x_min=1.5)
-    write_identifications_spreadsheet(data, params, overwrite=overwrite)
+    write_identifications_spreadsheet(data, params, workflow, overwrite=overwrite)
     write_chromatograms(data, params, overwrite=overwrite, max_cpus=data.max_cpus)
     write_identification_figure(data, params, overwrite=overwrite)
     write_metrics_and_boxplots(data, params, overwrite=overwrite, max_cpus=data.max_cpus)
