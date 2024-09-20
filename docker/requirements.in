@@ -23,6 +23,7 @@ pubchempy
 pydantic
 pymysql
 pymzml
+pysftp
 pyyaml
 rdkit-pypi
 scikit-learn
