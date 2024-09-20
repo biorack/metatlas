@@ -352,6 +352,8 @@ pyparsing==3.1.1
     # via
     #   httplib2
     #   matplotlib
+pysftp==0.2.9
+    # via -r requirements.in
 pyteomics==4.6.2
     # via matchms
 python-dateutil==2.8.2
