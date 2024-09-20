@@ -18,6 +18,7 @@ import subprocess
 import grp
 import logging
 import ftplib
+import pysftp
 
 BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
 BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
@@ -797,7 +798,37 @@ def check_gnps2_status(taskid):
     except:
         return 'N/A','N/A'
 
-def check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
+def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowen"):
+
+    # Load password from file
+    with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt', 'r') as f:
+        for line in f:
+            if line.startswith('MYVARIABLE='):
+                password = line.strip().split('=')[1]
+                break
+
+    if not password:
+        logging.error(tab_print("Password is required to mirror data to GNPS2", 3))
+        return
+    
+    logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
+
+    project_directory = f"{project}_{polarity}"
+    local_directory = f"/global/cfs/cdirs/metatlas/projects/untargeted_tasks/{project_directory}"
+    remote_directory = f"/untargeted_tasks/{project_directory}"
+    remote_host = "sftp.gnps2.org"
+    remote_port = 443
+    remote_user = username
+
+    try:
+        with pysftp.Connection(host=remote_host, port=remote_port, username=remote_user, password=password) as sftp:
+            # Mirror local directory to remote directory
+            sftp.put_r(local_directory, remote_directory)
+        logging.info(tab_print("Completed mirror to GNPS2..."%(project), 3))
+    except Exception as e:
+        logging.error(tab_print("Failed to mirror data to GNPS2: %s"%(e), 3))
+
+def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
     ##### Pick up secret file and extract password
     with open('/global/homes/m/msdata/gnps2/gnps2_%s.txt'%username,'r') as fid:
@@ -955,13 +986,13 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir='/global/
                 
                 # Check that mzmine files are at GNPS2. If they're not, try to sync them
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
-                files_all_exist = check_for_mzmine_files_at_gnps2(project_name,polarity,username="bpbowen")
+                files_all_exist = mirror_mzmine_results_to_gnps2(project_name,polarity,username="bpbowen")
                 if files_all_exist is False:
                     logging.info(tab_print("Note: MZmine results were not at GNPS2. Attempting to sync now...", 2))
                     mzmine_synced = sync_mzmine_results_to_gnps2()
                     if mzmine_synced is True:
                         logging.info(tab_print("MZmine results synced with GNPS2. Rechecking project files.", 3))
-                        files_all_exist = check_for_mzmine_files_at_gnps2(project_name,polarity,username="bpbowen")
+                        files_all_exist = mirror_mzmine_results_to_gnps2(project_name,polarity,username="bpbowen")
                         if files_all_exist is False:
                             logging.critical(tab_print("Warning! Could not sync mzmine results with GNPS2. Not submitting any new FBMN jobs.", 3))
                             return
