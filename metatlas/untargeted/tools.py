@@ -1463,7 +1463,7 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_f
     with open(sbatch_filename,'w') as fid:
         fid.write('%s\n%s\n'%(SLURM_PERLMUTTER_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
     with open(runner_filename,'w') as fid:
-        fid.write('sbatch %s'%sbatch_filename)
+        fid.write('#!/bin/bash\n\nsbatch %s'%sbatch_filename)
 
 def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw_data_path="/",validate_names=True) -> list:
     """
