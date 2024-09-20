@@ -18,7 +18,7 @@ import subprocess
 import grp
 import logging
 import ftplib
-import pysftp
+import paramiko
 
 BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
 BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
@@ -821,13 +821,28 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
     remote_user = username
 
     try:
-        with pysftp.Connection(host=remote_host, port=remote_port, username=remote_user, password=password) as sftp:
-            # Mirror local directory to remote directory
-            sftp.put_r(local_directory, remote_directory)
-        logging.info(tab_print("Completed mirror to GNPS2..."%(project), 4))
+        # Establish SFTP connection using paramiko
+        transport = paramiko.Transport((remote_host, remote_port))
+        transport.connect(username=remote_user, password=password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+        # Mirror local directory to remote directory
+        for root, dirs, files in os.walk(local_directory):
+            for dir in dirs:
+                remote_path = os.path.join(remote_directory)
+                try:
+                    sftp.mkdir(remote_path)
+                except IOError:
+                    pass  # Directory already exists
+            for file in files:
+                local_path = os.path.join(root, file)
+                remote_path = os.path.join(remote_directory, file)
+                sftp.put(local_path, remote_path)
+        sftp.close()
+        transport.close()
+        logging.info(tab_print(f"Completed mirror to GNPS2 for {project}...", 3))
     except Exception as e:
-        logging.error(tab_print("Failed to mirror data to GNPS2: %s"%(e), 4))
-        sys.exit(1)
+        logging.error(tab_print(f"Failed to mirror data to GNPS2: {e}", 3))
+
 
 def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
