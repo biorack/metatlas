@@ -805,25 +805,28 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
         for line in f:
             if line.startswith('MYVARIABLE='):
                 password = line.strip().split('=')[1]
+                break
+
     if not password:
         logging.error(tab_print("Password is required to mirror data to GNPS2", 3))
         return
     
     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
 
-    project_directory = project + "_" + polarity
+    project_directory = f"{project}_{polarity}"
     local_directory = f"/global/cfs/cdirs/metatlas/projects/untargeted_tasks/{project_directory}"
     remote_directory = f"/untargeted_tasks/{project_directory}"
     remote_host = "sftp.gnps2.org"
     remote_port = 443
     remote_user = username
 
-    # Establish SFTP connection
-    with pysftp.Connection(host=remote_host, port=remote_port, username=remote_user, password=password) as sftp:
-        # Mirror local directory to remote directory
-        sftp.put_r(local_directory, remote_directory)
-
-    logging.info(tab_print("Completed mirror to GNPS2..."%(project), 3))
+    try:
+        with pysftp.Connection(host=remote_host, port=remote_port, username=remote_user, password=password) as sftp:
+            # Mirror local directory to remote directory
+            sftp.put_r(local_directory, remote_directory)
+        logging.info(tab_print("Completed mirror to GNPS2..."%(project), 3))
+    except Exception as e:
+        logging.error(tab_print("Failed to mirror data to GNPS2: %s"%(e), 3))
 
 def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
