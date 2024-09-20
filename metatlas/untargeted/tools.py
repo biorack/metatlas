@@ -1116,7 +1116,7 @@ def submit_mzmine_jobs(new_projects=None,direct_input=None,skip_mzmine_submit=Fa
                     with open(submission_script_filename,'r') as fid:
                         logging.info(tab_print("Submitting %s mode mzmine job for project %s"%(polarity, project_name), 2))
                         cmd = fid.read()
-                        sbatch_output = subprocess.run(cmd, shell=True,stdout=subprocess.PIPE)
+                        sbatch_output = subprocess.run(cmd, shell=True, executable='/bin/bash', stdout=subprocess.PIPE)
                         sbatch_output_str = sbatch_output.stdout.decode('utf-8').replace('\n', '')
                         logging.info(tab_print("%s"%(sbatch_output_str), 3))
                         job_id = sbatch_output_str.split()[-1]
@@ -1463,7 +1463,7 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_f
     with open(sbatch_filename,'w') as fid:
         fid.write('%s\n%s\n'%(SLURM_PERLMUTTER_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
     with open(runner_filename,'w') as fid:
-        fid.write('#!/bin/bash\n\nsbatch %s'%sbatch_filename)
+        fid.write('sbatch %s'%sbatch_filename)
 
 def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw_data_path="/",validate_names=True) -> list:
     """
