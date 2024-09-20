@@ -809,7 +809,7 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
 
     if not password:
         logging.error(tab_print("Password is required to mirror data to GNPS2", 3))
-        return
+        sys.exit(1)
     
     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
 
@@ -824,9 +824,10 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
         with pysftp.Connection(host=remote_host, port=remote_port, username=remote_user, password=password) as sftp:
             # Mirror local directory to remote directory
             sftp.put_r(local_directory, remote_directory)
-        logging.info(tab_print("Completed mirror to GNPS2..."%(project), 3))
+        logging.info(tab_print("Completed mirror to GNPS2..."%(project), 4))
     except Exception as e:
-        logging.error(tab_print("Failed to mirror data to GNPS2: %s"%(e), 3))
+        logging.error(tab_print("Failed to mirror data to GNPS2: %s"%(e), 4))
+        sys.exit(1)
 
 def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
@@ -984,21 +985,9 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir='/global/
                     logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Skipping..."%(project_name), 2))
                     continue
                 
-                # Check that mzmine files are at GNPS2. If they're not, try to sync them
+                # Get mzmine results files to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
-                files_all_exist = mirror_mzmine_results_to_gnps2(project_name,polarity,username="bpbowen")
-                if files_all_exist is False:
-                    logging.info(tab_print("Note: MZmine results were not at GNPS2. Attempting to sync now...", 2))
-                    mzmine_synced = sync_mzmine_results_to_gnps2()
-                    if mzmine_synced is True:
-                        logging.info(tab_print("MZmine results synced with GNPS2. Rechecking project files.", 3))
-                        files_all_exist = mirror_mzmine_results_to_gnps2(project_name,polarity,username="bpbowen")
-                        if files_all_exist is False:
-                            logging.critical(tab_print("Warning! Could not sync mzmine results with GNPS2. Not submitting any new FBMN jobs.", 3))
-                            return
-                    else:
-                        logging.critical(tab_print("Warning! Could not sync mzmine results and raw data with GNPS2. Not submitting any new FBMN jobs.", 2))
-                        return
+                mirror_mzmine_results_to_gnps2(project_name,polarity,username="bpbowen")
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
