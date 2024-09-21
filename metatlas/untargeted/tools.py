@@ -339,7 +339,7 @@ def untargeted_file_rename(target_dir="", abridged_filenames=True):
     submitter = old_project_name.split('_')[2]
     pid = old_project_name.split('_')[3]
     chromatography = old_project_name.split('_')[7]
-    polarity = old_project_name.split('_')[9]
+    polarity = old_project_name.split('_')[-1] # Sometimes things get added to the end of a project name
     
     # Check if project name follows the standard naming convention
     if not any(substring.lower() in department.lower() for substring in ['JGI', 'EB', 'EGSB']) or \
@@ -717,16 +717,19 @@ def update_table_in_lims(df,table,method='update',max_size=1000,pause_time=None)
     whatever is in 'name' or 'Key' will replace whatever used to be there with the other columns
     """
     N = math.ceil(float(df.shape[0]) / max_size)
-    for sub_df in np.array_split(df, N):
+    for i in range(N):
+        start_idx = i * max_size
+        end_idx = min((i + 1) * max_size, df.shape[0])
+        sub_df = df.iloc[start_idx:end_idx]
         payload = sub_df.to_dict('records')
-        if method=='update':
-            api.query.update_rows('lists', table, payload,timeout=10000)
-        elif method=='insert':
-            api.query.insert_rows('lists', table, payload,timeout=10000)
-        elif method=='delete':
-            api.query.delete_rows('lists', table, payload,timeout=10000)
+        if method == 'update':
+            api.query.update_rows('lists', table, payload, timeout=10000)
+        elif method == 'insert':
+            api.query.insert_rows('lists', table, payload, timeout=10000)
+        elif method == 'delete':
+            api.query.delete_rows('lists', table, payload, timeout=10000)
         else:
-            logging.critical(tab_print('ERROR: Nothing to do.  Method %s is not programmed'%(method), 2))
+            logging.critical(tab_print('ERROR: Nothing to do.  Method %s is not programmed' % (method), 2))
         if pause_time is not None:
             time.sleep(pause_time)
 
@@ -809,7 +812,7 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
         sys.exit(1)
     
-    logging.info(tab_print("Mirroring MZmine results for %s to GNPS2...", 3))
+    logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
 
     project_directory = f"{project}_{polarity}"
     local_directory = f"/global/cfs/cdirs/metatlas/projects/untargeted_tasks/{project_directory}"
