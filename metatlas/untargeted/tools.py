@@ -3,7 +3,6 @@ sys.path.insert(0,'/global/common/software/m2650/labkey-api-python') # https://g
 from labkey.api_wrapper import APIWrapper
 import numpy as np
 import pandas as pd
-import glob as glob
 from pathlib2 import PurePath
 import os
 import requests
@@ -17,7 +16,6 @@ import metatlas.tools.validate_filenames as vfn
 import subprocess
 import grp
 import logging
-import ftplib
 import paramiko
 
 BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
@@ -826,7 +824,7 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
     try:
         sftp.mkdir(remote_directory)
     except IOError:
-        logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2, skipping mirror...", 4))
+        logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 4))
         pass
     try:
         for root, dirs, files in os.walk(local_directory):
@@ -844,43 +842,43 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
         sys.exit(1)
 
 
-def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
+# def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
-    ##### Pick up secret file and extract password
-    with open('/global/homes/m/msdata/gnps2/gnps2_%s.txt'%username,'r') as fid:
-        t = fid.read()
-    t = t.split('\n')[0]
-    var, pword = t.split('=')
-    password = pword.replace('"', '').replace("'", '').strip()
-    if not password:
-        print("Password is required to submit FBMN jobs")
-        return
+#     ##### Pick up secret file and extract password
+#     with open('/global/homes/m/msdata/gnps2/gnps2_%s.txt'%username,'r') as fid:
+#         t = fid.read()
+#     t = t.split('\n')[0]
+#     var, pword = t.split('=')
+#     password = pword.replace('"', '').replace("'", '').strip()
+#     if not password:
+#         print("Password is required to submit FBMN jobs")
+#         return
 
-    remote_directory="/untargeted_tasks"
-    remote_host="ftp.gnps2.org"
-    remote_port=6541
-    data_dir = project + "_" + polarity
+#     remote_directory="/untargeted_tasks"
+#     remote_host="ftp.gnps2.org"
+#     remote_port=6541
+#     data_dir = project + "_" + polarity
 
-    ftp = ftplib.FTP()
-    ftp.connect(host=remote_host,port=remote_port,timeout=120)
-    ftp.login(user=username,passwd=password)
-    ftp.cwd(remote_directory)
+#     ftp = ftplib.FTP()
+#     ftp.connect(host=remote_host,port=remote_port,timeout=120)
+#     ftp.login(user=username,passwd=password)
+#     ftp.cwd(remote_directory)
 
-    remote_directories = ftp.nlst()
+#     remote_directories = ftp.nlst()
 
-    if data_dir in remote_directories:
-        ftp.cwd(data_dir)
-        files = ftp.nlst()
-        required_files = [f"{project}_{polarity}_peak-height.csv",
-                          f"{project}_{polarity}_metadata.tab",
-                          f"{project}_{polarity}.mgf"]
-        all_files_exist = all(file in files for file in required_files)
-        if all_files_exist:
-            return True
-        else:
-            return False
-    else:
-        return False
+#     if data_dir in remote_directories:
+#         ftp.cwd(data_dir)
+#         files = ftp.nlst()
+#         required_files = [f"{project}_{polarity}_peak-height.csv",
+#                           f"{project}_{polarity}_metadata.tab",
+#                           f"{project}_{polarity}.mgf"]
+#         all_files_exist = all(file in files for file in required_files)
+#         if all_files_exist:
+#             return True
+#         else:
+#             return False
+#     else:
+#         return False
 
 def sync_mzmine_results_to_gnps2():
     sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_mzmine_results_to_gnps2.sh'
