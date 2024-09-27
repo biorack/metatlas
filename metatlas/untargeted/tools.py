@@ -824,7 +824,7 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
 
     if not password:
         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
-        sys.exit(1)
+        return
     
     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
 
@@ -856,7 +856,7 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
         logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
     except:
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
-        sys.exit(1)
+        return
 
 def mirror_raw_data_to_gnps2(project: str, username="bpbowen", raw_data_dir=None, raw_data_subdir=None):
 
@@ -869,7 +869,7 @@ def mirror_raw_data_to_gnps2(project: str, username="bpbowen", raw_data_dir=None
 
     if not password:
         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
-        sys.exit(1)
+        return
     
     logging.info(tab_print("Mirroring raw data (mzML files) for %s to GNPS2..."%(project), 3))
 
@@ -899,7 +899,7 @@ def mirror_raw_data_to_gnps2(project: str, username="bpbowen", raw_data_dir=None
         logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {project}...", 3))
     except:
         logging.error(tab_print(f"Failed to mirror raw data for {project} to GNPS2", 3))
-        sys.exit(1)
+        return
 
 # def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
@@ -1074,9 +1074,6 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir=None,skip
                 mgf_lines = count_mgf_lines(mgf_filename)
                 if mgf_lines == 0:
                     logging.warning(tab_print("Warning! %s in %s mode has mgf file but no mgf data. Skipping..."%(project_name, polarity), 2))
-                    continue
-                if not os.path.exists(os.path.join(raw_data_dir, raw_data_subdir, project_name)):
-                    logging.warning(tab_print("Warning! %s does not have raw data. Skipping..."%(project_name), 2))
                     continue
                 params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
                 job_id = submit_quickstart_fbmn(params, "bpbowen")
