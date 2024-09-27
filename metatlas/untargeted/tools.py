@@ -135,8 +135,7 @@ def write_fbmn_tasks_to_file(task_list: dict, output_dir='/global/cfs/cdirs/meta
     else:
         logging.warning(tab_print("Warning! GNPS2 FBMN task ID not found. File gnps2-fbmn-task.txt not written.", 3))
 
-def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metatlas/projects/untargeted_outputs', \
-                                      output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', \
+def zip_and_upload_untargeted_results(download_folder=None, output_dir=None, raw_data_subdir=None, \
                                       upload=True, overwrite_zip=False, overwrite_drive=False, direct_input=None, \
                                       min_features_admissible=0, add_documentation=True, \
                                       doc_name=None,skip_zip_upload=False,abridged_filenames=True):
@@ -217,8 +216,8 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                                 os.remove(neg_mzmine_job_id_filename)
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
-                            untargeted_file_rename(target_dir=neg_directory, abridged_filenames=abridged_filenames)
-                            untargeted_file_rename(target_dir=pos_directory, abridged_filenames=abridged_filenames)
+                            untargeted_file_rename(target_dir=neg_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=False)
+                            untargeted_file_rename(target_dir=pos_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=False)
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
                                 doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
@@ -236,6 +235,8 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             except:
                                 logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
                             zip_count += 1
+                            untargeted_file_rename(target_dir=neg_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=True)
+                            untargeted_file_rename(target_dir=pos_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=True)
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
                                 if upload_success:
@@ -256,7 +257,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
-                            untargeted_file_rename(target_dir=pos_directory, abridged_filenames=abridged_filenames)
+                            untargeted_file_rename(target_dir=pos_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=False)
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
                                 doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
@@ -274,6 +275,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             except:
                                 logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
                             zip_count += 1
+                            untargeted_file_rename(target_dir=pos_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=True)
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
                                 if upload_success:
@@ -294,7 +296,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
                             if os.path.exists(neg_mzmine_job_id_filename):
                                 os.remove(neg_mzmine_job_id_filename)
-                            untargeted_file_rename(target_dir=neg_directory, abridged_filenames=abridged_filenames)
+                            untargeted_file_rename(target_dir=neg_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=False)
                             if add_documentation == True:
                                 logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
                                 doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
@@ -312,6 +314,7 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
                             except:
                                 logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
                             zip_count += 1
+                            untargeted_file_rename(target_dir=neg_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=True)
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
                                 if upload_success:
@@ -326,36 +329,47 @@ def zip_and_upload_untargeted_results(download_folder = '/global/cfs/cdirs/metat
         logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
 
 
-def untargeted_file_rename(target_dir="", abridged_filenames=True):
+def untargeted_file_rename(target_dir=None, raw_data_subdir=None, abridged_filenames=True, reverse=False):
     if abridged_filenames is False:
         return
-    if target_dir == "":
+    if target_dir is None:
         logging.warning(tab_print("Warning! No target directory provided for renaming untargeted results files, but rename function is set to True.", 1))
         return
 
     old_project_name = os.path.basename(target_dir)
+
+    if raw_data_subdir is None:
+        _, validate_department, _ = vfn.field_exists(PurePath(old_project_name), field_num=1)
+        department = validate_department.lower()
+        if department =='eb':
+            department = 'egsb'
+        if not department in ['jgi','egsb']:
+            logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide custom value."%(old_project_name), 2))
+            return
+        raw_data_subdir = department
+
     date = old_project_name.split('_')[0]
-    department = old_project_name.split('_')[1]
     submitter = old_project_name.split('_')[2]
     pid = old_project_name.split('_')[3]
     chromatography = old_project_name.split('_')[7]
     polarity = old_project_name.split('_')[-1] # Sometimes things get added to the end of a project name
     
     # Check if project name follows the standard naming convention
-    if not any(substring.lower() in department.lower() for substring in ['JGI', 'EB', 'EGSB']) or \
-       not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
+    if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
        not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
             logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
-            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, department, submitter, pid, chromatography, polarity), 2))
+            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography, polarity), 2))
             return
     else:
-        new_project_name = f"{date}_{department}_{submitter}_{pid}_{chromatography}_{polarity}"
+        new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}_{polarity}"
 
     for root, dirs, files in os.walk(target_dir):
-        for file in files:
-            if old_project_name in file:
-                new_file = file.replace(old_project_name, new_project_name)
-                os.rename(os.path.join(root, file), os.path.join(root, new_file))
+        for existing_file in files:
+            if old_project_name in existing_file:
+                new_file = existing_file.replace(old_project_name, new_project_name)
+                os.rename(os.path.join(root, existing_file), os.path.join(root, new_file))
+                if reverse is True: # Rename files on disk after zipping
+                    os.rename(os.path.join(root, new_file), os.path.join(root, existing_file))
     
     logging.info(tab_print(f"Untargeted results files for project {old_project_name} renamed with new prefix: {new_project_name}", 1))
 
@@ -839,11 +853,53 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
                     logging.info(tab_print(f"Uploaded {file} to GNPS2...", 4))
         sftp.close()
         transport.close()
-        logging.info(tab_print(f"Completed mirror to GNPS2 for {project}...", 3))
+        logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
     except:
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
         sys.exit(1)
 
+def mirror_raw_data_to_gnps2(project: str, username="bpbowen", raw_data_dir=None, raw_data_subdir=None):
+
+    # Load password from file
+    with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt', 'r') as f:
+        for line in f:
+            if line.startswith('MYVARIABLE='):
+                password = line.strip().split('=')[1].replace('"', '')
+                break
+
+    if not password:
+        logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
+        sys.exit(1)
+    
+    logging.info(tab_print("Mirroring raw data (mzML files) for %s to GNPS2..."%(project), 3))
+
+    local_directory = f"/{raw_data_dir}/{raw_data_subdir}/{project}"
+    remote_directory = f"/raw_data/{raw_data_subdir}/{project}"
+    remote_host = "sftp.gnps2.org"
+    remote_port = 443
+    remote_user = username
+
+    transport = paramiko.Transport((remote_host, remote_port))
+    transport.connect(username=remote_user, password=password)
+    sftp = paramiko.SFTPClient.from_transport(transport)
+    try:
+        sftp.mkdir(remote_directory)
+    except IOError:
+        logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 4))
+        pass
+    try:
+        for root, dirs, files in os.walk(local_directory):
+            for file in files:
+                if file.endswith(('.mzML')):
+                    local_path = os.path.join(root, file)
+                    remote_path = os.path.join(remote_directory, file)
+                    sftp.put(local_path, remote_path)
+        sftp.close()
+        transport.close()
+        logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {project}...", 3))
+    except:
+        logging.error(tab_print(f"Failed to mirror raw data for {project} to GNPS2", 3))
+        sys.exit(1)
 
 # def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
@@ -935,7 +991,8 @@ def sync_raw_data_to_gnps2():
         logging.critical(tab_print("Warning! Could not find the sync script.", 2))
         return False
 
-def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',skip_fbmn_submit=False):
+def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir=None,skip_fbmn_submit=False, \
+                     raw_data_dir=None,raw_data_subdir=None):
     """
     This function is called by run_fbmn.py
 
@@ -993,29 +1050,32 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir='/global/
                     logging.warning(tab_print("Warning! %s in %s mode has an error status. Attempting to resubmit..."%(project_name,polarity), 2))
                     os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
 
-                _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
-                department = validate_department.lower()
-                if department =='eb':
-                    department = 'egsb'
-                if not department in ['jgi','egsb']:
-                    logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Skipping..."%(project_name), 2))
-                    continue
+                if raw_data_subdir is None:
+                    _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
+                    department = validate_department.lower()
+                    if department =='eb':
+                        department = 'egsb'
+                    if not department in ['jgi','egsb']:
+                        logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide custom value."%(project_name), 2))
+                        continue
+                    raw_data_subdir = department
                 
-                # Get mzmine results files to GNPS2 before starting FBMN job
+                # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
                 mirror_mzmine_results_to_gnps2(project_name,polarity,username="bpbowen")
+                mirror_raw_data_to_gnps2(project_name,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir)
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
                 quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_quant.csv'
                 metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_metadata.tab'
-                raw_data = f'USERUPLOAD/bpbowen/raw_data/{department}/{project_name}'
+                raw_data = f'USERUPLOAD/bpbowen/raw_data/{raw_data_subdir}/{project_name}'
                 mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
                 mgf_lines = count_mgf_lines(mgf_filename)
                 if mgf_lines == 0:
                     logging.warning(tab_print("Warning! %s in %s mode has mgf file but no mgf data. Skipping..."%(project_name, polarity), 2))
                     continue
-                if not os.path.exists(raw_data.replace('USERUPLOAD/bpbowen/','/global/cfs/cdirs/metatlas/')):
+                if not os.path.exists(os.path.join(raw_data_dir, raw_data_subdir, project_name)):
                     logging.warning(tab_print("Warning! %s does not have raw data. Skipping..."%(project_name), 2))
                     continue
                 params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
@@ -1053,7 +1113,7 @@ def count_mgf_lines(mgf_file):
     else:
         return 0
 
-def submit_mzmine_jobs(new_projects=None,direct_input=None,skip_mzmine_submit=False,overwrite_mzmine=False):
+def submit_mzmine_jobs(new_projects=None,direct_input=None,skip_mzmine_submit=False,overwrite_mzmine=False,raw_data_subdir=None):
     """
     This function is called by run_mzmine.py
 
@@ -1466,7 +1526,7 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_f
     with open(runner_filename,'w') as fid:
         fid.write('sbatch %s'%sbatch_filename)
 
-def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw_data_path="/",validate_names=True) -> list:
+def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw_data_dir=None,raw_data_subdir=None,validate_names=True) -> list:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
     mzmine metadata for writing a new untargeted_tasks directory
@@ -1478,14 +1538,16 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
         df_filtered = df[df['parent_dir'] == parent_dir]
 
         # Finish raw_data path
-        if validate_names is True:
-            _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
+        if raw_data_subdir is None:
+            _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
             department = validate_department.lower()
-        if validate_names is False:
-            department = parent_dir.split('_')[1].lower()
-        if department =='eb':
-            department = 'egsb'
-        full_mzml_path = os.path.join(raw_data_path,department,parent_dir)
+            if department =='eb':
+                department = 'egsb'
+            if not department in ['jgi','egsb']:
+                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide custom value."%(project_name), 2))
+                continue
+            raw_data_subdir = department
+        full_mzml_path = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
 
         # Initialize info dict
         project_dict = {'parent_dir': parent_dir}
@@ -1578,8 +1640,7 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
     return new_project_list
 
 def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
-                                output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',
-                                raw_data_dir='/global/cfs/cdirs/metatlas/raw_data', validate_names=True,
+                                output_dir=None, raw_data_dir=None, raw_data_subdir=None, validate_names=True,
                                 skip_sync=False):
     """
     This script is called by run_mzmine.py before the untargeted pipeline kicks off
@@ -1646,7 +1707,8 @@ def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
     # Check for polarities by looking for positive and negative mzml files
     df_new = df[df['parent_dir'].isin(new_folders)]
     logging.info(tab_print("Checking for polarities in new projects and validating mzml file names...", 1))
-    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_path=raw_data_dir,validate_names=validate_names)
+    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_dir=raw_data_dir, \
+                                                           raw_data_subdir=raw_data_subdir, validate_names=validate_names)
     new_project_info_list_subset = [d for d in new_project_info_list if d.get('polarities') is not None]
 
     # Create metadata for new projects with relevant polarities

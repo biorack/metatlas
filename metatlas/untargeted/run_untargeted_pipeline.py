@@ -28,7 +28,7 @@ def main():
 
     ##### Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
     new_projects = mzm.update_new_untargeted_tasks(update_lims=args.update_lims, validate_names=args.validate_names, \
-                                                   output_dir=args.output_dir, raw_data_dir=args.raw_data_dir,
+                                                   output_dir=args.output_dir, raw_data_dir=args.raw_data_dir, raw_data_subdir=args.raw_data_subdir, \
                                                    background_designator=args.background_designator,skip_sync=step_bools[0])
     
     ##### Step 2/7: Checking and updating status of MZmine jobs in LIMS
@@ -45,14 +45,16 @@ def main():
     mzm.update_fbmn_status_in_untargeted_tasks(direct_input=args.direct_input,skip_fbmn_status=step_bools[3])
 
     ##### Step 5/7: Submitting new FBMN jobs to GNPS2
-    mzm.submit_fbmn_jobs(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, direct_input=args.direct_input, skip_fbmn_submit=step_bools[4])
+    mzm.submit_fbmn_jobs(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, direct_input=args.direct_input, skip_fbmn_submit=step_bools[4], \
+                        raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
 
     ##### Step 6/7: Checking for completed FBMN jobs and downloading results
     mzm.download_fbmn_results(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn,direct_input=args.direct_input, \
                               skip_fbmn_download=step_bools[5])
 
     ##### Step 7/7: Zipping up and (optionally) uploading output folders to gdrive
-    mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir,upload=args.gdrive_upload,overwrite_zip=args.overwrite_zip, \
+    mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir, \
+                                          raw_data_subdir=args.raw_data_subdir, upload=args.gdrive_upload,overwrite_zip=args.overwrite_zip, \
                                           overwrite_drive=args.overwrite_drive, min_features_admissible=args.min_features, skip_zip_upload=step_bools[6], \
                                           add_documentation=args.add_gnps2_documentation,doc_name=args.gnps2_doc_name,direct_input=args.direct_input, \
                                           abridged_filenames=args.abridged_filenames)
@@ -68,8 +70,9 @@ def add_arguments(parser):
     parser.add_argument('--direct_input', type=str, default=None, help='Input project names from command line as a CSV list')
     parser.add_argument('--background_designator', type=str, default="ExCtrl", help='Input control/background sample names from command line as a CSV list')
     parser.add_argument('--skip_steps', type=str, default=None, help='Skip pipeline step(s) with --direct_input. CSV list with elements [Sync,MZmine_Status,MZmine_Submit,FBMN_Status,FBMN_Submit,FBMN_Download,Zip_and_Upload]')
-    ## Step 1 only
     parser.add_argument('--raw_data_dir', type=str, default='/global/cfs/cdirs/metatlas/raw_data', help='Path to the raw data directory')
+    parser.add_argument('--raw_data_subdir', type=str, default=None, help='Name of the raw_data subdirectory (e.g., jgi, egsb) to use for tasks that require raw data files. If not given, will try to infer from the project name.')
+    ## Step 1 only
     parser.add_argument('--update_lims', type=bool, default=True, help='Update LIMS with new untargeted tasks')
     parser.add_argument('--validate_names', type=bool, default=True, help='Validate filenames and project names')
     ## Step 2 only
