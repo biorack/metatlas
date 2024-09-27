@@ -1539,7 +1539,7 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
 
         # Finish raw_data path
         if raw_data_subdir is None:
-            _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
+            _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             department = validate_department.lower()
             if department =='eb':
                 department = 'egsb'
