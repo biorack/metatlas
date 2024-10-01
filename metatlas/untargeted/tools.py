@@ -289,7 +289,7 @@ def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, abridged_file
                            add_documentation=True, download_folder=None, doc_name=None, output_zip_archive=None):
     if abridged_filenames is False:
         return
-    if target_dir is None:
+    if target_dirs is None:
         logging.warning(tab_print("Warning! No target directory provided for renaming untargeted results files, but rename function is set to True.", 1))
         return
     if output_zip_archive is None:
