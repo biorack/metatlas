@@ -216,27 +216,11 @@ def zip_and_upload_untargeted_results(download_folder=None, output_dir=None, raw
                                 os.remove(neg_mzmine_job_id_filename)
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
-                            untargeted_file_rename(target_dir=neg_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=False)
-                            untargeted_file_rename(target_dir=pos_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=False)
-                            if add_documentation == True:
-                                logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
-                                doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
-                                if doc_present:
-                                    cmd = 'zip -rjq - %s %s %s >%s'%(neg_directory,pos_directory,os.path.join(download_folder,doc_name),output_zip_archive)
-                                else:
-                                    logging.warning(tab_print("Warning! Add documentation flag is True but GNPS2 user guide documentation not available. Not adding to zip...", 2))
-                                    cmd = 'zip -rjq - %s %s >%s'%(neg_directory,pos_directory,output_zip_archive)
-                            else:
-                                cmd = 'zip -rjq - %s %s >%s'%(neg_directory,pos_directory,output_zip_archive)
-                            os.system(cmd)
-                            logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,project_name), 1))
-                            try:
-                                recursive_chown(output_zip_archive, 'metatlas')
-                            except:
-                                logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
+
+                            zip_untargeted_results(target_dirs=[neg_directory,pos_directory], raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, \
+                                                   add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
                             zip_count += 1
-                            untargeted_file_rename(target_dir=neg_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=True)
-                            untargeted_file_rename(target_dir=pos_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=True)
+
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
                                 if upload_success:
@@ -257,25 +241,11 @@ def zip_and_upload_untargeted_results(download_folder=None, output_dir=None, raw
                             pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
-                            untargeted_file_rename(target_dir=pos_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=False)
-                            if add_documentation == True:
-                                logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
-                                doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
-                                if doc_present:
-                                    cmd = 'zip -rjq - %s %s >%s'%(pos_directory,os.path.join(download_folder,doc_name),output_zip_archive)
-                                else:
-                                    logging.warning(tab_print("Warning! Add documentation flag is True but GNPS2 user guide documentation not available. Not adding to zip...", 2))
-                                    cmd = 'zip -rjq - %s >%s'%(pos_directory,output_zip_archive)
-                            else:
-                                cmd = 'zip -rjq - %s >%s'%(pos_directory,output_zip_archive)
-                            os.system(cmd)
-                            logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,project_name), 1))
-                            try:
-                                recursive_chown(output_zip_archive, 'metatlas')
-                            except:
-                                logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
+
+                            zip_untargeted_results(target_dirs=[pos_directory], raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, \
+                                                   add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
                             zip_count += 1
-                            untargeted_file_rename(target_dir=pos_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=True)
+
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
                                 if upload_success:
@@ -296,25 +266,11 @@ def zip_and_upload_untargeted_results(download_folder=None, output_dir=None, raw
                             neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
                             if os.path.exists(neg_mzmine_job_id_filename):
                                 os.remove(neg_mzmine_job_id_filename)
-                            untargeted_file_rename(target_dir=neg_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=False)
-                            if add_documentation == True:
-                                logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
-                                doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
-                                if doc_present:
-                                    cmd = 'zip -rjq - %s %s >%s'%(neg_directory,os.path.join(download_folder,doc_name),output_zip_archive)
-                                else:
-                                    logging.warning(tab_print("Warning! Add documentation flag is True but GNPS2 user guide documentation not available. Not adding to zip...", 2))
-                                    cmd = 'zip -rjq - %s >%s'%(neg_directory,output_zip_archive)
-                            else:
-                                cmd = 'zip -rjq - %s >%s'%(neg_directory,output_zip_archive)
-                            os.system(cmd)
-                            logging.info(tab_print("New untargeted results in %s mode(s) zipped for %s"%(polarity_list,project_name), 1))
-                            try:
-                                recursive_chown(output_zip_archive, 'metatlas')
-                            except:
-                                logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
+
+                            zip_untargeted_results(target_dirs=[neg_directory], raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, \
+                                                   add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
                             zip_count += 1
-                            untargeted_file_rename(target_dir=neg_directory, raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, reverse=True)
+
                             if upload == True and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
                                 if upload_success:
@@ -329,49 +285,92 @@ def zip_and_upload_untargeted_results(download_folder=None, output_dir=None, raw
         logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
 
 
-def untargeted_file_rename(target_dir=None, raw_data_subdir=None, abridged_filenames=True, reverse=False):
+def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, abridged_filenames=True, \
+                           add_documentation=True, download_folder=None, doc_name=None, output_zip_archive=None):
     if abridged_filenames is False:
         return
     if target_dir is None:
         logging.warning(tab_print("Warning! No target directory provided for renaming untargeted results files, but rename function is set to True.", 1))
         return
+    if output_zip_archive is None:
+        logging.warning(tab_print("Warning! No output zip archive provided for zipping untargeted results files, but zip function is set to True.", 1))
+        return
+    if download_folder is None:
+        logging.warning(tab_print("Warning! No download location is provided for untargeted results.", 1))
+        return
 
-    old_project_name = os.path.basename(target_dir)
+    original_to_new_filenames = {}
 
-    if raw_data_subdir is None:
-        _, validate_department, _ = vfn.field_exists(PurePath(old_project_name), field_num=1)
-        department = validate_department.lower()
-        if department =='eb':
-            department = 'egsb'
-        if not department in ['jgi','egsb']:
-            logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide custom value."%(old_project_name), 2))
-            return
-        raw_data_subdir = department
+    # Rename the files to a shorter format
+    for target_dir in target_dirs:
+        old_project_name = os.path.basename(target_dir)
 
-    date = old_project_name.split('_')[0]
-    submitter = old_project_name.split('_')[2]
-    pid = old_project_name.split('_')[3]
-    chromatography = old_project_name.split('_')[7]
-    polarity = old_project_name.split('_')[-1] # Sometimes things get added to the end of a project name
-    
-    # Check if project name follows the standard naming convention
-    if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
-       not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
-            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
-            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography, polarity), 2))
-            return
+        if raw_data_subdir is None:
+            _, validate_department, _ = vfn.field_exists(PurePath(old_project_name), field_num=1)
+            department = validate_department.lower()
+            if department =='eb':
+                department = 'egsb'
+            if not department in ['jgi','egsb']:
+                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide custom value."%(old_project_name), 2))
+                return
+            raw_data_subdir = department
+
+        date = old_project_name.split('_')[0]
+        submitter = old_project_name.split('_')[2]
+        pid = old_project_name.split('_')[3]
+        chromatography = old_project_name.split('_')[7]
+        polarity = old_project_name.split('_')[-1] # Sometimes things get added to the end of a project name
+        
+        # Check if project name follows the standard naming convention
+        if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
+        not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
+                logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
+                logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography, polarity), 2))
+                return
+        else:
+            new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}_{polarity}"
+
+        for root, dirs, files in os.walk(target_dir):
+            for existing_file in files:
+                if old_project_name in existing_file:
+                    new_file = existing_file.replace(old_project_name, new_project_name)
+                    original_to_new_filenames[os.path.join(root, new_file)] = os.path.join(root, existing_file)
+                    os.rename(os.path.join(root, existing_file), os.path.join(root, new_file))
+        
+        logging.info(tab_print(f"Untargeted results files for project {old_project_name} renamed with new prefix: {new_project_name}", 1))
+
+    # Zip the renamed files
+    if add_documentation == True:
+        logging.info(tab_print("Downloading latest GNPS2 user guide documentation to add to zip...", 1))
+        doc_present = add_gnps2_documentation(download_folder=download_folder,doc_name=doc_name)
+        if doc_present:
+            if len(target_dirs) == 2:
+                cmd = 'zip -rjq - %s %s %s >%s'%(target_dirs[0],target_dirs[1],os.path.join(download_folder,doc_name),output_zip_archive)
+            elif len(target_dirs) == 1:
+                cmd = 'zip -rjq - %s %s >%s'%(target_dirs[0],os.path.join(download_folder,doc_name),output_zip_archive)
+        else:
+            logging.warning(tab_print("Warning! Add documentation flag is True but GNPS2 user guide documentation not available. Not adding to zip...", 2))
+            if len(target_dirs) == 2:
+                cmd = 'zip -rjq - %s %s >%s'%(target_dirs[0],target_dirs[1],output_zip_archive)
+            elif len(target_dirs) == 1:
+                cmd = 'zip -rjq - %s >%s'%(target_dirs[0],output_zip_archive)
     else:
-        new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}_{polarity}"
+        if len(target_dirs) == 2:
+            cmd = 'zip -rjq - %s %s >%s'%(target_dirs[0],target_dirs[1],output_zip_archive)
+        elif len(target_dirs) == 1:
+            cmd = 'zip -rjq - %s >%s'%(target_dirs[0],output_zip_archive)
+    os.system(cmd)
+    logging.info(tab_print("New untargeted results zipped for %s"%(old_project_name), 1))
 
-    for root, dirs, files in os.walk(target_dir):
-        for existing_file in files:
-            if old_project_name in existing_file:
-                new_file = existing_file.replace(old_project_name, new_project_name)
-                os.rename(os.path.join(root, existing_file), os.path.join(root, new_file))
-                if reverse is True: # Rename files on disk after zipping
-                    os.rename(os.path.join(root, new_file), os.path.join(root, existing_file))
+    # Rename files back to their original names in the perlmutter directory
+    for new_file, original_file in original_to_new_filenames.items():
+        os.rename(new_file, original_file)
     
-    logging.info(tab_print(f"Untargeted results files for project {old_project_name} renamed with new prefix: {new_project_name}", 1))
+    # Change permissions of resulting zip
+    try:
+        recursive_chown(output_zip_archive, 'metatlas')
+    except:
+        logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
 
 
 def check_peak_height_table(peak_height_file):
