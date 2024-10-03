@@ -1807,6 +1807,9 @@ def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
                 logging.info(tab_print("LIMS untargeted tasks table update complete.", 2))
             else:
                 logging.info(tab_print("LIMS does not need updating!", 1))
-    
+    else:
+        lims_untargeted_list = []
+        lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
+
     logging.info(tab_print("Exported new project info for MZmine submission.", 1))
     return lims_untargeted_df
