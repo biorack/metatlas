@@ -841,7 +841,6 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
         sftp.mkdir(remote_directory)
     except IOError:
         logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 4))
-        pass
     try:
         for root, dirs, files in os.walk(local_directory):
             for file in files:
@@ -864,7 +863,7 @@ def mirror_raw_data_to_gnps2(project: str, username="bpbowen", raw_data_dir=None
         for line in f:
             if line.startswith('MYVARIABLE='):
                 password = line.strip().split('=')[1].replace('"', '')
-                break
+                return
 
     if not password:
         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
@@ -885,7 +884,6 @@ def mirror_raw_data_to_gnps2(project: str, username="bpbowen", raw_data_dir=None
         sftp.mkdir(remote_directory)
     except IOError:
         logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 4))
-        pass
     try:
         for root, dirs, files in os.walk(local_directory):
             for file in files:
@@ -1673,7 +1671,7 @@ def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
     time_old_folders = time_old[time_old==True].index.tolist()
     time_new_folders = time_new[time_new==True].index.tolist()
     #Check that files have "M2" in the name
-    dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any('_MS2_' in filename for filename in x))
+    dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any('_MS2_' in filename or '_MSMS_' in filename for filename in x))
     dirs_with_m2_files = dirs_with_m2_files[dirs_with_m2_files].index.tolist()
     # Print parent_dirs with files less than 3 hours old
     if time_new_folders:
