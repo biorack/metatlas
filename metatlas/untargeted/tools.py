@@ -307,13 +307,17 @@ def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, abridged_file
 
         if raw_data_subdir is None:
             _, validate_department, _ = vfn.field_exists(PurePath(old_project_name), field_num=1)
-            department = validate_department.lower()
-            if department =='eb':
-                department = 'egsb'
-            if not department in ['jgi','egsb']:
-                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide custom value."%(old_project_name), 2))
-                return
-            raw_data_subdir = department
+            try:
+                department = validate_department.lower()
+                if department =='eb':
+                    department = 'egsb'
+                if not department in ['jgi','egsb']:
+                    logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                    continue
+                raw_data_subdir = department
+            except:
+                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                continue
 
         date = old_project_name.split('_')[0]
         submitter = old_project_name.split('_')[2]
@@ -328,7 +332,7 @@ def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, abridged_file
                 logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography, polarity), 2))
                 return
         else:
-            new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}_{polarity}"
+            new_project_name = f"{date}_{raw_data_subdir.upper()}_{submitter}_{pid}_{chromatography}_{polarity}"
 
         for root, dirs, files in os.walk(target_dir):
             for existing_file in files:
@@ -1049,13 +1053,17 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir=None,skip
 
                 if raw_data_subdir is None:
                     _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
-                    department = validate_department.lower()
-                    if department =='eb':
-                        department = 'egsb'
-                    if not department in ['jgi','egsb']:
-                        logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide custom value."%(project_name), 2))
+                    try:
+                        department = validate_department.lower()
+                        if department =='eb':
+                            department = 'egsb'
+                        if not department in ['jgi','egsb']:
+                            logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                            continue
+                        raw_data_subdir = department
+                    except:
+                        logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
                         continue
-                    raw_data_subdir = department
                 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
@@ -1534,13 +1542,17 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
         # Finish raw_data path
         if raw_data_subdir is None:
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
-            department = validate_department.lower()
-            if department =='eb':
-                department = 'egsb'
-            if not department in ['jgi','egsb']:
-                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide custom value."%(project_name), 2))
+            try:
+                department = validate_department.lower()
+                if department =='eb':
+                    department = 'egsb'
+                if not department in ['jgi','egsb']:
+                    logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                    continue
+                raw_data_subdir = department
+            except:
+                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
                 continue
-            raw_data_subdir = department
         full_mzml_path = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
 
         # Initialize info dict
