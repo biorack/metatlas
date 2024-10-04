@@ -359,16 +359,16 @@ def rename_untargeted_files_in_archive(output_zip_archive=None, raw_data_subdir=
     submitter = project_name.split('_')[2]
     pid = project_name.split('_')[3]
     chromatography = project_name.split('_')[7]
-    polarity = project_name.split('_')[-1] # Sometimes things get added to the end of a project name
 
     # Check if project name follows the standard naming convention
     if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
-       not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
+       not pid.isdigit() or len(pid) != 6 or \
+       not date.isdigit() or len(date) != 8:
             logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(project_name), 1))
-            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography, polarity), 2))
+            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography), 2))
             return
     else:
-        new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}_{polarity}"
+        new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}"
 
     # Unzip the archive and rename all files
     temp_dir = f"/tmp/{project_name}"
