@@ -17,6 +17,8 @@ import subprocess
 import grp
 import logging
 import paramiko
+import zipfile
+import shutil
 
 BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
 BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
@@ -285,10 +287,8 @@ def zip_and_upload_untargeted_results(download_folder=None, output_dir=None, raw
         logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
 
 
-def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, abridged_filenames=True, \
-                           add_documentation=True, download_folder=None, doc_name=None, output_zip_archive=None):
-    if abridged_filenames is False:
-        return
+def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, add_documentation=True, download_folder=None, \
+                           abridged_filenames=True, doc_name=None, output_zip_archive=None):
     if target_dirs is None:
         logging.warning(tab_print("Warning! No target directory provided for renaming untargeted results files, but rename function is set to True.", 1))
         return
@@ -298,50 +298,6 @@ def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, abridged_file
     if download_folder is None:
         logging.warning(tab_print("Warning! No download location is provided for untargeted results.", 1))
         return
-
-    original_to_new_filenames = {}
-
-    # Rename the files to a shorter format
-    for target_dir in target_dirs:
-        old_project_name = os.path.basename(target_dir)
-
-        if raw_data_subdir is None:
-            _, validate_department, _ = vfn.field_exists(PurePath(old_project_name), field_num=1)
-            try:
-                department = validate_department.lower()
-                if department =='eb':
-                    department = 'egsb'
-                if not department in ['jgi','egsb']:
-                    logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-                    continue
-                raw_data_subdir = department
-            except:
-                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-                continue
-
-        date = old_project_name.split('_')[0]
-        submitter = old_project_name.split('_')[2]
-        pid = old_project_name.split('_')[3]
-        chromatography = old_project_name.split('_')[7]
-        polarity = old_project_name.split('_')[-1] # Sometimes things get added to the end of a project name
-        
-        # Check if project name follows the standard naming convention
-        if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
-        not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
-                logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
-                logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography, polarity), 2))
-                return
-        else:
-            new_project_name = f"{date}_{raw_data_subdir.upper()}_{submitter}_{pid}_{chromatography}_{polarity}"
-
-        for root, dirs, files in os.walk(target_dir):
-            for existing_file in files:
-                if old_project_name in existing_file:
-                    new_file = existing_file.replace(old_project_name, new_project_name)
-                    original_to_new_filenames[os.path.join(root, new_file)] = os.path.join(root, existing_file)
-                    os.rename(os.path.join(root, existing_file), os.path.join(root, new_file))
-        
-        logging.info(tab_print(f"Untargeted results files for project {old_project_name} renamed with new prefix: {new_project_name}", 1))
 
     # Zip the renamed files
     if add_documentation == True:
@@ -364,11 +320,10 @@ def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, abridged_file
         elif len(target_dirs) == 1:
             cmd = 'zip -rjq - %s >%s'%(target_dirs[0],output_zip_archive)
     os.system(cmd)
-    logging.info(tab_print("New untargeted results zipped for %s"%(old_project_name), 1))
-
-    # Rename files back to their original names in the perlmutter directory
-    for new_file, original_file in original_to_new_filenames.items():
-        os.rename(new_file, original_file)
+    logging.info(tab_print("New untargeted results in %s zipped"%(target_dirs), 1))
+    
+    if abridged_filenames is True:
+        rename_untargeted_files_in_archive(output_zip_archive=output_zip_archive, raw_data_subdir=raw_data_subdir)
     
     # Change permissions of resulting zip
     try:
@@ -376,6 +331,72 @@ def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, abridged_file
     except:
         logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
 
+
+def rename_untargeted_files_in_archive(output_zip_archive=None, raw_data_subdir=None):
+    if output_zip_archive is None:
+        logging.warning(tab_print("Warning! No output zip archive provided for renaming untargeted results files, but rename function is set to True.", 1))
+        return
+
+    project_name = os.path.splitext(os.path.basename(output_zip_archive))[0]
+
+    if raw_data_subdir is None: # Use the department name from the project name
+        _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
+        try:
+            department = validate_department.lower()
+            if department =='eb':
+                department = 'egsb'
+            if not department in ['jgi','egsb']:
+                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                return
+            raw_data_subdir = department.upper()
+        except:
+            logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+            return
+    else:
+        department = raw_data_subdir.upper()
+
+    date = project_name.split('_')[0]
+    submitter = project_name.split('_')[2]
+    pid = project_name.split('_')[3]
+    chromatography = project_name.split('_')[7]
+    polarity = project_name.split('_')[-1] # Sometimes things get added to the end of a project name
+
+    # Check if project name follows the standard naming convention
+    if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
+    not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
+            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
+            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography, polarity), 2))
+            return
+    else:
+        new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}_{polarity}"
+
+    # Unzip the archive and rename all files
+    temp_dir = f"/tmp/{project_name}"
+    os.makedirs(temp_dir, exist_ok=True)
+    try:
+        with zipfile.ZipFile(output_zip_archive, 'r') as zip_ref:
+            zip_ref.extractall(temp_dir)
+
+        for root, _, files in os.walk(temp_dir):
+            for file in files:
+                if project_name in file:
+                    new_file_name = file.replace(project_name, new_project_name)
+                    os.rename(os.path.join(root, file), os.path.join(root, new_file_name))
+
+        new_zip_path = output_zip_archive + ".new"
+        with zipfile.ZipFile(new_zip_path, 'w') as zip_ref:
+            for root, _, files in os.walk(temp_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, temp_dir)
+                    zip_ref.write(file_path, arcname)
+
+        # Overwrite the existing archive with the new zip file
+        shutil.move(new_zip_path, output_zip_archive)
+    except Exception as e:
+        logging.error(tab_print(f"Error processing the zip archive: {e}", 2))
+    finally:
+        shutil.rmtree(temp_dir)
 
 def check_peak_height_table(peak_height_file):
     """
