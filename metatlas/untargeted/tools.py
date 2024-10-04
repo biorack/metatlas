@@ -363,8 +363,8 @@ def rename_untargeted_files_in_archive(output_zip_archive=None, raw_data_subdir=
 
     # Check if project name follows the standard naming convention
     if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
-    not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
-            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(old_project_name), 1))
+       not any(substring.lower() in polarity.lower() for substring in ['negative', 'positive']):
+            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(project_name), 1))
             logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography, polarity), 2))
             return
     else:
