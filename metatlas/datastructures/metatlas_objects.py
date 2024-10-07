@@ -181,16 +181,17 @@ class MetatlasObject(HasTraits):
         obj: MetatlasObject
             Cloned object.
         """
-        logger.debug('Cloning instance of %s with recursive=%s', self.__class__.__name__, recursive)
+        logger.info('Cloning instance of %s with recursive=%s', self.__class__.__name__, recursive)
         obj = self.__class__()
         for (tname, trait) in self.traits().items():
             if tname.startswith('_') or trait.metadata.get('readonly', False):
                 continue
             val = getattr(self, tname)
+            logger.info("Value of %s is %s", tname, val)
             if recursive and isinstance(trait, MetList):
-                val = [v.clone(True) for v in val]
+                val = [v.clone(recursive=recursive) for v in val]
             elif recursive and isinstance(trait, MetInstance) and val:
-                val = val.clone(True)
+                val = val.clone(recursive=recursive)
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
         obj.head_id = self.unique_id
