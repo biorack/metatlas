@@ -272,7 +272,7 @@ class MetatlasDataset(HasTraits):
         logger.info("Retriving source atlas with unique_id: %s", self.ids.source_atlas_unique_id)
         source_atlas = get_atlas(self.ids.source_atlas_unique_id)
         logger.info("Cloning atlas %s", source_atlas.name)
-        new_atlas = source_atlas.clone(recursive=True)
+        new_atlas = source_atlas.clone(recursive=False)
         new_atlas.name = self.ids.atlas
         metob.store(new_atlas)
         return new_atlas
