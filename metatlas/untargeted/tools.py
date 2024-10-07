@@ -1568,11 +1568,11 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
                 if department =='eb':
                     department = 'egsb'
                 if not department in ['jgi','egsb']:
-                    logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                    logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(parent_dir), 2))
                     continue
                 raw_data_subdir = department
             except:
-                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(parent_dir), 2))
                 continue
         full_mzml_path = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
 
