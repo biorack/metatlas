@@ -188,12 +188,10 @@ class MetatlasObject(HasTraits):
                 continue
             val = getattr(self, tname)
             logger.info("Value of %s is %s", tname, val)
-            if isinstance(trait, MetList):
-                logger.info("Cloning MetList %s", tname)
-                val = [v.clone(recursive=recursive) for v in val]
-            elif isinstance(trait, MetInstance) and val:
-                logger.info("Cloning MetInstance %s", tname)
-                val = val.clone(recursive=recursive)
+            if recursive and isinstance(trait, MetList):
+                val = [v.clone(True) for v in val]
+            elif recursive and isinstance(trait, MetInstance) and val:
+                val = val.clone(True)
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
         obj.head_id = self.unique_id
