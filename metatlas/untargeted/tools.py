@@ -1564,7 +1564,7 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             try:
                 department = validate_department.lower()
-                if department in ['mzml','raw_data']: # skip these test data directories
+                if parent_dir in ['mzml','test_raw']: # skip these test data directories
                     continue
                 if department =='eb':
                     department = 'egsb'
