@@ -362,10 +362,9 @@ def rename_untargeted_files_in_archive(output_zip_archive=None, raw_data_subdir=
 
     # Check if project name follows the standard naming convention
     if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
-       not pid.isdigit() or len(pid) != 6 or \
        not date.isdigit() or len(date) != 8:
             logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(project_name), 1))
-            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s, Polarity: %s"%(date, raw_data_subdir, submitter, pid, chromatography), 2))
+            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s"%(date, raw_data_subdir, submitter, pid, chromatography), 2))
             return
     else:
         new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}"
@@ -1565,6 +1564,8 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             try:
                 department = validate_department.lower()
+                if department in ['mzml','raw_data']: # skip these test data directories
+                    continue
                 if department =='eb':
                     department = 'egsb'
                 if not department in ['jgi','egsb']:
