@@ -13,7 +13,7 @@ department=$2
 printf '%s completion report for untargeted pipeline.\n\t- Run on %s\n\n' "${department^^}" "$(date +"%Y-%m-%d")"
 
 # Get the status of all projects
-cmd="/global/common/software/m2650/python3-matchms/bin/python /global/common/software/m2650/metatlas-repo/metatlas/untargeted/check_untargeted_status.py --print_recent 100"
+cmd="/global/homes/m/msdata/.conda/envs/python-untargeted-v1/bin/python3.11 /global/common/software/m2650/metatlas-repo/metatlas/untargeted/check_untargeted_status.py --print_recent 100"
 temp_status_table=$(mktemp)
 $cmd > "$temp_status_table"
 
