@@ -864,7 +864,7 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
     try:
         sftp.mkdir(remote_directory)
     except IOError:
-        logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 4))
+        logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 0))
     try:
         for root, dirs, files in os.walk(local_directory):
             for file in files:
@@ -872,7 +872,7 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
                     local_path = os.path.join(root, file)
                     remote_path = os.path.join(remote_directory, file)
                     sftp.put(local_path, remote_path)
-                    logging.info(tab_print(f"Uploaded {file} to GNPS2...", 4))
+                    logging.info(tab_print(f"Uploaded {file} to GNPS2...", 0))
         sftp.close()
         transport.close()
         logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
@@ -880,14 +880,14 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
         return
 
-def mirror_raw_data_to_gnps2(project: str, username="bpbowen", raw_data_dir=None, raw_data_subdir=None):
+def mirror_raw_data_to_gnps2(project: str = None, polarity: str = None, username="bpbowen", raw_data_dir=None, raw_data_subdir=None):
 
     # Load password from file
     with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt', 'r') as f:
         for line in f:
             if line.startswith('MYVARIABLE='):
                 password = line.strip().split('=')[1].replace('"', '')
-                return
+                break
 
     if not password:
         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
@@ -897,6 +897,7 @@ def mirror_raw_data_to_gnps2(project: str, username="bpbowen", raw_data_dir=None
 
     local_directory = f"/{raw_data_dir}/{raw_data_subdir}/{project}"
     remote_directory = f"/raw_data/{raw_data_subdir}/{project}"
+    polarity_directory = f"/raw_data/{raw_data_subdir}/{project}/{polarity}"
     remote_host = "sftp.gnps2.org"
     remote_port = 443
     remote_user = username
@@ -904,17 +905,21 @@ def mirror_raw_data_to_gnps2(project: str, username="bpbowen", raw_data_dir=None
     transport = paramiko.Transport((remote_host, remote_port))
     transport.connect(username=remote_user, password=password)
     sftp = paramiko.SFTPClient.from_transport(transport)
+    polarity_short = f"_{polarity[:3].upper()}_"
     try:
         sftp.mkdir(remote_directory)
+        sftp.mkdir(polarity_directory)
     except IOError:
-        logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 4))
+        logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 0))
     try:
         for root, dirs, files in os.walk(local_directory):
             for file in files:
-                if file.endswith(('.mzML')):
+                if file.endswith(('.mzML')) and polarity_short in file:
                     local_path = os.path.join(root, file)
-                    remote_path = os.path.join(remote_directory, file)
+                    remote_path = os.path.join(polarity_directory, file)
                     sftp.put(local_path, remote_path)
+                    logging.info(tab_print(f"Uploaded {file} to GNPS2...", 0))
+
         sftp.close()
         transport.close()
         logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {project}...", 3))
