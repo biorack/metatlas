@@ -19,6 +19,7 @@ import logging
 import paramiko
 import zipfile
 import shutil
+from typing import List, Dict, Union, Optional
 
 BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
 BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
@@ -57,7 +58,7 @@ mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/b
 def call_logger(log_filename: str, log_level: str, log_format: str):
     logging.basicConfig(filename=log_filename, level=log_level, format=log_format, filemode='a')
 
-def start_script(script=None):
+def start_script(script:str=None) -> str:
     """
     Kick off script with a timestamp for log
     """
@@ -66,7 +67,7 @@ def start_script(script=None):
     else:
         sys.exit("No script name provided to start_script")
 
-def end_script(script=None):
+def end_script(script:str=None) -> str:
     """
     End script with a timestamp for log
     """
@@ -75,13 +76,13 @@ def end_script(script=None):
     else:
         sys.exit("No script name provided to end_script")
 
-def tab_print(message="",indent_level=0):
+def tab_print(message:str="",indent_level:int=0) -> str:
     """
     Print a message with a specified number of tabs
     """
     return ("\t"*indent_level + message)
 
-def check_for_polarities(output_dir: str, parent_dir: str) -> list:
+def check_for_polarities(output_dir:str=None, parent_dir:str=None) -> list:
     """
     Check for positive and/or negative polarity directories on disk
     to decide how to iterate through project
@@ -97,7 +98,7 @@ def check_for_polarities(output_dir: str, parent_dir: str) -> list:
     else:
         return None
 
-def subset_df_by_status(df: pd.DataFrame, tasktype: str, status: list, inverse=False) -> pd.DataFrame:
+def subset_df_by_status(df:pd.DataFrame=None, tasktype:str=None, status:list=[], inverse:bool=False) -> pd.DataFrame:
     """
     Subset a dataframe by status in LIMS
     """
@@ -107,7 +108,7 @@ def subset_df_by_status(df: pd.DataFrame, tasktype: str, status: list, inverse=F
         df_subset = df[df['%s_pos_status'%tasktype].isin(status) | df['%s_neg_status'%tasktype].isin(status)]
     return df_subset
 
-def filter_common_bad_project_names(df: pd.DataFrame):
+def filter_common_bad_project_names(df:pd.DataFrame=None) -> pd.DataFrame:
     """
     Takes a df object (usually from exporting the LIMS untargeted tasks table) and removes
     projects with common strings that are in untargeted tasks which should not be run
@@ -119,7 +120,10 @@ def filter_common_bad_project_names(df: pd.DataFrame):
     df = df[~(df['parent_dir'].str.contains('_old'))]
     return df
 
-def write_fbmn_tasks_to_file(task_list: dict, output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks'):
+def write_fbmn_tasks_to_file(
+    task_list: Optional[Dict] = None,
+    output_dir: Optional[str] = None
+) -> None:
     """
     Takes a list of dictionaries from submit_fbmn_jobs
     and writes the fbmn task id to a file in the 
@@ -137,10 +141,20 @@ def write_fbmn_tasks_to_file(task_list: dict, output_dir='/global/cfs/cdirs/meta
     else:
         logging.warning(tab_print("Warning! GNPS2 FBMN task ID not found. File gnps2-fbmn-task.txt not written.", 3))
 
-def zip_and_upload_untargeted_results(download_folder=None, output_dir=None, raw_data_subdir=None, \
-                                      upload=True, overwrite_zip=False, overwrite_drive=False, direct_input=None, \
-                                      min_features_admissible=0, add_documentation=True, \
-                                      doc_name=None,skip_zip_upload=False,abridged_filenames=True):
+def zip_and_upload_untargeted_results(
+    download_folder: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None,
+    upload: bool = True,
+    overwrite_zip: bool = False,
+    overwrite_drive: bool = False,
+    direct_input: Optional[str] = None,
+    min_features_admissible: int = 0,
+    add_documentation: bool = True,
+    doc_name: Optional[str] = None,
+    skip_zip_upload: bool = False,
+    abridged_filenames: bool = True
+) -> None:
     """
     This function is called by export_untargeted_results.py
     
@@ -287,8 +301,15 @@ def zip_and_upload_untargeted_results(download_folder=None, output_dir=None, raw
         logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
 
 
-def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, add_documentation=True, download_folder=None, \
-                           abridged_filenames=True, doc_name=None, output_zip_archive=None):
+def zip_untargeted_results(
+    target_dirs: Optional[List[str]] = None,
+    raw_data_subdir: Optional[str] = None,
+    add_documentation: bool = True,
+    download_folder: Optional[str] = None,
+    abridged_filenames: bool = True,
+    doc_name: Optional[str] = None,
+    output_zip_archive: Optional[str] = None
+) -> None:
     if target_dirs is None:
         logging.warning(tab_print("Warning! No target directory provided for renaming untargeted results files, but rename function is set to True.", 1))
         return
@@ -332,7 +353,10 @@ def zip_untargeted_results(target_dirs=None, raw_data_subdir=None, add_documenta
         logging.info(tab_print("Note: Could not change group ownership of %s."%(output_zip_archive), 2))
 
 
-def rename_untargeted_files_in_archive(output_zip_archive=None, raw_data_subdir=None):
+def rename_untargeted_files_in_archive(
+    output_zip_archive: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None
+) -> None:
     if output_zip_archive is None:
         logging.warning(tab_print("Warning! No output zip archive provided for renaming untargeted results files, but rename function is set to True.", 1))
         return
@@ -397,7 +421,7 @@ def rename_untargeted_files_in_archive(output_zip_archive=None, raw_data_subdir=
     finally:
         shutil.rmtree(temp_dir)
 
-def check_peak_height_table(peak_height_file):
+def check_peak_height_table(peak_height_file: str) -> None:
     """
     Open the peak_height.csv file created by MZmine
     and count the number of lines (minus the header)
@@ -410,7 +434,13 @@ def check_peak_height_table(peak_height_file):
     else:
         return 0
 
-def add_gnps2_documentation(download_folder: str, doc_name="Untargeted_metabolomics_GNPS2_Guide.docx"):
+def add_gnps2_documentation(
+    download_folder: str,
+    doc_name: str = None
+) -> bool:
+    if doc_name is None:
+        logging.warning(tab_print("Warning! GNPS2 user guide documentation file name not provided. Not downloaded!", 2))
+        return False
     cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --update ben_lbl_gdrive:/untargeted_outputs/{doc_name} {download_folder}'
     subprocess.check_output(cmd, shell=True)
     check_download = f'ls -l {download_folder} | grep "{doc_name}"'
@@ -422,7 +452,10 @@ def add_gnps2_documentation(download_folder: str, doc_name="Untargeted_metabolom
         logging.warning(tab_print("Warning! GNPS2 user guide documentation not downloaded!", 2))
         return False
     
-def upload_to_google_drive(file_path: str, overwrite=False):
+def upload_to_google_drive(
+    file_path: str, 
+    overwrite: bool = False
+) -> bool:
     """
     Upload a file (usually a zip) to the metabolomics untargeted outputs google
     drive folder using rclone 
@@ -480,10 +513,16 @@ def upload_to_google_drive(file_path: str, overwrite=False):
                 logging.critical(tab_print("Warning! Google Drive upload command failed with overwrite=%s with exception on %s"%(overwrite,upload_command), 3))
                 return False
 
-def submit_quickstart_fbmn(params="",username=""):
+def submit_quickstart_fbmn(
+    params: str = "",
+    username: str = ""
+) -> dict:
     """
     Submit FBMN jobs by passing parameters
     """
+    if not params or not username:
+        print("Params and username are required to submit FBMN jobs")
+        return
     ##### Pick up secret file and extract password
     with open('/global/homes/m/msdata/gnps2/gnps2_%s.txt'%username,'r') as fid:
         t = fid.read()
@@ -505,7 +544,10 @@ def submit_quickstart_fbmn(params="",username=""):
     response = session.post(url, data=params)
     return response.json()
 
-def get_untargeted_status(direct_input=None,print_recent=None):
+def get_untargeted_status(
+    direct_input: str = None,
+    print_recent: str = None
+) -> None:
     """
     This function is called by check_untargeted_status.py
 
@@ -554,7 +596,10 @@ def get_untargeted_status(direct_input=None,print_recent=None):
     else:
         print(total_status_df.to_csv(sep='\t', index=False))
 
-def recursive_chown(basepath, group_name):
+def recursive_chown(
+    basepath: Union[str, bytes, os.PathLike],
+    group_name: str
+) -> None:
     """
     Given a path (to a file or directory) this function will recursively (if directory)
     change the group ownership to the specified group name
@@ -567,7 +612,10 @@ def recursive_chown(basepath, group_name):
             os.chown(os.path.join(root, file_name), -1, gid)
     os.chown(basepath, -1, gid)  # Also change the ownership of the base directory itself
 
-def download_from_url(url, target_path):
+def download_from_url(
+    url: str,
+    target_path: Union[str, bytes, os.PathLike]
+) -> None:
     """
     This function takes a URL and a target path (on disk) and downloads the contents
     of the URL with requests.get() and writes the contents to the target path
@@ -580,7 +628,12 @@ def download_from_url(url, target_path):
     else:
         return False
 
-def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untargeted_tasks',overwrite_fbmn=False,direct_input=None,skip_fbmn_download=False):
+def download_fbmn_results(
+    output_dir: str = None,
+    overwrite_fbmn: bool = False,
+    direct_input: Optional[str] = None,
+    skip_fbmn_download: bool = False
+) -> None:
     """
     This function is called by download_fbmn_results.py
 
@@ -661,7 +714,10 @@ def download_fbmn_results(output_dir='/global/cfs/cdirs/metatlas/projects/untarg
         else:
             logging.info(tab_print("No new FBMN results to download!", 1))
 
-def get_recent_mgf_files(output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', time_back=30):
+def get_recent_mgf_files(
+    output_dir:str = None,
+    time_back:float = 30
+) -> List[str]:
     """
     This finds all recent mgf files in all folders in output_dir
     and passes them to the remove_contaimant_from_mgf function
@@ -677,7 +733,9 @@ def get_recent_mgf_files(output_dir = '/global/cfs/cdirs/metatlas/projects/untar
     recent_files = subprocess.check_output(command, shell=True).decode().split('\n')
     return recent_files
 
-def remove_contaminant_from_mgf(f):
+def remove_contaminant_from_mgf(
+    f: str = None
+) -> None:
     """
     This accepts a file path to an mgf file and removes the contaminant
     peak(s) from the file
@@ -709,7 +767,10 @@ def remove_contaminant_from_mgf(f):
             # Write the lines back
             file.writelines(filtered_lines)
 
-def remove_mgf_contaminants(output_dir = '/global/cfs/cdirs/metatlas/projects/untargeted_tasks', time_back=30):
+def remove_mgf_contaminants(
+    output_dir:str = None,
+    time_back:float = 30
+) -> None:
     """
     This script is called in run_fbmn.py before submitting to GNPS2
 
@@ -720,7 +781,11 @@ def remove_mgf_contaminants(output_dir = '/global/cfs/cdirs/metatlas/projects/un
         if f:
             remove_contaminant_from_mgf(f)
 
-def get_table_from_lims(table,columns=None,max_rows=1e6):
+def get_table_from_lims(
+    table: str,
+    columns: Optional[List[str]] = None,
+    max_rows: Union[int, float] = 1e6
+) -> pd.DataFrame:
     """
     Downloads table from LIMS and returns a pandas dataframe.
     Table should be the name of a valid "list" in LIMS
@@ -740,8 +805,13 @@ def get_table_from_lims(table,columns=None,max_rows=1e6):
         df = df[[c for c in df.columns if not c.startswith('_')]]
         return df
 
-def update_table_in_lims(df,table,method='update',max_size=1000,pause_time=None):
-
+def update_table_in_lims(
+    df: pd.DataFrame,
+    table: str,
+    method: str = 'update',
+    max_size: int = 1e3,
+    pause_time: Optional[float] = None
+) -> None:
     """
     Note: Do ~1000 rows at a time.  Any more and you get a 504 error.  Maybe increasing the timeout would help.
     In the header, timeout is a variable that gets set.  Check to see what its set to.  Maybe increasing it would let
@@ -770,7 +840,12 @@ def update_table_in_lims(df,table,method='update',max_size=1000,pause_time=None)
         if pause_time is not None:
             time.sleep(pause_time)
 
-def build_untargeted_filename(output_dir,parent_dir,polarity,file_type):
+def build_untargeted_filename(
+    output_dir: str,
+    parent_dir: str,
+    polarity: str,
+    file_type: Optional[str] = None
+) -> str:
     """
         file_spec = {'peak-area-mzmine':'peak-area.csv',
                 'mzmine-runner':'mzmine.sh',
@@ -817,7 +892,7 @@ def build_untargeted_filename(output_dir,parent_dir,polarity,file_type):
     filename = os.path.join(pathname,filename)
     return filename
 
-def check_gnps2_status(taskid):
+def check_gnps2_status(taskid:str = None):
     """
     This function takes a alphanumeric task ID from a GNPS2 run
     and returns the status and version of the run from a static
@@ -836,8 +911,22 @@ def check_gnps2_status(taskid):
     except:
         return 'N/A','N/A'
 
-def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowen"):
+def mirror_mzmine_results_to_gnps2(
+    project: str,
+    polarity: str,
+    username: str = "bpbowen"
+) -> None:
+    """
+    Mirrors MZmine results to GNPS2.
 
+    This function loads a password from a file and uses it to mirror
+    MZmine results to GNPS2 for a given project and polarity.
+
+    Parameters:
+    - project (str): The name of the project.
+    - polarity (str): The polarity of the results (e.g., 'positive' or 'negative').
+    - username (str): The username for GNPS2. Default is 'bpbowen'.
+    """
     # Load password from file
     with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt', 'r') as f:
         for line in f:
@@ -880,51 +969,83 @@ def mirror_mzmine_results_to_gnps2(project: str, polarity: str, username="bpbowe
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
         return
 
-def mirror_raw_data_to_gnps2(project: str = None, polarity: str = None, username="bpbowen", raw_data_dir=None, raw_data_subdir=None):
+def mirror_raw_data_to_gnps2(
+    project: Optional[str] = None,
+    polarity: Optional[str] = None,
+    username: str = "bpbowen",
+    raw_data_dir: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None
+) -> None:
+    """
+    Mirrors raw data (mzML files) to GNPS2.
 
+    This function loads a password from a file and uses it to mirror
+    raw data (mzML files) to GNPS2 for a given project and polarity.
+
+    Parameters:
+    - project (Optional[str]): The name of the project. Default is None.
+    - polarity (Optional[str]): The polarity of the data (e.g., 'positive' or 'negative'). Default is None.
+    - username (str): The username for GNPS2. Default is 'bpbowen'.
+    - raw_data_dir (Optional[str]): The directory containing the raw data. Default is None.
+    - raw_data_subdir (Optional[str]): The subdirectory within the raw data directory. Default is None.
+    """
     # Load password from file
-    with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt', 'r') as f:
-        for line in f:
-            if line.startswith('MYVARIABLE='):
-                password = line.strip().split('=')[1].replace('"', '')
-                break
+    password = None
+    try:
+        with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt', 'r') as f:
+            for line in f:
+                if line.startswith('MYVARIABLE='):
+                    password = line.strip().split('=')[1].replace('"', '')
+                    break
+    except FileNotFoundError:
+        logging.error("Password file not found. Exiting.")
+        return
 
     if not password:
-        logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
+        logging.error("Password is required to mirror data to GNPS2. Exiting.")
         return
     
-    logging.info(tab_print("Mirroring raw data (mzML files) for %s to GNPS2..."%(project), 3))
+    logging.info(f"Mirroring raw data (mzML files) for {project} to GNPS2...")
 
-    local_directory = f"/{raw_data_dir}/{raw_data_subdir}/{project}"
+    local_directory = f"{raw_data_dir}/{raw_data_subdir}/{project}"
     remote_directory = f"/raw_data/{raw_data_subdir}/{project}"
     polarity_directory = f"/raw_data/{raw_data_subdir}/{project}/{polarity}"
     remote_host = "sftp.gnps2.org"
     remote_port = 443
     remote_user = username
 
-    transport = paramiko.Transport((remote_host, remote_port))
-    transport.connect(username=remote_user, password=password)
-    sftp = paramiko.SFTPClient.from_transport(transport)
+    try:
+        transport = paramiko.Transport((remote_host, remote_port))
+        transport.connect(username=remote_user, password=password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+    except paramiko.SSHException as e:
+        logging.error(f"Failed to connect to GNPS2: {e}")
+        return
+
     polarity_short = f"_{polarity[:3].upper()}_"
     try:
         sftp.mkdir(remote_directory)
+    except IOError:
+        logging.info(f"Directory {remote_directory} already exists on GNPS2")
+    try:
         sftp.mkdir(polarity_directory)
     except IOError:
-        logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 0))
+        logging.info(f"Directory {polarity_directory} already exists on GNPS2")
+
     try:
         for root, dirs, files in os.walk(local_directory):
             for file in files:
-                if file.endswith(('.mzML')) and polarity_short in file:
+                if file.endswith('.mzML') and polarity_short in file:
                     local_path = os.path.join(root, file)
                     remote_path = os.path.join(polarity_directory, file)
                     sftp.put(local_path, remote_path)
-                    logging.info(tab_print(f"Uploaded {file} to GNPS2...", 0))
+                    logging.info(f"Uploaded {file} to GNPS2...")
 
         sftp.close()
         transport.close()
-        logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {project}...", 3))
-    except:
-        logging.error(tab_print(f"Failed to mirror raw data for {project} to GNPS2", 3))
+        logging.info(f"Completed raw data mirror to GNPS2 for {project}...")
+    except Exception as e:
+        logging.error(f"Failed to mirror raw data for {project} to GNPS2: {e}")
         return
 
 # def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
@@ -965,63 +1086,67 @@ def mirror_raw_data_to_gnps2(project: str = None, polarity: str = None, username
 #     else:
 #         return False
 
-def sync_mzmine_results_to_gnps2():
-    sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_mzmine_results_to_gnps2.sh'
-    if os.path.exists(sync_cmd):
-        logging.info(tab_print("Syncing MZmine results (.tab, .csv, .mgf) at NERSC with GNPS2 before submitting FBMN job...", 1))
-        try:
-            result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
-            stdout = result.stdout.splitlines()
-            if stdout:
-                for line in stdout:
-                    logging.info(tab_print(line, 2))
-            stderr = result.stderr.splitlines()
-            if stderr:
-                for line in stderr:
-                    if "Permission denied" not in line: # Niyogi project has permission denied error
-                        logging.critical(tab_print("Sync script returned errors:", 2))
-                        logging.critical(tab_print(line, 3))
-                        return False
-            logging.info(tab_print("All MZmine results files at NERSC synced with GNPS2.", 2))
-            return True
-        except:
-            logging.critical(tab_print("Warning! Sync command failed.", 2))
-            return False
-    else:
-        logging.critical(tab_print("Warning! Could not find the sync script.", 2))
-        return False
+# def DEPRACATED_sync_mzmine_results_to_gnps2():
+#     sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_mzmine_results_to_gnps2.sh'
+#     if os.path.exists(sync_cmd):
+#         logging.info(tab_print("Syncing MZmine results (.tab, .csv, .mgf) at NERSC with GNPS2 before submitting FBMN job...", 1))
+#         try:
+#             result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
+#             stdout = result.stdout.splitlines()
+#             if stdout:
+#                 for line in stdout:
+#                     logging.info(tab_print(line, 2))
+#             stderr = result.stderr.splitlines()
+#             if stderr:
+#                 for line in stderr:
+#                     if "Permission denied" not in line: # Niyogi project has permission denied error
+#                         logging.critical(tab_print("Sync script returned errors:", 2))
+#                         logging.critical(tab_print(line, 3))
+#                         return False
+#             logging.info(tab_print("All MZmine results files at NERSC synced with GNPS2.", 2))
+#             return True
+#         except:
+#             logging.critical(tab_print("Warning! Sync command failed.", 2))
+#             return False
+#     else:
+#         logging.critical(tab_print("Warning! Could not find the sync script.", 2))
+#         return False
 
-def sync_raw_data_to_gnps2():
-    sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_raw_data_to_gnps2.sh'
-    if os.path.exists(sync_cmd):
-        logging.info(tab_print("Syncing raw data (.mzML) at NERSC with GNPS2 before submitting FBMN job...", 1))
-        try:
-            result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
-            stdout = result.stdout.splitlines()
-            if stdout:
-                for line in stdout:
-                    logging.info(tab_print(line, 2))
-            stderr = result.stderr.splitlines()
-            if stderr:
-                for line in stderr:
-                    if "Permission denied" not in line: # Niyogi project has permission denied error
-                        logging.critical(tab_print("Sync script returned errors:", 2))
-                        logging.critical(tab_print(line, 3))
-                        return False
-            logging.info(tab_print("All raw data files at NERSC synced with GNPS2.", 2))
-            return True
-        except:
-            logging.critical(tab_print("Warning! Sync command failed.", 2))
-            return False
-    else:
-        logging.critical(tab_print("Warning! Could not find the sync script.", 2))
-        return False
+# def DEPRACATED_sync_raw_data_to_gnps2():
+#     sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_raw_data_to_gnps2.sh'
+#     if os.path.exists(sync_cmd):
+#         logging.info(tab_print("Syncing raw data (.mzML) at NERSC with GNPS2 before submitting FBMN job...", 1))
+#         try:
+#             result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
+#             stdout = result.stdout.splitlines()
+#             if stdout:
+#                 for line in stdout:
+#                     logging.info(tab_print(line, 2))
+#             stderr = result.stderr.splitlines()
+#             if stderr:
+#                 for line in stderr:
+#                     if "Permission denied" not in line: # Niyogi project has permission denied error
+#                         logging.critical(tab_print("Sync script returned errors:", 2))
+#                         logging.critical(tab_print(line, 3))
+#                         return False
+#             logging.info(tab_print("All raw data files at NERSC synced with GNPS2.", 2))
+#             return True
+#         except:
+#             logging.critical(tab_print("Warning! Sync command failed.", 2))
+#             return False
+#     else:
+#         logging.critical(tab_print("Warning! Could not find the sync script.", 2))
+#         return False
 
-def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir=None,skip_fbmn_submit=False, \
-                     raw_data_dir=None,raw_data_subdir=None):
+def submit_fbmn_jobs(
+    direct_input: Optional[str] = None,
+    overwrite_fbmn: bool = False,
+    output_dir: Optional[str] = None,
+    skip_fbmn_submit: bool = False,
+    raw_data_dir: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None
+) -> None:
     """
-    This function is called by run_fbmn.py
-
     finds waiting or errored fbmn tasks (which also have complete mzmine status)
     submits the tasks to GNPS2
     updates the LIMS table with status running if successful
@@ -1124,7 +1249,7 @@ def submit_fbmn_jobs(direct_input=None,overwrite_fbmn=False,output_dir=None,skip
             update_table_in_lims(df,'untargeted_tasks',method='update')
             logging.info(tab_print("FBMN submission(s) complete. Use GNPS2 *gnps2-page-link.txt to monitor progress.", 1))
 
-def count_mgf_lines(mgf_file):
+def count_mgf_lines(mgf_file:str = None) -> int:
     """
     Before submitting a job to GNPS2, check if the mgf file from mzmine has any data
     by providing its path on disk
@@ -1140,7 +1265,12 @@ def count_mgf_lines(mgf_file):
     else:
         return 0
 
-def submit_mzmine_jobs(new_projects=None,direct_input=None,skip_mzmine_submit=False,overwrite_mzmine=False,raw_data_subdir=None):
+def submit_mzmine_jobs(
+    new_projects: Optional[List[str]] = None,
+    direct_input: Optional[str] = None,
+    skip_mzmine_submit: bool = False,
+    overwrite_mzmine: bool = False
+) -> None:
     """
     This function is called by run_mzmine.py
 
@@ -1226,7 +1356,13 @@ def submit_mzmine_jobs(new_projects=None,direct_input=None,skip_mzmine_submit=Fa
             update_table_in_lims(df,'untargeted_tasks',method='update')
             logging.info(tab_print("MZmine submission(s) complete. Use squeue to monitor progress.", 1))
     
-def set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data):
+def set_fbmn_parameters(
+    description: str,
+    quant_file: str,
+    spectra_file: str,
+    metadata_file: str,
+    raw_data: Dict
+) -> None:
     """
     Hard coded parameters and user-defined parameters are formatted by passing
     the arguments for file location
@@ -1256,8 +1392,15 @@ def set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, ra
                 "api": "no"}
     return params
 
-def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_designator=[],skip_mzmine_status=False, \
-                                             background_ratio=5,zero_value=(2/3),nonpolar_solvent_front=0.5,polar_solvent_front=0.8):
+def update_mzmine_status_in_untargeted_tasks(
+    direct_input: Optional[str] = None,
+    background_designator: List[str] = [],
+    skip_mzmine_status: bool = False,
+    background_ratio: int = 5,
+    zero_value: float = (2/3),
+    nonpolar_solvent_front: float = 0.5,
+    polar_solvent_front: float = 0.8
+) -> None:
     """
     This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
     
@@ -1361,8 +1504,14 @@ def update_mzmine_status_in_untargeted_tasks(direct_input=None,background_design
         else:
             logging.info(tab_print("No MZmine jobs to update!", 1))
 
-def create_filtered_peakheight_file(peakheight_filename=None,background_designator=[],background_ratio=3,zero_value=(2/3), \
-                                    nonpolar_solvent_front=0.5,polar_solvent_front=0.8):
+def create_filtered_peakheight_file(
+    peakheight_filename: Optional[str] = None,
+    background_designator: List[str] = [],
+    background_ratio: int = 3,
+    zero_value: float = (2/3),
+    nonpolar_solvent_front: float = 0.5,
+    polar_solvent_front: float = 0.8
+) -> None:
     """
     Accepts a peakheight file and filters out features that have a max peak height in exp samples that is less than
     3 times the peak height in the control samples.
@@ -1422,7 +1571,11 @@ def create_filtered_peakheight_file(peakheight_filename=None,background_designat
             logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframe.", 5))
             return empty_data_table
 
-def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None, background_designator=[]):
+def calculate_counts_for_lims_table(
+    peakheight_filename: Optional[str] = None,
+    mgf_filename: Optional[str] = None,
+    background_designator: List[str] = []
+) -> None:
     """
     Accepts a peakheight file and mgf file and returns the number of features
     in exp and and control samples found in the peakheightfile plus number of 
@@ -1463,7 +1616,10 @@ def calculate_counts_for_lims_table(peakheight_filename=None, mgf_filename=None,
 
     return feature_count, exctrl_count, msms_count
 
-def update_fbmn_status_in_untargeted_tasks(direct_input=None,skip_fbmn_status=False):
+def update_fbmn_status_in_untargeted_tasks(
+    direct_input: Optional[str] = None,
+    skip_fbmn_status: bool = False
+) -> None:
     """
     This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
     
@@ -1538,7 +1694,12 @@ def update_fbmn_status_in_untargeted_tasks(direct_input=None,skip_fbmn_status=Fa
         else:
             logging.info(tab_print("No FBMN jobs to update!", 1))
 
-def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_filename):
+def write_mzmine_sbatch_and_runner(
+    basepath: Union[str, bytes, os.PathLike],
+    batch_filename: str,
+    parent_dir: Union[str, bytes, os.PathLike],
+    filelist_filename: str
+) -> None:
     """
     Write the sbatch and runner files for mzmine submission via slurm
     """
@@ -1553,7 +1714,13 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_f
     with open(runner_filename,'w') as fid:
         fid.write('sbatch %s'%sbatch_filename)
 
-def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw_data_dir=None,raw_data_subdir=None,validate_names=False) -> list:
+def write_metadata_per_new_project(
+    df: pd.DataFrame,
+    background_designator: List[str] = [],
+    raw_data_dir: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None,
+    validate_names: bool = False
+) -> List:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
     mzmine metadata for writing a new untargeted_tasks directory
@@ -1688,9 +1855,16 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
 
     return new_project_list
 
-def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
-                                output_dir=None, raw_data_dir=None, raw_data_subdir=None, validate_names=False,
-                                skip_sync=False):
+def update_new_untargeted_tasks(
+    update_lims: bool = True,
+    background_designator: List[str] = [],
+    direct_input: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    raw_data_dir: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None,
+    validate_names: bool = False,
+    skip_sync: bool = False
+) -> None:
     """
     This script is called by run_mzmine.py before the untargeted pipeline kicks off
 
@@ -1703,6 +1877,9 @@ def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
     space and labkey doesn't allow this
     """
     if skip_sync:
+        logging.info('Skipping Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
+        return
+    if direct_input is not None:
         logging.info('Skipping Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
         return
     logging.info('Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
