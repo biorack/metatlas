@@ -1153,6 +1153,8 @@ def submit_fbmn_jobs(
     overwrite_fbmn: bool,
     output_dir: str,
     skip_fbmn_submit: bool,
+    mirror_raw_data: bool,
+    mirror_mzmine_results: bool,
     direct_input: Optional[str] = None,
     raw_data_dir: Optional[str] = None,
     raw_data_subdir: Optional[str] = None
@@ -1228,8 +1230,10 @@ def submit_fbmn_jobs(
                 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
-                mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
-                mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir)
+                if mirror_mzmine_results is True:
+                    mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
+                if mirror_raw_data is True:
+                    mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir)
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
@@ -1874,8 +1878,7 @@ def update_new_untargeted_tasks(
     output_dir: str,
     direct_input: Optional[str] = None,
     raw_data_dir: Optional[str] = None,
-    raw_data_subdir: Optional[str] = None,
-    
+    raw_data_subdir: Optional[str] = None
 ) -> None:
     """
     This script is called by run_mzmine.py before the untargeted pipeline kicks off
