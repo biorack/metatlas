@@ -809,7 +809,7 @@ def update_table_in_lims(
     df: pd.DataFrame,
     table: str,
     method: str = 'update',
-    max_size: int = 1e3,
+    max_size: int = 1000,
     pause_time: Optional[float] = None
 ) -> None:
     """
