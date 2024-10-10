@@ -379,16 +379,20 @@ def rename_untargeted_files_in_archive(
     else:
         department = raw_data_subdir.upper()
 
-    date = project_name.split('_')[0]
-    submitter = project_name.split('_')[2]
-    pid = project_name.split('_')[3]
-    chromatography = project_name.split('_')[7]
+    if len(project_name.split('_')) >= 9:
+        date = project_name.split('_')[0]
+        submitter = project_name.split('_')[2]
+        pid = project_name.split('_')[3]
+        chromatography = project_name.split('_')[7]
+    else:
+        logging.warning(tab_print("Warning! Project name %s has fewer than expected fields. Skipping renaming files before zip..."%(project_name), 1))
+        return
 
     # Check if project name follows the standard naming convention
     if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
        not date.isdigit() or len(date) != 8:
-            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming..."%(project_name), 1))
-            logging.warning(tab_print("Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s"%(date, raw_data_subdir, submitter, pid, chromatography), 2))
+            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming files before zip..."%(project_name), 1))
+            logging.warning(tab_print("Here is what could be extracted: Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s"%(date, raw_data_subdir, submitter, pid, chromatography), 2))
             return
     else:
         new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}"
