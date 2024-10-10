@@ -3,7 +3,7 @@ sys.path.insert(0,'/global/common/software/m2650/labkey-api-python') # https://g
 from labkey.api_wrapper import APIWrapper
 import numpy as np
 import pandas as pd
-from pathlib2 import PurePath
+from pathlib2 import PurePath, Path
 import os
 import requests
 from bs4 import BeautifulSoup
@@ -1007,9 +1007,9 @@ def mirror_raw_data_to_gnps2(
     
     logging.info(f"Mirroring raw data (mzML files) for {project} to GNPS2...")
 
-    local_directory = f"{raw_data_dir}/{raw_data_subdir}/{project}"
+    local_directory = os.path.join(raw_data_dir, raw_data_subdir, project)
     remote_directory = f"/raw_data/{raw_data_subdir}/{project}"
-    polarity_directory = f"/raw_data/{raw_data_subdir}/{project}/{polarity}"
+    polarity_directory = f"{remote_directory}/{polarity}"
     remote_host = "sftp.gnps2.org"
     remote_port = 443
     remote_user = username
@@ -1025,21 +1025,23 @@ def mirror_raw_data_to_gnps2(
     polarity_short = f"_{polarity[:3].upper()}_"
     try:
         sftp.mkdir(remote_directory)
-    except IOError:
-        logging.info(f"Directory {remote_directory} already exists on GNPS2")
+    except Exception as e:
+        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
     try:
         sftp.mkdir(polarity_directory)
-    except IOError:
-        logging.info(f"Directory {polarity_directory} already exists on GNPS2")
+    except Exception as e:
+        logging.error(f"Failed to create remote directory {polarity_directory} at GNPS2: {e}")
 
     try:
-        for root, dirs, files in os.walk(local_directory):
-            for file in files:
-                if file.endswith('.mzML') and polarity_short in file:
-                    local_path = os.path.join(root, file)
-                    remote_path = os.path.join(polarity_directory, file)
-                    sftp.put(local_path, remote_path)
-                    logging.info(f"Uploaded {file} to GNPS2...")
+        local_directory = Path(local_directory)
+        logging.info("Walking through local directory %s and uploading mzML files to GNPS2..."%(local_directory))
+        for file_path in local_directory.rglob('*'):
+            if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
+                logging.info("Uploading %s to GNPS2..." % file_path.name)
+                local_path = str(file_path)
+                remote_path = f"{polarity_directory}/{file_path.name}"
+                sftp.put(local_path, remote_path)
+                logging.info(f"Uploaded {file_path.name} to GNPS2...")
 
         sftp.close()
         transport.close()
