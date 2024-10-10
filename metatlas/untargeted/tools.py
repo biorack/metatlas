@@ -1569,8 +1569,6 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             try:
                 department = validate_department.lower()
-                if parent_dir in ['mzml','test_raw'] or department in ['mzml','test_raw']: # skip these test data directories
-                    continue
                 if department =='eb':
                     department = 'egsb'
                 if not department in ['jgi','egsb']:
@@ -1590,13 +1588,15 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
         # Determine which polarities need metadata
         try:
             positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: 'POS' in x.split('_')[9] and
-                'QC' not in x.split('_')[12] and
+                lambda x: len(x.split('_')) > 9 and 'POS' in x.split('_')[9] and
+                'Blank' not in x and
+                len(x.split('_')) > 12 and 'QC' not in x.split('_')[12] and
                 'InjBl' not in x.split('_')[12] and
                 'ISTD' not in x.split('_')[12])].to_list()
-        except:
+        except IndexError:
             positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
                 lambda x: '_POS_' in x and
+                'Blank' not in x and
                 'QC' not in x and
                 'InjBl' not in x and
                 'ISTD' not in x)].to_list()
@@ -1617,13 +1617,15 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
 
         try:
             negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: 'NEG' in x.split('_')[9] and
-                'QC' not in x.split('_')[12] and
+                lambda x: len(x.split('_')) > 9 and 'NEG' in x.split('_')[9] and
+                'Blank' not in x and
+                len(x.split('_')) > 12 and 'QC' not in x.split('_')[12] and
                 'InjBl' not in x.split('_')[12] and
                 'ISTD' not in x.split('_')[12])].to_list()
-        except:
+        except IndexError:
             negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
                 lambda x: '_NEG_' in x and
+                'Blank' not in x and
                 'QC' not in x and
                 'InjBl' not in x and
                 'ISTD' not in x)].to_list()
