@@ -385,7 +385,7 @@ def rename_untargeted_files_in_archive(
         pid = project_name.split('_')[3]
         chromatography = project_name.split('_')[7]
     else:
-        logging.warning(tab_print("Warning! Project name %s has fewer than expected fields. Skipping renaming files before zip..."%(project_name), 1))
+        logging.info(tab_print("Note! Project name %s has fewer than expected fields. Skipping renaming files before zip..."%(project_name), 1))
         return
 
     # Check if project name follows the standard naming convention
@@ -1883,7 +1883,6 @@ def update_new_untargeted_tasks(
     validate_names: bool,
     skip_sync: bool,
     output_dir: str,
-    direct_input: Optional[str] = None,
     raw_data_dir: Optional[str] = None,
     raw_data_subdir: Optional[str] = None
 ) -> None:
@@ -1899,9 +1898,6 @@ def update_new_untargeted_tasks(
     space and labkey doesn't allow this
     """
     if skip_sync:
-        logging.info('Skipping Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
-        return
-    if direct_input is not None:
         logging.info('Skipping Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
         return
     logging.info('Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    

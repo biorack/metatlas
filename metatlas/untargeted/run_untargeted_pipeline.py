@@ -27,7 +27,7 @@ def main():
     logging.info(f'Arguments used: {args}')
 
     ##### Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
-    new_projects = mzm.update_new_untargeted_tasks(validate_names=args.validate_names, direct_input=args.direct_input,\
+    new_projects = mzm.update_new_untargeted_tasks(validate_names=args.validate_names, \
                                                    output_dir=args.output_dir, raw_data_dir=args.raw_data_dir, raw_data_subdir=args.raw_data_subdir, \
                                                    background_designator=args.background_designator,skip_sync=step_bools[0])
     
