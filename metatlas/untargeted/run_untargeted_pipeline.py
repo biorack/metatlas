@@ -46,7 +46,7 @@ def main():
 
     ##### Step 5/7: Submitting new FBMN jobs to GNPS2
     mzm.submit_fbmn_jobs(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, direct_input=args.direct_input, skip_fbmn_submit=step_bools[4], \
-                        raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
+                        mirror_raw_data=args.mirror_raw_data, mirror_mzmine_results=args.mirror_mzmine_results, raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
 
     ##### Step 6/7: Checking for completed FBMN jobs and downloading results
     mzm.download_fbmn_results(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn,direct_input=args.direct_input, \
@@ -82,6 +82,9 @@ def add_arguments(parser):
     parser.add_argument('--nonpolar_solvent_front', type=float, default=0.5, help='Retention time to use as C18/LIPID solvent front (mins) for filtering features')
     ## Step 3 only
     parser.add_argument('--overwrite_mzmine', type=bool, default=False, help='Overwrite existing mzmine results files that are already in the output directory')
+    ## Step 5 only
+    parser.add_argument('--mirror_raw_data', type=bool, default=True, help='Mirror raw data files to GNPS2')
+    parser.add_argument('--mirror_mzmine_results', type=bool, default=True, help='Mirror mzmine results files to GNPS2')
     ## Step 7 only
     parser.add_argument('--download_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_outputs', help='Path to the download folder')
     parser.add_argument('--overwrite_zip',type=bool, default=False, help='Overwrite existing zip files in download folder')
