@@ -1553,7 +1553,7 @@ def write_mzmine_sbatch_and_runner(basepath,batch_filename,parent_dir,filelist_f
     with open(runner_filename,'w') as fid:
         fid.write('sbatch %s'%sbatch_filename)
 
-def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw_data_dir=None,raw_data_subdir=None,validate_names=True) -> list:
+def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw_data_dir=None,raw_data_subdir=None,validate_names=False) -> list:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
     mzmine metadata for writing a new untargeted_tasks directory
@@ -1569,7 +1569,7 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             try:
                 department = validate_department.lower()
-                if parent_dir in ['mzml','test_raw']: # skip these test data directories
+                if parent_dir in ['mzml','test_raw'] or department in ['mzml','test_raw']: # skip these test data directories
                     continue
                 if department =='eb':
                     department = 'egsb'
@@ -1588,11 +1588,18 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
         project_dict['negative'] = {}
 
         # Determine which polarities need metadata
-        positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-            lambda x: 'POS' in x.split('_')[9] and 
-            'QC' not in x.split('_')[12] and
-            'InjBl' not in x.split('_')[12] and
-            'ISTD' not in x.split('_')[12])].to_list()
+        try:
+            positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
+                lambda x: 'POS' in x.split('_')[9] and
+                'QC' not in x.split('_')[12] and
+                'InjBl' not in x.split('_')[12] and
+                'ISTD' not in x.split('_')[12])].to_list()
+        except:
+            positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
+                lambda x: '_POS_' in x and
+                'QC' not in x and
+                'InjBl' not in x and
+                'ISTD' not in x)].to_list()
         if positive_file_subset:
             positive_file_list = [os.path.join(full_mzml_path, file) for file in positive_file_subset]
             positive_file_count = len(positive_file_list)
@@ -1608,11 +1615,18 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
         else:
             positive_file_count = 0
 
-        negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-            lambda x: 'NEG' in x.split('_')[9] and 
-            'QC' not in x.split('_')[12] and
-            'InjBl' not in x.split('_')[12] and
-            'ISTD' not in x.split('_')[12])].to_list()
+        try:
+            negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
+                lambda x: 'NEG' in x.split('_')[9] and
+                'QC' not in x.split('_')[12] and
+                'InjBl' not in x.split('_')[12] and
+                'ISTD' not in x.split('_')[12])].to_list()
+        except:
+            negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
+                lambda x: '_NEG_' in x and
+                'QC' not in x and
+                'InjBl' not in x and
+                'ISTD' not in x)].to_list()
         if negative_file_subset:
             negative_file_list = [os.path.join(full_mzml_path, file) for file in negative_file_subset]
             negative_file_count = len(negative_file_list)
@@ -1673,7 +1687,7 @@ def write_metadata_per_new_project(df: pd.DataFrame,background_designator=[],raw
     return new_project_list
 
 def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
-                                output_dir=None, raw_data_dir=None, raw_data_subdir=None, validate_names=True,
+                                output_dir=None, raw_data_dir=None, raw_data_subdir=None, validate_names=False,
                                 skip_sync=False):
     """
     This script is called by run_mzmine.py before the untargeted pipeline kicks off
@@ -1760,7 +1774,7 @@ def update_new_untargeted_tasks(update_lims=True,background_designator=[], \
             if validate_names is True:
                 _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
             if validate_names is False:
-                validate_machine_name = project_name.split('_')[6]
+                validate_machine_name = "EXP120A" # Assume stricter parameters for unvalidated machine name
             if validate_machine_name.lower() in ("iqx", "idx"):
                 mzmine_running_parameters = mzine_batch_params_file_iqx
                 mzmine_parameter = 5
