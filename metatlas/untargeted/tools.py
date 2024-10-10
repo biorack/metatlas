@@ -914,6 +914,7 @@ def check_gnps2_status(taskid:str = None):
 def mirror_mzmine_results_to_gnps2(
     project: str,
     polarity: str,
+    output_dir: str,
     username: str = "bpbowen"
 ) -> None:
     """
@@ -941,27 +942,35 @@ def mirror_mzmine_results_to_gnps2(
     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
 
     project_directory = f"{project}_{polarity}"
-    local_directory = f"/global/cfs/cdirs/metatlas/projects/untargeted_tasks/{project_directory}"
+    local_directory = os.path.join(output_dir, project_directory)
     remote_directory = f"/untargeted_tasks/{project_directory}"
     remote_host = "sftp.gnps2.org"
     remote_port = 443
     remote_user = username
 
-    transport = paramiko.Transport((remote_host, remote_port))
-    transport.connect(username=remote_user, password=password)
-    sftp = paramiko.SFTPClient.from_transport(transport)
+    try:
+        transport = paramiko.Transport((remote_host, remote_port))
+        transport.connect(username=remote_user, password=password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+    except paramiko.SSHException as e:
+        logging.error(f"Failed to connect to GNPS2: {e}")
+        return
+    
     try:
         sftp.mkdir(remote_directory)
-    except IOError:
-        logging.info(tab_print(f"Directory {remote_directory} already exists on GNPS2", 0))
+    except Exception as e:
+        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+
     try:
-        for root, dirs, files in os.walk(local_directory):
-            for file in files:
-                if file.endswith(('.mgf', '.csv', '.tab')):
-                    local_path = os.path.join(root, file)
-                    remote_path = os.path.join(remote_directory, file)
-                    sftp.put(local_path, remote_path)
-                    logging.info(tab_print(f"Uploaded {file} to GNPS2...", 0))
+        local_directory = Path(local_directory)
+        logging.info("Walking through local directory %s and uploading mzmine results to GNPS2..."%(local_directory))
+        for file_path in local_directory.rglob('*'):
+            if file_path.is_file() and file_path.suffix in ('.mgf', '.csv', '.tab'):
+                logging.info("Uploading %s to GNPS2..." % file_path.name)
+                local_path = str(file_path)
+                remote_path = f"{remote_directory}/{file_path.name}"
+                sftp.put(local_path, remote_path)
+                logging.info(f"Uploaded {file_path.name} to GNPS2...")
         sftp.close()
         transport.close()
         logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
@@ -1219,7 +1228,7 @@ def submit_fbmn_jobs(
                 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
-                mirror_mzmine_results_to_gnps2(project_name,polarity,username="bpbowen")
+                mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
                 mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir)
 
                 description = '%s_%s'%(project_name,polarity)
