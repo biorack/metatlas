@@ -1153,8 +1153,8 @@ def submit_fbmn_jobs(
     overwrite_fbmn: bool,
     output_dir: str,
     skip_fbmn_submit: bool,
-    mirror_raw_data: bool,
-    mirror_mzmine_results: bool,
+    skip_mirror_raw_data: bool,
+    skip_mirror_mzmine_results: bool,
     direct_input: Optional[str] = None,
     raw_data_dir: Optional[str] = None,
     raw_data_subdir: Optional[str] = None
@@ -1230,10 +1230,14 @@ def submit_fbmn_jobs(
                 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
-                if mirror_mzmine_results is True:
+                if skip_mirror_mzmine_results is False:
                     mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
-                if mirror_raw_data is True:
+                else:
+                    logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
+                if skip_mirror_raw_data is False:
                     mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir)
+                else:
+                    logging.info(tab_print("Skipping raw data mirroring to GNPS2...", 2))
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
@@ -1871,7 +1875,6 @@ def write_metadata_per_new_project(
     return new_project_list
 
 def update_new_untargeted_tasks(
-    update_lims: bool,
     background_designator: List[str],
     validate_names: bool,
     skip_sync: bool,
@@ -2035,13 +2038,12 @@ def update_new_untargeted_tasks(
 
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
 
-        if update_lims is True:
-            if lims_untargeted_df.shape[0] > 0:
-                logging.info(tab_print("Updating LIMS table with %s new projects..."%(lims_untargeted_df.shape[0]), 1))
-                update_table_in_lims(lims_untargeted_df,'untargeted_tasks',method='insert',max_size=1000)
-                logging.info(tab_print("LIMS untargeted tasks table update complete.", 2))
-            else:
-                logging.info(tab_print("LIMS does not need updating!", 1))
+        if lims_untargeted_df.shape[0] > 0:
+            logging.info(tab_print("Updating LIMS table with %s new projects..."%(lims_untargeted_df.shape[0]), 1))
+            update_table_in_lims(lims_untargeted_df,'untargeted_tasks',method='insert',max_size=1000)
+            logging.info(tab_print("LIMS untargeted tasks table update complete.", 2))
+        else:
+            logging.info(tab_print("LIMS does not need updating!", 1))
     else:
         lims_untargeted_list = []
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
