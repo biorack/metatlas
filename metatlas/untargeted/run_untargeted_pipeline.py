@@ -74,7 +74,7 @@ def add_arguments(parser):
     parser.add_argument('--raw_data_subdir', type=str, default=None, help='Name of the raw_data subdirectory (e.g., jgi, egsb) to use for tasks that require raw data files. If not given, will try to infer from the project name.')
     ## Step 1 only
     parser.add_argument('--update_lims', type=bool, default=True, help='Update LIMS with new untargeted tasks')
-    parser.add_argument('--validate_names', type=bool, default=True, help='Validate filenames and project names')
+    parser.add_argument('--validate_names', type=bool, default=False, help='Validate filenames and project names')
     ## Step 2 only
     parser.add_argument('--background_ratio', type=float, default=5, help='Ratio of background to sample intensity for filtering features')
     parser.add_argument('--zero_value', type=float, default=(2/3), help='Proportion of the lowest intensity value from the experiment to use as replacement zero value')
