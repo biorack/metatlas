@@ -121,8 +121,8 @@ def filter_common_bad_project_names(df:pd.DataFrame=None) -> pd.DataFrame:
     return df
 
 def write_fbmn_tasks_to_file(
-    task_list: Optional[Dict] = None,
-    output_dir: Optional[str] = None
+    task_list: Dict,
+    output_dir: str
 ) -> None:
     """
     Takes a list of dictionaries from submit_fbmn_jobs
@@ -142,18 +142,18 @@ def write_fbmn_tasks_to_file(
         logging.warning(tab_print("Warning! GNPS2 FBMN task ID not found. File gnps2-fbmn-task.txt not written.", 3))
 
 def zip_and_upload_untargeted_results(
-    download_folder: Optional[str] = None,
-    output_dir: Optional[str] = None,
-    raw_data_subdir: Optional[str] = None,
-    upload: bool = True,
-    overwrite_zip: bool = False,
-    overwrite_drive: bool = False,
+    download_folder: str,
+    output_dir: str,
+    doc_name: str,
+    add_documentation: bool,
+    skip_zip_upload: bool,
+    abridged_filenames: bool,
+    upload: bool,
+    overwrite_zip: bool,
+    overwrite_drive: bool,
     direct_input: Optional[str] = None,
-    min_features_admissible: int = 0,
-    add_documentation: bool = True,
-    doc_name: Optional[str] = None,
-    skip_zip_upload: bool = False,
-    abridged_filenames: bool = True
+    raw_data_subdir: Optional[str] = None,
+    min_features_admissible: int = 0
 ) -> None:
     """
     This function is called by export_untargeted_results.py
@@ -302,12 +302,12 @@ def zip_and_upload_untargeted_results(
 
 
 def zip_untargeted_results(
+    abridged_filenames: bool,
+    doc_name: str,
+    add_documentation: bool,
     target_dirs: Optional[List[str]] = None,
     raw_data_subdir: Optional[str] = None,
-    add_documentation: bool = True,
     download_folder: Optional[str] = None,
-    abridged_filenames: bool = True,
-    doc_name: Optional[str] = None,
     output_zip_archive: Optional[str] = None
 ) -> None:
     if target_dirs is None:
@@ -629,10 +629,10 @@ def download_from_url(
         return False
 
 def download_fbmn_results(
-    output_dir: str = None,
-    overwrite_fbmn: bool = False,
-    direct_input: Optional[str] = None,
-    skip_fbmn_download: bool = False
+    output_dir: str,
+    overwrite_fbmn: bool,
+    skip_fbmn_download: bool,
+    direct_input: Optional[str] = None
 ) -> None:
     """
     This function is called by download_fbmn_results.py
@@ -970,9 +970,9 @@ def mirror_mzmine_results_to_gnps2(
         return
 
 def mirror_raw_data_to_gnps2(
-    project: Optional[str] = None,
-    polarity: Optional[str] = None,
-    username: str = "bpbowen",
+    project: str,
+    polarity: str,
+    username: str,
     raw_data_dir: Optional[str] = None,
     raw_data_subdir: Optional[str] = None
 ) -> None:
@@ -983,11 +983,11 @@ def mirror_raw_data_to_gnps2(
     raw data (mzML files) to GNPS2 for a given project and polarity.
 
     Parameters:
-    - project (Optional[str]): The name of the project. Default is None.
-    - polarity (Optional[str]): The polarity of the data (e.g., 'positive' or 'negative'). Default is None.
-    - username (str): The username for GNPS2. Default is 'bpbowen'.
-    - raw_data_dir (Optional[str]): The directory containing the raw data. Default is None.
-    - raw_data_subdir (Optional[str]): The subdirectory within the raw data directory. Default is None.
+    - project: The name of the project.
+    - polarity: The polarity of the data (e.g., 'positive' or 'negative').
+    - username: The username for GNPS2. Usually is 'bpbowen'.
+    - raw_data_dir: The directory containing the raw data. Default is None.
+    - raw_data_subdir : The subdirectory within the raw data directory. Default is None.
     """
     # Load password from file
     password = None
@@ -1139,10 +1139,10 @@ def mirror_raw_data_to_gnps2(
 #         return False
 
 def submit_fbmn_jobs(
+    overwrite_fbmn: bool,
+    output_dir: str,
+    skip_fbmn_submit: bool,
     direct_input: Optional[str] = None,
-    overwrite_fbmn: bool = False,
-    output_dir: Optional[str] = None,
-    skip_fbmn_submit: bool = False,
     raw_data_dir: Optional[str] = None,
     raw_data_subdir: Optional[str] = None
 ) -> None:
@@ -1218,7 +1218,7 @@ def submit_fbmn_jobs(
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
                 mirror_mzmine_results_to_gnps2(project_name,polarity,username="bpbowen")
-                mirror_raw_data_to_gnps2(project_name,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir)
+                mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir)
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
@@ -1266,10 +1266,10 @@ def count_mgf_lines(mgf_file:str = None) -> int:
         return 0
 
 def submit_mzmine_jobs(
+    skip_mzmine_submit: bool,
+    overwrite_mzmine: bool,
     new_projects: Optional[List[str]] = None,
-    direct_input: Optional[str] = None,
-    skip_mzmine_submit: bool = False,
-    overwrite_mzmine: bool = False
+    direct_input: Optional[str] = None
 ) -> None:
     """
     This function is called by run_mzmine.py
@@ -1393,9 +1393,9 @@ def set_fbmn_parameters(
     return params
 
 def update_mzmine_status_in_untargeted_tasks(
+    background_designator: List[str],
+    skip_mzmine_status: bool,
     direct_input: Optional[str] = None,
-    background_designator: List[str] = [],
-    skip_mzmine_status: bool = False,
     background_ratio: int = 5,
     zero_value: float = (2/3),
     nonpolar_solvent_front: float = 0.5,
@@ -1505,8 +1505,8 @@ def update_mzmine_status_in_untargeted_tasks(
             logging.info(tab_print("No MZmine jobs to update!", 1))
 
 def create_filtered_peakheight_file(
-    peakheight_filename: Optional[str] = None,
-    background_designator: List[str] = [],
+    peakheight_filename: str,
+    background_designator: List[str],
     background_ratio: int = 3,
     zero_value: float = (2/3),
     nonpolar_solvent_front: float = 0.5,
@@ -1572,9 +1572,9 @@ def create_filtered_peakheight_file(
             return empty_data_table
 
 def calculate_counts_for_lims_table(
-    peakheight_filename: Optional[str] = None,
-    mgf_filename: Optional[str] = None,
-    background_designator: List[str] = []
+    peakheight_filename: str,
+    mgf_filename: str,
+    background_designator: List[str]
 ) -> None:
     """
     Accepts a peakheight file and mgf file and returns the number of features
@@ -1617,8 +1617,8 @@ def calculate_counts_for_lims_table(
     return feature_count, exctrl_count, msms_count
 
 def update_fbmn_status_in_untargeted_tasks(
-    direct_input: Optional[str] = None,
-    skip_fbmn_status: bool = False
+    skip_fbmn_status: bool,
+    direct_input: Optional[str] = None
 ) -> None:
     """
     This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
@@ -1716,10 +1716,10 @@ def write_mzmine_sbatch_and_runner(
 
 def write_metadata_per_new_project(
     df: pd.DataFrame,
-    background_designator: List[str] = [],
+    background_designator: List[str],
+    validate_names: bool,
     raw_data_dir: Optional[str] = None,
-    raw_data_subdir: Optional[str] = None,
-    validate_names: bool = False
+    raw_data_subdir: Optional[str] = None
 ) -> List:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
@@ -1856,14 +1856,15 @@ def write_metadata_per_new_project(
     return new_project_list
 
 def update_new_untargeted_tasks(
-    update_lims: bool = True,
-    background_designator: List[str] = [],
+    update_lims: bool,
+    background_designator: List[str],
+    validate_names: bool,
+    skip_sync: bool,
+    output_dir: str,
     direct_input: Optional[str] = None,
-    output_dir: Optional[str] = None,
     raw_data_dir: Optional[str] = None,
     raw_data_subdir: Optional[str] = None,
-    validate_names: bool = False,
-    skip_sync: bool = False
+    
 ) -> None:
     """
     This script is called by run_mzmine.py before the untargeted pipeline kicks off
