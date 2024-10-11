@@ -53,8 +53,7 @@ def main():
                               skip_fbmn_download=step_bools[5])
 
     ##### Step 7/7: Zipping up and (optionally) uploading output folders to gdrive
-    mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir, \
-                                          raw_data_subdir=args.raw_data_subdir, upload=args.gdrive_upload,overwrite_zip=args.overwrite_zip, \
+    mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir, upload=args.gdrive_upload,overwrite_zip=args.overwrite_zip, \
                                           overwrite_drive=args.overwrite_drive, min_features_admissible=args.min_features, skip_zip_upload=step_bools[6], \
                                           add_documentation=args.add_gnps2_documentation,doc_name=args.gnps2_doc_name,direct_input=args.direct_input, \
                                           abridged_filenames=args.abridged_filenames)

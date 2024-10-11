@@ -152,7 +152,6 @@ def zip_and_upload_untargeted_results(
     overwrite_zip: bool,
     overwrite_drive: bool,
     direct_input: Optional[str] = None,
-    raw_data_subdir: Optional[str] = None,
     min_features_admissible: int = 0
 ) -> None:
     """
@@ -233,7 +232,7 @@ def zip_and_upload_untargeted_results(
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
 
-                            zip_untargeted_results(target_dirs=[neg_directory,pos_directory], raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, \
+                            zip_untargeted_results(target_dirs=[neg_directory,pos_directory], abridged_filenames=abridged_filenames, \
                                                    add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
                             zip_count += 1
 
@@ -258,7 +257,7 @@ def zip_and_upload_untargeted_results(
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
 
-                            zip_untargeted_results(target_dirs=[pos_directory], raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, \
+                            zip_untargeted_results(target_dirs=[pos_directory], abridged_filenames=abridged_filenames, \
                                                    add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
                             zip_count += 1
 
@@ -283,7 +282,7 @@ def zip_and_upload_untargeted_results(
                             if os.path.exists(neg_mzmine_job_id_filename):
                                 os.remove(neg_mzmine_job_id_filename)
 
-                            zip_untargeted_results(target_dirs=[neg_directory], raw_data_subdir=raw_data_subdir, abridged_filenames=abridged_filenames, \
+                            zip_untargeted_results(target_dirs=[neg_directory], abridged_filenames=abridged_filenames, \
                                                    add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
                             zip_count += 1
 
@@ -306,7 +305,6 @@ def zip_untargeted_results(
     doc_name: str,
     add_documentation: bool,
     target_dirs: Optional[List[str]] = None,
-    raw_data_subdir: Optional[str] = None,
     download_folder: Optional[str] = None,
     output_zip_archive: Optional[str] = None
 ) -> None:
@@ -344,7 +342,7 @@ def zip_untargeted_results(
     logging.info(tab_print("New untargeted results in %s zipped"%(target_dirs), 1))
     
     if abridged_filenames is True:
-        rename_untargeted_files_in_archive(output_zip_archive=output_zip_archive, raw_data_subdir=raw_data_subdir)
+        rename_untargeted_files_in_archive(output_zip_archive=output_zip_archive)
     
     # Change permissions of resulting zip
     try:
@@ -354,8 +352,7 @@ def zip_untargeted_results(
 
 
 def rename_untargeted_files_in_archive(
-    output_zip_archive: Optional[str] = None,
-    raw_data_subdir: Optional[str] = None
+    output_zip_archive: Optional[str] = None
 ) -> None:
     if output_zip_archive is None:
         logging.warning(tab_print("Warning! No output zip archive provided for renaming untargeted results files, but rename function is set to True.", 1))
@@ -363,24 +360,9 @@ def rename_untargeted_files_in_archive(
 
     project_name = os.path.splitext(os.path.basename(output_zip_archive))[0]
 
-    if raw_data_subdir is None: # Use the department name from the project name
-        _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
-        try:
-            department = validate_department.lower()
-            if department =='eb':
-                department = 'egsb'
-            if not department in ['jgi','egsb']:
-                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-                return
-            raw_data_subdir = department.upper()
-        except:
-            logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-            return
-    else:
-        department = raw_data_subdir.upper()
-
     if len(project_name.split('_')) >= 9:
         date = project_name.split('_')[0]
+        department = project_name.split('_')[1]
         submitter = project_name.split('_')[2]
         pid = project_name.split('_')[3]
         chromatography = project_name.split('_')[7]
@@ -392,10 +374,10 @@ def rename_untargeted_files_in_archive(
     if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
        not date.isdigit() or len(date) != 8:
             logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming files before zip..."%(project_name), 1))
-            logging.warning(tab_print("Here is what could be extracted: Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s"%(date, raw_data_subdir, submitter, pid, chromatography), 2))
+            logging.warning(tab_print("Here is what could be extracted: Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s"%(date, department, submitter, pid, chromatography), 2))
             return
     else:
-        new_project_name = f"{date}_{raw_data_subdir}_{submitter}_{pid}_{chromatography}"
+        new_project_name = f"{date}_{department}_{submitter}_{pid}_{chromatography}"
 
     # Unzip the archive and rename all files
     temp_dir = f"/tmp/{project_name}"
@@ -1021,7 +1003,21 @@ def mirror_raw_data_to_gnps2(
     logging.info(f"Mirroring raw data (mzML files) for {project} to GNPS2...")
 
     local_directory = os.path.join(raw_data_dir, raw_data_subdir, project)
-    remote_directory = f"/raw_data/{raw_data_subdir}/{project}"
+    if not os.path.exists(local_directory): # Try other possible subdirectories where raw data might be found on perlmutter
+        local_directory = os.path.join(raw_data_dir, "jgi", project)
+        if not os.path.exists(local_directory):
+            local_directory = os.path.join(raw_data_dir, "egsb", project)
+            if not os.path.exists(local_directory):
+                local_directory = os.path.join(raw_data_dir, "akuftin", project)
+                if not os.path.exists(local_directory):
+                    local_directory = os.path.join(raw_data_dir, "agolini", project)
+                    if not os.path.exists(local_directory):
+                        local_directory = os.path.join(raw_data_dir, "kblouie", project)
+                        if not os.path.exists(local_directory):
+                            logging.error(f"Local directory for {project} raw data not found after trying several possible alternatives. Exiting.")
+                            return
+    remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter instead of inferring from the project name directly
+    remote_directory = f"/raw_data/{remote_subdir}/{project}"
     polarity_directory = f"{remote_directory}/{polarity}"
     remote_host = "sftp.gnps2.org"
     remote_port = 443
@@ -1221,16 +1217,12 @@ def submit_fbmn_jobs(
                 if raw_data_subdir is None:
                     _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
                     try:
-                        department = validate_department.lower()
-                        if department =='eb':
-                            department = 'egsb'
-                        if not department in ['jgi','egsb']:
-                            logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-                            continue
-                        raw_data_subdir = department
+                        raw_data_subdir = validate_department.lower()
+                        if raw_data_subdir == 'eb':
+                            raw_data_subdir = 'egsb'
                     except:
-                        logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-                        continue
+                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'jgi'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                        raw_data_subdir = "jgi" # Default to JGI
                 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
@@ -1754,22 +1746,34 @@ def write_metadata_per_new_project(
         # Filter the DataFrame for the current parent_dir
         df_filtered = df[df['parent_dir'] == parent_dir]
 
-        # Finish raw_data path
-        if raw_data_subdir is None:
+        if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             try:
-                department = validate_department.lower()
-                if department =='eb':
-                    department = 'egsb'
-                if not department in ['jgi','egsb']:
-                    logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(parent_dir), 2))
-                    continue
-                raw_data_subdir = department
-            except:
-                logging.warning(tab_print("Warning! %s does not have a valid department name in the second field. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(parent_dir), 2))
+                raw_data_subdir = validate_department.lower()
+                if raw_data_subdir == 'eb':
+                    raw_data_subdir = 'egsb'
+                check_project_raw_dir = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
+                if os.path.exists(check_project_raw_dir):
+                    full_mzml_path = check_project_raw_dir
+                else:
+                    possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie"]
+                    for subdir in possible_subdirs:
+                        check_project_raw_dir = os.path.join(raw_data_dir, subdir, parent_dir)
+                        if os.path.exists(check_project_raw_dir):
+                            full_mzml_path = check_project_raw_dir
+                            break
+                    else:
+                        logging.error(f"Raw data directory for {parent_dir} could not be found after trying several possible alternatives. Not creating metadata.")
+                        continue
+            except Exception as e:
+                logging.error(tab_print(f"Error when trying to locate mzML files on disk: {e}", 2))
                 continue
-        full_mzml_path = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
-
+        else:
+            full_mzml_path = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
+            if not os.path.exists(full_mzml_path):
+                logging.error(tab_print(f"Raw data directory for {parent_dir} could not be found with user input --raw_data_subdir flag of {raw_data_subdir}. Not creating metadata.", 2))
+                continue
+        
         # Initialize info dict
         project_dict = {'parent_dir': parent_dir}
         project_dict['positive'] = {}
