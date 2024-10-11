@@ -299,14 +299,26 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
             final_df.loc[compound_idx, 'mz_quality'] = np.nan
 
         rt_error = abs(cid.rt_references[0].rt_peak - avg_rt_measured)
-        if rt_error <= 0.5:
-            final_df.loc[compound_idx, 'rt_quality'] = 1
-        elif rt_error <= 2:
-            final_df.loc[compound_idx, 'rt_quality'] = 0.5
-        elif rt_error > 2:
-            final_df.loc[compound_idx, 'rt_quality'] = 0
+
+        if "c18" in workflow_name.lower() and "lipid" not in workflow_name.lower():
+            if rt_error <= 0.25:
+                final_df.loc[compound_idx, 'rt_quality'] = 1
+            elif rt_error <= 0.5:
+                final_df.loc[compound_idx, 'rt_quality'] = 0.5
+            elif rt_error > 0.5:
+                final_df.loc[compound_idx, 'rt_quality'] = 0
+            else:
+                final_df.loc[compound_idx, 'rt_quality'] = np.nan
         else:
-            final_df.loc[compound_idx, 'rt_quality'] = np.nan
+            if rt_error <= 0.5:
+                final_df.loc[compound_idx, 'rt_quality'] = 1
+            elif rt_error <= 2:
+                final_df.loc[compound_idx, 'rt_quality'] = 0.5
+            elif rt_error > 2:
+                final_df.loc[compound_idx, 'rt_quality'] = 0
+            else:
+                final_df.loc[compound_idx, 'rt_quality'] = np.nan
+                
         final_df.loc[compound_idx, 'total_score'] = np.nan  # this gets updated after ms2_notes column is added
         final_df.loc[compound_idx, 'msi_level'] = ""    # this gets updated after ms2_notes column is added
         final_df.loc[compound_idx, 'isomer_details'] = ""
