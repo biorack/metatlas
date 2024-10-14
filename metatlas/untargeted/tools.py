@@ -58,6 +58,12 @@ mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/b
 def call_logger(log_filename: str, log_level: str, log_format: str):
     logging.basicConfig(filename=log_filename, level=log_level, format=log_format, filemode='a')
 
+def call_logger(log_filename: str, log_level: str, log_format: str, log_to_stdout: bool):
+    if log_to_stdout:
+        logging.basicConfig(stream=sys.stdout, level=log_level, format=log_format)
+    else:
+        logging.basicConfig(filename=log_filename, level=log_level, format=log_format, filemode='a')
+
 def start_script(script:str=None) -> str:
     """
     Kick off script with a timestamp for log
@@ -1016,6 +1022,7 @@ def mirror_raw_data_to_gnps2(
                         if not os.path.exists(local_directory):
                             logging.error(f"Local directory for {project} raw data not found after trying several possible alternatives. Exiting.")
                             return
+    local_directory = Path(local_directory)
     remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter instead of inferring from the project name directly
     remote_directory = f"/raw_data/{remote_subdir}/{project}"
     polarity_directory = f"{remote_directory}/{polarity}"
@@ -1042,7 +1049,6 @@ def mirror_raw_data_to_gnps2(
         logging.error(f"Failed to create remote directory {polarity_directory} at GNPS2: {e}")
 
     try:
-        local_directory = Path(local_directory)
         logging.info("Walking through local directory %s and uploading mzML files to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:

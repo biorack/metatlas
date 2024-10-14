@@ -16,7 +16,7 @@ def main():
     step_bools = check_skipped_steps(args)
 
     ##### Configure logging
-    mzm.call_logger(log_filename=args.log_file, log_level=args.log_level, log_format=args.log_format)
+    mzm.call_logger(log_filename=args.log_file, log_level=args.log_level, log_format=args.log_format, log_to_stdout=args.log_to_stdout)
 
     ##### Kick off the script
     start_message = mzm.start_script(script="run_untargeted_pipeline.py")
@@ -102,6 +102,7 @@ def add_arguments(parser):
     parser.add_argument('--log_file', type=str, default='/global/cfs/cdirs/m2650/untargeted_logs/untargeted_pipeline.log', help='Log file name with full path')
     parser.add_argument('--log_level', type=str, default='INFO', help='Logger level. One of [DEBUG, INFO, WARNING, ERROR, or CRITICAL]')
     parser.add_argument('--log_format', type=str, default='%(asctime)s - %(levelname)s - %(message)s', help='Logger format')
+    parser.add_argument('--log_to_stdout', action='store_true', help='Log to stdout instead of a file')
 
 def check_args(args):
     ##### Check if the input arguments are valid
