@@ -285,6 +285,7 @@ class MetatlasDataset(HasTraits):
             for group in self.ids.all_groups
             for h5_file in group.items
         ]
+        logger.info("File locations: %s", files)
         if len(files) == 0:
             logger.warning("No matching h5 files were found!")
         logger.info("Reading MSMS data from h5 files...")
@@ -308,6 +309,7 @@ class MetatlasDataset(HasTraits):
         adduct_indexes = ["compounds", 0, "identification", "mz_references", 0, "adduct"]
         inchi_key_indexes = ["compounds", 0, "identification", "compound", 0, "inchi_key"]
         h5_files = {run.hdf5_file for group in self.ids.groups for run in group.items}
+        logger.info("H5 files: %s", h5_files)
         return tuple(
             x
             for x in self.all_data
@@ -517,6 +519,7 @@ class MetatlasDataset(HasTraits):
         """data getter, update ._data if necessary"""
         if self._data is None:
             self._data = self._get_data()
+            logger.info("Generated data:", self._data)
             self._data_valid_for_rt_bounds = True
         return self._data
 
