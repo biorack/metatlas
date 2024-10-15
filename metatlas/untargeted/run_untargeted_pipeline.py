@@ -112,9 +112,6 @@ def check_args(args):
         args.background_designator = args.background_designator.split(',')
     if args.skip_steps:
         args.skip_steps = args.skip_steps.split(',')
-    if args.skip_steps is not None and args.direct_input is None:
-        logging.error('Incompatible flags. Must provide direct input if you want to skip steps.')
-        sys.exit(1)
     if args.overwrite_drive is True and args.gdrive_upload is False:
         logging.error('Incompatible flags. Cannot overwrite google drive if not uploading to google drive.')
         sys.exit(1)
