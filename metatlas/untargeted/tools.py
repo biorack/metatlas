@@ -974,7 +974,7 @@ def mirror_raw_data_to_gnps2(
     project: str,
     polarity: str,
     username: str,
-    raw_data_dir: Optional[str] = None,
+    raw_data_dir: str,
     raw_data_subdir: Optional[str] = None
 ) -> None:
     """
@@ -987,7 +987,7 @@ def mirror_raw_data_to_gnps2(
     - project: The name of the project.
     - polarity: The polarity of the data (e.g., 'positive' or 'negative').
     - username: The username for GNPS2. Usually is 'bpbowen'.
-    - raw_data_dir: The directory containing the raw data. Default is None.
+    - raw_data_dir: The directory containing the raw data.
     - raw_data_subdir : The subdirectory within the raw data directory. Default is None.
     """
     # Load password from file
@@ -1223,12 +1223,12 @@ def submit_fbmn_jobs(
                 if raw_data_subdir is None:
                     _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
                     try:
-                        raw_data_subdir = validate_department.lower()
-                        if raw_data_subdir == 'eb':
-                            raw_data_subdir = 'egsb'
+                        subdir = validate_department.lower()
+                        if subdir == 'eb':
+                            subdir = 'egsb'
                     except:
-                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'jgi'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-                        raw_data_subdir = "jgi" # Default to JGI
+                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                        subdir = "other" # Default to JGI
                 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
@@ -1237,7 +1237,7 @@ def submit_fbmn_jobs(
                 else:
                     logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
                 if skip_mirror_raw_data is False:
-                    mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir)
+                    mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
                 else:
                     logging.info(tab_print("Skipping raw data mirroring to GNPS2...", 2))
 
@@ -1245,7 +1245,7 @@ def submit_fbmn_jobs(
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
                 quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_quant.csv'
                 metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_metadata.tab'
-                raw_data = f'USERUPLOAD/bpbowen/raw_data/{raw_data_subdir}/{project_name}'
+                raw_data = f'USERUPLOAD/bpbowen/raw_data/{subdir}/{project_name}'
                 mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
                 mgf_lines = count_mgf_lines(mgf_filename)
                 if mgf_lines == 0:
@@ -1739,7 +1739,7 @@ def write_metadata_per_new_project(
     df: pd.DataFrame,
     background_designator: List[str],
     validate_names: bool,
-    raw_data_dir: Optional[str] = None,
+    raw_data_dir: str,
     raw_data_subdir: Optional[str] = None
 ) -> List:
     """
@@ -1755,10 +1755,10 @@ def write_metadata_per_new_project(
         if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             try:
-                raw_data_subdir = validate_department.lower()
-                if raw_data_subdir == 'eb':
-                    raw_data_subdir = 'egsb'
-                check_project_raw_dir = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
+                subdir = validate_department.lower()
+                if subdir == 'eb':
+                    subdir = 'egsb'
+                check_project_raw_dir = os.path.join(raw_data_dir,subdir,parent_dir)
                 if os.path.exists(check_project_raw_dir):
                     full_mzml_path = check_project_raw_dir
                 else:
@@ -1777,7 +1777,7 @@ def write_metadata_per_new_project(
         else:
             full_mzml_path = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
             if not os.path.exists(full_mzml_path):
-                logging.error(tab_print(f"Raw data directory for {parent_dir} could not be found with user input --raw_data_subdir flag of {raw_data_subdir}. Not creating metadata.", 2))
+                logging.error(tab_print(f"Raw data directory for {parent_dir} could not be found at {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
                 continue
         
         # Initialize info dict
@@ -1893,7 +1893,7 @@ def update_new_untargeted_tasks(
     validate_names: bool,
     skip_sync: bool,
     output_dir: str,
-    raw_data_dir: Optional[str] = None,
+    raw_data_dir: str,
     raw_data_subdir: Optional[str] = None
 ) -> None:
     """
