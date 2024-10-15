@@ -1008,20 +1008,34 @@ def mirror_raw_data_to_gnps2(
     
     logging.info(f"Mirroring raw data (mzML files) for {project} to GNPS2...")
 
-    local_directory = os.path.join(raw_data_dir, raw_data_subdir, project)
-    if not os.path.exists(local_directory): # Try other possible subdirectories where raw data might be found on perlmutter
-        local_directory = os.path.join(raw_data_dir, "jgi", project)
+    if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
+        _, validate_department, _ = vfn.field_exists(PurePath(project), field_num=1)
+        try:
+            subdir = validate_department.lower()
+            if subdir == 'eb':
+                subdir = 'egsb'
+            check_project_raw_dir = os.path.join(raw_data_dir,subdir,project)
+            if os.path.exists(check_project_raw_dir):
+                local_directory = check_project_raw_dir
+            else:
+                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie"]
+                for subdir in possible_subdirs:
+                    check_project_raw_dir = os.path.join(raw_data_dir, subdir, project)
+                    if os.path.exists(check_project_raw_dir):
+                        local_directory = check_project_raw_dir
+                        break
+                else:
+                    logging.error(f"Raw data directory for {project} could not be found after trying several possible alternatives. Not creating metadata.")
+                    return
+        except Exception as e:
+            logging.error(tab_print(f"Error when trying to locate mzML files on disk: {e}", 2))
+            return
+    else:
+        local_directory = os.path.join(raw_data_dir,raw_data_subdir,project)
         if not os.path.exists(local_directory):
-            local_directory = os.path.join(raw_data_dir, "egsb", project)
-            if not os.path.exists(local_directory):
-                local_directory = os.path.join(raw_data_dir, "akuftin", project)
-                if not os.path.exists(local_directory):
-                    local_directory = os.path.join(raw_data_dir, "agolini", project)
-                    if not os.path.exists(local_directory):
-                        local_directory = os.path.join(raw_data_dir, "kblouie", project)
-                        if not os.path.exists(local_directory):
-                            logging.error(f"Local directory for {project} raw data not found after trying several possible alternatives. Exiting.")
-                            return
+            logging.error(tab_print(f"Raw data directory for {project} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
+            return
+
     local_directory = Path(local_directory)
     remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter instead of inferring from the project name directly
     remote_directory = f"/raw_data/{remote_subdir}/{project}"
@@ -1228,8 +1242,10 @@ def submit_fbmn_jobs(
                             subdir = 'egsb'
                     except:
                         logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-                        subdir = "other" # Default to JGI
-                
+                        subdir = "other"
+                else:
+                    subdir = raw_data_subdir
+
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
                 if skip_mirror_mzmine_results is False:
@@ -1777,7 +1793,7 @@ def write_metadata_per_new_project(
         else:
             full_mzml_path = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
             if not os.path.exists(full_mzml_path):
-                logging.error(tab_print(f"Raw data directory for {parent_dir} could not be found at {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
+                logging.error(tab_print(f"Raw data directory for {parent_dir} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
                 continue
         
         # Initialize info dict
