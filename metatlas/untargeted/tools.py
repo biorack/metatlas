@@ -516,7 +516,7 @@ def submit_quickstart_fbmn(
         print("Params and username are required to submit FBMN jobs")
         return
     ##### Pick up secret file and extract password
-    with open('/global/homes/m/msdata/gnps2/gnps2_%s.txt'%username,'r') as fid:
+    with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_%s.txt'%username,'r') as fid:
         t = fid.read()
     t = t.split('\n')[0]
     var, pword = t.split('=')
@@ -921,7 +921,7 @@ def mirror_mzmine_results_to_gnps2(
     - username (str): The username for GNPS2. Default is 'bpbowen'.
     """
     # Load password from file
-    with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt', 'r') as f:
+    with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_bpbowen.txt', 'r') as f:
         for line in f:
             if line.startswith('MYVARIABLE='):
                 password = line.strip().split('=')[1].replace('"', '')
@@ -993,7 +993,7 @@ def mirror_raw_data_to_gnps2(
     # Load password from file
     password = None
     try:
-        with open('/global/homes/m/msdata/gnps2/gnps2_bpbowen.txt', 'r') as f:
+        with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_bpbowen.txt', 'r') as f:
             for line in f:
                 if line.startswith('MYVARIABLE='):
                     password = line.strip().split('=')[1].replace('"', '')
@@ -1082,7 +1082,7 @@ def mirror_raw_data_to_gnps2(
 # def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
 #     ##### Pick up secret file and extract password
-#     with open('/global/homes/m/msdata/gnps2/gnps2_%s.txt'%username,'r') as fid:
+#     with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_%s.txt'%username,'r') as fid:
 #         t = fid.read()
 #     t = t.split('\n')[0]
 #     var, pword = t.split('=')
