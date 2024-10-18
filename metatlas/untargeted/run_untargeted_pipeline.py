@@ -26,35 +26,35 @@ def main():
     ##### Write args to log for reference
     logging.info(f'Arguments used: {args}')
 
-    ##### Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
+    ##### Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
     new_projects = mzm.update_new_untargeted_tasks(validate_names=args.validate_names, \
                                                    output_dir=args.output_dir, raw_data_dir=args.raw_data_dir, raw_data_subdir=args.raw_data_subdir, \
-                                                   background_designator=args.background_designator,skip_sync=step_bools[0])
+                                                   background_designator=args.background_designator,skip_sync=step_bools['new_jobs'])
     
-    ##### Step 2/7: Checking and updating status of MZmine jobs in LIMS
-    mzm.update_mzmine_status_in_untargeted_tasks(direct_input=args.direct_input,background_designator=args.background_designator, \
-                                                 skip_mzmine_status=step_bools[1],background_ratio=args.background_ratio, \
+    ##### Checking and updating status of MZmine jobs in LIMS
+    mzm.update_mzmine_status_from_gnps2(direct_input=args.direct_input,background_designator=args.background_designator, \
+                                                 skip_mzmine_status=step_bools['mzmine_status'],background_ratio=args.background_ratio, \
                                                  zero_value=args.zero_value,nonpolar_solvent_front=args.nonpolar_solvent_front, \
                                                  polar_solvent_front=args.polar_solvent_front)
 
-    ##### Step 3/7: Submitting new MZmine jobs that are "initialized"
-    mzm.submit_mzmine_jobs(new_projects=new_projects,direct_input=args.direct_input,skip_mzmine_submit=step_bools[2], \
+    ##### Submitting new MZmine jobs that are "initialized"
+    mzm.submit_mzmine_jobs_to_gnps2(new_projects=new_projects,direct_input=args.direct_input,skip_mzmine_submit=step_bools['mzmine_submit'], \
                            overwrite_mzmine=args.overwrite_mzmine)
 
-    ##### Step 4/7: Checking and updating status of FBMN jobs in LIMS
-    mzm.update_fbmn_status_in_untargeted_tasks(direct_input=args.direct_input,skip_fbmn_status=step_bools[3])
+    ##### Checking and updating status of FBMN jobs in LIMS
+    mzm.update_fbmn_status_from_gnps2(direct_input=args.direct_input,skip_fbmn_status=step_bools['fbmn_status'])
 
-    ##### Step 5/7: Submitting new FBMN jobs to GNPS2
-    mzm.submit_fbmn_jobs(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, direct_input=args.direct_input, skip_fbmn_submit=step_bools[4], \
+    ##### Submitting new FBMN jobs to GNPS2
+    mzm.submit_fbmn_jobs_to_gnps2(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, direct_input=args.direct_input, skip_fbmn_submit=step_bools['fbmn_submit'], \
                         skip_mirror_raw_data=args.skip_mirror_raw_data, skip_mirror_mzmine_results=args.skip_mirror_mzmine_results, raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
 
-    ##### Step 6/7: Checking for completed FBMN jobs and downloading results
-    mzm.download_fbmn_results(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn,direct_input=args.direct_input, \
-                              skip_fbmn_download=step_bools[5])
+    ##### Checking for completed FBMN jobs and downloading results
+    mzm.download_untargeted_results_from_gnps2(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn,direct_input=args.direct_input, \
+                              skip_fbmn_download=step_bools['results_download'])
 
-    ##### Step 7/7: Zipping up and (optionally) uploading output folders to gdrive
+    ##### Zipping up and (optionally) uploading output folders to gdrive
     mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir, upload=args.gdrive_upload,overwrite_zip=args.overwrite_zip, \
-                                          overwrite_drive=args.overwrite_drive, min_features_admissible=args.min_features, skip_zip_upload=step_bools[6], \
+                                          overwrite_drive=args.overwrite_drive, min_features_admissible=args.min_features, skip_zip_upload=step_bools['zip_upload'], \
                                           add_documentation=args.add_gnps2_documentation,doc_name=args.gnps2_doc_name,direct_input=args.direct_input, \
                                           abridged_filenames=args.abridged_filenames)
 
@@ -127,25 +127,21 @@ def check_args(args):
 
 def check_skipped_steps(args):
     ##### Check for steps to skip during direct input
-    if args.skip_steps is not None and args.direct_input is not None:
-        step_skip_bool_list = [False] * 7
-        if 'Sync' in args.skip_steps:
-            step_skip_bool_list[0] = True
-        if 'MZmine_Status' in args.skip_steps:
-            step_skip_bool_list[1] = True
-        if 'MZmine_Submit' in args.skip_steps:
-            step_skip_bool_list[2] = True
-        if 'FBMN_Status' in args.skip_steps:
-            step_skip_bool_list[3] = True
-        if 'FBMN_Submit' in args.skip_steps:
-            step_skip_bool_list[4] = True
-        if 'FBMN_Download' in args.skip_steps:
-            step_skip_bool_list[5] = True
-        if 'Zip_and_Upload' in args.skip_steps:
-            step_skip_bool_list[6] = True
-    else:
-        step_skip_bool_list = [False] * 7
-    return step_skip_bool_list
+    step_skip_bool_dict = {
+            "new_jobs": False,
+            "mzmine_status": False,
+            "mzmine_submit": False,
+            "fbmn_status": False,
+            "fbmn_submit": False,
+            "results_download": False,
+            "zip_upload": False
+        }
+    if args.skip_steps is not None:
+        for step in args.skip_steps:
+            if step in step_skip_bool_dict:
+                step_skip_bool_dict[step] = True
+
+    return step_skip_bool_dict
     
 if __name__ == "__main__":
     main()

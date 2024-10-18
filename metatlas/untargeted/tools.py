@@ -31,16 +31,6 @@ labkey_server='metatlas.lbl.gov'
 project_name='LIMS/'
 api = APIWrapper(labkey_server, project_name, use_ssl=True,api_key=api_key)
 
-SLURM_PERLMUTTER_REALTIME_HEADER = """#!/bin/bash
-#SBATCH -N 1
-#SBATCH --error="slurm.err"
-#SBATCH --output="slurm.out"
-#SBATCH -A m1541
-#SBATCH -C cpu
-#SBATCH --qos=realtime
-#SBATCH -t 2:00:00
-"""
-
 SLURM_PERLMUTTER_HEADER = """#!/bin/bash
 #SBATCH -N 1
 #SBATCH --exclusive
@@ -126,26 +116,32 @@ def filter_common_bad_project_names(df:pd.DataFrame=None) -> pd.DataFrame:
     df = df[~(df['parent_dir'].str.contains('_old'))]
     return df
 
-def write_fbmn_tasks_to_file(
+def write_gnps2_task_and_link_to_file(
     task_list: Dict,
-    output_dir: str
+    output_dir: str,
+    workflow: str
 ) -> None:
     """
-    Takes a list of dictionaries from submit_fbmn_jobs
+    Takes a list of dictionaries from submit_fbmn_jobs_to_gnps2
     and writes the fbmn task id to a file in the 
     project directory at untarageted_tasks on perlmutter
     """
     experiment = task_list['experiment']
     polarity = task_list['polarity']
-    task = task_list['response']['task']
-    filename = os.path.join(output_dir, '%s_%s'%(experiment, polarity), '%s_%s_gnps2-fbmn-task.txt'%(experiment, polarity))
+    task = task_list['task']['task']
+    task_id_filename = os.path.join(output_dir, '%s_%s'%(experiment, polarity), '%s_%s_gnps2-%s-task.txt'%(experiment,polarity,workflow))
+    task_link_filename = os.path.join(output_dir, '%s_%s'%(experiment, polarity), '%s_%s_gnps2-%s-link.txt'%(experiment,polarity,workflow))
     if task:
-        with open(filename,'w') as fid:
+        with open(task_id_filename,'w') as fid:
             fid.write("%s_%s=%s\n"%(experiment,polarity,task))
-            final_filename = os.path.basename(filename)
-            logging.info(tab_print("GNPS2 task file for %s mode written to %s"%(polarity,final_filename), 3))
+            final_filename = os.path.basename(task_id_filename)
+            logging.info(tab_print("GNPS2 task file for %s mode written to %s for workflow %s"%(polarity,final_filename,workflow), 3))
+        with open(task_link_filename,'w') as fid:
+            fid.write(url = "https://gnps2.org/status?task=%s"%(task))
+            final_filename = os.path.basename(task_link_filename)
+            logging.info(tab_print("GNPS2 page link for %s mode written to %s for workflow %s"%(polarity,final_filename,workflow), 3))
     else:
-        logging.warning(tab_print("Warning! GNPS2 FBMN task ID not found. File gnps2-fbmn-task.txt not written.", 3))
+        logging.warning(tab_print("Warning! GNPS2 task ID not found. File not written.", 3))
 
 def zip_and_upload_untargeted_results(
     download_folder: str,
@@ -505,12 +501,12 @@ def upload_to_google_drive(
                 logging.critical(tab_print("Warning! Google Drive upload command failed with overwrite=%s with exception on %s"%(overwrite,upload_command), 3))
                 return False
 
-def submit_quickstart_fbmn(
-    params: str = "",
-    username: str = ""
+def submit_gnps2_job(
+    params: str,
+    username: str
 ) -> dict:
     """
-    Submit FBMN jobs by passing parameters
+    Submit jobs to GNPS2 servers by passing parameters
     """
     if not params or not username:
         print("Params and username are required to submit FBMN jobs")
@@ -522,7 +518,7 @@ def submit_quickstart_fbmn(
     var, pword = t.split('=')
     password = pword.replace('"', '').replace("'", '').strip()
     if not password:
-        print("Password is required to submit FBMN jobs")
+        print("Password is required to submit GNPS2 jobs")
         return
 
     url = "https://gnps2.org/launchworkflow"
@@ -541,8 +537,6 @@ def get_untargeted_status(
     print_recent: str = None
 ) -> None:
     """
-    This function is called by check_untargeted_status.py
-
     Print the status of a user-defined list of projects
     by calling this function with a csv list of project names
     """
@@ -620,91 +614,6 @@ def download_from_url(
     else:
         return False
 
-def download_fbmn_results(
-    output_dir: str,
-    overwrite_fbmn: bool,
-    skip_fbmn_download: bool,
-    direct_input: Optional[str] = None
-) -> None:
-    """
-    This function is called by download_fbmn_results.py
-
-    finds complete fbmn tasks (which also have complete mzmine status)
-    downloads the graphml and results table files
-    renames and moves results to the untargeted_tasks folder
-
-    Overwrite is False (default) when existing GNPS2 files in the untargeted_tasks folder will not be replaced
-
-    Direct_input is None (default) when files from GNPS2 for all available projects will be downloaded. Set direct_input
-    to a csv list of project names if you only want to run this function on specific untargeted_tasks
-    """
-    if skip_fbmn_download:
-        logging.info('Skipping Step 6/7: Checking for completed FBMN jobs and downloading results...')
-        return
-    logging.info('Step 6/7: Checking for completed FBMN jobs and downloading results...')
-    tasktype='fbmn'
-    df = get_table_from_lims('untargeted_tasks')
-    df = filter_common_bad_project_names(df)
-    if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
-    status_list = ['07 complete','09 error']
-    if direct_input is None:
-        df = subset_df_by_status(df,tasktype,status_list)
-        df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before downloading fbmn
-    if df.empty:
-        logging.info(tab_print("No completed FBMN data to download!", 1))
-    if not df.empty:
-        count = 0
-        for i,row in df.iterrows():
-            project_name = row['parent_dir']
-            polarity_list = check_for_polarities(output_dir,project_name)
-            if polarity_list is None:
-                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
-                continue
-            for polarity in polarity_list:
-                polarity_short = polarity[:3]
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
-                    continue
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! FBMN task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
-                    continue
-                pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
-                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
-                if os.path.isfile(fbmn_filename)==True:
-                    with open(fbmn_filename,'r') as fid:
-                        taskid = fid.read().split('=')[1].strip()
-                    graphml_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-network.graphml'%(project_name,polarity))
-                    results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(project_name,polarity))
-                    gnps2_link_filename = os.path.join(pathname,'%s_%s_gnps2-page-link.txt'%(project_name,polarity))
-                    if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename) and os.path.exists(gnps2_link_filename):
-                        continue
-                    logging.info(tab_print("Downloading %s mode FBMN results for %s with task ID %s"%(polarity,project_name,taskid), 1))
-                    if overwrite_fbmn == True or not os.path.exists(gnps2_link_filename):
-                        with open(gnps2_link_filename,'w') as fid:
-                            fid.write(f"https://gnps2.org/status?task={taskid}\n")
-                            logging.info(tab_print("Wrote GNPS2 link", 2))
-                    if overwrite_fbmn == True or not os.path.exists(graphml_filename):
-                        graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
-                        if graphml_download:
-                            logging.info(tab_print("Downloaded graphml file", 2))
-                            count += 1
-                        else:
-                            logging.critical(tab_print("Error: Failed to download graphml file", 2))
-                    if overwrite_fbmn == True or not os.path.exists(results_table_filename):
-                        results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
-                        if results_table_download:
-                            logging.info(tab_print("Downloaded result table file", 2))
-                            count += 1
-                        else:
-                            logging.critical(tab_print("Error: Failed to download results table", 2))
-                    try:
-                        recursive_chown(pathname, 'metatlas')
-                    except:
-                        logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 3))
-        if count > 0:
-            logging.info(tab_print("All new FBMN results downloaded.", 1))
-        else:
-            logging.info(tab_print("No new FBMN results to download!", 1))
 
 def get_recent_mgf_files(
     output_dir:str = None,
@@ -903,7 +812,7 @@ def check_gnps2_status(taskid:str = None):
     except:
         return 'N/A','N/A'
 
-def mirror_mzmine_results_to_gnps2(
+def mirror_project_metadata_to_gnps2(
     project: str,
     polarity: str,
     output_dir: str,
@@ -951,13 +860,13 @@ def mirror_mzmine_results_to_gnps2(
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+        logging.warning(f"Did not create remote directory {remote_directory} at GNPS2 for reason: {e}")
 
     try:
         local_directory = Path(local_directory)
-        logging.info("Walking through local directory %s and uploading mzmine results to GNPS2..."%(local_directory))
+        logging.info("Walking through local directory %s and uploading metadata to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
-            if file_path.is_file() and file_path.suffix in ('.mgf', '.csv', '.tab'):
+            if file_path.is_file() and file_path.suffix in ('.tab'):
                 logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{remote_directory}/{file_path.name}"
@@ -965,10 +874,11 @@ def mirror_mzmine_results_to_gnps2(
                 logging.info(f"Uploaded {file_path.name} to GNPS2...")
         sftp.close()
         transport.close()
-        logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
+        logging.info(tab_print(f"Completed metadata mirror to GNPS2 for {project}...", 3))
     except:
-        logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
+        logging.error(tab_print(f"Failed to mirror metadata for {project} to GNPS2", 3))
         return
+
 
 def mirror_raw_data_to_gnps2(
     project: str,
@@ -1056,11 +966,13 @@ def mirror_raw_data_to_gnps2(
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2. Not mirroring: {e}")
+        return
     try:
         sftp.mkdir(polarity_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {polarity_directory} at GNPS2: {e}")
+        logging.error(f"Failed to create remote directory {polarity_directory} at GNPS2. Not mirroring: {e}")
+        return
 
     try:
         logging.info("Walking through local directory %s and uploading mzML files to GNPS2..."%(local_directory))
@@ -1079,105 +991,12 @@ def mirror_raw_data_to_gnps2(
         logging.error(f"Failed to mirror raw data for {project} to GNPS2: {e}")
         return
 
-# def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
-    
-#     ##### Pick up secret file and extract password
-#     with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_%s.txt'%username,'r') as fid:
-#         t = fid.read()
-#     t = t.split('\n')[0]
-#     var, pword = t.split('=')
-#     password = pword.replace('"', '').replace("'", '').strip()
-#     if not password:
-#         print("Password is required to submit FBMN jobs")
-#         return
-
-#     remote_directory="/untargeted_tasks"
-#     remote_host="ftp.gnps2.org"
-#     remote_port=6541
-#     data_dir = project + "_" + polarity
-
-#     ftp = ftplib.FTP()
-#     ftp.connect(host=remote_host,port=remote_port,timeout=120)
-#     ftp.login(user=username,passwd=password)
-#     ftp.cwd(remote_directory)
-
-#     remote_directories = ftp.nlst()
-
-#     if data_dir in remote_directories:
-#         ftp.cwd(data_dir)
-#         files = ftp.nlst()
-#         required_files = [f"{project}_{polarity}_peak-height.csv",
-#                           f"{project}_{polarity}_metadata.tab",
-#                           f"{project}_{polarity}.mgf"]
-#         all_files_exist = all(file in files for file in required_files)
-#         if all_files_exist:
-#             return True
-#         else:
-#             return False
-#     else:
-#         return False
-
-# def DEPRACATED_sync_mzmine_results_to_gnps2():
-#     sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_mzmine_results_to_gnps2.sh'
-#     if os.path.exists(sync_cmd):
-#         logging.info(tab_print("Syncing MZmine results (.tab, .csv, .mgf) at NERSC with GNPS2 before submitting FBMN job...", 1))
-#         try:
-#             result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
-#             stdout = result.stdout.splitlines()
-#             if stdout:
-#                 for line in stdout:
-#                     logging.info(tab_print(line, 2))
-#             stderr = result.stderr.splitlines()
-#             if stderr:
-#                 for line in stderr:
-#                     if "Permission denied" not in line: # Niyogi project has permission denied error
-#                         logging.critical(tab_print("Sync script returned errors:", 2))
-#                         logging.critical(tab_print(line, 3))
-#                         return False
-#             logging.info(tab_print("All MZmine results files at NERSC synced with GNPS2.", 2))
-#             return True
-#         except:
-#             logging.critical(tab_print("Warning! Sync command failed.", 2))
-#             return False
-#     else:
-#         logging.critical(tab_print("Warning! Could not find the sync script.", 2))
-#         return False
-
-# def DEPRACATED_sync_raw_data_to_gnps2():
-#     sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_raw_data_to_gnps2.sh'
-#     if os.path.exists(sync_cmd):
-#         logging.info(tab_print("Syncing raw data (.mzML) at NERSC with GNPS2 before submitting FBMN job...", 1))
-#         try:
-#             result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
-#             stdout = result.stdout.splitlines()
-#             if stdout:
-#                 for line in stdout:
-#                     logging.info(tab_print(line, 2))
-#             stderr = result.stderr.splitlines()
-#             if stderr:
-#                 for line in stderr:
-#                     if "Permission denied" not in line: # Niyogi project has permission denied error
-#                         logging.critical(tab_print("Sync script returned errors:", 2))
-#                         logging.critical(tab_print(line, 3))
-#                         return False
-#             logging.info(tab_print("All raw data files at NERSC synced with GNPS2.", 2))
-#             return True
-#         except:
-#             logging.critical(tab_print("Warning! Sync command failed.", 2))
-#             return False
-#     else:
-#         logging.critical(tab_print("Warning! Could not find the sync script.", 2))
-#         return False
-
-def submit_fbmn_jobs(
+def submit_fbmn_jobs_to_gnps2(
     overwrite_fbmn: bool,
     output_dir: str,
     skip_fbmn_submit: bool,
-    skip_mirror_raw_data: bool,
     skip_mirror_mzmine_results: bool,
     direct_input: Optional[str] = None,
-    raw_data_dir: Optional[str] = None,
-    raw_data_subdir: Optional[str] = None
 ) -> None:
     """
     finds waiting or errored fbmn tasks (which also have complete mzmine status)
@@ -1231,48 +1050,35 @@ def submit_fbmn_jobs(
                     continue
 
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! %s in %s mode has an error status. Attempting to resubmit..."%(project_name,polarity), 2))
+                    logging.warning(tab_print("Warning! %s in %s mode has an error status. Removing existing GNPS2 task ID file and attempting to resubmit..."%(project_name,polarity), 2))
                     os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
 
-                if raw_data_subdir is None:
-                    _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
-                    try:
-                        subdir = validate_department.lower()
-                        if subdir == 'eb':
-                            subdir = 'egsb'
-                    except:
-                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-                        subdir = "other"
-                else:
-                    subdir = raw_data_subdir
+                # Get mzmine results files and metadata file to GNPS2 before starting FBMN job
+                logging.info(tab_print("Mirroring project metadata to GNPS2...", 2))
+                mirror_project_metadata_to_gnps2(project=project_name,polarity=polarity,output_dir=row['output_dir'],username="bpbowen")
 
-                # Get mzmine results files and raw data to GNPS2 before starting FBMN job
-                logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
-                if skip_mirror_mzmine_results is False:
-                    mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
-                else:
-                    logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
-                if skip_mirror_raw_data is False:
-                    mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
-                else:
-                    logging.info(tab_print("Skipping raw data mirroring to GNPS2...", 2))
+                # logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
+                # if skip_mirror_mzmine_results is False:
+                #     mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
+                # else:
+                #     logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
 
                 description = '%s_%s'%(project_name,polarity)
-                spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
-                quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_quant.csv'
-                metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_metadata.tab'
-                raw_data = f'USERUPLOAD/bpbowen/raw_data/{subdir}/{project_name}'
-                mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
-                mgf_lines = count_mgf_lines(mgf_filename)
-                if mgf_lines == 0:
-                    logging.warning(tab_print("Warning! %s in %s mode has mgf file but no mgf data. Skipping..."%(project_name, polarity), 2))
-                    continue
+                pathname = os.path.join(row['output_dir'],description)
+                mzmine_task_filename = os.path.join(pathname,'%s_gnps2-mzmine-task.txt'%(description))
+                with open(mzmine_task_filename,'r') as fid:
+                    task = fid.read().strip()
+                mzmine_taskid = task.split('=')[-1]
+                spectra_file = f'TASKLOCATION/{mzmine_taskid}/nf_output/mzmine_output/output.mgf'
+                quant_file = f'TASKLOCATION/{mzmine_taskid}/nf_output/mzmine_output/output.csv'
+                metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{description}/{description}_metadata.tab'
+                raw_data = f'TASKLOCATION/{mzmine_taskid}/input_spectra_folder'
                 params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
-                job_id = submit_quickstart_fbmn(params, "bpbowen")
-                task_list = {'experiment':project_name,'polarity':polarity,'response':job_id}
+                job_id = submit_gnps2_job(params, "bpbowen")
+                task_list = {'experiment':project_name,'polarity':polarity,'task':job_id}
                 logging.info(tab_print("Submitted FBMN job for %s mode and set LIMS status to ['04 running']."%(polarity), 2))
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
-                write_fbmn_tasks_to_file(task_list,output_dir)
+                write_gnps2_task_and_link_to_file(task_list,output_dir,tasktype)
                 index_list.append(i)
 
         if len(index_list) > 0:
@@ -1284,114 +1090,7 @@ def submit_fbmn_jobs(
             df.replace('NaN', 0, inplace=True)
             df.fillna(0, inplace=True)
             update_table_in_lims(df,'untargeted_tasks',method='update')
-            logging.info(tab_print("FBMN submission(s) complete. Use GNPS2 *gnps2-page-link.txt to monitor progress.", 1))
-
-def count_mgf_lines(mgf_file:str = None) -> int:
-    """
-    Before submitting a job to GNPS2, check if the mgf file from mzmine has any data
-    by providing its path on disk
-    """
-    if os.path.isfile(mgf_file):
-        cmd = 'cat %s | grep END | grep IONS | wc -l'%mgf_file
-        result = subprocess.run(cmd,stdout=subprocess.PIPE, shell=True)
-        if result:
-            msms_count = int(result.stdout.strip())
-            return msms_count
-        else:
-            return 0
-    else:
-        return 0
-
-def submit_mzmine_jobs(
-    skip_mzmine_submit: bool,
-    overwrite_mzmine: bool,
-    new_projects: Optional[List[str]] = None,
-    direct_input: Optional[str] = None
-) -> None:
-    """
-    This function is called by run_mzmine.py
-
-    finds initiated mzmine tasks
-    submits the tasks as mzmine jobs on perlmutter
-    updates the LIMS table with status running if successful
-
-    Direct_input is None (default) when all initated tasks will be considered for submission. Set direct_input
-    to a csv list of project names if you only want to run this function on specific untargeted_tasks
-    """
-    if skip_mzmine_submit:
-        logging.info('Skipping Step 3/7: Submitting new MZmine jobs...')
-        return
-    logging.info('Step 3/7: Submitting new MZmine jobs...')
-    tasktype = 'mzmine'
-    df = get_table_from_lims('untargeted_tasks')
-    df = filter_common_bad_project_names(df)
-    if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
-    else:
-        if new_projects is not None and not new_projects.empty: # this means step 1 returned a dataframe of new projects to run
-            df = df[df['parent_dir'].isin(new_projects['parent_dir'])]
-        else:
-            logging.info(tab_print("No new MZmine jobs initialized! Use the --direct_input flag to bypass submitting initialized-only projects.", 1))
-            return
-    status_list = ['01 initiation','09 error']
-    if direct_input is None:
-        df = subset_df_by_status(df,tasktype,status_list)
-    if df.empty:
-        logging.info(tab_print("No new MZmine jobs to submit!", 1))
-        return
-    if df.shape[0] > 20:
-        logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
-        return
-    if not df.empty:
-        index_list = []
-        logging.info(tab_print("Total of %s new MZmine job(s) with status %s to submit"%(df.shape[0],status_list), 1))
-        for i,row in df.iterrows():
-            project_name = row['parent_dir']
-            polarity_list = check_for_polarities(row['output_dir'],project_name)
-            if polarity_list is None:
-                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
-                continue
-            for polarity in polarity_list:
-                polarity_short = polarity[:3]
-                mzmine_peak_height_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s_peak-height.csv'%(project_name,polarity))
-                mzmine_mgf_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
-                if row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete' and overwrite_mzmine is False:
-                    continue
-                if os.path.exists(mzmine_peak_height_file) and os.path.exists(mzmine_mgf_file) and overwrite_mzmine is False:
-                    logging.info(tab_print("Note: Overwrite is False and MZmine files for %s in %s mode already exist. Skipping submission..."%(project_name,polarity), 2))
-                    continue
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
-                    continue # skip the completed polarity if the other polarity is initiated or errored and needs to be (re)submitted
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.info(tab_print("Note: MZmine task for %s in %s mode has error status. Attempting to resubmit..."%(project_name,polarity), 2))
-                parent_dir = '%s_%s'%(project_name,polarity)
-                pathname = os.path.join(row['output_dir'],parent_dir)
-                submission_script_filename = os.path.join(pathname,'%s_mzmine.sh'%(parent_dir))
-                if os.path.isfile(submission_script_filename)==True:
-                    with open(submission_script_filename,'r') as fid:
-                        logging.info(tab_print("Submitting %s mode mzmine job for project %s"%(polarity, project_name), 2))
-                        cmd = fid.read()
-                        sbatch_output = subprocess.run(cmd, shell=True, executable='/bin/bash', stdout=subprocess.PIPE)
-                        sbatch_output_str = sbatch_output.stdout.decode('utf-8').replace('\n', '')
-                        logging.info(tab_print("%s"%(sbatch_output_str), 3))
-                        job_id = sbatch_output_str.split()[-1]
-                        job_id_filename = os.path.join(pathname,'%s_mzmine-job-id.txt'%(parent_dir))
-                        with open(job_id_filename,'w') as fid:
-                            fid.write("%s=%s\n"%(parent_dir,job_id))
-                            logging.info(tab_print("Wrote job ID to file and setting status to ['04 running].", 3))
-                    index_list.append(i)
-                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
-        
-        if len(index_list) > 0:
-            index_list = list(set(index_list))
-            cols = ['Key',
-                    '%s_neg_status'%(tasktype),
-                    '%s_pos_status'%(tasktype)]
-            df = df.loc[df.index.isin(index_list),cols]
-            df.replace('NaN', 0, inplace=True)
-            df.fillna(0, inplace=True)
-            update_table_in_lims(df,'untargeted_tasks',method='update')
-            logging.info(tab_print("MZmine submission(s) complete. Use squeue to monitor progress.", 1))
+            logging.info(tab_print("FBMN submission(s) complete.", 1))
     
 def set_fbmn_parameters(
     description: str,
@@ -1428,118 +1127,6 @@ def set_fbmn_parameters(
                 "precursor_filter": "yes",
                 "api": "no"}
     return params
-
-def update_mzmine_status_in_untargeted_tasks(
-    background_designator: List[str],
-    skip_mzmine_status: bool,
-    direct_input: Optional[str] = None,
-    background_ratio: int = 5,
-    zero_value: float = (2/3),
-    nonpolar_solvent_front: float = 0.5,
-    polar_solvent_front: float = 0.8
-) -> None:
-    """
-    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
-    
-    finds initiated or running mzmine tasks
-    checks if they have valid output
-    updates the LIMS table with status complete if successful
-
-    Direct_input is None (default) when all initated or running tasks haven't produced output yet. Set direct_input
-    to a csv list of project names if you only want to run this function on specific untargeted_tasks
-    """
-    if skip_mzmine_status:
-        logging.info('Skipping Step 2/7: Checking and updating status of MZmine jobs in LIMS...')
-        return
-    logging.info('Step 2/7: Checking and updating status of MZmine jobs in LIMS...')
-    tasktype = 'mzmine'
-    df = get_table_from_lims('untargeted_tasks')
-    df = filter_common_bad_project_names(df)
-    if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
-    status_list = ['01 initiation','04 running','09 error']
-    if direct_input is None:
-        df = subset_df_by_status(df,tasktype,status_list)
-    if df.empty:
-        logging.info(tab_print("No MZmine jobs to update!", 1))
-    if not df.empty:
-        #logging.info(tab_print("Total of %s project(s) with MZmine status %s to attempt to update"%(df.shape[0],status_list), 1))
-        index_list = []
-        for i,row in df.iterrows():
-            project_name = row['parent_dir']
-            polarity_list = check_for_polarities(row['output_dir'],project_name)
-            if polarity_list is None:
-                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
-                continue
-            for polarity in polarity_list:
-                polarity_short = polarity[:3]
-                pathname = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity))
-                parent_dir = '%s_%s'%(project_name,polarity)
-                job_id_filename = os.path.join(pathname,'%s_mzmine-job-id.txt'%(parent_dir))
-                old_peakheight_filename = os.path.join(pathname,'%s_%s_MSMS_quant.csv'%(project_name,polarity))
-                peakheight_filename = os.path.join(pathname,'%s_%s_peak-height.csv'%(project_name,polarity))
-                mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(project_name,polarity))
-                metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(project_name,polarity))
-                mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(project_name,polarity))
-                peak_height_filtered_filename = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (project_name, polarity))
-
-                if direct_input is None:
-                    if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
-                        continue  ## This helps when one polarity is complete but the other is not, so skipped the finished one
-
-                if os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and \
-                     os.path.isfile(mzmine_output_filename) and (os.path.isfile(peakheight_filename) or os.path.isfile(old_peakheight_filename)):
-                    # MZmine is finished and status should be updated
-                    logging.info(tab_print("Working on %s in %s mode"%(project_name,polarity), 2))
-                    logging.info(tab_print("All MZmine output files found in %s directory, continuing..."%(polarity), 3))
-                    logging.info(tab_print("Calculating feature and background counts and updating LIMS table", 3))
-                    feature_count, exctrl_count, msms_count = calculate_counts_for_lims_table(peakheight_filename,mgf_filename,background_designator=background_designator)
-                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
-                    df.loc[i,'num_%s_features'%(polarity_short)] = int(feature_count)
-                    df.loc[i,'num_%s_features_in_exctrl'%(polarity_short)] = int(exctrl_count)
-                    df.loc[i,'num_%s_msms'%(polarity_short)] = int(msms_count)
-                    index_list.append(i)
-
-                    if feature_count > 0:
-                        logging.info(tab_print("Filtering features by peak height ratio compared to background (control) signal and writing to file", 4))
-                        df_filtered = create_filtered_peakheight_file(peakheight_filename,background_designator=background_designator, \
-                                                                      background_ratio=background_ratio,zero_value=zero_value, \
-                                                                      nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front)
-                        df_filtered.to_csv(peak_height_filtered_filename, index=False)
-                    else:
-                        logging.warning(tab_print("Warning! No features were found, not writing a filtered peak height file.", 4))
-
-                    try:
-                        recursive_chown(pathname, 'metatlas')
-                    except:
-                        logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 2))
-
-                else:
-                    if row['%s_%s_status'%(tasktype,polarity_short)] == '04 running': # verify that it's actually still running, else change to error
-                        if os.path.isfile(job_id_filename):
-                            with open(job_id_filename,'r') as fid:
-                                job_id = fid.read().strip().split('=')[-1]
-                                sqs_cmd = 'squeue --job %s | wc -l'%job_id
-                                sqs_output = subprocess.run(sqs_cmd, shell=True, capture_output=True, text=True)
-                                if int(sqs_output.stdout.strip()) != 2: # job is not running
-                                    logging.critical(tab_print("Warning! MZmine status for %s mode of %s is ['04 running'] but no job is running at NERSC. Changing to ['09 error']."%(polarity, project_name), 1))
-                                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'    
-                                    index_list.append(i)
-        if len(index_list) > 0:
-            logging.info(tab_print("Updating statuses in LIMS table for %s projects..."%(len(index_list)), 1))
-            index_list = list(set(index_list))
-            cols = ['Key',
-                    '%s_neg_status'%(tasktype),'%s_pos_status'%(tasktype),
-                    'num_pos_features', 'num_neg_features',
-                    'num_neg_features_in_exctrl','num_pos_features_in_exctrl',
-                    'num_neg_msms','num_pos_msms']
-            df = df.loc[df.index.isin(index_list),cols]
-            df.replace('NaN', 0, inplace=True)
-            df.fillna(0, inplace=True)
-            update_table_in_lims(df,'untargeted_tasks',method='update')
-            logging.info(tab_print("MZmine status update complete.", 1))
-        else:
-            logging.info(tab_print("No MZmine jobs to update!", 1))
 
 def create_filtered_peakheight_file(
     peakheight_filename: str,
@@ -1653,13 +1240,11 @@ def calculate_counts_for_lims_table(
 
     return feature_count, exctrl_count, msms_count
 
-def update_fbmn_status_in_untargeted_tasks(
+def update_fbmn_status_from_gnps2(
     skip_fbmn_status: bool,
     direct_input: Optional[str] = None
 ) -> None:
-    """
-    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
-    
+    """    
     finds running or waiting fbmn tasks
     checks if they have valid output
     updates the LIMS table with status complete if successful
@@ -1697,8 +1282,8 @@ def update_fbmn_status_in_untargeted_tasks(
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(row['parent_dir'],polarity))
                 if os.path.isfile(fbmn_filename)==True:
                     with open(fbmn_filename,'r') as fid:
-                        my_text = fid.read().strip()
-                    taskid = my_text.split('=')[-1]
+                        task = fid.read().strip()
+                    taskid = task.split('=')[-1]
                     status,version = check_gnps2_status(taskid)
                     index_list.append(i)
                     if status=='DONE':
@@ -2076,3 +1661,611 @@ def update_new_untargeted_tasks(
 
     logging.info(tab_print("Exported new project info for MZmine submission.", 1))
     return lims_untargeted_df
+
+def submit_mzmine_jobs_to_gnps2(
+    skip_mzmine_submit: bool,
+    overwrite_mzmine: bool,
+    output_dir: str,
+    skip_mirror_raw_data: bool,
+    new_projects: Optional[List[str]] = None,
+    direct_input: Optional[str] = None,
+    raw_data_dir: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None
+) -> None:
+    """
+    finds waiting or errored mzmine tasks 
+    submits the tasks to GNPS2
+    updates the LIMS table with status running if successful
+
+    Direct_input is None (default) when all waiting or errorer tasks will be considered for submission. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_mzmine_submit:
+        logging.info('Skipping Step 3/7: Submitting new MZmine jobs...')
+        return
+    logging.info('Step 3/7: Submitting new MZmine jobs...')
+    tasktype = 'mzmine'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    else:
+        if new_projects is not None and not new_projects.empty: # this means step 1 returned a dataframe of new projects to run
+            df = df[df['parent_dir'].isin(new_projects['parent_dir'])]
+        else:
+            logging.info(tab_print("No new MZmine jobs initialized! Use the --direct_input flag to bypass submitting initialized-only projects.", 1))
+            return
+    status_list = ['01 initiation','09 error']
+    if direct_input is None:
+        df = subset_df_by_status(df,tasktype,status_list)
+    if df.empty:
+        logging.info(tab_print("No new MZmine jobs to submit!", 1))
+        return
+    if df.shape[0] > 20:
+        logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
+        return
+    if not df.empty:
+        logging.info(tab_print("Total of %s projects(s) with MZmine status %s to submit to GNPS2"%(df.shape[0],status_list), 1))
+        index_list = []
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            logging.info(tab_print("Working on project %s:"%(project_name), 1))
+            polarity_list = check_for_polarities(row['output_dir'],project_name)
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                pathname = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity))
+                mzmine_filename = os.path.join(pathname,'%s_%s_gnps2-mzmine-task.txt'%(project_name,polarity))
+                
+                # Bail out conditions
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    continue
+                if os.path.isfile(mzmine_filename)==True and overwrite_mzmine==False:
+                    logging.info(tab_print("MZmine task ID file already exists and overwrite is False. Skipping the submission for %s"%(project_name)))
+                    continue
+
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.warning(tab_print("Warning! %s in %s mode has an error status. Removing existing GNPS2 task ID file and attempting to resubmit..."%(project_name,polarity), 2))
+                    os.remove(mzmine_filename) # Remove failed task ID file in order to submit again
+
+                # Determine the raw data subdirectory based on the project name or user-provided input. Default to 'other' if not found
+                if raw_data_subdir is None:
+                    _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
+                    try:
+                        subdir = validate_department.lower()
+                        if subdir == 'eb':
+                            subdir = 'egsb'
+                    except:
+                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                        subdir = "other"
+                else:
+                    subdir = raw_data_subdir
+
+                # Get raw data to GNPS2 before starting MZmine job
+                logging.info(tab_print("Ensuring updated raw data is at GNPS2 before submitting MZmine job...", 2))
+                if skip_mirror_raw_data is False:
+                    mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
+                else:
+                    logging.info(tab_print("Skipping raw data mirroring to GNPS2...", 2))
+
+                description = '%s_%s'%(project_name,polarity)
+                spectra_dir = f'USERUPLOAD/bpbowen/raw_data/{subdir}/{project_name}/{polarity}/'
+                params = set_mzmine_parameters(description=description, mzml_dir=spectra_dir)
+                job_id = submit_gnps2_job(params, "bpbowen")
+                task_list = {'experiment':project_name,'polarity':polarity,'task':job_id}
+                logging.info(tab_print("Submitted MZmine job for %s mode and set LIMS status to ['04 running']."%(polarity), 2))
+                df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
+                write_gnps2_task_and_link_to_file(task_list,output_dir,tasktype)
+                index_list.append(i)
+
+        if len(index_list) > 0:
+            index_list = list(set(index_list))
+            cols = ['Key',
+                    '%s_neg_status'%(tasktype),
+                    '%s_pos_status'%(tasktype)]
+            df = df.loc[df.index.isin(index_list),cols]
+            df.replace('NaN', 0, inplace=True)
+            df.fillna(0, inplace=True)
+            update_table_in_lims(df,'untargeted_tasks',method='update')
+            logging.info(tab_print("MZmine submission(s) complete. Use GNPS2 *gnps2-mzmine-link.txt to view job.", 1))
+
+def set_mzmine_parameters(
+    description: str,
+    mzml_dir: str
+) -> None:
+    """
+    Hard coded parameters and user-defined parameters are formatted by passing
+    the arguments for file location
+    """
+    params = {
+                "description": description,
+                "workflowname": "mzmine_nextflow_workflow",
+                "input_spectra_folder": mzml_dir}
+    return params
+
+def update_mzmine_status_from_gnps2(
+    skip_mzmine_status: bool,
+    direct_input: Optional[str] = None
+) -> None:
+    """
+    This function is called to update the status of MZMine jobs in LIMS.
+    
+    finds running or waiting MZMine tasks
+    checks if they have valid output
+    updates the LIMS table with status complete if successful
+
+    Direct_input is None (default) when all running or waiting tasks haven't produced output yet. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_mzmine_status:
+        logging.info('Skipping Step 3/7: Checking and updating status of MZMine jobs in LIMS...')
+        return
+    logging.info('Step 3/7: Checking and updating status of MZMine jobs in LIMS...')
+    tasktype='mzmine'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    status_list = ['04 running','13 waiting','09 error']
+    if direct_input is None:
+        df = subset_df_by_status(df,tasktype,status_list)
+    if df.empty:
+        logging.info(tab_print("No MZMine jobs to update!", 1))
+    if not df.empty:
+        index_list = []
+        #logging.info(tab_print("Total of %s project(s) with MZMine status %s to attempt to update"%(df.shape[0],status_list), 1))
+        for i,row in df.iterrows():
+            polarity_list = check_for_polarities(row['output_dir'],row['parent_dir'])
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(row['parent_dir']), 1))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
+                    continue ## This helps when one polarity is complete but the other is not
+                pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
+                mzmine_filename = os.path.join(pathname,'%s_%s_gnps2-mzmine-task.txt'%(row['parent_dir'],polarity))
+                if os.path.isfile(mzmine_filename)==True:
+                    with open(mzmine_filename,'r') as fid:
+                        task = fid.read().strip()
+                    taskid = task.split('=')[-1]
+                    status,version = check_gnps2_status(taskid)
+                    index_list.append(i)
+                    if status=='DONE':
+                        if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '07 complete':
+                            logging.info(tab_print("Updating MZMine job status for %s in %s mode to complete"%(row['parent_dir'],polarity), 1))
+                            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
+                    elif status=='FAILED':
+                        if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '09 error':
+                            logging.info(tab_print("Updating MZMine job status for %s in %s mode to error"%(row['parent_dir'],polarity), 1))
+                            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'
+                    elif status in ['RUNNING','QUEUED']:
+                        if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '04 running':
+                            logging.info(tab_print("Updating MZMine job status for %s in %s mode to running"%(row['parent_dir'],polarity), 1))
+                            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
+                    elif status =='N/A':
+                        logging.critical(tab_print("Warning! Could not get status from GNPS2 for %s in %s mode"%(row['parent_dir'],polarity), 1))
+                    else:
+                        if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '13 waiting':
+                            df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '13 waiting'
+        if len(index_list) > 0:
+            index_list = list(set(index_list))
+            cols = ['Key',
+                    '%s_neg_status'%(tasktype),
+                    '%s_pos_status'%(tasktype)]
+            df = df.loc[df.index.isin(index_list),cols]
+            df.replace('NaN', 0, inplace=True)
+            df.fillna(0, inplace=True)
+            update_table_in_lims(df,'untargeted_tasks',method='update')
+            logging.info(tab_print("MZMine status update complete.", 1))
+        else:
+            logging.info(tab_print("No MZMine jobs to update!", 1))
+
+
+
+def download_gnps2_results(
+    output_dir: str,
+    overwrite_mzmine: bool,
+    overwrite_fbmn: bool,
+    skip_mzmine_download: bool,
+    skip_fbmn_download: bool,
+    direct_input: Optional[str] = None,
+    background_designator: List[str] = None,
+    background_ratio: int = 5,
+    zero_value: float = (2/3),
+    nonpolar_solvent_front: float = 0.5,
+    polar_solvent_front: float = 0.8
+) -> None:
+    
+    download_mzmine_results_from_gnps2(
+        output_dir=output_dir,
+        overwrite_mzmine=overwrite_mzmine,
+        skip_mzmine_download=skip_mzmine_download,
+        direct_input=direct_input,
+        background_designator=background_designator,
+        background_ratio=background_ratio,
+        zero_value=zero_value,
+        nonpolar_solvent_front=nonpolar_solvent_front,
+        polar_solvent_front=polar_solvent_front)
+    
+    download_fbmn_results_from_gnps2(
+        output_dir=output_dir,
+        overwrite_fbmn=overwrite_fbmn,
+        skip_fbmn_download=skip_fbmn_download,
+        direct_input=direct_input)
+
+
+def download_mzmine_results_from_gnps2(
+    output_dir: str,
+    overwrite_mzmine: bool,
+    skip_mzmine_download: bool,
+    direct_input: Optional[str] = None,
+    background_designator: List[str] = None,
+    background_ratio: int = 5,
+    zero_value: float = (2/3),
+    nonpolar_solvent_front: float = 0.5,
+    polar_solvent_front: float = 0.8
+) -> None:
+    """
+    finds complete mzmine tasks 
+    downloads the mgf, peak height, and quant files
+    renames and moves results to the untargeted_tasks folder
+    creates a filtered peak height file
+
+    Overwrite is False (default) when existing GNPS2 files in the untargeted_tasks folder will not be replaced
+
+    Direct_input is None (default) when files from GNPS2 for all available projects will be downloaded. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_mzmine_download:
+        logging.info('Skipping Step 5/7: Checking for completed MZMINE jobs and downloading results...')
+        return
+    logging.info('Step 5/7: Checking for completed MZMINE jobs and downloading results...')
+    tasktype='mzmine'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    status_list = ['07 complete','09 error']
+    df = subset_df_by_status(df,tasktype,status_list)
+    if df.empty:
+        logging.info(tab_print("No completed MZMINE data to download!", 1))
+    if not df.empty:
+        count = 0
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            polarity_list = check_for_polarities(output_dir,project_name)
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    continue
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.warning(tab_print("Warning! MZMINE task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
+                    continue
+                pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
+                mzmine_filename = os.path.join(pathname,'%s_%s_gnps2-mzmine-task.txt'%(project_name,polarity))
+                if os.path.isfile(mzmine_filename)==True:
+                    with open(mzmine_filename,'r') as fid:
+                        taskid = fid.read().split('=')[1].strip()
+                    mgf_filename = os.path.join(pathname,'%s_%s_mzmine.mgf'%(project_name,polarity))
+                    peak_height_filename = os.path.join(pathname,'%s_%s_mzmine_peak_height.tsv'%(project_name,polarity))
+                    quant_filename = os.path.join(pathname,'%s_%s_mzmine_quant.csv'%(project_name,polarity))
+                    if overwrite_mzmine==False and os.path.exists(mgf_filename) and os.path.exists(peak_height_filename) and os.path.exists(quant_filename):
+                        continue
+                    logging.info(tab_print("Downloading %s mode MZMINE results for %s with task ID %s"%(polarity,project_name,taskid), 1))
+                    base_url = "https://gnps2.org/filebrowser/files/nf_tasks/%s/nf_output/mzmine_output/"%(taskid)
+                    if overwrite_mzmine == True or not os.path.exists(mgf_filename):
+                        mgf_download = download_from_url(base_url + "output.mgf", mgf_filename)
+                        if mgf_download:
+                            logging.info(tab_print("Downloaded mgf file", 2))
+                            count += 1
+                        else:
+                            logging.critical(tab_print("Error: Failed to download mgf file", 2))
+                    if overwrite_mzmine == True or not os.path.exists(peak_height_filename):
+                        peak_height_download = download_from_url(base_url + "%s_peak_height.tsv"%(project_name), peak_height_filename)
+                        if peak_height_download:
+                            logging.info(tab_print("Downloaded peak height file", 2))
+                            count += 1
+                        else:
+                            logging.critical(tab_print("Error: Failed to download peak height file", 2))
+                    if overwrite_mzmine == True or not os.path.exists(quant_filename):
+                        quant_download = download_from_url(base_url + "%s_quant.csv"%(project_name), quant_filename)
+                        if quant_download:
+                            logging.info(tab_print("Downloaded quant file", 2))
+                            count += 1
+                        else:
+                            logging.critical(tab_print("Error: Failed to download quant file", 2))
+                    try:
+                        recursive_chown(pathname, 'metatlas')
+                    except:
+                        logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 3))
+                    
+                    # Create filtered peak height file
+                    if background_designator is not None:
+                        peak_height_filtered_filename = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (project_name, polarity))
+                        if os.path.exists(peak_height_filename):
+                            logging.info(tab_print("Filtering features by peak height ratio compared to background (control) signal and writing to file", 4))
+                            df_filtered = create_filtered_peakheight_file(peak_height_filename, background_designator=background_designator, 
+                                                                          background_ratio=background_ratio, zero_value=zero_value, 
+                                                                          nonpolar_solvent_front=nonpolar_solvent_front, polar_solvent_front=polar_solvent_front)
+                            df_filtered.to_csv(peak_height_filtered_filename, index=False)
+                            logging.info(tab_print("Filtered peak height file written to %s" % peak_height_filtered_filename, 5))
+                        else:
+                            logging.warning(tab_print("Warning! No peak height file found, not writing a filtered peak height file.", 4))
+                    else:
+                        logging.info(tab_print("No background designator provided, not writing a filtered peak height file.", 4))
+        if count > 0:
+            logging.info(tab_print("All new MZMINE results downloaded.", 1))
+        else:
+            logging.info(tab_print("No new MZMINE results to download!", 1))
+
+
+def download_fbmn_results_from_gnps2(
+    output_dir: str,
+    overwrite_fbmn: bool,
+    skip_fbmn_download: bool,
+    direct_input: Optional[str] = None
+) -> None:
+    """
+    finds complete fbmn tasks (which also have complete mzmine status)
+    downloads the graphml and results table files
+    renames and moves results to the untargeted_tasks folder
+
+    Overwrite is False (default) when existing GNPS2 files in the untargeted_tasks folder will not be replaced
+
+    Direct_input is None (default) when files from GNPS2 for all available projects will be downloaded. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_fbmn_download:
+        logging.info('Skipping Step 6/7: Checking for completed FBMN jobs and downloading results...')
+        return
+    logging.info('Step 6/7: Checking for completed FBMN jobs and downloading results...')
+    tasktype='fbmn'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    status_list = ['07 complete','09 error']
+    if direct_input is None:
+        df = subset_df_by_status(df,tasktype,status_list)
+        df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before downloading fbmn
+    if df.empty:
+        logging.info(tab_print("No completed FBMN data to download!", 1))
+    if not df.empty:
+        count = 0
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            polarity_list = check_for_polarities(output_dir,project_name)
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    continue
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.warning(tab_print("Warning! FBMN task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
+                    continue
+                pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
+                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
+                if os.path.isfile(fbmn_filename)==True:
+                    with open(fbmn_filename,'r') as fid:
+                        taskid = fid.read().split('=')[1].strip()
+                    graphml_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-network.graphml'%(project_name,polarity))
+                    results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(project_name,polarity))
+                    if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename):
+                        continue
+                    logging.info(tab_print("Downloading %s mode FBMN results for %s with task ID %s"%(polarity,project_name,taskid), 1))
+                    if overwrite_fbmn == True or not os.path.exists(graphml_filename):
+                        graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
+                        if graphml_download:
+                            logging.info(tab_print("Downloaded graphml file", 2))
+                            count += 1
+                        else:
+                            logging.critical(tab_print("Error: Failed to download graphml file", 2))
+                    if overwrite_fbmn == True or not os.path.exists(results_table_filename):
+                        results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
+                        if results_table_download:
+                            logging.info(tab_print("Downloaded result table file", 2))
+                            count += 1
+                        else:
+                            logging.critical(tab_print("Error: Failed to download results table", 2))
+                    try:
+                        recursive_chown(pathname, 'metatlas')
+                    except:
+                        logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 3))
+        if count > 0:
+            logging.info(tab_print("All new FBMN results downloaded.", 1))
+        else:
+            logging.info(tab_print("No new FBMN results to download!", 1))
+
+
+
+
+
+
+
+
+
+
+# def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
+    
+#     ##### Pick up secret file and extract password
+#     with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_%s.txt'%username,'r') as fid:
+#         t = fid.read()
+#     t = t.split('\n')[0]
+#     var, pword = t.split('=')
+#     password = pword.replace('"', '').replace("'", '').strip()
+#     if not password:
+#         print("Password is required to submit FBMN jobs")
+#         return
+
+#     remote_directory="/untargeted_tasks"
+#     remote_host="ftp.gnps2.org"
+#     remote_port=6541
+#     data_dir = project + "_" + polarity
+
+#     ftp = ftplib.FTP()
+#     ftp.connect(host=remote_host,port=remote_port,timeout=120)
+#     ftp.login(user=username,passwd=password)
+#     ftp.cwd(remote_directory)
+
+#     remote_directories = ftp.nlst()
+
+#     if data_dir in remote_directories:
+#         ftp.cwd(data_dir)
+#         files = ftp.nlst()
+#         required_files = [f"{project}_{polarity}_peak-height.csv",
+#                           f"{project}_{polarity}_metadata.tab",
+#                           f"{project}_{polarity}.mgf"]
+#         all_files_exist = all(file in files for file in required_files)
+#         if all_files_exist:
+#             return True
+#         else:
+#             return False
+#     else:
+#         return False
+
+
+# def DEPRACATED_sync_mzmine_results_to_gnps2():
+#     sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_mzmine_results_to_gnps2.sh'
+#     if os.path.exists(sync_cmd):
+#         logging.info(tab_print("Syncing MZmine results (.tab, .csv, .mgf) at NERSC with GNPS2 before submitting FBMN job...", 1))
+#         try:
+#             result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
+#             stdout = result.stdout.splitlines()
+#             if stdout:
+#                 for line in stdout:
+#                     logging.info(tab_print(line, 2))
+#             stderr = result.stderr.splitlines()
+#             if stderr:
+#                 for line in stderr:
+#                     if "Permission denied" not in line: # Niyogi project has permission denied error
+#                         logging.critical(tab_print("Sync script returned errors:", 2))
+#                         logging.critical(tab_print(line, 3))
+#                         return False
+#             logging.info(tab_print("All MZmine results files at NERSC synced with GNPS2.", 2))
+#             return True
+#         except:
+#             logging.critical(tab_print("Warning! Sync command failed.", 2))
+#             return False
+#     else:
+#         logging.critical(tab_print("Warning! Could not find the sync script.", 2))
+#         return False
+
+
+# def DEPRACATED_sync_raw_data_to_gnps2():
+#     sync_cmd = '/global/common/software/m2650/infrastructure_automation/gnps2_mirror/sync_untargeted_raw_data_to_gnps2.sh'
+#     if os.path.exists(sync_cmd):
+#         logging.info(tab_print("Syncing raw data (.mzML) at NERSC with GNPS2 before submitting FBMN job...", 1))
+#         try:
+#             result = subprocess.run(sync_cmd, shell=True, capture_output=True, text=True)
+#             stdout = result.stdout.splitlines()
+#             if stdout:
+#                 for line in stdout:
+#                     logging.info(tab_print(line, 2))
+#             stderr = result.stderr.splitlines()
+#             if stderr:
+#                 for line in stderr:
+#                     if "Permission denied" not in line: # Niyogi project has permission denied error
+#                         logging.critical(tab_print("Sync script returned errors:", 2))
+#                         logging.critical(tab_print(line, 3))
+#                         return False
+#             logging.info(tab_print("All raw data files at NERSC synced with GNPS2.", 2))
+#             return True
+#         except:
+#             logging.critical(tab_print("Warning! Sync command failed.", 2))
+#             return False
+#     else:
+#         logging.critical(tab_print("Warning! Could not find the sync script.", 2))
+#         return False
+
+
+# def count_mgf_lines(mgf_file:str = None) -> int:
+#     """
+#     Before submitting a job to GNPS2, check if the mgf file from mzmine has any data
+#     by providing its path on disk
+#     """
+#     if os.path.isfile(mgf_file):
+#         cmd = 'cat %s | grep END | grep IONS | wc -l'%mgf_file
+#         result = subprocess.run(cmd,stdout=subprocess.PIPE, shell=True)
+#         if result:
+#             msms_count = int(result.stdout.strip())
+#             return msms_count
+#         else:
+#             return 0
+#     else:
+#         return 0
+
+
+# def mirror_mzmine_results_to_gnps2(
+#     project: str,
+#     polarity: str,
+#     output_dir: str,
+#     username: str = "bpbowen"
+# ) -> None:
+#     """
+#     Mirrors MZmine results to GNPS2.
+
+#     This function loads a password from a file and uses it to mirror
+#     MZmine results to GNPS2 for a given project and polarity.
+
+#     Parameters:
+#     - project (str): The name of the project.
+#     - polarity (str): The polarity of the results (e.g., 'positive' or 'negative').
+#     - username (str): The username for GNPS2. Default is 'bpbowen'.
+#     """
+#     # Load password from file
+#     with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_bpbowen.txt', 'r') as f:
+#         for line in f:
+#             if line.startswith('MYVARIABLE='):
+#                 password = line.strip().split('=')[1].replace('"', '')
+#                 break
+
+#     if not password:
+#         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
+#         return
+    
+#     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
+
+#     project_directory = f"{project}_{polarity}"
+#     local_directory = os.path.join(output_dir, project_directory)
+#     remote_directory = f"/untargeted_tasks/{project_directory}"
+#     remote_host = "sftp.gnps2.org"
+#     remote_port = 443
+#     remote_user = username
+
+#     try:
+#         transport = paramiko.Transport((remote_host, remote_port))
+#         transport.connect(username=remote_user, password=password)
+#         sftp = paramiko.SFTPClient.from_transport(transport)
+#     except paramiko.SSHException as e:
+#         logging.error(f"Failed to connect to GNPS2: {e}")
+#         return
+    
+#     try:
+#         sftp.mkdir(remote_directory)
+#     except Exception as e:
+#         logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+
+#     try:
+#         local_directory = Path(local_directory)
+#         logging.info("Walking through local directory %s and uploading mzmine results to GNPS2..."%(local_directory))
+#         for file_path in local_directory.rglob('*'):
+#             if file_path.is_file() and file_path.suffix in ('.mgf', '.csv', '.tab'):
+#                 logging.info("Uploading %s to GNPS2..." % file_path.name)
+#                 local_path = str(file_path)
+#                 remote_path = f"{remote_directory}/{file_path.name}"
+#                 sftp.put(local_path, remote_path)
+#                 logging.info(f"Uploaded {file_path.name} to GNPS2...")
+#         sftp.close()
+#         transport.close()
+#         logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
+#     except:
+#         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
+#         return
