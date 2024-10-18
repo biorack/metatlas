@@ -287,6 +287,9 @@ class MetatlasDataset(HasTraits):
         ]
         if len(files) == 0:
             logger.warning("No matching h5 files were found!")
+        else:
+            for file in files:
+                logger.info("Path to h5 file: %s", file[0].hdf5_file)  # print the path of each h5 file
         logger.info("Reading MSMS data from h5 files...")
         samples = parallel.parallel_process(
             ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample"
