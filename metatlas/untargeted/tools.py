@@ -1204,9 +1204,9 @@ def submit_fbmn_jobs(
     if df.empty:
         logging.info(tab_print("No new FBMN jobs to submit!", 1))
         return
-    if df.shape[0] > 20:
-        logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
-        return
+    # if df.shape[0] > 20:
+    #     logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
+    #     return
     if not df.empty:
         logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2"%(df.shape[0],status_list), 1))
         index_list = []
@@ -1339,9 +1339,9 @@ def submit_mzmine_jobs(
     if df.empty:
         logging.info(tab_print("No new MZmine jobs to submit!", 1))
         return
-    if df.shape[0] > 20:
-        logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
-        return
+    # if df.shape[0] > 20:
+    #     logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
+    #     return
     if not df.empty:
         index_list = []
         logging.info(tab_print("Total of %s new MZmine job(s) with status %s to submit"%(df.shape[0],status_list), 1))
