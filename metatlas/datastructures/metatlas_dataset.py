@@ -5,7 +5,6 @@ import logging
 import pickle
 import shutil
 import uuid
-import os
 
 from collections.abc import Iterable
 from pathlib import Path
@@ -617,14 +616,6 @@ class MetatlasDataset(HasTraits):
             ref_loc=self.parameters.msms_refs,
             resolve_by=self.parameters.resolve_msms_matches_by,
         )
-
-        # Construct the file path using additional_output_dir
-        output_dir = self.ids.additional_output_dir
-        output_file_path = os.path.join(output_dir, 'get_msms_hits_output.csv')
-        
-        # Save the DataFrame to the specified file path
-        self._hits.to_csv(output_file_path, index=False)
-
         logger.info("Generated %d hits in %s.", len(self._hits), _duration_since(start_time))
         self._hits_valid_for_rt_bounds = True
         self._save_to_cache(self._hits, metadata)
