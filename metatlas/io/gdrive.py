@@ -27,6 +27,7 @@ def copy_outputs_to_google_drive(ids: AnalysisIdentifiers) -> None:
         logger.warning("RClone config file not found -- %s.", fail_suffix)
         return
     drive = rci.get_name_for_id(ids.google_folder)
+    logger.info("Google Drive folder ID: %s", drive)
     if drive is None:
         logger.warning(
             "RClone config file does not contain Google Drive folder ID '%s' -- %s.",
@@ -37,7 +38,10 @@ def copy_outputs_to_google_drive(ids: AnalysisIdentifiers) -> None:
     pre_parts = len(ids.project_directory.parts)
     upload_folders = ids.output_dir.parts[pre_parts:]
     dest = Path("Analysis_uploads").joinpath(*upload_folders)
-    rci.copy_to_drive(ids.output_dir, drive, dest, progress=True)
+    try:
+        rci.copy_to_drive(ids.output_dir, drive, dest, progress=True)
+    except Exception as e:
+        logger.error("Error copying files to Google Drive: %s", e)
     logger.info("Done copying output files to Google Drive")
     path_string = f"{drive}:{dest}"
     display(

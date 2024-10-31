@@ -61,6 +61,7 @@ class RClone:
         """
         dest = Path(f"{drive}:" if dest_path is None else f"{drive}:{dest_path}")
         cmd = [self.rclone_path, "copy", source, dest]
+        logger.info("Running rclone command: %s", cmd)
         try:
             if progress:
                 cmd.append("--progress")
