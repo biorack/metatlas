@@ -961,6 +961,9 @@ def submit_fbmn_jobs_to_gnps2(
     if df.empty:
         logging.info(tab_print("No new FBMN jobs to submit!", 1))
         return
+    # if df.shape[0] > 20:
+    #     logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
+    #     return
     if not df.empty:
         logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2"%(df.shape[0],status_list), 1))
         index_list = []
@@ -1100,6 +1103,9 @@ def submit_buddy_jobs_to_gnps2(
     if df.empty:
         logging.info(tab_print("No new BUDDY jobs to submit!", 1))
         return
+    # if df.shape[0] > 20:
+    #     logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
+    #     return
     if not df.empty:
         logging.info(tab_print("Total of %s projects(s) to submit BUDDY workflow to GNPS2"%(df.shape[0]), 1))
         #index_list = []
