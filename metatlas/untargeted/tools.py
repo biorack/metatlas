@@ -11,7 +11,7 @@ from datetime import datetime, time
 import time
 import subprocess
 import math
-sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
+sys.path.insert(0,'/global/homes/b/bkieft/metatlas/')
 import metatlas.tools.validate_filenames as vfn
 import subprocess
 import grp

@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 import logging
-sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
+sys.path.insert(0,'/global/homes/b/bkieft/metatlas/')
 from metatlas.untargeted import tools as mzm
 
 ##### Parse command line arguments
@@ -56,7 +56,7 @@ def main():
     ##### Checking for completed FBMN jobs and downloading results
     mzm.download_untargeted_results_from_gnps2(output_dir=args.output_dir, direct_input=args.direct_input, skip_merge_gnps2_results=args.skip_merge_gnps2_results, \
                                 overwrite_mzmine=args.overwrite_mzmine, overwrite_fbmn=args.overwrite_fbmn, overwrite_buddy=args.overwrite_buddy, \
-                                skip_fbmn_download=step_bools['fbmn_download'], skip_buddy_download=step_bools['buddy_download'], skip_mzmine_download=step_bools['mzmine_download'], \
+                                skip_results_download=step_bools['results_download'], \
                                 background_designator=args.background_designator, background_ratio=args.background_ratio, \
                                 zero_value=args.zero_value,nonpolar_solvent_front=args.nonpolar_solvent_front, \
                                 polar_solvent_front=args.polar_solvent_front)
@@ -146,9 +146,7 @@ def check_skipped_steps(args):
             "fbmn_status": False,
             "fbmn_submit": False,
             "buddy_submit": False,
-            "mzmine_download": False,
-            "fbmn_download": False,
-            "buddy_download": False,
+            "results_download": False,
             "zip_upload": False
         }
     if args.skip_steps is not None:
