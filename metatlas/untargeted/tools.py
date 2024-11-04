@@ -1097,9 +1097,6 @@ def submit_buddy_jobs_to_gnps2(
     if direct_input is None:
         logging.info(tab_print("BUDDY submission to GNPS2 currently requires using the direct_input and for MZmine status to be completed. Skipping", 1))
         return
-        #df = subset_df_by_status(df,tasktype,status_list)
-        #df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before submitting fbmn
-        #df = subset_df_by_status(df,'mzmine',['09 error'], inverse=True) # Do not submit if mzmine has any error statuses
     if df.empty:
         logging.info(tab_print("No new BUDDY jobs to submit!", 1))
         return
