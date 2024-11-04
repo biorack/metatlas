@@ -995,7 +995,8 @@ def submit_fbmn_jobs_to_gnps2(
     overwrite_fbmn: bool,
     output_dir: str,
     skip_fbmn_submit: bool,
-    skip_mirror_mzmine_results: bool,
+    #skip_mirror_raw_data: bool,
+    #skip_mirror_mzmine_results: bool,
     direct_input: Optional[str] = None,
 ) -> None:
     """
@@ -1007,9 +1008,9 @@ def submit_fbmn_jobs_to_gnps2(
     to a csv list of project names if you only want to run this function on specific untargeted_tasks
     """
     if skip_fbmn_submit:
-        logging.info('Skipping Step 5/7: Submitting new FBMN jobs to GNPS2...')
+        logging.info('Skipping FBMN Submission...')
         return
-    logging.info('Step 5/7: Submitting new FBMN jobs to GNPS2...')
+    logging.info('Submitting new FBMN jobs to GNPS2...')
     tasktype = 'fbmn'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
@@ -1022,9 +1023,6 @@ def submit_fbmn_jobs_to_gnps2(
         df = subset_df_by_status(df,'mzmine',['09 error'], inverse=True) # Do not submit if mzmine has any error statuses
     if df.empty:
         logging.info(tab_print("No new FBMN jobs to submit!", 1))
-        return
-    if df.shape[0] > 20:
-        logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
         return
     if not df.empty:
         logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2"%(df.shape[0],status_list), 1))
@@ -1054,7 +1052,7 @@ def submit_fbmn_jobs_to_gnps2(
                     os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
 
                 # Get mzmine results files and metadata file to GNPS2 before starting FBMN job
-                logging.info(tab_print("Mirroring project metadata to GNPS2...", 2))
+                logging.info(tab_print("Mirroring project metadata to GNPS2 for molecular networking...", 2))
                 mirror_project_metadata_to_gnps2(project=project_name,polarity=polarity,output_dir=row['output_dir'],username="bpbowen")
 
                 # logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
@@ -1073,13 +1071,22 @@ def submit_fbmn_jobs_to_gnps2(
                 quant_file = f'TASKLOCATION/{mzmine_taskid}/nf_output/mzmine_output/output.csv'
                 metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{description}/{description}_metadata.tab'
                 raw_data = f'TASKLOCATION/{mzmine_taskid}/input_spectra_folder'
-                params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
-                job_id = submit_gnps2_job(params, "bpbowen")
+                
+                # Submit FBMN
+                fbmn_params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
+                job_id = submit_gnps2_job(fbmn_params, "bpbowen")
                 task_list = {'experiment':project_name,'polarity':polarity,'task':job_id}
                 logging.info(tab_print("Submitted FBMN job for %s mode and set LIMS status to ['04 running']."%(polarity), 2))
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
                 write_gnps2_task_and_link_to_file(task_list,output_dir,tasktype)
                 index_list.append(i)
+
+                # Submit BUDDY
+                buddy_params = set_buddy_parameters(description, spectra_file)
+                job_id = submit_gnps2_job(buddy_params, "bpbowen")
+                task_list = {'experiment':project_name,'polarity':polarity,'task':job_id}
+                logging.info(tab_print("Submitted BUDDY job for %s mode."%(polarity), 2))
+                write_gnps2_task_and_link_to_file(task_list,output_dir,"buddy")
 
         if len(index_list) > 0:
             index_list = list(set(index_list))
@@ -1126,6 +1133,113 @@ def set_fbmn_parameters(
                 "fragment_tolerance": "0.01",
                 "precursor_filter": "yes",
                 "api": "no"}
+    return params
+
+
+def submit_buddy_jobs_to_gnps2(
+    overwrite_buddy: bool,
+    output_dir: str,
+    skip_buddy_submit: bool,
+    direct_input: Optional[str] = None,
+) -> None:
+    """
+    finds waiting or errored buddy tasks (which also have complete mzmine status)
+    submits the tasks to GNPS2
+    updates the LIMS table with status running if successful
+
+    Direct_input is None (default) when all waiting or errorer tasks will be considered for submission. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_buddy_submit:
+        logging.info('Skipping BUDDY Submission...')
+        return
+    logging.info('Submitting new BUDDY jobs to GNPS2...')
+    tasktype = 'buddy'
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    status_list = ['13 waiting','09 error']
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+        df = subset_df_by_status(df,tasktype,status_list)
+    if direct_input is None:
+        logging.info(tab_print("BUDDY submission to GNPS2 currently requires using the direct_input and for MZmine status to be completed. Skipping", 1))
+        return
+        #df = subset_df_by_status(df,tasktype,status_list)
+        #df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before submitting fbmn
+        #df = subset_df_by_status(df,'mzmine',['09 error'], inverse=True) # Do not submit if mzmine has any error statuses
+    if df.empty:
+        logging.info(tab_print("No new BUDDY jobs to submit!", 1))
+        return
+    if not df.empty:
+        logging.info(tab_print("Total of %s projects(s) to submit BUDDY workflow to GNPS2"%(df.shape[0]), 1))
+        #index_list = []
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            logging.info(tab_print("Working on project %s:"%(project_name), 1))
+            polarity_list = check_for_polarities(row['output_dir'],project_name)
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                pathname = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity))
+                buddy_filename = os.path.join(pathname,'%s_%s_gnps2-buddy-task.txt'%(project_name,polarity))
+                
+                # # Bail out conditions
+                # if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                #     continue
+                # if row['%s_%s_status'%('mzmine',polarity_short)] != '07 complete':
+                #     continue
+                # if os.path.isfile(buddy_filename)==True and overwrite_buddy==False:
+                #     continue
+
+                # if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                #     logging.warning(tab_print("Warning! %s in %s mode has an error status. Removing existing GNPS2 task ID file and attempting to resubmit..."%(project_name,polarity), 2))
+                #     os.remove(buddy_filename) # Remove failed task ID file in order to submit again
+
+                description = '%s_%s'%(project_name,polarity)
+                pathname = os.path.join(row['output_dir'],description)
+                mzmine_task_filename = os.path.join(pathname,'%s_gnps2-mzmine-task.txt'%(description))
+                with open(mzmine_task_filename,'r') as fid:
+                    task = fid.read().strip()
+                mzmine_taskid = task.split('=')[-1]
+                spectra_file = f'TASKLOCATION/{mzmine_taskid}/nf_output/mzmine_output/output.mgf'
+                
+                # Submit BUDDY
+                buddy_params = set_buddy_parameters(description, spectra_file)
+                job_id = submit_gnps2_job(buddy_params, "bpbowen")
+                task_list = {'experiment':project_name,'polarity':polarity,'task':job_id}
+                logging.info(tab_print("Submitted BUDDY job for %s mode."%(polarity), 2))
+                write_gnps2_task_and_link_to_file(task_list,output_dir,"buddy")
+
+        #if len(index_list) > 0:
+            # index_list = list(set(index_list))
+            # cols = ['Key',
+            #         '%s_neg_status'%(tasktype),
+            #         '%s_pos_status'%(tasktype)]
+            # df = df.loc[df.index.isin(index_list),cols]
+            # df.replace('NaN', 0, inplace=True)
+            # df.fillna(0, inplace=True)
+            # update_table_in_lims(df,'untargeted_tasks',method='update')
+        logging.info(tab_print("BUDDY submission(s) complete.", 1))
+
+def set_buddy_parameters(
+    description: str,
+    spectra_file: str
+) -> None:
+    """
+    Hard coded parameters and user-defined parameters are formatted by passing
+    the arguments for file location
+    """
+    params = {
+                "description": description,
+                "halogen": 0,
+                "input_file": spectra_file,
+                "ms1_tol": 5,
+                "ms2_tol": 10,
+                "ms_instr": "orbitrap",
+                "workflowname": "msbuddy_workflow",
+}
     return params
 
 def create_filtered_peakheight_file(
@@ -1701,9 +1815,6 @@ def submit_mzmine_jobs_to_gnps2(
     if df.empty:
         logging.info(tab_print("No new MZmine jobs to submit!", 1))
         return
-    if df.shape[0] > 20:
-        logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
-        return
     if not df.empty:
         logging.info(tab_print("Total of %s projects(s) with MZmine status %s to submit to GNPS2"%(df.shape[0],status_list), 1))
         index_list = []
@@ -1748,7 +1859,7 @@ def submit_mzmine_jobs_to_gnps2(
                 if skip_mirror_raw_data is False:
                     mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
                 else:
-                    logging.info(tab_print("Skipping raw data mirroring to GNPS2...", 2))
+                    logging.warning(tab_print("Skipping raw data mirroring to GNPS2. Run will fail without raw data present.", 2))
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_dir = f'USERUPLOAD/bpbowen/raw_data/{subdir}/{project_name}/{polarity}/'
