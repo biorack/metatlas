@@ -36,16 +36,15 @@ def main():
 
     ##### Submitting new MZmine jobs that are "initialized"
     mzm.submit_mzmine_jobs_to_gnps2(new_projects=new_projects,direct_input=args.direct_input,skip_mzmine_submit=step_bools['mzmine_submit'], \
-                           overwrite_mzmine=args.overwrite_mzmine)
+                                    overwrite_mzmine=args.overwrite_mzmine, output_dir=args.output_dir, skip_mirror_raw_data=args.skip_mirror_raw_data,
+                                    raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
 
     ##### Checking and updating status of FBMN jobs in LIMS
     mzm.update_fbmn_status_from_gnps2(direct_input=args.direct_input,skip_fbmn_status=step_bools['fbmn_status'])
 
     ##### Submitting new FBMN jobs to GNPS2
     mzm.submit_fbmn_jobs_to_gnps2(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, overwrite_buddy=args.overwrite_buddy, direct_input=args.direct_input, \
-                                    skip_fbmn_submit=step_bools['fbmn_submit'], skip_buddy_submit=step_bools['buddy_submit'], \
-                                    skip_mirror_raw_data=args.skip_mirror_raw_data, skip_mirror_mzmine_results=args.skip_mirror_mzmine_results, \
-                                    raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
+                                    skip_fbmn_submit=step_bools['fbmn_submit'])
 
     ##### Submitting new BUDDY jobs to GNPS2
     mzm.submit_buddy_jobs_to_gnps2(output_dir=args.output_dzir, overwrite_buddy=args.overwrite_buddy, direct_input=args.direct_input, \

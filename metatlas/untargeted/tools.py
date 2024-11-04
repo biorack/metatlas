@@ -163,9 +163,9 @@ def zip_and_upload_untargeted_results(
     Min_features_admissible is 0 (default) if you want the function to zip and upload only when there are more than 0 features
     """
     if skip_zip_upload:
-        logging.info("Skipping Step 7/7: Zipping up and (optionally) uploading output folders to gdrive...")
+        logging.info("Skipping zipping up and (optionally) uploading output folders to gdrive...")
         return
-    logging.info("Step 7/7: Zipping up and (optionally) uploading output folders to gdrive...")
+    logging.info("Zipping up and (optionally) uploading output folders to gdrive...")
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
     if direct_input is not None:
@@ -1300,9 +1300,9 @@ def update_fbmn_status_from_gnps2(
     to a csv list of project names if you only want to run this function on specific untargeted_tasks
     """
     if skip_fbmn_status:
-        logging.info('Skipping Step 4/7: Checking and updating status of FBMN jobs in LIMS...')
+        logging.info('Skipping checking and updating status of FBMN jobs in LIMS...')
         return
-    logging.info('Step 4/7: Checking and updating status of FBMN jobs in LIMS...')
+    logging.info('Checking and updating status of FBMN jobs in LIMS...')
     tasktype='fbmn'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
@@ -1536,9 +1536,9 @@ def update_new_untargeted_tasks(
     space and labkey doesn't allow this
     """
     if skip_sync:
-        logging.info('Skipping Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
+        logging.info('Skipping syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
         return
-    logging.info('Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
+    logging.info('Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
     # Get lcmsrun table and subset
     df = get_table_from_lims('lcmsrun_plus')
     df = df[pd.notna(df['mzml_file'])]
@@ -1606,9 +1606,8 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['conforming_filenames'] = True
             lims_untargeted_table_updater['file_conversion_complete'] = True
             lims_untargeted_table_updater['output_dir'] = output_dir
-            if validate_names is True:
-                _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
-            if validate_names is False:
+            _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
+            if validate_machine_name is None:
                 validate_machine_name = "EXP120A" # Assume stricter parameters for unvalidated machine name
                 logging.info(tab_print("Notice! Using stricter mzmine parameters because machine name cannot be inferred from project name.", 2))
             if validate_machine_name.lower() in ("iqx", "idx"):
@@ -1617,6 +1616,7 @@ def update_new_untargeted_tasks(
             else:
                 mzmine_running_parameters = "Default"
                 mzmine_parameter = 2
+            logging.info(tab_print("Using mzmine parameters for %s: "%(mzmine_running_parameters), 2))
             lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
             lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
 
@@ -1690,9 +1690,9 @@ def submit_mzmine_jobs_to_gnps2(
     to a csv list of project names if you only want to run this function on specific untargeted_tasks
     """
     if skip_mzmine_submit:
-        logging.info('Skipping Step 3/7: Submitting new MZmine jobs...')
+        logging.info('Skipping submitting new MZmine jobs...')
         return
-    logging.info('Step 3/7: Submitting new MZmine jobs...')
+    logging.info('Submitting new MZmine jobs...')
     tasktype = 'mzmine'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
@@ -1806,9 +1806,9 @@ def update_mzmine_status_from_gnps2(
     to a csv list of project names if you only want to run this function on specific untargeted_tasks
     """
     if skip_mzmine_status:
-        logging.info('Skipping Step 3/7: Checking and updating status of MZMine jobs in LIMS...')
+        logging.info('Skipping checking and updating status of MZMine jobs in LIMS...')
         return
-    logging.info('Step 3/7: Checking and updating status of MZMine jobs in LIMS...')
+    logging.info('Checking and updating status of MZMine jobs in LIMS...')
     tasktype='mzmine'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
@@ -2053,9 +2053,9 @@ def download_fbmn_results_from_gnps2(
     to a csv list of project names if you only want to run this function on specific untargeted_tasks
     """
     if skip_fbmn_download:
-        logging.info('Skipping Step 6/7: Checking for completed FBMN jobs and downloading results...')
+        logging.info('Skipping checking for completed FBMN jobs and downloading results...')
         return
-    logging.info('Step 6/7: Checking for completed FBMN jobs and downloading results...')
+    logging.info('Checking for completed FBMN jobs and downloading results...')
     tasktype='fbmn'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
