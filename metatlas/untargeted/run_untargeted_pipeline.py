@@ -32,10 +32,7 @@ def main():
                                                    background_designator=args.background_designator,skip_sync=step_bools['new_jobs'])
     
     ##### Checking and updating status of MZmine jobs in LIMS
-    mzm.update_mzmine_status_from_gnps2(direct_input=args.direct_input,background_designator=args.background_designator, \
-                                                 skip_mzmine_status=step_bools['mzmine_status'],background_ratio=args.background_ratio, \
-                                                 zero_value=args.zero_value,nonpolar_solvent_front=args.nonpolar_solvent_front, \
-                                                 polar_solvent_front=args.polar_solvent_front)
+    mzm.update_mzmine_status_from_gnps2(direct_input=args.direct_input, skip_mzmine_status=step_bools['mzmine_status'])
 
     ##### Submitting new MZmine jobs that are "initialized"
     mzm.submit_mzmine_jobs_to_gnps2(new_projects=new_projects,direct_input=args.direct_input,skip_mzmine_submit=step_bools['mzmine_submit'], \
@@ -51,14 +48,18 @@ def main():
                                     raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
 
     ##### Submitting new BUDDY jobs to GNPS2
-    mzm.submit_fbmn_jobs_to_gnps2(output_dir=args.output_dir, overwrite_buddy=args.overwrite_buddy, direct_input=args.direct_input, \
+    mzm.submit_buddy_jobs_to_gnps2(output_dir=args.output_dzir, overwrite_buddy=args.overwrite_buddy, direct_input=args.direct_input, \
                                     skip_buddy_submit=step_bools['buddy_submit'], \
                                     skip_mirror_raw_data=args.skip_mirror_raw_data, skip_mirror_mzmine_results=args.skip_mirror_mzmine_results, \
                                     raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
     
     ##### Checking for completed FBMN jobs and downloading results
-    mzm.download_untargeted_results_from_gnps2(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn,direct_input=args.direct_input, \
-                              skip_fbmn_download=step_bools['results_download'])
+    mzm.download_untargeted_results_from_gnps2(output_dir=args.output_dir, direct_input=args.direct_input, skip_merge_gnps2_results=args.skip_merge_gnps2_results, \
+                                overwrite_mzmine=args.overwrite_mzmine, overwrite_fbmn=args.overwrite_fbmn, overwrite_buddy=args.overwrite_buddy, \
+                                skip_fbmn_download=step_bools['fbmn_download'], skip_buddy_download=step_bools['buddy_download'], skip_mzmine_download=step_bools['mzmine_download'], \
+                                background_designator=args.background_designator, background_ratio=args.background_ratio, \
+                                zero_value=args.zero_value,nonpolar_solvent_front=args.nonpolar_solvent_front, \
+                                polar_solvent_front=args.polar_solvent_front)
 
     ##### Zipping up and (optionally) uploading output folders to gdrive
     mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir, upload=args.gdrive_upload,overwrite_zip=args.overwrite_zip, \
@@ -92,6 +93,8 @@ def add_arguments(parser):
     parser.add_argument('--skip_mirror_raw_data', action='store_true', help='Skip the default mirror of raw data files to GNPS2')
     parser.add_argument('--skip_mirror_mzmine_results', action='store_true', help='Skip the default mirror of mzmine results files to GNPS2')
     parser.add_argument('--overwrite_buddy', action='store_true', help='Overwrite existing buddy results files that are already in the output directory')
+    ## Download only
+    parser.add_argument('--skip_merge_gnps2_results', action='store_true', help='Merge GNPS2 results files into a single file')
     ## Step 7 only
     parser.add_argument('--download_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_outputs', help='Path to the download folder')
     parser.add_argument('--min_features', type=int, default=0, help='Set minimum number of MZmine features for a project polarity to be zipped')
@@ -143,7 +146,9 @@ def check_skipped_steps(args):
             "fbmn_status": False,
             "fbmn_submit": False,
             "buddy_submit": False,
-            "results_download": False,
+            "mzmine_download": False,
+            "fbmn_download": False,
+            "buddy_download": False,
             "zip_upload": False
         }
     if args.skip_steps is not None:

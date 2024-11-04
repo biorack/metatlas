@@ -21,8 +21,10 @@ import zipfile
 import shutil
 from typing import List, Dict, Union, Optional
 
-BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
-BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
+#BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
+#BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
+#mzine_batch_params_file = "/global/common/software/m2650/mzmine_parameters/batch_files/mzmine-3.7.2-batchparams.xml"
+#mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/batch_files/IQX-mzmine-3.7.2-batchparams.xml"
 
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
@@ -30,20 +32,6 @@ with open(key_file,'r') as fid:
 labkey_server='metatlas.lbl.gov'
 project_name='LIMS/'
 api = APIWrapper(labkey_server, project_name, use_ssl=True,api_key=api_key)
-
-SLURM_PERLMUTTER_HEADER = """#!/bin/bash
-#SBATCH -N 1
-#SBATCH --exclusive
-#SBATCH --error="slurm.err"
-#SBATCH --output="slurm.out"
-#SBATCH -A m2650
-#SBATCH -C cpu
-#SBATCH --qos=regular
-#SBATCH -t 3:00:00
-"""
-
-mzine_batch_params_file = "/global/common/software/m2650/mzmine_parameters/batch_files/mzmine-3.7.2-batchparams.xml"
-mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/batch_files/IQX-mzmine-3.7.2-batchparams.xml"
 
 def call_logger(log_filename: str, log_level: str, log_format: str):
     logging.basicConfig(filename=log_filename, level=log_level, format=log_format, filemode='a')
@@ -741,57 +729,6 @@ def update_table_in_lims(
         if pause_time is not None:
             time.sleep(pause_time)
 
-def build_untargeted_filename(
-    output_dir: str,
-    parent_dir: str,
-    polarity: str,
-    file_type: Optional[str] = None
-) -> str:
-    """
-        file_spec = {'peak-area-mzmine':'peak-area.csv',
-                'mzmine-runner':'mzmine.sh',
-                'msms-mzmine':'_MSMS.mgf',
-                'peak-height-mzmine':'_peak-height.csv',
-                'gnps-uuid-fbmn':'_gnps-uuid.txt',
-                'fbmn-runner':'fbmn.sh',
-                'fbmn-sbatch':'fbmn-sbatch.sbatch',
-                'mzmine-outlog':'-mzmine.out',
-                'batch-params-mzmine':'_batch-params.xml',
-                'quant-fbmn':'quant.csv',
-                'gnps-fbmn-network':'_gnps-fbmn-network.graphml',
-                'mzmine-sbatch':'mzmine-sbatch.sbatch',
-                'mzmine-errlog':'-mzmine.err',
-                'metadata':'_metadata.tab',
-                'fbmn-errlog':'fbmn.err',
-                'fbmn-outlog':'fbmn.out',
-                'gnps-download':'_gnps-download.zip',
-                ''msms-mzmine3':'.mgf'}
-    """
-    file_spec = {'peak-area-mzmine':'peak-area.csv',
-                'mzmine-runner':'_mzmine.sh',
-                'msms-mzmine':'_MSMS.mgf',
-                'peak-height-mzmine':'_peak-height.csv',
-                'gnps-uuid-fbmn':'_gnps-uuid.txt',
-                'fbmn-runner':'fbmn.sh',
-                'fbmn-sbatch':'fbmn-sbatch.sbatch',
-                'mzmine-outlog':'-mzmine.out',
-                'batch-params-mzmine':'_batch-params.xml',
-                'quant-fbmn':'quant.csv',
-                'gnps-fbmn-network':'_gnps-fbmn-network.graphml',
-                'mzmine-sbatch':'_mzmine-sbatch.sbatch',
-                'mzmine-errlog':'-mzmine.err',
-                'metadata':'_metadata.tab',
-                'fbmn-errlog':'fbmn.err',
-                'fbmn-outlog':'fbmn.out',
-                'gnps-download':'_gnps-download.zip',
-                'blink-hits':'_blinkhits.csv.gz',
-                'blink-network-hits':'_blinknetworkhits.csv.gz',
-                'simile-hits':'_similehits.csv.gz',
-                'msms-mzmine3':'.mgf'}
-    pathname = os.path.join(output_dir,'%s_%s'%(parent_dir,polarity))
-    filename = '%s_%s%s'%(parent_dir,polarity,file_spec[file_type])
-    filename = os.path.join(pathname,filename)
-    return filename
 
 def check_gnps2_status(taskid:str = None):
     """
@@ -1080,13 +1017,6 @@ def submit_fbmn_jobs_to_gnps2(
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
                 write_gnps2_task_and_link_to_file(task_list,output_dir,tasktype)
                 index_list.append(i)
-
-                # Submit BUDDY
-                buddy_params = set_buddy_parameters(description, spectra_file)
-                job_id = submit_gnps2_job(buddy_params, "bpbowen")
-                task_list = {'experiment':project_name,'polarity':polarity,'task':job_id}
-                logging.info(tab_print("Submitted BUDDY job for %s mode."%(polarity), 2))
-                write_gnps2_task_and_link_to_file(task_list,output_dir,"buddy")
 
         if len(index_list) > 0:
             index_list = list(set(index_list))
@@ -1430,26 +1360,6 @@ def update_fbmn_status_from_gnps2(
         else:
             logging.info(tab_print("No FBMN jobs to update!", 1))
 
-def write_mzmine_sbatch_and_runner(
-    basepath: Union[str, bytes, os.PathLike],
-    batch_filename: str,
-    parent_dir: Union[str, bytes, os.PathLike],
-    filelist_filename: str
-) -> None:
-    """
-    Write the sbatch and runner files for mzmine submission via slurm
-    """
-    mzmine_launcher = '/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
-
-    sbatch_filename = '%s_mzmine-sbatch.sbatch'%os.path.join(basepath,parent_dir)
-    runner_filename = '%s_mzmine.sh'%os.path.join(basepath,parent_dir)
-    s = '%s -batch %s -input %s\necho MZMINE IS DONE\n\n\n'%(mzmine_launcher,batch_filename,filelist_filename)
-
-    with open(sbatch_filename,'w') as fid:
-        fid.write('%s\n%s\n'%(SLURM_PERLMUTTER_HEADER.replace('slurm','%s-%s'%(os.path.join(basepath,parent_dir),'mzmine')),s))
-    with open(runner_filename,'w') as fid:
-        fid.write('sbatch %s'%sbatch_filename)
-
 def write_metadata_per_new_project(
     df: pd.DataFrame,
     background_designator: List[str],
@@ -1697,11 +1607,12 @@ def update_new_untargeted_tasks(
                 _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
             if validate_names is False:
                 validate_machine_name = "EXP120A" # Assume stricter parameters for unvalidated machine name
+                logging.info(tab_print("Notice! Using stricter mzmine parameters because machine name cannot be inferred from project name.", 2))
             if validate_machine_name.lower() in ("iqx", "idx"):
-                mzmine_running_parameters = mzine_batch_params_file_iqx
+                mzmine_running_parameters = "IQX"
                 mzmine_parameter = 5
             else:
-                mzmine_running_parameters = mzine_batch_params_file
+                mzmine_running_parameters = "Default"
                 mzmine_parameter = 2
             lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
             lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
@@ -1734,25 +1645,6 @@ def update_new_untargeted_tasks(
                     metadata_df = new_project_dict[polarity]['metadata_df']
                     metadata_filename = os.path.join(basepath,'%s_metadata.tab'%(parent_dir))
                     metadata_df.to_csv(metadata_filename, sep='\t', index=False)
-                    
-                    logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
-                    params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
-                    with open(mzmine_running_parameters,'r') as fid:
-                        orig_params = fid.read()
-                    new_param_path = os.path.join(basepath,parent_dir)
-                    custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
-                    with open(params_filename,'w') as fid:
-                        fid.write('%s'%custom_params)
-
-                    logging.info(tab_print("%s mzML path list file (*_filelist.txt)"%(polarity), 3))
-                    file_list = new_project_dict[polarity]['file_list']
-                    filelist_filename = os.path.join(basepath,'%s_filelist.txt'%(parent_dir))
-                    with open(filelist_filename,'w') as fid:
-                        for mzml in file_list:
-                            fid.write('%s\n'%mzml)
-
-                    logging.info(tab_print("%s sbatch submission script and runner files (*.sh, *.sbatch)"%(polarity), 3))
-                    write_mzmine_sbatch_and_runner(basepath,params_filename,parent_dir,filelist_filename)
 
                     lims_untargeted_table_updater[metadata_header] = metadata_filename
                     lims_untargeted_table_updater[file_count_header] = new_project_dict[polarity]['file_count']
@@ -1863,8 +1755,8 @@ def submit_mzmine_jobs_to_gnps2(
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_dir = f'USERUPLOAD/bpbowen/raw_data/{subdir}/{project_name}/{polarity}/'
-                params = set_mzmine_parameters(description=description, mzml_dir=spectra_dir)
-                job_id = submit_gnps2_job(params, "bpbowen")
+                mzmine_params = set_mzmine_parameters(description=description, mzml_dir=spectra_dir)
+                job_id = submit_gnps2_job(mzmine_params, "bpbowen")
                 task_list = {'experiment':project_name,'polarity':polarity,'task':job_id}
                 logging.info(tab_print("Submitted MZmine job for %s mode and set LIMS status to ['04 running']."%(polarity), 2))
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
@@ -1974,14 +1866,15 @@ def update_mzmine_status_from_gnps2(
         else:
             logging.info(tab_print("No MZMine jobs to update!", 1))
 
-
-
-def download_gnps2_results(
+def download_untargeted_results_from_gnps2(
     output_dir: str,
     overwrite_mzmine: bool,
     overwrite_fbmn: bool,
+    overwrite_buddy: bool,
     skip_mzmine_download: bool,
     skip_fbmn_download: bool,
+    skip_buddy_download: bool,
+    skip_merge_gnps2_results: bool,
     direct_input: Optional[str] = None,
     background_designator: List[str] = None,
     background_ratio: int = 5,
@@ -2007,6 +1900,27 @@ def download_gnps2_results(
         skip_fbmn_download=skip_fbmn_download,
         direct_input=direct_input)
 
+    download_buddy_results_from_gnps2(
+        output_dir=output_dir,
+        overwrite_buddy=overwrite_buddy,
+        skip_buddy_download=skip_buddy_download,
+        direct_input=direct_input)
+    
+    # merge_gnps2_results(
+    #     skip_merge_gnps2_results,
+    #     output_dir, 
+    #     direct_input)
+
+
+def merge_gnps2_results(
+        skip_merge_gnps2_results: bool,
+        output_dir: str,
+        direct_input: Optional[str] = None
+) -> None:
+    """
+    To be added after testing functionality of downloads
+    """
+    pass
 
 def download_mzmine_results_from_gnps2(
     output_dir: str,
@@ -2031,9 +1945,9 @@ def download_mzmine_results_from_gnps2(
     to a csv list of project names if you only want to run this function on specific untargeted_tasks
     """
     if skip_mzmine_download:
-        logging.info('Skipping Step 5/7: Checking for completed MZMINE jobs and downloading results...')
+        logging.info('Skipping MZmine download...')
         return
-    logging.info('Step 5/7: Checking for completed MZMINE jobs and downloading results...')
+    logging.info('Checking for completed MZmine jobs and downloading results...')
     tasktype='mzmine'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
@@ -2042,7 +1956,7 @@ def download_mzmine_results_from_gnps2(
     status_list = ['07 complete','09 error']
     df = subset_df_by_status(df,tasktype,status_list)
     if df.empty:
-        logging.info(tab_print("No completed MZMINE data to download!", 1))
+        logging.info(tab_print("No completed MZmine data to download!", 1))
     if not df.empty:
         count = 0
         for i,row in df.iterrows():
@@ -2053,22 +1967,25 @@ def download_mzmine_results_from_gnps2(
                 continue
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
+
+                # Bail out conditions
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                     continue
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! MZMINE task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
+                    logging.warning(tab_print("Warning! MZmine task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
                     continue
+                
                 pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
                 mzmine_filename = os.path.join(pathname,'%s_%s_gnps2-mzmine-task.txt'%(project_name,polarity))
                 if os.path.isfile(mzmine_filename)==True:
                     with open(mzmine_filename,'r') as fid:
                         taskid = fid.read().split('=')[1].strip()
                     mgf_filename = os.path.join(pathname,'%s_%s_mzmine.mgf'%(project_name,polarity))
-                    peak_height_filename = os.path.join(pathname,'%s_%s_mzmine_peak_height.tsv'%(project_name,polarity))
-                    quant_filename = os.path.join(pathname,'%s_%s_mzmine_quant.csv'%(project_name,polarity))
-                    if overwrite_mzmine==False and os.path.exists(mgf_filename) and os.path.exists(peak_height_filename) and os.path.exists(quant_filename):
+                    peak_height_filename = os.path.join(pathname,'%s_%s_mzmine_peak_height.csv'%(project_name,polarity))
+                    peak_area_filename = os.path.join(pathname,'%s_%s_mzmine_peak_area.csv'%(project_name,polarity))
+                    if overwrite_mzmine==False and os.path.exists(mgf_filename) and os.path.exists(peak_height_filename) and os.path.exists(peak_area_filename):
                         continue
-                    logging.info(tab_print("Downloading %s mode MZMINE results for %s with task ID %s"%(polarity,project_name,taskid), 1))
+                    logging.info(tab_print("Downloading %s mode MZmine results for %s with task ID %s"%(polarity,project_name,taskid), 1))
                     base_url = "https://gnps2.org/filebrowser/files/nf_tasks/%s/nf_output/mzmine_output/"%(taskid)
                     if overwrite_mzmine == True or not os.path.exists(mgf_filename):
                         mgf_download = download_from_url(base_url + "output.mgf", mgf_filename)
@@ -2078,16 +1995,16 @@ def download_mzmine_results_from_gnps2(
                         else:
                             logging.critical(tab_print("Error: Failed to download mgf file", 2))
                     if overwrite_mzmine == True or not os.path.exists(peak_height_filename):
-                        peak_height_download = download_from_url(base_url + "%s_peak_height.tsv"%(project_name), peak_height_filename)
+                        peak_height_download = download_from_url(base_url + "output.csv", peak_height_filename)
                         if peak_height_download:
                             logging.info(tab_print("Downloaded peak height file", 2))
                             count += 1
                         else:
                             logging.critical(tab_print("Error: Failed to download peak height file", 2))
-                    if overwrite_mzmine == True or not os.path.exists(quant_filename):
-                        quant_download = download_from_url(base_url + "%s_quant.csv"%(project_name), quant_filename)
+                    if overwrite_mzmine == True or not os.path.exists(peak_area_filename):
+                        quant_download = download_from_url(base_url + "output_quant.csv", peak_area_filename)
                         if quant_download:
-                            logging.info(tab_print("Downloaded quant file", 2))
+                            logging.info(tab_print("Downloaded peak area (quant) file", 2))
                             count += 1
                         else:
                             logging.critical(tab_print("Error: Failed to download quant file", 2))
@@ -2172,15 +2089,16 @@ def download_fbmn_results_from_gnps2(
                     if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename):
                         continue
                     logging.info(tab_print("Downloading %s mode FBMN results for %s with task ID %s"%(polarity,project_name,taskid), 1))
+                    base_url = "https://gnps2.org/filebrowser/files/nf_tasks/%s/nf_output/"%(taskid)
                     if overwrite_fbmn == True or not os.path.exists(graphml_filename):
-                        graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
+                        graphml_download = download_from_url(base_url + "networking/network.graphml", graphml_filename)
                         if graphml_download:
                             logging.info(tab_print("Downloaded graphml file", 2))
                             count += 1
                         else:
                             logging.critical(tab_print("Error: Failed to download graphml file", 2))
                     if overwrite_fbmn == True or not os.path.exists(results_table_filename):
-                        results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
+                        results_table_download = download_from_url(base_url + "library/merged_results_with_gnps.tsv", results_table_filename)
                         if results_table_download:
                             logging.info(tab_print("Downloaded result table file", 2))
                             count += 1
@@ -2196,7 +2114,75 @@ def download_fbmn_results_from_gnps2(
             logging.info(tab_print("No new FBMN results to download!", 1))
 
 
+def download_buddy_results_from_gnps2(
+    output_dir: str,
+    overwrite_buddy: bool,
+    skip_buddy_download: bool,
+    direct_input: Optional[str] = None
+) -> None:
+    """
+    finds complete buddy tasks (which also have complete mzmine status)
+    downloads the graphml and results table files
+    renames and moves results to the untargeted_tasks folder
 
+    Overwrite is False (default) when existing GNPS2 files in the untargeted_tasks folder will not be replaced
+
+    Direct_input is None (default) when files from GNPS2 for all available projects will be downloaded. Set direct_input
+    to a csv list of project names if you only want to run this function on specific untargeted_tasks
+    """
+    if skip_buddy_download:
+        logging.info('Skipping BUDDY download step...')
+        return
+    logging.info('Checking for completed BUDDY jobs and downloading results...')
+    df = get_table_from_lims('untargeted_tasks')
+    df = filter_common_bad_project_names(df)
+    status_list = ['07 complete']
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+    if direct_input is None:
+        df = subset_df_by_status(df,"mzmine",status_list) # Make sure mzmine is completed before downloading BUDDY results
+        df = subset_df_by_status(df,"fbmn",status_list) # Make sure fbmn is completed before downloading BUDDY results
+        df = subset_df_by_status(df,'mzmine',['09 error'], inverse=True) # Do not download if any mzmine jobs have any error statuses
+        df = subset_df_by_status(df,'fbmn',['09 error'], inverse=True) # Do not download if any mzmine jobs have any error statuses
+    if df.empty:
+        logging.info(tab_print("No completed BUDDY data to download!", 1))
+    if not df.empty:
+        count = 0
+        for i,row in df.iterrows():
+            project_name = row['parent_dir']
+            polarity_list = check_for_polarities(output_dir,project_name)
+            if polarity_list is None:
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
+                continue
+            for polarity in polarity_list:
+                polarity_short = polarity[:3]
+                if row['%s_%s_status'%("mzmine",polarity_short)] == '12 not relevant':
+                    continue
+                pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
+                buddy_filename = os.path.join(pathname,'%s_%s_gnps2-buddy-task.txt'%(project_name,polarity))
+                if os.path.isfile(buddy_filename)==True:
+                    with open(buddy_filename,'r') as fid:
+                        taskid = fid.read().split('=')[1].strip()
+                    results_table_filename = os.path.join(pathname,'%s_%s_gnps2-buddy-formula-results.tsv'%(project_name,polarity))
+                    if overwrite_buddy==False and os.path.exists(results_table_filename):
+                        continue
+                    logging.info(tab_print("Downloading %s mode BUDDY results for %s with task ID %s"%(polarity,project_name,taskid), 1))
+                    base_url = "https://gnps2.org/filebrowser/files/nf_tasks/%s/nf_output/msbuddy_output/"%(taskid)
+                    if overwrite_buddy == True or not os.path.exists(results_table_filename):
+                        results_table_download = download_from_url(base_url + "msbuddy_result_summary.tsv", results_table_filename)
+                        if results_table_download:
+                            logging.info(tab_print("Downloaded result table file", 2))
+                            count += 1
+                        else:
+                            logging.critical(tab_print("Error: Failed to download results table", 2))
+                    try:
+                        recursive_chown(pathname, 'metatlas')
+                    except:
+                        logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 3))
+        if count > 0:
+            logging.info(tab_print("All new BUDDY results downloaded.", 1))
+        else:
+            logging.info(tab_print("No new BUDDY results to download!", 1))
 
 
 
