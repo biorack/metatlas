@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 import logging
-sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
+sys.path.insert(0,'/global/homes/b/bkieft/metatlas/')
 from metatlas.untargeted import tools as mzm
 
 ##### Parse command line arguments
@@ -26,35 +26,41 @@ def main():
     ##### Write args to log for reference
     logging.info(f'Arguments used: {args}')
 
-    ##### Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
+    ##### Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
     new_projects = mzm.update_new_untargeted_tasks(validate_names=args.validate_names, \
                                                    output_dir=args.output_dir, raw_data_dir=args.raw_data_dir, raw_data_subdir=args.raw_data_subdir, \
-                                                   background_designator=args.background_designator,skip_sync=step_bools[0])
+                                                   background_designator=args.background_designator,skip_sync=step_bools['new_jobs'])
     
-    ##### Step 2/7: Checking and updating status of MZmine jobs in LIMS
-    mzm.update_mzmine_status_in_untargeted_tasks(direct_input=args.direct_input,background_designator=args.background_designator, \
-                                                 skip_mzmine_status=step_bools[1],background_ratio=args.background_ratio, \
-                                                 zero_value=args.zero_value,nonpolar_solvent_front=args.nonpolar_solvent_front, \
-                                                 polar_solvent_front=args.polar_solvent_front)
+    ##### Checking and updating status of MZmine jobs in LIMS
+    mzm.update_mzmine_status_from_gnps2(direct_input=args.direct_input, skip_mzmine_status=step_bools['mzmine_status'])
 
-    ##### Step 3/7: Submitting new MZmine jobs that are "initialized"
-    mzm.submit_mzmine_jobs(new_projects=new_projects,direct_input=args.direct_input,skip_mzmine_submit=step_bools[2], \
-                           overwrite_mzmine=args.overwrite_mzmine)
+    ##### Submitting new MZmine jobs that are "initialized"
+    mzm.submit_mzmine_jobs_to_gnps2(new_projects=new_projects,direct_input=args.direct_input,skip_mzmine_submit=step_bools['mzmine_submit'], \
+                                    overwrite_mzmine=args.overwrite_mzmine, output_dir=args.output_dir, skip_mirror_raw_data=args.skip_mirror_raw_data,
+                                    raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
 
-    ##### Step 4/7: Checking and updating status of FBMN jobs in LIMS
-    mzm.update_fbmn_status_in_untargeted_tasks(direct_input=args.direct_input,skip_fbmn_status=step_bools[3])
+    ##### Checking and updating status of FBMN jobs in LIMS
+    mzm.update_fbmn_status_from_gnps2(direct_input=args.direct_input,skip_fbmn_status=step_bools['fbmn_status'])
 
-    ##### Step 5/7: Submitting new FBMN jobs to GNPS2
-    mzm.submit_fbmn_jobs(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, direct_input=args.direct_input, skip_fbmn_submit=step_bools[4], \
-                        skip_mirror_raw_data=args.skip_mirror_raw_data, skip_mirror_mzmine_results=args.skip_mirror_mzmine_results, raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
+    ##### Submitting new FBMN jobs to GNPS2
+    mzm.submit_fbmn_jobs_to_gnps2(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, direct_input=args.direct_input, \
+                                    skip_fbmn_submit=step_bools['fbmn_submit'])
 
-    ##### Step 6/7: Checking for completed FBMN jobs and downloading results
-    mzm.download_fbmn_results(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn,direct_input=args.direct_input, \
-                              skip_fbmn_download=step_bools[5])
+    ##### Submitting new BUDDY jobs to GNPS2
+    mzm.submit_buddy_jobs_to_gnps2(output_dir=args.output_dir, overwrite_buddy=args.overwrite_buddy, direct_input=args.direct_input, \
+                                    skip_buddy_submit=step_bools['buddy_submit'])
+    
+    ##### Checking for completed FBMN jobs and downloading results
+    mzm.download_untargeted_results_from_gnps2(output_dir=args.output_dir, direct_input=args.direct_input, skip_merge_gnps2_results=args.skip_merge_gnps2_results, \
+                                overwrite_mzmine=args.overwrite_mzmine, overwrite_fbmn=args.overwrite_fbmn, overwrite_buddy=args.overwrite_buddy, \
+                                skip_results_download=step_bools['results_download'], \
+                                background_designator=args.background_designator, background_ratio=args.background_ratio, \
+                                zero_value=args.zero_value,nonpolar_solvent_front=args.nonpolar_solvent_front, \
+                                polar_solvent_front=args.polar_solvent_front)
 
-    ##### Step 7/7: Zipping up and (optionally) uploading output folders to gdrive
-    mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir, upload=args.gdrive_upload,overwrite_zip=args.overwrite_zip, \
-                                          overwrite_drive=args.overwrite_drive, min_features_admissible=args.min_features, skip_zip_upload=step_bools[6], \
+    ##### Zipping up and (optionally) uploading output folders to gdrive
+    mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir,overwrite_zip=args.overwrite_zip, \
+                                          overwrite_drive=args.overwrite_drive, min_features_admissible=args.min_features, skip_zip=step_bools['zip'], skip_upload=step_bools['upload'], \
                                           add_documentation=args.add_gnps2_documentation,doc_name=args.gnps2_doc_name,direct_input=args.direct_input, \
                                           abridged_filenames=args.abridged_filenames)
 
@@ -83,19 +89,19 @@ def add_arguments(parser):
     ## Step 5 only
     parser.add_argument('--skip_mirror_raw_data', action='store_true', help='Skip the default mirror of raw data files to GNPS2')
     parser.add_argument('--skip_mirror_mzmine_results', action='store_true', help='Skip the default mirror of mzmine results files to GNPS2')
+    parser.add_argument('--overwrite_buddy', action='store_true', help='Overwrite existing buddy results files that are already in the output directory')
+    ## Download only
+    parser.add_argument('--skip_merge_gnps2_results', action='store_true', help='Merge GNPS2 results files into a single file')
     ## Step 7 only
     parser.add_argument('--download_dir', type=str, default='/global/cfs/cdirs/metatlas/projects/untargeted_outputs', help='Path to the download folder')
     parser.add_argument('--min_features', type=int, default=0, help='Set minimum number of MZmine features for a project polarity to be zipped')
     parser.add_argument('--gnps2_doc_name', type=str, default='Untargeted_metabolomics_GNPS2_Guide.docx', help='File name of the GNPS2 documentation to add to project zips')
     parser.add_argument('--overwrite_zip', action='store_true', help='Overwrite existing zip files in download folder')
     parser.add_argument('--overwrite_drive', action='store_true', help='Overwrite existing zip files on google drive')
-    parser.add_argument('--gdrive_upload', action='store_true', help='Upload to google drive')
-    parser.add_argument('--no_gdrive_upload', action='store_false', dest='gdrive_upload', help='Do not upload to google drive')
     parser.add_argument('--add_gnps2_documentation', action='store_true', help='Add GNPS2 documentation to project zips')
     parser.add_argument('--no_add_gnps2_documentation', action='store_false', dest='add_gnps2_documentation', help='Do not add GNPS2 documentation to project zips')
     parser.add_argument('--abridged_filenames', action='store_true', help='Use abridged filenames in the zipped folders. Can be set to False for non-conforming project names')
     parser.add_argument('--no_abridged_filenames', action='store_false', dest='abridged_filenames', help='Do not use abridged filenames in the zipped folders')
-    parser.set_defaults(gdrive_upload=True)
     parser.set_defaults(add_gnps2_documentation=True)
     parser.set_defaults(abridged_filenames=True)
     ## Logger/helper
@@ -112,9 +118,6 @@ def check_args(args):
         args.background_designator = args.background_designator.split(',')
     if args.skip_steps:
         args.skip_steps = args.skip_steps.split(',')
-    if args.overwrite_drive is True and args.gdrive_upload is False:
-        logging.error('Incompatible flags. Cannot overwrite google drive if not uploading to google drive.')
-        sys.exit(1)
     if not os.path.exists(args.download_dir):
         logging.error('Download directory does not exist. Please check flag and that you are at NERSC.')
         sys.exit(1)
@@ -127,25 +130,23 @@ def check_args(args):
 
 def check_skipped_steps(args):
     ##### Check for steps to skip during direct input
-    if args.skip_steps is not None and args.direct_input is not None:
-        step_skip_bool_list = [False] * 7
-        if 'Sync' in args.skip_steps:
-            step_skip_bool_list[0] = True
-        if 'MZmine_Status' in args.skip_steps:
-            step_skip_bool_list[1] = True
-        if 'MZmine_Submit' in args.skip_steps:
-            step_skip_bool_list[2] = True
-        if 'FBMN_Status' in args.skip_steps:
-            step_skip_bool_list[3] = True
-        if 'FBMN_Submit' in args.skip_steps:
-            step_skip_bool_list[4] = True
-        if 'FBMN_Download' in args.skip_steps:
-            step_skip_bool_list[5] = True
-        if 'Zip_and_Upload' in args.skip_steps:
-            step_skip_bool_list[6] = True
-    else:
-        step_skip_bool_list = [False] * 7
-    return step_skip_bool_list
+    step_skip_bool_dict = {
+            "new_jobs": False,
+            "mzmine_status": False,
+            "mzmine_submit": False,
+            "fbmn_status": False,
+            "fbmn_submit": False,
+            "buddy_submit": False,
+            "results_download": False,
+            "zip": False,
+            "upload": False
+        }
+    if args.skip_steps is not None:
+        for step in args.skip_steps:
+            if step in step_skip_bool_dict:
+                step_skip_bool_dict[step] = True
+
+    return step_skip_bool_dict
     
 if __name__ == "__main__":
     main()
