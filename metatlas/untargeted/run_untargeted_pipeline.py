@@ -43,14 +43,12 @@ def main():
     mzm.update_fbmn_status_from_gnps2(direct_input=args.direct_input,skip_fbmn_status=step_bools['fbmn_status'])
 
     ##### Submitting new FBMN jobs to GNPS2
-    mzm.submit_fbmn_jobs_to_gnps2(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, overwrite_buddy=args.overwrite_buddy, direct_input=args.direct_input, \
+    mzm.submit_fbmn_jobs_to_gnps2(output_dir=args.output_dir, overwrite_fbmn=args.overwrite_fbmn, direct_input=args.direct_input, \
                                     skip_fbmn_submit=step_bools['fbmn_submit'])
 
     ##### Submitting new BUDDY jobs to GNPS2
-    mzm.submit_buddy_jobs_to_gnps2(output_dir=args.output_dzir, overwrite_buddy=args.overwrite_buddy, direct_input=args.direct_input, \
-                                    skip_buddy_submit=step_bools['buddy_submit'], \
-                                    skip_mirror_raw_data=args.skip_mirror_raw_data, skip_mirror_mzmine_results=args.skip_mirror_mzmine_results, \
-                                    raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
+    mzm.submit_buddy_jobs_to_gnps2(output_dir=args.output_dir, overwrite_buddy=args.overwrite_buddy, direct_input=args.direct_input, \
+                                    skip_buddy_submit=step_bools['buddy_submit'])
     
     ##### Checking for completed FBMN jobs and downloading results
     mzm.download_untargeted_results_from_gnps2(output_dir=args.output_dir, direct_input=args.direct_input, skip_merge_gnps2_results=args.skip_merge_gnps2_results, \
@@ -61,8 +59,8 @@ def main():
                                 polar_solvent_front=args.polar_solvent_front)
 
     ##### Zipping up and (optionally) uploading output folders to gdrive
-    mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir, upload=args.gdrive_upload,overwrite_zip=args.overwrite_zip, \
-                                          overwrite_drive=args.overwrite_drive, min_features_admissible=args.min_features, skip_zip_upload=step_bools['zip_upload'], \
+    mzm.zip_and_upload_untargeted_results(download_folder=args.download_dir,output_dir=args.output_dir,overwrite_zip=args.overwrite_zip, \
+                                          overwrite_drive=args.overwrite_drive, min_features_admissible=args.min_features, skip_zip=step_bools['zip'], skip_upload=step_bools['upload'], \
                                           add_documentation=args.add_gnps2_documentation,doc_name=args.gnps2_doc_name,direct_input=args.direct_input, \
                                           abridged_filenames=args.abridged_filenames)
 
@@ -100,13 +98,10 @@ def add_arguments(parser):
     parser.add_argument('--gnps2_doc_name', type=str, default='Untargeted_metabolomics_GNPS2_Guide.docx', help='File name of the GNPS2 documentation to add to project zips')
     parser.add_argument('--overwrite_zip', action='store_true', help='Overwrite existing zip files in download folder')
     parser.add_argument('--overwrite_drive', action='store_true', help='Overwrite existing zip files on google drive')
-    parser.add_argument('--gdrive_upload', action='store_true', help='Upload to google drive')
-    parser.add_argument('--no_gdrive_upload', action='store_false', dest='gdrive_upload', help='Do not upload to google drive')
     parser.add_argument('--add_gnps2_documentation', action='store_true', help='Add GNPS2 documentation to project zips')
     parser.add_argument('--no_add_gnps2_documentation', action='store_false', dest='add_gnps2_documentation', help='Do not add GNPS2 documentation to project zips')
     parser.add_argument('--abridged_filenames', action='store_true', help='Use abridged filenames in the zipped folders. Can be set to False for non-conforming project names')
     parser.add_argument('--no_abridged_filenames', action='store_false', dest='abridged_filenames', help='Do not use abridged filenames in the zipped folders')
-    parser.set_defaults(gdrive_upload=True)
     parser.set_defaults(add_gnps2_documentation=True)
     parser.set_defaults(abridged_filenames=True)
     ## Logger/helper
@@ -123,9 +118,6 @@ def check_args(args):
         args.background_designator = args.background_designator.split(',')
     if args.skip_steps:
         args.skip_steps = args.skip_steps.split(',')
-    if args.overwrite_drive is True and args.gdrive_upload is False:
-        logging.error('Incompatible flags. Cannot overwrite google drive if not uploading to google drive.')
-        sys.exit(1)
     if not os.path.exists(args.download_dir):
         logging.error('Download directory does not exist. Please check flag and that you are at NERSC.')
         sys.exit(1)
@@ -146,7 +138,8 @@ def check_skipped_steps(args):
             "fbmn_submit": False,
             "buddy_submit": False,
             "results_download": False,
-            "zip_upload": False
+            "zip": False,
+            "upload": False
         }
     if args.skip_steps is not None:
         for step in args.skip_steps:

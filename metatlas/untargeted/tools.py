@@ -122,12 +122,10 @@ def write_gnps2_task_and_link_to_file(
     if task:
         with open(task_id_filename,'w') as fid:
             fid.write("%s_%s=%s\n"%(experiment,polarity,task))
-            final_filename = os.path.basename(task_id_filename)
-            logging.info(tab_print("GNPS2 task file for %s mode written to %s for workflow %s"%(polarity,final_filename,workflow), 3))
+            logging.info(tab_print("Task file for %s mode written for workflow %s"%(polarity,workflow), 3))
         with open(task_link_filename,'w') as fid:
-            fid.write(url = "https://gnps2.org/status?task=%s"%(task))
-            final_filename = os.path.basename(task_link_filename)
-            logging.info(tab_print("GNPS2 page link for %s mode written to %s for workflow %s"%(polarity,final_filename,workflow), 3))
+            fid.write("https://gnps2.org/status?task=%s"%(task))
+            logging.info(tab_print("Page link for %s mode written for workflow %s"%(polarity,workflow), 3))
     else:
         logging.warning(tab_print("Warning! GNPS2 task ID not found. File not written.", 3))
 
@@ -136,9 +134,9 @@ def zip_and_upload_untargeted_results(
     output_dir: str,
     doc_name: str,
     add_documentation: bool,
-    skip_zip_upload: bool,
+    skip_upload: bool,
+    skip_zip: bool,
     abridged_filenames: bool,
-    upload: bool,
     overwrite_zip: bool,
     overwrite_drive: bool,
     direct_input: Optional[str] = None,
@@ -162,10 +160,10 @@ def zip_and_upload_untargeted_results(
 
     Min_features_admissible is 0 (default) if you want the function to zip and upload only when there are more than 0 features
     """
-    if skip_zip_upload:
-        logging.info("Skipping zipping up and (optionally) uploading output folders to gdrive...")
+    if skip_zip and skip_upload:
+        logging.info("Skipping zipping up and uploading output folders to gdrive...")
         return
-    logging.info("Zipping up and (optionally) uploading output folders to gdrive...")
+    logging.info("Zipping up and/or uploading output folders to gdrive...")
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
     if direct_input is not None:
@@ -188,7 +186,6 @@ def zip_and_upload_untargeted_results(
             output_zip_archive = os.path.join(download_folder,'%s.zip'%project_name)
             polarity_list = check_for_polarities(output_dir,project_name)
             if overwrite_zip==False and os.path.exists(output_zip_archive):
-                #logging.warning(tab_print("Warning! Zip archive for %s exists. Set overwrite_zip to True if you want to replace. Skipping zip and upload..."%(project_name), 1))
                 continue
             if overwrite_zip==True or not os.path.exists(output_zip_archive):
                 if polarity_list is None:
@@ -197,13 +194,18 @@ def zip_and_upload_untargeted_results(
                 # Create variables for possible polarity directories and files
                 neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
                 pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
-                neg_mzmine_file = os.path.join(neg_directory, '%s_negative_peak-height.csv'%project_name)
-                pos_mzmine_file = os.path.join(pos_directory, '%s_positive_peak-height.csv'%project_name)
-                neg_fbmn_file = os.path.join(neg_directory, '%s_negative_gnps2-fbmn-library-results.tsv'%project_name)
-                pos_fbmn_file = os.path.join(pos_directory, '%s_positive_gnps2-fbmn-library-results.tsv'%project_name)
+                neg_mzmine_file = os.path.join(neg_directory, '%s_negative_mzmine-peak-height.csv'%project_name)
+                pos_mzmine_file = os.path.join(pos_directory, '%s_positive_mzmine-peak-height.csv'%project_name)
+                neg_fbmn_file = os.path.join(neg_directory, '%s_negative_fbmn-library-results.tsv'%project_name)
+                pos_fbmn_file = os.path.join(pos_directory, '%s_positive_fbmn-library-results.tsv'%project_name)
+                neg_fbmn_graph = os.path.join(neg_directory, '%s_negative_fbmn-network.graphml'%project_name)
+                pos_fbmn_graph = os.path.join(pos_directory, '%s_positive_fbmn-network.graphml'%project_name)
+                neg_buddy_file = os.path.join(neg_directory, '%s_negative_buddy-formula-results.tsv'%project_name)
+                pos_buddy_file = os.path.join(pos_directory, '%s_positive_buddy-formula-results.tsv'%project_name)        
                 if 'negative' in polarity_list and 'positive' in polarity_list:
                     # Check that mzmine and fbmn "marker" files exist, they've probably finished sucessfully (double-check since status need to all be 'complete' above)
-                    if os.path.exists(neg_mzmine_file) and os.path.exists(pos_mzmine_file) and os.path.exists(neg_fbmn_file) and os.path.exists(pos_fbmn_file):
+                    if os.path.exists(neg_mzmine_file) and os.path.exists(pos_mzmine_file) and os.path.exists(neg_fbmn_file) and os.path.exists(pos_fbmn_file) \
+                        and os.path.exists(neg_fbmn_graph) and os.path.exists(pos_fbmn_graph) and os.path.exists(neg_buddy_file) and os.path.exists(pos_buddy_file):
                         try:
                             recursive_chown(neg_directory, 'metatlas')
                             recursive_chown(pos_directory, 'metatlas')
@@ -212,24 +214,19 @@ def zip_and_upload_untargeted_results(
                         neg_feature_counts = check_peak_height_table(neg_mzmine_file)
                         pos_feature_counts = check_peak_height_table(pos_mzmine_file)
                         if (neg_feature_counts + pos_feature_counts) > min_features_admissible:
-                            neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
-                            pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
-                            # Get rid of the mzmine job id files
-                            neg_mzmine_job_id_filename = os.path.join(neg_directory,'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
-                            pos_mzmine_job_id_filename = os.path.join(pos_directory,'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
-                            if os.path.exists(neg_mzmine_job_id_filename):
-                                os.remove(neg_mzmine_job_id_filename)
-                            if os.path.exists(pos_mzmine_job_id_filename):
-                                os.remove(pos_mzmine_job_id_filename)
+                            if skip_zip is False:
+                                zip_untargeted_results(target_dirs=[neg_directory,pos_directory], abridged_filenames=abridged_filenames, \
+                                                    add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
+                                zip_count += 1
+                            else:
+                                logging.info(tab_print("Skipping zipping up project %s."%(project_name), 1))
 
-                            zip_untargeted_results(target_dirs=[neg_directory,pos_directory], abridged_filenames=abridged_filenames, \
-                                                   add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
-                            zip_count += 1
-
-                            if upload == True and os.path.exists(output_zip_archive):
+                            if skip_upload is False and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
                                 if upload_success:
                                     upload_count += 1
+                            else:
+                                logging.info(tab_print("Skipping upload of project %s."%(project_name), 1))
                         else:
                             logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
                             continue
@@ -241,20 +238,20 @@ def zip_and_upload_untargeted_results(
                             logging.info(tab_print("Note: Could not change group ownership of %s."%(pos_directory), 1))
                         pos_feature_counts = check_peak_height_table(pos_mzmine_file)
                         if pos_feature_counts > min_features_admissible:
-                            pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
-                            # Get rid of the mzmine job id files
-                            pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
-                            if os.path.exists(pos_mzmine_job_id_filename):
-                                os.remove(pos_mzmine_job_id_filename)
+                            
+                            if skip_zip is False:
+                                zip_untargeted_results(target_dirs=[pos_directory], abridged_filenames=abridged_filenames, \
+                                                    add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
+                                zip_count += 1
+                            else:
+                                logging.info(tab_print("Skipping zipping up project %s."%(project_name), 1))
 
-                            zip_untargeted_results(target_dirs=[pos_directory], abridged_filenames=abridged_filenames, \
-                                                   add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
-                            zip_count += 1
-
-                            if upload == True and os.path.exists(output_zip_archive):
+                            if skip_upload is False and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
                                 if upload_success:
                                     upload_count += 1
+                            else:
+                                logging.info(tab_print("Skipping upload of project %s."%(project_name), 1))
                         else:
                             logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
                             continue
@@ -266,20 +263,20 @@ def zip_and_upload_untargeted_results(
                             logging.info(tab_print("Note: Could not change group ownership of %s."%(neg_directory), 1))
                         neg_feature_counts = check_peak_height_table(neg_mzmine_file)
                         if neg_feature_counts > min_features_admissible:
-                            neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
-                            # Get rid of the mzmine job id files
-                            neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
-                            if os.path.exists(neg_mzmine_job_id_filename):
-                                os.remove(neg_mzmine_job_id_filename)
 
-                            zip_untargeted_results(target_dirs=[neg_directory], abridged_filenames=abridged_filenames, \
-                                                   add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
-                            zip_count += 1
+                            if skip_zip is False:
+                                zip_untargeted_results(target_dirs=[neg_directory], abridged_filenames=abridged_filenames, \
+                                                    add_documentation=add_documentation, download_folder=download_folder, doc_name=doc_name, output_zip_archive=output_zip_archive)
+                                zip_count += 1
+                            else:
+                                logging.info(tab_print("Skipping zipping up project %s."%(project_name), 1))
 
-                            if upload == True and os.path.exists(output_zip_archive):
+                            if skip_upload is False and os.path.exists(output_zip_archive):
                                 upload_success = upload_to_google_drive(output_zip_archive,overwrite_drive)
                                 if upload_success:
                                     upload_count += 1
+                            else:
+                                logging.info(tab_print("Skipping upload of project %s."%(project_name), 1))
                         else:
                             logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
                             continue
@@ -766,6 +763,8 @@ def mirror_project_metadata_to_gnps2(
     - polarity (str): The polarity of the results (e.g., 'positive' or 'negative').
     - username (str): The username for GNPS2. Default is 'bpbowen'.
     """
+    logging.getLogger("paramiko").setLevel(logging.WARNING)
+
     # Load password from file
     with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_bpbowen.txt', 'r') as f:
         for line in f:
@@ -777,8 +776,6 @@ def mirror_project_metadata_to_gnps2(
         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
         return
     
-    logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
-
     project_directory = f"{project}_{polarity}"
     local_directory = os.path.join(output_dir, project_directory)
     remote_directory = f"/untargeted_tasks/{project_directory}"
@@ -797,23 +794,22 @@ def mirror_project_metadata_to_gnps2(
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.warning(f"Did not create remote directory {remote_directory} at GNPS2 for reason: {e}")
+        if "mkdir file exists" not in str(e).lower():
+            logging.warning(tab_print(f"Notice! Did not create remote directory at GNPS2 for reason: {e}", 3))
 
     try:
         local_directory = Path(local_directory)
-        logging.info("Walking through local directory %s and uploading metadata to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix in ('.tab'):
-                logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{remote_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
-                logging.info(f"Uploaded {file_path.name} to GNPS2...")
+                logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...",3))
         sftp.close()
         transport.close()
-        logging.info(tab_print(f"Completed metadata mirror to GNPS2 for {project}...", 3))
+        logging.info(tab_print(f"Completed metadata mirror to GNPS2 for {project}...", 2))
     except:
-        logging.error(tab_print(f"Failed to mirror metadata for {project} to GNPS2", 3))
+        logging.error(tab_print(f"Failed to mirror metadata for {project} to GNPS2", 2))
         return
 
 
@@ -837,6 +833,8 @@ def mirror_raw_data_to_gnps2(
     - raw_data_dir: The directory containing the raw data.
     - raw_data_subdir : The subdirectory within the raw data directory. Default is None.
     """
+    logging.getLogger("paramiko").setLevel(logging.WARNING)
+    
     # Load password from file
     password = None
     try:
@@ -903,23 +901,22 @@ def mirror_raw_data_to_gnps2(
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2. Not mirroring: {e}")
-        return
+        if "mkdir file exists" not in str(e).lower():
+            logging.warning(tab_print(f"Notice! Did not create remote directory at GNPS2 for reason: {e}", 3))
     try:
         sftp.mkdir(polarity_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {polarity_directory} at GNPS2. Not mirroring: {e}")
-        return
+        if "mkdir file exists" not in str(e).lower():
+            logging.warning(tab_print(f"Notice! Did not create remote directory at GNPS2 for reason: {e}", 3))
 
     try:
         logging.info("Walking through local directory %s and uploading mzML files to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
-                logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{polarity_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
-                logging.info(f"Uploaded {file_path.name} to GNPS2...")
+                logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...",3))
 
         sftp.close()
         transport.close()
@@ -992,7 +989,7 @@ def submit_fbmn_jobs_to_gnps2(
                     os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
 
                 # Get mzmine results files and metadata file to GNPS2 before starting FBMN job
-                logging.info(tab_print("Mirroring project metadata to GNPS2 for molecular networking...", 2))
+                logging.info(tab_print("Mirroring project metadata for %s mode to GNPS2 for molecular networking..."%(polarity), 2))
                 mirror_project_metadata_to_gnps2(project=project_name,polarity=polarity,output_dir=row['output_dir'],username="bpbowen")
 
                 # logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
@@ -1087,13 +1084,12 @@ def submit_buddy_jobs_to_gnps2(
         logging.info('Skipping BUDDY Submission...')
         return
     logging.info('Submitting new BUDDY jobs to GNPS2...')
-    tasktype = 'buddy'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
-    status_list = ['13 waiting','09 error']
+    status_list = ['07 complete']
     if direct_input is not None:
         df = df[df['parent_dir'].isin(direct_input)]
-        df = subset_df_by_status(df,tasktype,status_list)
+        df = subset_df_by_status(df,"mzmine",status_list)
     if direct_input is None:
         logging.info(tab_print("BUDDY submission to GNPS2 currently requires using the direct_input and for MZmine status to be completed. Skipping", 1))
         return
@@ -1119,12 +1115,10 @@ def submit_buddy_jobs_to_gnps2(
                 buddy_filename = os.path.join(pathname,'%s_%s_gnps2-buddy-task.txt'%(project_name,polarity))
                 
                 # # Bail out conditions
-                # if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
-                #     continue
-                # if row['%s_%s_status'%('mzmine',polarity_short)] != '07 complete':
-                #     continue
-                # if os.path.isfile(buddy_filename)==True and overwrite_buddy==False:
-                #     continue
+                if row['%s_%s_status'%('mzmine',polarity_short)] != '07 complete':
+                    continue
+                if os.path.isfile(buddy_filename)==True and overwrite_buddy==False:
+                    continue
 
                 # if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
                 #     logging.warning(tab_print("Warning! %s in %s mode has an error status. Removing existing GNPS2 task ID file and attempting to resubmit..."%(project_name,polarity), 2))
@@ -1172,7 +1166,7 @@ def set_buddy_parameters(
                 "ms2_tol": 10,
                 "ms_instr": "orbitrap",
                 "workflowname": "msbuddy_workflow",
-}
+                "api": "no"}
     return params
 
 def create_filtered_peakheight_file(
@@ -1417,14 +1411,14 @@ def write_metadata_per_new_project(
         try:
             positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
                 lambda x: len(x.split('_')) > 9 and 'POS' in x.split('_')[9] and
-                'Blank' not in x and
+                #'Blank' not in x and
                 len(x.split('_')) > 12 and 'QC' not in x.split('_')[12] and
                 'InjBl' not in x.split('_')[12] and
                 'ISTD' not in x.split('_')[12])].to_list()
         except IndexError:
             positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
                 lambda x: '_POS_' in x and
-                'Blank' not in x and
+                #'Blank' not in x and
                 'QC' not in x and
                 'InjBl' not in x and
                 'ISTD' not in x)].to_list()
@@ -1729,7 +1723,7 @@ def submit_mzmine_jobs_to_gnps2(
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                     continue
                 if os.path.isfile(mzmine_filename)==True and overwrite_mzmine==False:
-                    logging.info(tab_print("MZmine task ID file already exists and overwrite is False. Skipping the submission for %s"%(project_name)))
+                    logging.info(tab_print("MZmine task ID file already exists and overwrite is False. Skipping the submission for %s mode"%(polarity), 2))
                     continue
 
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
@@ -1754,7 +1748,7 @@ def submit_mzmine_jobs_to_gnps2(
                 if skip_mirror_raw_data is False:
                     mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
                 else:
-                    logging.warning(tab_print("Skipping raw data mirroring to GNPS2. Run will fail without raw data present.", 2))
+                    logging.warning(tab_print("Skipping raw data mirroring to GNPS2. Notice: Run will fail without raw data present.", 2))
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_dir = f'USERUPLOAD/bpbowen/raw_data/{subdir}/{project_name}/{polarity}/'
@@ -1788,7 +1782,8 @@ def set_mzmine_parameters(
     params = {
                 "description": description,
                 "workflowname": "mzmine_nextflow_workflow",
-                "input_spectra_folder": mzml_dir}
+                "input_spectra_folder": mzml_dir,
+                "api": "no"}
     return params
 
 def update_mzmine_status_from_gnps2(
@@ -1874,9 +1869,7 @@ def download_untargeted_results_from_gnps2(
     overwrite_mzmine: bool,
     overwrite_fbmn: bool,
     overwrite_buddy: bool,
-    skip_mzmine_download: bool,
-    skip_fbmn_download: bool,
-    skip_buddy_download: bool,
+    skip_results_download: bool,
     skip_merge_gnps2_results: bool,
     direct_input: Optional[str] = None,
     background_designator: List[str] = None,
@@ -1886,10 +1879,13 @@ def download_untargeted_results_from_gnps2(
     polar_solvent_front: float = 0.8
 ) -> None:
     
+    if skip_results_download:
+        logging.info('Skipping results download from GNPS2...')
+        return
+    
     download_mzmine_results_from_gnps2(
         output_dir=output_dir,
         overwrite_mzmine=overwrite_mzmine,
-        skip_mzmine_download=skip_mzmine_download,
         direct_input=direct_input,
         background_designator=background_designator,
         background_ratio=background_ratio,
@@ -1900,13 +1896,11 @@ def download_untargeted_results_from_gnps2(
     download_fbmn_results_from_gnps2(
         output_dir=output_dir,
         overwrite_fbmn=overwrite_fbmn,
-        skip_fbmn_download=skip_fbmn_download,
         direct_input=direct_input)
 
     download_buddy_results_from_gnps2(
         output_dir=output_dir,
         overwrite_buddy=overwrite_buddy,
-        skip_buddy_download=skip_buddy_download,
         direct_input=direct_input)
     
     # merge_gnps2_results(
@@ -1928,7 +1922,6 @@ def merge_gnps2_results(
 def download_mzmine_results_from_gnps2(
     output_dir: str,
     overwrite_mzmine: bool,
-    skip_mzmine_download: bool,
     direct_input: Optional[str] = None,
     background_designator: List[str] = None,
     background_ratio: int = 5,
@@ -1947,9 +1940,6 @@ def download_mzmine_results_from_gnps2(
     Direct_input is None (default) when files from GNPS2 for all available projects will be downloaded. Set direct_input
     to a csv list of project names if you only want to run this function on specific untargeted_tasks
     """
-    if skip_mzmine_download:
-        logging.info('Skipping MZmine download...')
-        return
     logging.info('Checking for completed MZmine jobs and downloading results...')
     tasktype='mzmine'
     df = get_table_from_lims('untargeted_tasks')
@@ -1984,8 +1974,8 @@ def download_mzmine_results_from_gnps2(
                     with open(mzmine_filename,'r') as fid:
                         taskid = fid.read().split('=')[1].strip()
                     mgf_filename = os.path.join(pathname,'%s_%s_mzmine.mgf'%(project_name,polarity))
-                    peak_height_filename = os.path.join(pathname,'%s_%s_mzmine_peak_height.csv'%(project_name,polarity))
-                    peak_area_filename = os.path.join(pathname,'%s_%s_mzmine_peak_area.csv'%(project_name,polarity))
+                    peak_height_filename = os.path.join(pathname,'%s_%s_mzmine-peak-height.csv'%(project_name,polarity))
+                    peak_area_filename = os.path.join(pathname,'%s_%s_mzmine-peak-area.csv'%(project_name,polarity))
                     if overwrite_mzmine==False and os.path.exists(mgf_filename) and os.path.exists(peak_height_filename) and os.path.exists(peak_area_filename):
                         continue
                     logging.info(tab_print("Downloading %s mode MZmine results for %s with task ID %s"%(polarity,project_name,taskid), 1))
@@ -2039,7 +2029,6 @@ def download_mzmine_results_from_gnps2(
 def download_fbmn_results_from_gnps2(
     output_dir: str,
     overwrite_fbmn: bool,
-    skip_fbmn_download: bool,
     direct_input: Optional[str] = None
 ) -> None:
     """
@@ -2052,9 +2041,6 @@ def download_fbmn_results_from_gnps2(
     Direct_input is None (default) when files from GNPS2 for all available projects will be downloaded. Set direct_input
     to a csv list of project names if you only want to run this function on specific untargeted_tasks
     """
-    if skip_fbmn_download:
-        logging.info('Skipping checking for completed FBMN jobs and downloading results...')
-        return
     logging.info('Checking for completed FBMN jobs and downloading results...')
     tasktype='fbmn'
     df = get_table_from_lims('untargeted_tasks')
@@ -2087,8 +2073,8 @@ def download_fbmn_results_from_gnps2(
                 if os.path.isfile(fbmn_filename)==True:
                     with open(fbmn_filename,'r') as fid:
                         taskid = fid.read().split('=')[1].strip()
-                    graphml_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-network.graphml'%(project_name,polarity))
-                    results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(project_name,polarity))
+                    graphml_filename = os.path.join(pathname,'%s_%s_fbmn-network.graphml'%(project_name,polarity))
+                    results_table_filename = os.path.join(pathname,'%s_%s_fbmn-library-results.tsv'%(project_name,polarity))
                     if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename):
                         continue
                     logging.info(tab_print("Downloading %s mode FBMN results for %s with task ID %s"%(polarity,project_name,taskid), 1))
@@ -2120,7 +2106,6 @@ def download_fbmn_results_from_gnps2(
 def download_buddy_results_from_gnps2(
     output_dir: str,
     overwrite_buddy: bool,
-    skip_buddy_download: bool,
     direct_input: Optional[str] = None
 ) -> None:
     """
@@ -2133,9 +2118,6 @@ def download_buddy_results_from_gnps2(
     Direct_input is None (default) when files from GNPS2 for all available projects will be downloaded. Set direct_input
     to a csv list of project names if you only want to run this function on specific untargeted_tasks
     """
-    if skip_buddy_download:
-        logging.info('Skipping BUDDY download step...')
-        return
     logging.info('Checking for completed BUDDY jobs and downloading results...')
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
@@ -2166,7 +2148,7 @@ def download_buddy_results_from_gnps2(
                 if os.path.isfile(buddy_filename)==True:
                     with open(buddy_filename,'r') as fid:
                         taskid = fid.read().split('=')[1].strip()
-                    results_table_filename = os.path.join(pathname,'%s_%s_gnps2-buddy-formula-results.tsv'%(project_name,polarity))
+                    results_table_filename = os.path.join(pathname,'%s_%s_buddy-formula-results.tsv'%(project_name,polarity))
                     if overwrite_buddy==False and os.path.exists(results_table_filename):
                         continue
                     logging.info(tab_print("Downloading %s mode BUDDY results for %s with task ID %s"%(polarity,project_name,taskid), 1))
