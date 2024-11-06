@@ -951,7 +951,8 @@ def mirror_mzmine_results_to_gnps2(
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+        if "mkdir file exists" not in str(e).lower():
+            logging.warning(tab_print(f"Notice! Did not create remote directory at GNPS2 for reason: {e}", 3))
 
     try:
         local_directory = Path(local_directory)
@@ -1947,7 +1948,7 @@ def update_new_untargeted_tasks(
     time_old_folders = time_old[time_old==True].index.tolist()
     time_new_folders = time_new[time_new==True].index.tolist()
     #Check that files have "M2" in the name
-    dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any('_MS2_' in filename or '_MSMS_' in filename for filename in x))
+    dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any(('MS2' in filename or 'MSMS' in filename) and '_MS1_' not in filename for filename in x))
     dirs_with_m2_files = dirs_with_m2_files[dirs_with_m2_files].index.tolist()
     # Print parent_dirs with files less than 3 hours old
     if time_new_folders:
