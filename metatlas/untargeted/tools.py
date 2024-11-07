@@ -465,7 +465,7 @@ def upload_to_google_drive(
             logging.critical(tab_print("Warning! Google Drive upload failed on upload with overwrite=%s with exception on command %s"%(overwrite, upload_command), 3))
             return False
         # Check that upload worked
-        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs --max-depth 1 | grep "{project_folder}"'
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
@@ -479,7 +479,7 @@ def upload_to_google_drive(
             return False
     if overwrite == False:
         # Overwrite is False, so first check if the project folder already exists on Google Drive
-        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs --max-depth 1 | grep "{project_folder}"'
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
@@ -490,7 +490,7 @@ def upload_to_google_drive(
             try:
                 subprocess.check_output(upload_command, shell=True)
                 try:
-                    check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+                    check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs --max-depth 1 | grep "{project_folder}"'
                     check_upload_out = subprocess.check_output(check_upload, shell=True)
                     if check_upload_out.decode('utf-8').strip():
                         logging.info(tab_print("Google Drive upload confirmed!", 3))
@@ -557,7 +557,7 @@ def get_untargeted_status(
         return
     if not df.empty:
         # Get all projects in gdrive
-        all_gdrive_projects_cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsl ben_lbl_gdrive:/untargeted_outputs'
+        all_gdrive_projects_cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsl ben_lbl_gdrive:/untargeted_outputs --max-depth 1'
         try:
             all_gdrive_projects = subprocess.check_output(all_gdrive_projects_cmd, shell=True)
             all_gdrive_projects_list = all_gdrive_projects.decode('utf-8').strip().split('\n')
