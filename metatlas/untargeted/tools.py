@@ -2020,11 +2020,11 @@ def update_new_untargeted_tasks(
                 mzmine_status_header = f"mzmine_{polarity_short}_status"
                 fbmn_status_header = f"fbmn_{polarity_short}_status"
                 file_count_header = f"num_{polarity_short}_files"
+                lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant' # Set default to skip
+                lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant' # Set default to skip
                 if polarity not in polarity_list: # Write blank columns to LIMS and skip writing directory/files to disk
                     lims_untargeted_table_updater[metadata_header] = ""
                     lims_untargeted_table_updater[file_count_header] = 0
-                    lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
-                    lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
                 else: # Write directory/files to disk for present polarity and fill in LIMS columns
                     logging.info(tab_print("Writing MZmine submission input files...",2))
                     logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
@@ -2071,8 +2071,14 @@ def update_new_untargeted_tasks(
 
         if lims_untargeted_df.shape[0] > 0:
             logging.info(tab_print("Updating LIMS table with %s new projects..."%(lims_untargeted_df.shape[0]), 1))
-            lims_untargeted_df.replace('NaN', 0, inplace=True)
-            lims_untargeted_df.fillna(0, inplace=True)
+            
+            numerical_columns = lims_untargeted_df.select_dtypes(include=['number']).columns
+            text_columns = lims_untargeted_df.select_dtypes(exclude=['number']).columns
+            lims_untargeted_df[numerical_columns] = lims_untargeted_df[numerical_columns].replace('NaN', 0)
+            lims_untargeted_df[numerical_columns] = lims_untargeted_df[numerical_columns].fillna(0)
+            lims_untargeted_df[text_columns] = lims_untargeted_df[text_columns].replace('NaN', '12 not relevant')
+            lims_untargeted_df[text_columns] = lims_untargeted_df[text_columns].fillna('12 not relevant')
+
             update_table_in_lims(lims_untargeted_df,'untargeted_tasks',method='insert',max_size=1000)
             logging.info(tab_print("LIMS untargeted tasks table update complete.", 2))
         else:
