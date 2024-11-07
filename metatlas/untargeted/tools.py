@@ -1999,10 +1999,10 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['output_dir'] = output_dir
             _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
             logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
-            if validate_machine_name.lower() in ("iqx", "idx"):
+            if any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
                 mzmine_running_parameters = mzine_batch_params_file_iqx
                 mzmine_parameter = 5
-            elif validate_machine_name.lower() in ("exp","exploris","qe"):
+            elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
                 mzmine_running_parameters = mzine_batch_params_file
                 mzmine_parameter = 2
             else:  # Assume more lenient parameters if machine name cannot be validated
@@ -2020,11 +2020,11 @@ def update_new_untargeted_tasks(
                 mzmine_status_header = f"mzmine_{polarity_short}_status"
                 fbmn_status_header = f"fbmn_{polarity_short}_status"
                 file_count_header = f"num_{polarity_short}_files"
+                lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant' # Set default to skip
+                lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant' # Set default to skip
                 if polarity not in polarity_list: # Write blank columns to LIMS and skip writing directory/files to disk
                     lims_untargeted_table_updater[metadata_header] = ""
                     lims_untargeted_table_updater[file_count_header] = 0
-                    lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
-                    lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
                 else: # Write directory/files to disk for present polarity and fill in LIMS columns
                     logging.info(tab_print("Writing MZmine submission input files...",2))
                     logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
@@ -2071,8 +2071,6 @@ def update_new_untargeted_tasks(
 
         if lims_untargeted_df.shape[0] > 0:
             logging.info(tab_print("Updating LIMS table with %s new projects..."%(lims_untargeted_df.shape[0]), 1))
-            lims_untargeted_df.replace('NaN', 0, inplace=True)
-            lims_untargeted_df.fillna(0, inplace=True)
             update_table_in_lims(lims_untargeted_df,'untargeted_tasks',method='insert',max_size=1000)
             logging.info(tab_print("LIMS untargeted tasks table update complete.", 2))
         else:
