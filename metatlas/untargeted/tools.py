@@ -1995,16 +1995,18 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['conforming_filenames'] = True
             lims_untargeted_table_updater['file_conversion_complete'] = True
             lims_untargeted_table_updater['output_dir'] = output_dir
-            if validate_names is True:
-                _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
-            if validate_names is False:
-                validate_machine_name = "EXP120A" # Assume stricter parameters for unvalidated machine name
+            _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
+            logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
             if validate_machine_name.lower() in ("iqx", "idx"):
                 mzmine_running_parameters = mzine_batch_params_file_iqx
                 mzmine_parameter = 5
-            else:
+            elif validate_machine_name.lower() in ("exp","exploris","qe"):
                 mzmine_running_parameters = mzine_batch_params_file
                 mzmine_parameter = 2
+            else:  # Assume more lenient parameters if machine name cannot be validated
+                mzmine_running_parameters = mzine_batch_params_file_iqx
+                mzmine_parameter = 5
+            logging.info(tab_print("Using MZmine parameters: %s"%(os.path.basename(mzmine_running_parameters)), 2))
             lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
             lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
 
