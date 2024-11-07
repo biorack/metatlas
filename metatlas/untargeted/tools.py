@@ -665,6 +665,8 @@ def download_fbmn_results(
                 polarity_short = polarity[:3]
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                     continue
+                if row['%s_%s_status'%(tasktype,polarity_short)] != '07 complete' and row['%s_%s_status'%("mzmine",polarity_short)] != '07 complete':
+                    continue # skip this polarity even if the other one is finished
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
                     logging.warning(tab_print("Warning! FBMN task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
                     continue
