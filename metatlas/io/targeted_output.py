@@ -276,6 +276,9 @@ def get_max_precursor_intensity(data, compound_idx):
     for file_idx, sample in enumerate(data):
         try:
             msms = sample[compound_idx]["data"]["msms"]["data"]
+            logger.info("identification: %s"%sample[compound_idx]["identification"])
+            logger.info("msms: %s", msms)
+            logger.info("precursor_intensity dtype and value: %s ; %s"%(msms['precursor_intensity'].dtype,msms["precursor_intensity"]))
             if len(msms["precursor_intensity"]) == 0:
                 continue
             pre_intensity_idx = msms["precursor_intensity"].argmax()
