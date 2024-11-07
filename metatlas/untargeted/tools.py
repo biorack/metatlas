@@ -2071,6 +2071,8 @@ def update_new_untargeted_tasks(
 
         if lims_untargeted_df.shape[0] > 0:
             logging.info(tab_print("Updating LIMS table with %s new projects..."%(lims_untargeted_df.shape[0]), 1))
+            lims_untargeted_df.replace('NaN', 0, inplace=True)
+            lims_untargeted_df.fillna(0, inplace=True)
             update_table_in_lims(lims_untargeted_df,'untargeted_tasks',method='insert',max_size=1000)
             logging.info(tab_print("LIMS untargeted tasks table update complete.", 2))
         else:
