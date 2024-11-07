@@ -1999,10 +1999,10 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['output_dir'] = output_dir
             _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
             logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
-            if validate_machine_name.lower() in ("iqx", "idx"):
+            if any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
                 mzmine_running_parameters = mzine_batch_params_file_iqx
                 mzmine_parameter = 5
-            elif validate_machine_name.lower() in ("exp","exploris","qe"):
+            elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
                 mzmine_running_parameters = mzine_batch_params_file
                 mzmine_parameter = 2
             else:  # Assume more lenient parameters if machine name cannot be validated
@@ -2071,14 +2071,6 @@ def update_new_untargeted_tasks(
 
         if lims_untargeted_df.shape[0] > 0:
             logging.info(tab_print("Updating LIMS table with %s new projects..."%(lims_untargeted_df.shape[0]), 1))
-            
-            numerical_columns = lims_untargeted_df.select_dtypes(include=['number']).columns
-            text_columns = lims_untargeted_df.select_dtypes(exclude=['number']).columns
-            lims_untargeted_df[numerical_columns] = lims_untargeted_df[numerical_columns].replace('NaN', 0)
-            lims_untargeted_df[numerical_columns] = lims_untargeted_df[numerical_columns].fillna(0)
-            lims_untargeted_df[text_columns] = lims_untargeted_df[text_columns].replace('NaN', '12 not relevant')
-            lims_untargeted_df[text_columns] = lims_untargeted_df[text_columns].fillna('12 not relevant')
-
             update_table_in_lims(lims_untargeted_df,'untargeted_tasks',method='insert',max_size=1000)
             logging.info(tab_print("LIMS untargeted tasks table update complete.", 2))
         else:
