@@ -83,9 +83,9 @@ EXPOSE 8888
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
-          "libxrender1=1:0.9.10-1" \
+      "libxrender1=1:0.9.10-1" \
 	  "libxext6=2:1.3.3-1.1" \
-	  "git=1:2.30.2-1+deb11u2" \
+	  "git=1:2.39.5-0+deb12u1" \
     && rm -rf /var/lib/apt/lists/*
 
 # hadolint ignore=DL3021
