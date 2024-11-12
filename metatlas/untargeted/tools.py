@@ -1014,7 +1014,10 @@ def mirror_raw_data_to_gnps2(
     if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
         _, validate_department, _ = vfn.field_exists(PurePath(project), field_num=1)
         try:
-            subdir = validate_department.lower()
+            if validate_department is None:
+                subdir = 'jgi' # Assume a raw data location if project name is not parseable
+            else:
+                subdir = validate_department.lower()
             if subdir == 'eb':
                 subdir = 'egsb'
             check_project_raw_dir = os.path.join(raw_data_dir,subdir,project)
@@ -1240,7 +1243,10 @@ def submit_fbmn_jobs(
                 if raw_data_subdir is None:
                     _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
                     try:
-                        subdir = validate_department.lower()
+                        if validate_department is None:
+                            subdir = 'jgi' # Assume raw data location if project name is not paresable
+                        else:
+                            subdir = validate_department.lower()
                         if subdir == 'eb':
                             subdir = 'egsb'
                     except:
@@ -1774,7 +1780,10 @@ def write_metadata_per_new_project(
         if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             try:
-                subdir = validate_department.lower()
+                if validate_department is None:
+                    subdir = 'jgi' # Assume raw data location if project name is not parseable
+                else:
+                    subdir = validate_department.lower()
                 if subdir == 'eb':
                     subdir = 'egsb'
                 check_project_raw_dir = os.path.join(raw_data_dir,subdir,parent_dir)
@@ -1824,13 +1833,16 @@ def write_metadata_per_new_project(
             positive_file_count = len(positive_file_list)
             if validate_names is True:
                 file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in positive_file_list]
-                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
-                    logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
-                    continue
-                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in positive_file_list]
-                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
-                    logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
-                    continue
+                try:
+                    if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                    project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in positive_file_list]
+                    if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                except:
+                    logging.warning(tab_print("mzML file name validation failed", 2))
         else:
             positive_file_count = 0
 
@@ -1853,12 +1865,16 @@ def write_metadata_per_new_project(
             negative_file_count = len(negative_file_list)
             if validate_names is True:
                 file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in negative_file_list]
-                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
-                    logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
-                    continue
-                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in negative_file_list]
-                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
-                    logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                try:
+                    if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                    project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in negative_file_list]
+                    if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                except:
+                    logging.warning(tab_print("mzML file name validation failed", 2))
                     continue
         else:
             negative_file_count = 0
@@ -1999,7 +2015,10 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['output_dir'] = output_dir
             _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
             logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
-            if any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
+            if validate_machine_name is None:  # Assume more lenient parameters if machine name cannot be validated
+                mzmine_running_parameters = mzine_batch_params_file_iqx
+                mzmine_parameter = 5
+            elif any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
                 mzmine_running_parameters = mzine_batch_params_file_iqx
                 mzmine_parameter = 5
             elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
