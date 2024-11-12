@@ -961,7 +961,7 @@ def mirror_mzmine_results_to_gnps2(
         logging.info("Walking through local directory %s and uploading mzmine results to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix in ('.mgf', '.csv', '.tab'):
-                logging.info("Uploading %s to GNPS2..." % file_path.name)
+                #logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{remote_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
@@ -1021,7 +1021,7 @@ def mirror_raw_data_to_gnps2(
             if os.path.exists(check_project_raw_dir):
                 local_directory = check_project_raw_dir
             else:
-                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie"]
+                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood"]
                 for subdir in possible_subdirs:
                     check_project_raw_dir = os.path.join(raw_data_dir, subdir, project)
                     if os.path.exists(check_project_raw_dir):
@@ -1069,7 +1069,7 @@ def mirror_raw_data_to_gnps2(
         logging.info("Walking through local directory %s and uploading mzML files to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
-                logging.info("Uploading %s to GNPS2..." % file_path.name)
+                #logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{polarity_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
@@ -1781,7 +1781,7 @@ def write_metadata_per_new_project(
                 if os.path.exists(check_project_raw_dir):
                     full_mzml_path = check_project_raw_dir
                 else:
-                    possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie"]
+                    possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood"]
                     for subdir in possible_subdirs:
                         check_project_raw_dir = os.path.join(raw_data_dir, subdir, parent_dir)
                         if os.path.exists(check_project_raw_dir):
