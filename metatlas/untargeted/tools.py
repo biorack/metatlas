@@ -656,22 +656,8 @@ def download_fbmn_results(
             if polarity_list is None:
                 logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
                 continue
-
-            logging.info(tab_print("Working on project %s:"%(project_name), 1))
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
-
-                # Bail out conditions
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
-                    logging.info(tab_print("Bailed out because FBMN status for %s mode is '12 not relevant'. Skipping download."%(polarity), 1))
-                    continue
-                if row['%s_%s_status'%(tasktype,polarity_short)] != '07 complete' and row['%s_%s_status'%("mzmine",polarity_short)] != '07 complete':
-                    logging.info(tab_print("Bailed out because FBMN and/or MZmine status for %s mode is not '07 complete'. Skipping download."%(polarity), 1))
-                    continue # skip this polarity even if the other one is finished
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.info(tab_print("Bailed out because FBMN status for %s mode is '09 error'. Not downloading files."%(polarity), 1))
-                    continue
-
                 pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 if os.path.isfile(fbmn_filename)==True:
@@ -681,26 +667,38 @@ def download_fbmn_results(
                     results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(project_name,polarity))
                     gnps2_link_filename = os.path.join(pathname,'%s_%s_gnps2-page-link.txt'%(project_name,polarity))
                     if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename) and os.path.exists(gnps2_link_filename):
+                        continue # Skip finished projects unless overwrite is forced
+                    # Bail out conditions
+                    logging.info(tab_print("Working on project %s:"%(project_name), 1))
+                    if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                        logging.info(tab_print("Bailed out because FBMN status for %s mode is '12 not relevant'. Skipping download."%(polarity), 2))
                         continue
-                    logging.info(tab_print("Downloading %s mode FBMN results for %s with task ID %s"%(polarity,project_name,taskid), 1))
+                    if row['%s_%s_status'%(tasktype,polarity_short)] != '07 complete' and row['%s_%s_status'%("mzmine",polarity_short)] != '07 complete':
+                        logging.info(tab_print("Bailed out because FBMN and/or MZmine status for %s mode is not '07 complete'. Skipping download."%(polarity), 2))
+                        continue # skip this polarity even if the other one is finished
+                    if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                        logging.info(tab_print("Bailed out because FBMN status for %s mode is '09 error'. Not downloading files."%(polarity), 2))
+                        continue
+
+                    logging.info(tab_print("Downloading %s mode FBMN results with task ID %s"%(polarity,taskid), 2))
                     if overwrite_fbmn == True or not os.path.exists(gnps2_link_filename):
                         with open(gnps2_link_filename,'w') as fid:
                             fid.write(f"https://gnps2.org/status?task={taskid}\n")
-                            logging.info(tab_print("Wrote GNPS2 link", 2))
+                            logging.info(tab_print("Wrote GNPS2 link", 3))
                     if overwrite_fbmn == True or not os.path.exists(graphml_filename):
                         graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
                         if graphml_download:
-                            logging.info(tab_print("Downloaded graphml file", 2))
+                            logging.info(tab_print("Downloaded graphml file", 3))
                             count += 1
                         else:
-                            logging.critical(tab_print("Error: Failed to download graphml file", 2))
+                            logging.critical(tab_print("Error: Failed to download graphml file", 3))
                     if overwrite_fbmn == True or not os.path.exists(results_table_filename):
                         results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
                         if results_table_download:
-                            logging.info(tab_print("Downloaded result table file", 2))
+                            logging.info(tab_print("Downloaded result table file", 3))
                             count += 1
                         else:
-                            logging.critical(tab_print("Error: Failed to download results table", 2))
+                            logging.critical(tab_print("Error: Failed to download results table", 3))
                     try:
                         recursive_chown(pathname, 'metatlas')
                     except:
