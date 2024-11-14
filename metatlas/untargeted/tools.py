@@ -2084,6 +2084,13 @@ def update_new_untargeted_tasks(
                     lims_untargeted_table_updater[mzmine_status_header] = '01 initiation'
                     lims_untargeted_table_updater[fbmn_status_header] = '13 waiting'
 
+                    if lims_untargeted_table_updater[file_count_header] is None or lims_untargeted_table_updater[file_count_header] == "NaN":
+                        lims_untargeted_table_updater[file_count_header] = 0
+                    if lims_untargeted_table_updater[mzmine_status_header] == "NaN":
+                        lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
+                    if lims_untargeted_table_updater[fbmn_status_header] == "NaN":
+                        lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
+                        
             lims_untargeted_list.append(lims_untargeted_table_updater)
 
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
