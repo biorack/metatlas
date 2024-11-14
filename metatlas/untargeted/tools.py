@@ -160,9 +160,7 @@ def zip_and_upload_untargeted_results(
     direct_input: Optional[str] = None,
     min_features_admissible: int = 0
 ) -> None:
-    """
-    This function is called by export_untargeted_results.py
-    
+    """    
     Specify the download folder (where the zip files will be saved) and
     the output folder (where task directories are located) in case the info
     in the LIMS table is not accurate
@@ -541,8 +539,6 @@ def get_untargeted_status(
     print_recent: str = None
 ) -> None:
     """
-    This function is called by check_untargeted_status.py
-
     Print the status of a user-defined list of projects
     by calling this function with a csv list of project names
     """
@@ -627,8 +623,6 @@ def download_fbmn_results(
     direct_input: Optional[str] = None
 ) -> None:
     """
-    This function is called by download_fbmn_results.py
-
     finds complete fbmn tasks (which also have complete mzmine status)
     downloads the graphml and results table files
     renames and moves results to the untargeted_tasks folder
@@ -647,6 +641,7 @@ def download_fbmn_results(
     df = filter_common_bad_project_names(df)
     if direct_input is not None:
         df = df[df['parent_dir'].isin(direct_input)]
+        df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before downloading fbmn
     status_list = ['07 complete','09 error']
     if direct_input is None:
         df = subset_df_by_status(df,tasktype,status_list)
@@ -661,15 +656,22 @@ def download_fbmn_results(
             if polarity_list is None:
                 logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
                 continue
+
+            logging.info(tab_print("Working on project %s:"%(project_name), 1))
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
+
+                # Bail out conditions
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    logging.info(tab_print("Bailed out because FBMN status for %s mode is '12 not relevant'. Skipping download."%(polarity), 1))
                     continue
                 if row['%s_%s_status'%(tasktype,polarity_short)] != '07 complete' and row['%s_%s_status'%("mzmine",polarity_short)] != '07 complete':
+                    logging.info(tab_print("Bailed out because FBMN and/or MZmine status for %s mode is not '07 complete'. Skipping download."%(polarity), 1))
                     continue # skip this polarity even if the other one is finished
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! FBMN task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
+                    logging.info(tab_print("Bailed out because FBMN status for %s mode is '09 error'. Not downloading files."%(polarity), 1))
                     continue
+
                 pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 if os.path.isfile(fbmn_filename)==True:
@@ -1218,27 +1220,30 @@ def submit_fbmn_jobs(
         index_list = []
         for i,row in df.iterrows():
             project_name = row['parent_dir']
-            logging.info(tab_print("Working on project %s:"%(project_name), 1))
             polarity_list = check_for_polarities(row['output_dir'],project_name)
             if polarity_list is None:
                 logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
                 continue
+            
+            logging.info(tab_print("Working on project %s:"%(project_name), 1))
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
                 pathname = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity))
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 
                 # Bail out conditions
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.warning(tab_print("Warning! Project %s mode has an error status. Attempting to resubmit..."%(polarity), 2))
+                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    logging.info(tab_print("Bailed out because FBMN status is '12 not relevant' for %s mode"%(polarity), 2))
                     continue
                 if row['%s_%s_status'%('mzmine',polarity_short)] != '07 complete':
+                    logging.info(tab_print("Bailed out because MZmine status is not '07 complete' for %s mode"%(polarity), 2))
                     continue
                 if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==False:
+                    logging.info(tab_print("Bailed out because FBMN task file already exists for %s mode and overwrite is False"%(polarity), 2))
                     continue
-
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! %s in %s mode has an error status. Attempting to resubmit..."%(project_name,polarity), 2))
-                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
 
                 if raw_data_subdir is None:
                     _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
@@ -1318,8 +1323,6 @@ def submit_mzmine_jobs(
     direct_input: Optional[str] = None
 ) -> None:
     """
-    This function is called by run_mzmine.py
-
     finds initiated mzmine tasks
     submits the tasks as mzmine jobs on perlmutter
     updates the LIMS table with status running if successful
@@ -1447,9 +1450,7 @@ def update_mzmine_status_in_untargeted_tasks(
     nonpolar_solvent_front: float = 0.5,
     polar_solvent_front: float = 0.8
 ) -> None:
-    """
-    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
-    
+    """    
     finds initiated or running mzmine tasks
     checks if they have valid output
     updates the LIMS table with status complete if successful
@@ -1666,9 +1667,7 @@ def update_fbmn_status_in_untargeted_tasks(
     skip_fbmn_status: bool,
     direct_input: Optional[str] = None
 ) -> None:
-    """
-    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
-    
+    """    
     finds running or waiting fbmn tasks
     checks if they have valid output
     updates the LIMS table with status complete if successful
@@ -2090,7 +2089,7 @@ def update_new_untargeted_tasks(
                         lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
                     if lims_untargeted_table_updater[fbmn_status_header] == "NaN":
                         lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
-                        
+
             lims_untargeted_list.append(lims_untargeted_table_updater)
 
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
