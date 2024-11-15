@@ -673,8 +673,11 @@ def download_fbmn_results(
                     if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                         logging.info(tab_print("Bailed out because FBMN status for %s mode is '12 not relevant'. Skipping download."%(polarity), 2))
                         continue
-                    if row['%s_%s_status'%(tasktype,polarity_short)] != '07 complete' and row['%s_%s_status'%("mzmine",polarity_short)] != '07 complete':
-                        logging.info(tab_print("Bailed out because FBMN and/or MZmine status for %s mode is not '07 complete'. Skipping download."%(polarity), 2))
+                    if row['%s_%s_status'%(tasktype,polarity_short)] != '07 complete':
+                        logging.info(tab_print("Bailed out because FBMN status for %s mode is not '07 complete'. Skipping download."%(polarity), 2))
+                        continue # skip this polarity even if the other one is finished
+                    if row['%s_%s_status'%("mzmine",polarity_short)] != '07 complete':
+                        logging.info(tab_print("Bailed out because MZmine status for %s mode is not '07 complete'. Skipping download."%(polarity), 2))
                         continue # skip this polarity even if the other one is finished
                     if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
                         logging.info(tab_print("Bailed out because FBMN status for %s mode is '09 error'. Not downloading files."%(polarity), 2))
