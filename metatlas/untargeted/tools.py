@@ -935,8 +935,10 @@ def mirror_mzmine_results_to_gnps2(
     
     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
 
-    # Suppress paramiko stdout
-    paramiko.util.log_to_file('/dev/null')
+    # Suppress paramiko logs except for errors
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.ERROR)
+    paramiko_logger.propagate = False
 
     project_directory = f"{project}_{polarity}"
     local_directory = os.path.join(output_dir, project_directory)
@@ -1013,8 +1015,10 @@ def mirror_raw_data_to_gnps2(
     
     logging.info(tab_print(f"Mirroring raw data (mzML files) for {project} to GNPS2...", 2))
 
-    # Suppress paramiko stdout
-    paramiko.util.log_to_file('/dev/null')
+    # Suppress paramiko logs except for errors
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.ERROR)
+    paramiko_logger.propagate = False
 
     if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
         _, validate_department, _ = vfn.field_exists(PurePath(project), field_num=1)
