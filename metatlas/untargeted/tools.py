@@ -935,6 +935,11 @@ def mirror_mzmine_results_to_gnps2(
     
     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
 
+    # Suppress paramiko logs except for errors
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.ERROR)
+    paramiko_logger.propagate = False
+
     project_directory = f"{project}_{polarity}"
     local_directory = os.path.join(output_dir, project_directory)
     remote_directory = f"/untargeted_tasks/{project_directory}"
@@ -958,14 +963,13 @@ def mirror_mzmine_results_to_gnps2(
 
     try:
         local_directory = Path(local_directory)
-        logging.info("Walking through local directory %s and uploading mzmine results to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix in ('.mgf', '.csv', '.tab'):
                 #logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{remote_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
-                logging.info(f"Uploaded {file_path.name} to GNPS2...")
+                logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...", 4))
         sftp.close()
         transport.close()
         logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
@@ -1009,7 +1013,12 @@ def mirror_raw_data_to_gnps2(
         logging.error("Password is required to mirror data to GNPS2. Exiting.")
         return
     
-    logging.info(f"Mirroring raw data (mzML files) for {project} to GNPS2...")
+    logging.info(tab_print(f"Mirroring raw data (mzML files) for {project} to GNPS2...", 2))
+
+    # Suppress paramiko logs except for errors
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.ERROR)
+    paramiko_logger.propagate = False
 
     if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
         _, validate_department, _ = vfn.field_exists(PurePath(project), field_num=1)
@@ -1069,18 +1078,17 @@ def mirror_raw_data_to_gnps2(
         logging.error(f"Failed to create remote directory {polarity_directory} at GNPS2: {e}")
 
     try:
-        logging.info("Walking through local directory %s and uploading mzML files to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
                 #logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{polarity_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
-                logging.info(f"Uploaded {file_path.name} to GNPS2...")
+                logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...", 3))
 
         sftp.close()
         transport.close()
-        logging.info(f"Completed raw data mirror to GNPS2 for {project}...")
+        logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {project}...", 2))
     except Exception as e:
         logging.error(f"Failed to mirror raw data for {project} to GNPS2: {e}")
         return
@@ -1277,7 +1285,8 @@ def submit_fbmn_jobs(
                 mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
                 mgf_lines = count_mgf_lines(mgf_filename)
                 if mgf_lines == 0:
-                    logging.warning(tab_print("Warning! %s in %s mode has mgf file but no mgf data. Skipping..."%(project_name, polarity), 2))
+                    logging.info(tab_print("Note! MGF file in %s mode has no MSMS data. Updating FBMN status to not relevant"%(polarity), 2))
+                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
                     continue
                 params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
                 job_id = submit_quickstart_fbmn(params, "bpbowen")
