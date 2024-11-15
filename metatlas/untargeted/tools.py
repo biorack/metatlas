@@ -931,7 +931,7 @@ def mirror_mzmine_results_to_gnps2(
 
     if not password:
         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
-        return
+        return "Failed"
     
     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
 
@@ -953,22 +953,23 @@ def mirror_mzmine_results_to_gnps2(
         transport.connect(username=remote_user, password=password)
         sftp = paramiko.SFTPClient.from_transport(transport)
     except paramiko.SSHException as e:
-        logging.error(tab_print(f"Failed to connect to GNPS2: {e}", 4))
-        logging.error(tab_print("Attempting to connect again...", 5))
-        time.sleep(10)
+        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
+        wait_time = 30
+        logging.info(tab_print("Waiting %s seconds and attempting to connect again..."%(wait_time), 5))
+        time.sleep(wait_time)
         try:
             transport = paramiko.Transport((remote_host, remote_port))
             transport.connect(username=remote_user, password=password)
             sftp = paramiko.SFTPClient.from_transport(transport)
         except paramiko.SSHException as e:
             logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 4))
-            return
+            return "Failed"
     
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
         if "mkdir file exists" not in str(e).lower():
-            logging.warning(tab_print(f"Notice! Did not create remote directory at GNPS2 for reason: {e}", 3))
+            logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
 
     try:
         local_directory = Path(local_directory)
@@ -982,9 +983,10 @@ def mirror_mzmine_results_to_gnps2(
         sftp.close()
         transport.close()
         logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
+        return "Passed"
     except:
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
-        return
+        return "Failed"
 
 def mirror_raw_data_to_gnps2(
     project: str,
@@ -1016,11 +1018,11 @@ def mirror_raw_data_to_gnps2(
                     break
     except FileNotFoundError:
         logging.error("Password file not found. Exiting.")
-        return
+        return "Failed"
 
     if not password:
         logging.error("Password is required to mirror data to GNPS2. Exiting.")
-        return
+        return "Failed"
     
     logging.info(tab_print(f"Mirroring raw data (mzML files) for {project} to GNPS2...", 2))
 
@@ -1051,15 +1053,15 @@ def mirror_raw_data_to_gnps2(
                         break
                 else:
                     logging.error(f"Raw data directory for {project} could not be found after trying several possible alternatives. Not creating metadata.")
-                    return
+                    return "Failed"
         except Exception as e:
             logging.error(tab_print(f"Error when trying to locate mzML files on disk: {e}", 2))
-            return
+            return "Failed"
     else:
         local_directory = os.path.join(raw_data_dir,raw_data_subdir,project)
         if not os.path.exists(local_directory):
             logging.error(tab_print(f"Raw data directory for {project} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
-            return
+            return "Failed"
 
     local_directory = Path(local_directory)
     remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter instead of inferring from the project name directly
@@ -1074,26 +1076,29 @@ def mirror_raw_data_to_gnps2(
         transport.connect(username=remote_user, password=password)
         sftp = paramiko.SFTPClient.from_transport(transport)
     except paramiko.SSHException as e:
-        logging.error(tab_print(f"Failed to connect to GNPS2: {e}", 3))
-        logging.error(tab_print("Attempting to connect again...", 4))
-        time.sleep(10)
+        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
+        wait_time = 30
+        logging.info(tab_print("Waiting %s seconds and attempting to connect again..."%(wait_time), 5))
+        time.sleep(wait_time)
         try:
             transport = paramiko.Transport((remote_host, remote_port))
             transport.connect(username=remote_user, password=password)
             sftp = paramiko.SFTPClient.from_transport(transport)
         except paramiko.SSHException as e:
-            logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 3))
-            return
+            logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 4))
+            return "Failed"
 
     polarity_short = f"_{polarity[:3].upper()}_"
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+        if "mkdir file exists" not in str(e).lower():
+            logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
     try:
         sftp.mkdir(polarity_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {polarity_directory} at GNPS2: {e}")
+        if "mkdir file exists" not in str(e).lower():
+            logging.warning(tab_print(f"Notice! Did not create {polarity_directory} at GNPS2 for reason: {e}", 3))
 
     try:
         for file_path in local_directory.rglob('*'):
@@ -1107,9 +1112,10 @@ def mirror_raw_data_to_gnps2(
         sftp.close()
         transport.close()
         logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {project}...", 2))
+        return "Passed"
     except Exception as e:
         logging.error(f"Failed to mirror raw data for {project} to GNPS2: {e}")
-        return
+        return "Failed"
 
 # def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
@@ -1286,13 +1292,18 @@ def submit_fbmn_jobs(
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
                 if skip_mirror_mzmine_results is False:
-                    mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
+                    mirror = mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
+                    if mirror == "Failed":
+                        logging.warning(tab_print("Skipping FBMN submission for %s mode because of MZmine results upload failure"%(polarity), 3))
+                        continue
                 else:
                     logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
                 if skip_mirror_raw_data is False:
-                    mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
+                    mirror = mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
+                    if mirror == "Failed":
+                        logging.info(tab_print("Notice! Proceeding with FBMN submission for %s mode even though raw data mirror failed"%(polarity), 3))
                 else:
-                    logging.info(tab_print("Skipping raw data mirroring to GNPS2...", 2))
+                    logging.info(tab_print("Skipping raw data mirroring to GNPS2 for %s mode..."%(polarity), 2))
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
