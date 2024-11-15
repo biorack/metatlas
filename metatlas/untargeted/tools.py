@@ -1290,8 +1290,8 @@ def submit_fbmn_jobs(
                     subdir = raw_data_subdir
 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
-                logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
                 if skip_mirror_mzmine_results is False:
+                    logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
                     mirror = mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
                     if mirror == "Failed":
                         logging.warning(tab_print("Skipping FBMN submission for %s mode because of MZmine results upload failure"%(polarity), 3))
@@ -1299,6 +1299,7 @@ def submit_fbmn_jobs(
                 else:
                     logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
                 if skip_mirror_raw_data is False:
+                    logging.info(tab_print("Ensuring raw mzML data are at GNPS2 before submitting FBMN job...", 2))
                     mirror = mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
                     if mirror == "Failed":
                         logging.info(tab_print("Notice! Proceeding with FBMN submission for %s mode even though raw data mirror failed"%(polarity), 3))
@@ -1315,6 +1316,7 @@ def submit_fbmn_jobs(
                 if mgf_lines == 0:
                     logging.info(tab_print("Note! MGF file in %s mode has no MSMS data. Updating FBMN status to '12 not relevant'"%(polarity), 2))
                     df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
+                    index_list.append(i)
                     continue
                 params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
                 job_id = submit_quickstart_fbmn(params, "bpbowen")
