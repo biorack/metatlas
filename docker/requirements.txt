@@ -241,7 +241,7 @@ networkx==3.4.2
     # via matchms
 notebook-shim==0.2.3
     # via jupyterlab
-numba==0.58.0
+numba==0.60.0
     # via
     #   matchms
     #   sparsestack
