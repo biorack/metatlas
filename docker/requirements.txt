@@ -413,7 +413,7 @@ rsa==4.9
     #   oauth2client
 scikit-learn==1.3.1
     # via -r requirements.in
-scipy==1.11.3
+scipy==1.14.1
     # via
     #   -r requirements.in
     #   matchms
