@@ -237,7 +237,7 @@ ndindex==1.7
     # via blosc2
 nest-asyncio==1.5.8
     # via ipykernel
-networkx==3.1
+networkx==3.4.2
     # via matchms
 notebook-shim==0.2.3
     # via jupyterlab
