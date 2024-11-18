@@ -141,7 +141,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
             3: 2.747974,
             4: 3.075452,
             5: 4.836015,
-            6: np.NaN,
+            6: np.nan,
         },
         "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_POS_MSMS_0_QC_Pre_Rg70to1050-CE102040--QC_Run7.h5": {
             0: 1.938525,
@@ -150,7 +150,7 @@ atlas = HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
             3: 2.775257,
             4: 3.078128,
             5: 4.846456,
-            6: np.NaN,
+            6: np.nan,
         },
         "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583_FPS_MS1_0_QC_Post_Rg70to1050-CE102040--QC_Run307.h5": {
             0: 1.926795,
