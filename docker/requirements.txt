@@ -204,7 +204,7 @@ markupsafe==2.1.3
     #   jinja2
     #   mako
     #   nbconvert
-matchms==0.20.0
+matchms==0.28.2
     # via -r requirements.in
 matplotlib==3.8.0
     # via

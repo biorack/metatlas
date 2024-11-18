@@ -13,7 +13,7 @@ ipysheet
 ipywidgets==8.1.1
 jupyter-client
 jupyterlab
-matchms==0.20.0
+matchms==0.28.2
 matplotlib
 numpy==1.24.4
 oauth2client
