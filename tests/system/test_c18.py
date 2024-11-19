@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_c18_by_line01_with_remove(tmp_path):
-    image = "ghcr.io/biorack/metatlas/metatlas_ci:1.4.0"
+    image = "ghcr.io/biorack/metatlas/metatlas_ci:1.4.5"
     experiment = "20210915_JGI-AK_MK_506588_SoilWaterRep_final_QE-HF_C18_USDAY63680"
     expected = {}
     expected[
