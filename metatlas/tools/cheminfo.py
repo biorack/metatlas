@@ -33,7 +33,7 @@ def get_precursor_mz(parent_mass: float, adduct: str) -> float:
         raise KeyError("Adduct '%s' is not supported")
     multiplier = adducts.loc[adducts['adduct'] == adduct, 'mass_multiplier'].values[0]
     correction_mass = adducts.loc[adducts['adduct'] == adduct, 'correction_mass'].values[0]
-    return (parent_mass + correction_mass) / multiplier
+    return (parent_mass * multiplier) + correction_mass
 
 
 @functools.lru_cache
