@@ -7,7 +7,7 @@ import ipywidgets as widgets
 import matchms
 import numpy as np
 
-from matchms.filtering.filter_utils.load_known_adducts import load_known_adducts
+from matchms.filtering.filter_utils import load_known_adducts
 from rdkit import Chem
 
 from metatlas.interfaces.compounds import structure_cleaning as cleaning
