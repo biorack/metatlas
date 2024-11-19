@@ -12,7 +12,7 @@ from typing import Any, Callable, cast, Dict, Optional, List, Tuple, TypedDict, 
 
 import ipysheet
 import ipywidgets as widgets
-from matchms.filtering.filter_utils import smile_inchi_inchikey_conversions
+from matchms.filtering import filter_utils
 import numpy as np
 import pandas as pd
 import traitlets
@@ -413,7 +413,7 @@ class MsmsRef(HasTraits):
     def _valid_inchi(self, proposal: Proposal) -> str:
         """valid if inchi matches with inchi_key"""
         new_value = str(proposal["value"])
-        if not smile_inchi_inchikey_conversions.is_valid_inchi(new_value):
+        if not filter_utils.smile_inchi_inchikey_conversions.is_valid_inchi(new_value):
             raise TraitError("not valid inchi")
         if not cheminfo.is_valid_inchi_pair(new_value, self.inchi_key):
             raise TraitError("inchi and inchi_key do not represent the same molecule")
@@ -425,7 +425,7 @@ class MsmsRef(HasTraits):
     def _valid_smiles(self, proposal: Proposal) -> str:
         """valid if smiles matches with inchi"""
         new_value = str(proposal["value"])
-        if not smile_inchi_inchikey_conversions.is_valid_smiles(new_value):
+        if not filter_utils.smile_inchi_inchikey_conversions.is_valid_smiles(new_value):
             raise TraitError("Invalid smiles values")
         if not cheminfo.is_valid_inchi_smiles_pair(self.inchi, new_value):
             raise TraitError("inchi and smiles do not represent the same molecule")

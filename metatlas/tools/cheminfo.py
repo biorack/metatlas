@@ -28,7 +28,7 @@ def get_parent_mass(precursor_mz: float, adduct: str) -> float:
 def get_precursor_mz(parent_mass: float, adduct: str) -> float:
     """For an input molecule with parent_mass that generates adduct, return the resutling precursor_mz"""
     adducts = filter_utils.load_known_adducts.load_known_adducts()
-    if adduct not in adducts:
+    if adduct not in adducts['adduct'].tolist():
         raise KeyError("Adduct '%s' is not supported")
     multiplier = adducts.loc[adduct, "mass_multiplier"]
     correction_mass = adducts.loc[adduct, "correction_mass"]
