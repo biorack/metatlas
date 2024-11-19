@@ -20,7 +20,7 @@ def get_parent_mass(precursor_mz: float, adduct: str) -> float:
     dummy = matchms.Spectrum(
         mz=np.array([]), intensities=np.array([]), metadata={"precursor_mz": precursor_mz, "adduct": adduct}
     )
-    updated = metadata_processing.add_parent_mass(dummy)
+    updated = metadata_processing.add_parent_mass.add_parent_mass(dummy)
     return updated.metadata["parent_mass"]
 
 
