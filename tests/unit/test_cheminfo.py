@@ -13,7 +13,7 @@ SMILES = "C1[C@@H]([C@@H](CO)O[C@H]1n1cnc2c(N)ncnc12)O"
 def test_get_parent_mass01():
     adducts = load_known_adducts()
     original_parent = 100
-    for name in adducts:
+    for name in adducts['adduct'].tolist():
         pre = cheminfo.get_precursor_mz(original_parent, name)
         parent = cheminfo.get_parent_mass(pre, name)
         assert abs(original_parent - parent) < 1e-7

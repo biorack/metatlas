@@ -30,8 +30,8 @@ def get_precursor_mz(parent_mass: float, adduct: str) -> float:
     adducts = filter_utils.load_known_adducts.load_known_adducts()
     if adduct not in adducts:
         raise KeyError("Adduct '%s' is not supported")
-    multiplier = adducts[adduct]["mass_multiplier"]
-    correction_mass = adducts[adduct]["correction_mass"]
+    multiplier = adducts.loc[adduct, "mass_multiplier"]
+    correction_mass = adducts.loc[adduct, "correction_mass"]
     return (parent_mass + correction_mass) / multiplier
 
 
@@ -39,9 +39,9 @@ def get_precursor_mz(parent_mass: float, adduct: str) -> float:
 def is_positive_mode(adduct: str) -> bool:
     """Returns True if the MS mode for an adduct is positive"""
     adducts = filter_utils.load_known_adducts.load_known_adducts()
-    if adduct not in adducts:
+    if adduct not in adducts['adduct'].values:
         raise KeyError("Adduct '%s' is not supported")
-    return adducts[adduct]["ionmode"] == "positive"
+    return adducts.loc[adduct, "ionmode"] == "positive"
 
 
 @functools.lru_cache
@@ -149,7 +149,7 @@ def valid_adduct(value: str) -> bool:
     This is not a comprehensive list, so it will return False for some uncommon adducts
     """
     adducts = filter_utils.load_known_adducts.load_known_adducts()
-    return value in adducts
+    return value in adducts['adduct'].tolist()
 
 
 def mol_to_image(mol: Chem.rdchem.Mol, **kwargs) -> widgets.Image:
