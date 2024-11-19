@@ -79,6 +79,7 @@ pytest_deps = [
     "pytest-cov==3.0.0",
     "pytest-mock==3.10.0",
     "toml==0.10.2",
+    "matchms==0.28.2",
 ]
 
 mypy_deps = [
