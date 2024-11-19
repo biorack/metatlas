@@ -81,11 +81,6 @@ ARG NOTES_DIR
 
 EXPOSE 8888
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
     "libxrender1=1:0.9.10-1" \
