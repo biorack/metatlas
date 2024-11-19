@@ -19,9 +19,9 @@ def get_parent_mass(precursor_mz: float, adduct: str) -> float:
     dummy = Spectrum(
         mz=np.array([]), intensities=np.array([]), metadata={"precursor_mz": precursor_mz, "adduct": adduct}
     )
-    updated = filtering.metadata_processing.derive_ionmode.derive_ionmode(dummy)
+    #updated = filtering.metadata_processing.derive_ionmode.derive_ionmode(dummy) # Can be added to remove warning
     #updated = filtering.metadata_processing.correct_charge.correct_charge(updated) # Can be added to remove warning
-    #updated = filtering.metadata_processing.add_parent_mass.add_parent_mass(updated) # Can be added to remove warning
+    updated = filtering.metadata_processing.add_parent_mass.add_parent_mass(dummy)
     return updated.metadata["parent_mass"]
 
 
