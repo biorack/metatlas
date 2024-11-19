@@ -16,6 +16,7 @@ def test_get_parent_mass01():
     for name in adducts['adduct'].tolist():
         pre = cheminfo.get_precursor_mz(original_parent, name)
         parent = cheminfo.get_parent_mass(pre, name)
+        print(name)
         print(pre)
         print(parent)
         assert abs(original_parent - parent) < 1e-7
