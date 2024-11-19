@@ -5,6 +5,7 @@ import logging
 
 import ipywidgets as widgets
 import matchms
+from matchms.filtering import filter_utils, metadata_processing
 import numpy as np
 from rdkit import Chem
 
@@ -19,14 +20,14 @@ def get_parent_mass(precursor_mz: float, adduct: str) -> float:
     dummy = matchms.Spectrum(
         mz=np.array([]), intensities=np.array([]), metadata={"precursor_mz": precursor_mz, "adduct": adduct}
     )
-    updated = matchms.filtering.metadata_processing.add_parent_mass(dummy)
+    updated = metadata_processing.add_parent_mass(dummy)
     return updated.metadata["parent_mass"]
 
 
 @functools.lru_cache
 def get_precursor_mz(parent_mass: float, adduct: str) -> float:
     """For an input molecule with parent_mass that generates adduct, return the resutling precursor_mz"""
-    adducts = matchms.filtering.filter_utils.load_known_adducts()
+    adducts = filter_utils.load_known_adducts.load_known_adducts()
     if adduct not in adducts:
         raise KeyError("Adduct '%s' is not supported")
     multiplier = adducts[adduct]["mass_multiplier"]
@@ -37,7 +38,7 @@ def get_precursor_mz(parent_mass: float, adduct: str) -> float:
 @functools.lru_cache
 def is_positive_mode(adduct: str) -> bool:
     """Returns True if the MS mode for an adduct is positive"""
-    adducts = matchms.filtering.filter_utils.load_known_adducts()
+    adducts = filter_utils.load_known_adducts.load_known_adducts()
     if adduct not in adducts:
         raise KeyError("Adduct '%s' is not supported")
     return adducts[adduct]["ionmode"] == "positive"
@@ -46,7 +47,7 @@ def is_positive_mode(adduct: str) -> bool:
 @functools.lru_cache
 def is_valid_inchi_pair(test_inchi: str, test_inchi_key: str) -> bool:
     """True if if test_inchi has the inchi key test_inchi_key"""
-    if not matchms.filtering.filter_utils.smile_inchi_inchikey_conversions.is_valid_inchi(test_inchi):
+    if not filter_utils.smile_inchi_inchikey_conversions.is_valid_inchi(test_inchi):
         return False
     return test_inchi_key == Chem.inchi.InchiToInchiKey(test_inchi)
 
@@ -147,7 +148,7 @@ def valid_adduct(value: str) -> bool:
     True if the value is an adduct listed supported by the matchms package
     This is not a comprehensive list, so it will return False for some uncommon adducts
     """
-    adducts = matchms.filtering.filter_utils.load_known_adducts()
+    adducts = filter_utils.load_known_adducts.load_known_adducts()
     return value in adducts
 
 
