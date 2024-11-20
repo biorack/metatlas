@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_add_msms_ref_by_line01(tmp_path):
-    image = "ghcr.io/biorack/metatlas/metatlas_ci:1.3.0"
+    image = "ghcr.io/biorack/metatlas/metatlas_ci:1.4.5"
     expected = {}
     expected[
         str(tmp_path / "updated_refs.tab")

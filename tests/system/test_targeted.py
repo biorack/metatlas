@@ -4,7 +4,7 @@ from . import utils
 
 
 def test_targeted_by_line01_with_remove(tmp_path):
-    image = "ghcr.io/biorack/metatlas/metatlas_ci:1.3.0"
+    image = "ghcr.io/biorack/metatlas/metatlas_ci:1.4.5"
     experiment = "20201106_JGI-AK_PS-KM_505892_OakGall_final_QE-HF_HILICZ_USHXG01583"
     expected = {}
     expected[
