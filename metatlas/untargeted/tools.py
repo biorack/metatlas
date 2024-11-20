@@ -995,6 +995,7 @@ def mirror_raw_data_to_gnps2(
     project: str,
     username: str,
     raw_data_dir: str,
+    overwrite_existing_dir: bool = False,
     polarity: Optional[str] = None,
     raw_data_subdir: Optional[str] = None,
     use_polarity_subdir: Optional[bool] = False
@@ -1097,35 +1098,46 @@ def mirror_raw_data_to_gnps2(
             logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 4))
             return "Failed"
 
-    if use_polarity_subdir is True:
+    try:
+        sftp.mkdir(remote_directory)
+    except Exception as e:
+        if "mkdir file exists" in str(e).lower():
+            if overwrite_existing_dir is False:
+                logging.info(tab_print(f"Found existing directory {remote_directory} at GNPS2 and overwrite_existing_dir is False. Exiting.", 3))
+                return "Failed"
+        else:
+            logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
+            return "Failed"
+        
+    if use_polarity_subdir is True and polarity is not None:
         polarity_short = f"_{polarity[:3].upper()}_"
-        try:
-            sftp.mkdir(remote_directory)
-        except Exception as e:
-            if "mkdir file exists" not in str(e).lower():
-                logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
         try:
             sftp.mkdir(polarity_directory)
         except Exception as e:
-            if "mkdir file exists" not in str(e).lower():
+            if "mkdir file exists" in str(e).lower():
+                if overwrite_existing_dir is False:
+                    logging.info(tab_print(f"Found existing directory {polarity_directory} at GNPS2 and overwrite_existing_dir is False. Exiting.", 3))
+                    return "Failed"
+            else:
                 logging.warning(tab_print(f"Notice! Did not create {polarity_directory} at GNPS2 for reason: {e}", 3))
-
+                return "Failed"
     try:
         for file_path in local_directory.rglob('*'):
             if use_polarity_subdir is True:
+                polarity_short = f"_{polarity[:3].upper()}_"
                 if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
                     #logging.info("Uploading %s to GNPS2..." % file_path.name)
                     local_path = str(file_path)
                     remote_path = f"{polarity_directory}/{file_path.name}"
                     sftp.put(local_path, remote_path)
-                    logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...", 3))
+                    logging.info(tab_print(f"Uploaded {file_path.name} to {remote_path} at GNPS2...", 3))
             if use_polarity_subdir is False:
                 if file_path.is_file() and file_path.suffix == '.mzML' in file_path.name:
                     #logging.info("Uploading %s to GNPS2..." % file_path.name)
                     local_path = str(file_path)
                     remote_path = f"{remote_directory}/{file_path.name}"
                     sftp.put(local_path, remote_path)
-                    logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...", 3))     
+                    logging.info(tab_print(f"Uploaded {file_path.name} to {remote_path} at GNPS2...", 3))     
 
         sftp.close()
         transport.close()
