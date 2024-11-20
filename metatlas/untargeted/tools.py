@@ -993,10 +993,11 @@ def mirror_mzmine_results_to_gnps2(
 
 def mirror_raw_data_to_gnps2(
     project: str,
-    polarity: str,
     username: str,
     raw_data_dir: str,
-    raw_data_subdir: Optional[str] = None
+    polarity: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None,
+    use_polarity_subdir: Optional[bool] = False
 ) -> None:
     """
     Mirrors raw data (mzML files) to GNPS2.
@@ -1069,7 +1070,12 @@ def mirror_raw_data_to_gnps2(
     local_directory = Path(local_directory)
     remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter instead of inferring from the project name directly
     remote_directory = f"/raw_data/{remote_subdir}/{project}"
-    polarity_directory = f"{remote_directory}/{polarity}"
+    if use_polarity_subdir is True:
+        if polarity is None:
+            logging.error(tab_print("Polarity is required when use_polarity_subdir is True. Exiting.", 2))
+            return "Failed"
+        else:
+            polarity_directory = f"{remote_directory}/{polarity}"
     remote_host = "sftp.gnps2.org"
     remote_port = 443
     remote_user = username
@@ -1091,26 +1097,35 @@ def mirror_raw_data_to_gnps2(
             logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 4))
             return "Failed"
 
-    polarity_short = f"_{polarity[:3].upper()}_"
-    try:
-        sftp.mkdir(remote_directory)
-    except Exception as e:
-        if "mkdir file exists" not in str(e).lower():
-            logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
-    try:
-        sftp.mkdir(polarity_directory)
-    except Exception as e:
-        if "mkdir file exists" not in str(e).lower():
-            logging.warning(tab_print(f"Notice! Did not create {polarity_directory} at GNPS2 for reason: {e}", 3))
+    if use_polarity_subdir is True:
+        polarity_short = f"_{polarity[:3].upper()}_"
+        try:
+            sftp.mkdir(remote_directory)
+        except Exception as e:
+            if "mkdir file exists" not in str(e).lower():
+                logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
+        try:
+            sftp.mkdir(polarity_directory)
+        except Exception as e:
+            if "mkdir file exists" not in str(e).lower():
+                logging.warning(tab_print(f"Notice! Did not create {polarity_directory} at GNPS2 for reason: {e}", 3))
 
     try:
         for file_path in local_directory.rglob('*'):
-            if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
-                #logging.info("Uploading %s to GNPS2..." % file_path.name)
-                local_path = str(file_path)
-                remote_path = f"{polarity_directory}/{file_path.name}"
-                sftp.put(local_path, remote_path)
-                logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...", 3))
+            if use_polarity_subdir is True:
+                if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
+                    #logging.info("Uploading %s to GNPS2..." % file_path.name)
+                    local_path = str(file_path)
+                    remote_path = f"{polarity_directory}/{file_path.name}"
+                    sftp.put(local_path, remote_path)
+                    logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...", 3))
+            if use_polarity_subdir is False:
+                if file_path.is_file() and file_path.suffix == '.mzML' in file_path.name:
+                    #logging.info("Uploading %s to GNPS2..." % file_path.name)
+                    local_path = str(file_path)
+                    remote_path = f"{remote_directory}/{file_path.name}"
+                    sftp.put(local_path, remote_path)
+                    logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...", 3))     
 
         sftp.close()
         transport.close()
@@ -1303,7 +1318,7 @@ def submit_fbmn_jobs(
                     logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
                 if skip_mirror_raw_data is False:
                     logging.info(tab_print("Ensuring raw mzML data are at GNPS2 before submitting FBMN job...", 2))
-                    mirror = mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
+                    mirror = mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir,use_polarity_subdir=False)
                     if mirror == "Failed":
                         logging.info(tab_print("Notice! Proceeding with FBMN submission for %s mode even though raw data mirror failed"%(polarity), 3))
                 else:
