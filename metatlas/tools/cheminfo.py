@@ -41,8 +41,8 @@ def is_positive_mode(adduct: str) -> bool:
     """Returns True if the MS mode for an adduct is positive"""
     adducts = filtering.filter_utils.load_known_adducts.load_known_adducts()
     if adduct not in adducts['adduct'].values:
-        raise KeyError("Adduct '%s' is not supported")
-    return adducts.loc[adduct, "ionmode"] == "positive"
+        raise KeyError(f"Adduct '{adduct}' is not supported")
+    return adducts.loc[adducts['adduct'] == adduct, "ionmode"].values[0] == "positive"
 
 
 @functools.lru_cache
