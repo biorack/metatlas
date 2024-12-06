@@ -160,9 +160,7 @@ def zip_and_upload_untargeted_results(
     direct_input: Optional[str] = None,
     min_features_admissible: int = 0
 ) -> None:
-    """
-    This function is called by export_untargeted_results.py
-    
+    """    
     Specify the download folder (where the zip files will be saved) and
     the output folder (where task directories are located) in case the info
     in the LIMS table is not accurate
@@ -465,7 +463,7 @@ def upload_to_google_drive(
             logging.critical(tab_print("Warning! Google Drive upload failed on upload with overwrite=%s with exception on command %s"%(overwrite, upload_command), 3))
             return False
         # Check that upload worked
-        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs --max-depth 1 | grep "{project_folder}"'
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
@@ -479,7 +477,7 @@ def upload_to_google_drive(
             return False
     if overwrite == False:
         # Overwrite is False, so first check if the project folder already exists on Google Drive
-        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs --max-depth 1 | grep "{project_folder}"'
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
@@ -490,7 +488,7 @@ def upload_to_google_drive(
             try:
                 subprocess.check_output(upload_command, shell=True)
                 try:
-                    check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+                    check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs --max-depth 1 | grep "{project_folder}"'
                     check_upload_out = subprocess.check_output(check_upload, shell=True)
                     if check_upload_out.decode('utf-8').strip():
                         logging.info(tab_print("Google Drive upload confirmed!", 3))
@@ -541,8 +539,6 @@ def get_untargeted_status(
     print_recent: str = None
 ) -> None:
     """
-    This function is called by check_untargeted_status.py
-
     Print the status of a user-defined list of projects
     by calling this function with a csv list of project names
     """
@@ -557,7 +553,7 @@ def get_untargeted_status(
         return
     if not df.empty:
         # Get all projects in gdrive
-        all_gdrive_projects_cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsl ben_lbl_gdrive:/untargeted_outputs'
+        all_gdrive_projects_cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsl ben_lbl_gdrive:/untargeted_outputs --max-depth 1'
         try:
             all_gdrive_projects = subprocess.check_output(all_gdrive_projects_cmd, shell=True)
             all_gdrive_projects_list = all_gdrive_projects.decode('utf-8').strip().split('\n')
@@ -627,8 +623,6 @@ def download_fbmn_results(
     direct_input: Optional[str] = None
 ) -> None:
     """
-    This function is called by download_fbmn_results.py
-
     finds complete fbmn tasks (which also have complete mzmine status)
     downloads the graphml and results table files
     renames and moves results to the untargeted_tasks folder
@@ -647,6 +641,7 @@ def download_fbmn_results(
     df = filter_common_bad_project_names(df)
     if direct_input is not None:
         df = df[df['parent_dir'].isin(direct_input)]
+        df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before downloading fbmn
     status_list = ['07 complete','09 error']
     if direct_input is None:
         df = subset_df_by_status(df,tasktype,status_list)
@@ -663,11 +658,6 @@ def download_fbmn_results(
                 continue
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
-                    continue
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! FBMN task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
-                    continue
                 pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 if os.path.isfile(fbmn_filename)==True:
@@ -677,26 +667,41 @@ def download_fbmn_results(
                     results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(project_name,polarity))
                     gnps2_link_filename = os.path.join(pathname,'%s_%s_gnps2-page-link.txt'%(project_name,polarity))
                     if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename) and os.path.exists(gnps2_link_filename):
+                        continue # Skip finished projects unless overwrite is forced
+                    # Bail out conditions
+                    logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
+                    if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                        logging.info(tab_print("Bailed out because FBMN status for %s mode is '12 not relevant'. Skipping download."%(polarity), 2))
                         continue
-                    logging.info(tab_print("Downloading %s mode FBMN results for %s with task ID %s"%(polarity,project_name,taskid), 1))
+                    if row['%s_%s_status'%(tasktype,polarity_short)] != '07 complete':
+                        logging.info(tab_print("Bailed out because FBMN status for %s mode is not '07 complete'. Skipping download."%(polarity), 2))
+                        continue # skip this polarity even if the other one is finished
+                    if row['%s_%s_status'%("mzmine",polarity_short)] != '07 complete':
+                        logging.info(tab_print("Bailed out because MZmine status for %s mode is not '07 complete'. Skipping download."%(polarity), 2))
+                        continue # skip this polarity even if the other one is finished
+                    if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                        logging.info(tab_print("Bailed out because FBMN status for %s mode is '09 error'. Not downloading files."%(polarity), 2))
+                        continue
+
+                    logging.info(tab_print("Downloading %s mode FBMN results with task ID %s"%(polarity,taskid), 2))
                     if overwrite_fbmn == True or not os.path.exists(gnps2_link_filename):
                         with open(gnps2_link_filename,'w') as fid:
                             fid.write(f"https://gnps2.org/status?task={taskid}\n")
-                            logging.info(tab_print("Wrote GNPS2 link", 2))
+                            logging.info(tab_print("Wrote GNPS2 link", 3))
                     if overwrite_fbmn == True or not os.path.exists(graphml_filename):
                         graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
                         if graphml_download:
-                            logging.info(tab_print("Downloaded graphml file", 2))
+                            logging.info(tab_print("Downloaded graphml file", 3))
                             count += 1
                         else:
-                            logging.critical(tab_print("Error: Failed to download graphml file", 2))
+                            logging.critical(tab_print("Error: Failed to download graphml file", 3))
                     if overwrite_fbmn == True or not os.path.exists(results_table_filename):
                         results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
                         if results_table_download:
-                            logging.info(tab_print("Downloaded result table file", 2))
+                            logging.info(tab_print("Downloaded result table file", 3))
                             count += 1
                         else:
-                            logging.critical(tab_print("Error: Failed to download results table", 2))
+                            logging.critical(tab_print("Error: Failed to download results table", 3))
                     try:
                         recursive_chown(pathname, 'metatlas')
                     except:
@@ -929,9 +934,15 @@ def mirror_mzmine_results_to_gnps2(
 
     if not password:
         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
-        return
+        return "Failed"
     
     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
+
+    # Suppress all paramiko logs
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.CRITICAL)
+    paramiko_logger.addHandler(logging.NullHandler())
+    paramiko_logger.propagate = False
 
     project_directory = f"{project}_{polarity}"
     local_directory = os.path.join(output_dir, project_directory)
@@ -945,37 +956,49 @@ def mirror_mzmine_results_to_gnps2(
         transport.connect(username=remote_user, password=password)
         sftp = paramiko.SFTPClient.from_transport(transport)
     except paramiko.SSHException as e:
-        logging.error(f"Failed to connect to GNPS2: {e}")
-        return
+        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
+        wait_time = 30
+        logging.info(tab_print("Waiting %s seconds and attempting to connect again..."%(wait_time), 5))
+        time.sleep(wait_time)
+        try:
+            transport = paramiko.Transport((remote_host, remote_port))
+            transport.connect(username=remote_user, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+        except paramiko.SSHException as e:
+            logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 4))
+            return "Failed"
     
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+        if "mkdir file exists" not in str(e).lower():
+            logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
 
     try:
         local_directory = Path(local_directory)
-        logging.info("Walking through local directory %s and uploading mzmine results to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix in ('.mgf', '.csv', '.tab'):
-                logging.info("Uploading %s to GNPS2..." % file_path.name)
+                #logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{remote_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
-                logging.info(f"Uploaded {file_path.name} to GNPS2...")
+                logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...", 4))
         sftp.close()
         transport.close()
         logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
+        return "Passed"
     except:
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
-        return
+        return "Failed"
 
 def mirror_raw_data_to_gnps2(
     project: str,
-    polarity: str,
     username: str,
     raw_data_dir: str,
-    raw_data_subdir: Optional[str] = None
+    overwrite_existing_dir: bool = False,
+    polarity: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None,
+    use_polarity_subdir: Optional[bool] = False
 ) -> None:
     """
     Mirrors raw data (mzML files) to GNPS2.
@@ -1000,25 +1023,34 @@ def mirror_raw_data_to_gnps2(
                     break
     except FileNotFoundError:
         logging.error("Password file not found. Exiting.")
-        return
+        return "Failed"
 
     if not password:
         logging.error("Password is required to mirror data to GNPS2. Exiting.")
-        return
+        return "Failed"
     
-    logging.info(f"Mirroring raw data (mzML files) for {project} to GNPS2...")
+    logging.info(tab_print(f"Mirroring raw data (mzML files) for {project} to GNPS2...", 2))
+
+    # Suppress all paramiko logs
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.CRITICAL)
+    paramiko_logger.addHandler(logging.NullHandler())
+    paramiko_logger.propagate = False
 
     if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
         _, validate_department, _ = vfn.field_exists(PurePath(project), field_num=1)
         try:
-            subdir = validate_department.lower()
+            if validate_department is None:
+                subdir = 'jgi' # Assume a raw data location if project name is not parseable
+            else:
+                subdir = validate_department.lower()
             if subdir == 'eb':
                 subdir = 'egsb'
             check_project_raw_dir = os.path.join(raw_data_dir,subdir,project)
             if os.path.exists(check_project_raw_dir):
                 local_directory = check_project_raw_dir
             else:
-                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie"]
+                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood"]
                 for subdir in possible_subdirs:
                     check_project_raw_dir = os.path.join(raw_data_dir, subdir, project)
                     if os.path.exists(check_project_raw_dir):
@@ -1026,20 +1058,25 @@ def mirror_raw_data_to_gnps2(
                         break
                 else:
                     logging.error(f"Raw data directory for {project} could not be found after trying several possible alternatives. Not creating metadata.")
-                    return
+                    return "Failed"
         except Exception as e:
             logging.error(tab_print(f"Error when trying to locate mzML files on disk: {e}", 2))
-            return
+            return "Failed"
     else:
         local_directory = os.path.join(raw_data_dir,raw_data_subdir,project)
         if not os.path.exists(local_directory):
             logging.error(tab_print(f"Raw data directory for {project} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
-            return
+            return "Failed"
 
     local_directory = Path(local_directory)
     remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter instead of inferring from the project name directly
     remote_directory = f"/raw_data/{remote_subdir}/{project}"
-    polarity_directory = f"{remote_directory}/{polarity}"
+    if use_polarity_subdir is True:
+        if polarity is None:
+            logging.error(tab_print("Polarity is required when use_polarity_subdir is True. Exiting.", 2))
+            return "Failed"
+        else:
+            polarity_directory = f"{remote_directory}/{polarity}"
     remote_host = "sftp.gnps2.org"
     remote_port = 443
     remote_user = username
@@ -1049,35 +1086,66 @@ def mirror_raw_data_to_gnps2(
         transport.connect(username=remote_user, password=password)
         sftp = paramiko.SFTPClient.from_transport(transport)
     except paramiko.SSHException as e:
-        logging.error(f"Failed to connect to GNPS2: {e}")
-        return
+        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
+        wait_time = 30
+        logging.info(tab_print("Waiting %s seconds and attempting to connect again..."%(wait_time), 5))
+        time.sleep(wait_time)
+        try:
+            transport = paramiko.Transport((remote_host, remote_port))
+            transport.connect(username=remote_user, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+        except paramiko.SSHException as e:
+            logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 4))
+            return "Failed"
 
-    polarity_short = f"_{polarity[:3].upper()}_"
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+        if "mkdir file exists" in str(e).lower():
+            if overwrite_existing_dir is False:
+                logging.info(tab_print(f"Found existing directory {remote_directory} at GNPS2 and overwrite_existing_dir is False. Exiting.", 3))
+                return "Failed"
+        else:
+            logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
+            return "Failed"
+        
+    if use_polarity_subdir is True and polarity is not None:
+        polarity_short = f"_{polarity[:3].upper()}_"
+        try:
+            sftp.mkdir(polarity_directory)
+        except Exception as e:
+            if "mkdir file exists" in str(e).lower():
+                if overwrite_existing_dir is False:
+                    logging.info(tab_print(f"Found existing directory {polarity_directory} at GNPS2 and overwrite_existing_dir is False. Exiting.", 3))
+                    return "Failed"
+            else:
+                logging.warning(tab_print(f"Notice! Did not create {polarity_directory} at GNPS2 for reason: {e}", 3))
+                return "Failed"
     try:
-        sftp.mkdir(polarity_directory)
-    except Exception as e:
-        logging.error(f"Failed to create remote directory {polarity_directory} at GNPS2: {e}")
-
-    try:
-        logging.info("Walking through local directory %s and uploading mzML files to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
-            if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
-                logging.info("Uploading %s to GNPS2..." % file_path.name)
-                local_path = str(file_path)
-                remote_path = f"{polarity_directory}/{file_path.name}"
-                sftp.put(local_path, remote_path)
-                logging.info(f"Uploaded {file_path.name} to GNPS2...")
+            if use_polarity_subdir is True:
+                polarity_short = f"_{polarity[:3].upper()}_"
+                if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
+                    #logging.info("Uploading %s to GNPS2..." % file_path.name)
+                    local_path = str(file_path)
+                    remote_path = f"{polarity_directory}/{file_path.name}"
+                    sftp.put(local_path, remote_path)
+                    logging.info(tab_print(f"Uploaded {file_path.name} to {remote_path} at GNPS2...", 3))
+            if use_polarity_subdir is False:
+                if file_path.is_file() and file_path.suffix == '.mzML' in file_path.name:
+                    #logging.info("Uploading %s to GNPS2..." % file_path.name)
+                    local_path = str(file_path)
+                    remote_path = f"{remote_directory}/{file_path.name}"
+                    sftp.put(local_path, remote_path)
+                    logging.info(tab_print(f"Uploaded {file_path.name} to {remote_path} at GNPS2...", 3))     
 
         sftp.close()
         transport.close()
-        logging.info(f"Completed raw data mirror to GNPS2 for {project}...")
+        logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {project}...", 2))
+        return "Passed"
     except Exception as e:
         logging.error(f"Failed to mirror raw data for {project} to GNPS2: {e}")
-        return
+        return "Failed"
 
 # def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
@@ -1212,7 +1280,6 @@ def submit_fbmn_jobs(
         index_list = []
         for i,row in df.iterrows():
             project_name = row['parent_dir']
-            logging.info(tab_print("Working on project %s:"%(project_name), 1))
             polarity_list = check_for_polarities(row['output_dir'],project_name)
             if polarity_list is None:
                 logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
@@ -1223,21 +1290,27 @@ def submit_fbmn_jobs(
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 
                 # Bail out conditions
+                logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.warning(tab_print("Warning! Project %s mode has an error status. Attempting to resubmit..."%(polarity), 2))
+                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    logging.info(tab_print("Bailed out because FBMN status is '12 not relevant' for %s mode"%(polarity), 2))
                     continue
                 if row['%s_%s_status'%('mzmine',polarity_short)] != '07 complete':
+                    logging.info(tab_print("Bailed out because MZmine status is not '07 complete' for %s mode"%(polarity), 2))
                     continue
                 if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==False:
+                    logging.info(tab_print("Bailed out because FBMN task file already exists for %s mode and overwrite is False"%(polarity), 2))
                     continue
-
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! %s in %s mode has an error status. Attempting to resubmit..."%(project_name,polarity), 2))
-                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
 
                 if raw_data_subdir is None:
                     _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
                     try:
-                        subdir = validate_department.lower()
+                        if validate_department is None:
+                            subdir = 'jgi' # Assume raw data location if project name is not paresable
+                        else:
+                            subdir = validate_department.lower()
                         if subdir == 'eb':
                             subdir = 'egsb'
                     except:
@@ -1247,15 +1320,21 @@ def submit_fbmn_jobs(
                     subdir = raw_data_subdir
 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
-                logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
                 if skip_mirror_mzmine_results is False:
-                    mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
+                    logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
+                    mirror = mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
+                    if mirror == "Failed":
+                        logging.warning(tab_print("Skipping FBMN submission for %s mode because of MZmine results upload failure"%(polarity), 3))
+                        continue
                 else:
                     logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
                 if skip_mirror_raw_data is False:
-                    mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
+                    logging.info(tab_print("Ensuring raw mzML data are at GNPS2 before submitting FBMN job...", 2))
+                    mirror = mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir,use_polarity_subdir=False)
+                    if mirror == "Failed":
+                        logging.info(tab_print("Notice! Proceeding with FBMN submission for %s mode even though raw data mirror failed"%(polarity), 3))
                 else:
-                    logging.info(tab_print("Skipping raw data mirroring to GNPS2...", 2))
+                    logging.info(tab_print("Skipping raw data mirroring to GNPS2 for %s mode..."%(polarity), 2))
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
@@ -1265,7 +1344,9 @@ def submit_fbmn_jobs(
                 mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
                 mgf_lines = count_mgf_lines(mgf_filename)
                 if mgf_lines == 0:
-                    logging.warning(tab_print("Warning! %s in %s mode has mgf file but no mgf data. Skipping..."%(project_name, polarity), 2))
+                    logging.info(tab_print("Note! MGF file in %s mode has no MSMS data. Updating FBMN status to '12 not relevant'"%(polarity), 2))
+                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
+                    index_list.append(i)
                     continue
                 params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
                 job_id = submit_quickstart_fbmn(params, "bpbowen")
@@ -1309,8 +1390,6 @@ def submit_mzmine_jobs(
     direct_input: Optional[str] = None
 ) -> None:
     """
-    This function is called by run_mzmine.py
-
     finds initiated mzmine tasks
     submits the tasks as mzmine jobs on perlmutter
     updates the LIMS table with status running if successful
@@ -1438,9 +1517,7 @@ def update_mzmine_status_in_untargeted_tasks(
     nonpolar_solvent_front: float = 0.5,
     polar_solvent_front: float = 0.8
 ) -> None:
-    """
-    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
-    
+    """    
     finds initiated or running mzmine tasks
     checks if they have valid output
     updates the LIMS table with status complete if successful
@@ -1657,9 +1734,7 @@ def update_fbmn_status_in_untargeted_tasks(
     skip_fbmn_status: bool,
     direct_input: Optional[str] = None
 ) -> None:
-    """
-    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
-    
+    """    
     finds running or waiting fbmn tasks
     checks if they have valid output
     updates the LIMS table with status complete if successful
@@ -1771,14 +1846,17 @@ def write_metadata_per_new_project(
         if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             try:
-                subdir = validate_department.lower()
+                if validate_department is None:
+                    subdir = 'jgi' # Assume raw data location if project name is not parseable
+                else:
+                    subdir = validate_department.lower()
                 if subdir == 'eb':
                     subdir = 'egsb'
                 check_project_raw_dir = os.path.join(raw_data_dir,subdir,parent_dir)
                 if os.path.exists(check_project_raw_dir):
                     full_mzml_path = check_project_raw_dir
                 else:
-                    possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie"]
+                    possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood"]
                     for subdir in possible_subdirs:
                         check_project_raw_dir = os.path.join(raw_data_dir, subdir, parent_dir)
                         if os.path.exists(check_project_raw_dir):
@@ -1821,13 +1899,16 @@ def write_metadata_per_new_project(
             positive_file_count = len(positive_file_list)
             if validate_names is True:
                 file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in positive_file_list]
-                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
-                    logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
-                    continue
-                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in positive_file_list]
-                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
-                    logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
-                    continue
+                try:
+                    if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                    project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in positive_file_list]
+                    if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                except:
+                    logging.warning(tab_print("mzML file name validation failed", 2))
         else:
             positive_file_count = 0
 
@@ -1850,12 +1931,16 @@ def write_metadata_per_new_project(
             negative_file_count = len(negative_file_list)
             if validate_names is True:
                 file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in negative_file_list]
-                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
-                    logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
-                    continue
-                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in negative_file_list]
-                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
-                    logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                try:
+                    if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                    project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in negative_file_list]
+                    if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                except:
+                    logging.warning(tab_print("mzML file name validation failed", 2))
                     continue
         else:
             negative_file_count = 0
@@ -1947,7 +2032,7 @@ def update_new_untargeted_tasks(
     time_old_folders = time_old[time_old==True].index.tolist()
     time_new_folders = time_new[time_new==True].index.tolist()
     #Check that files have "M2" in the name
-    dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any('_MS2_' in filename or '_MSMS_' in filename for filename in x))
+    dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any(('MS2' in filename or 'MSMS' in filename) and '_MS1_' not in filename for filename in x))
     dirs_with_m2_files = dirs_with_m2_files[dirs_with_m2_files].index.tolist()
     # Print parent_dirs with files less than 3 hours old
     if time_new_folders:
@@ -1994,16 +2079,21 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['conforming_filenames'] = True
             lims_untargeted_table_updater['file_conversion_complete'] = True
             lims_untargeted_table_updater['output_dir'] = output_dir
-            if validate_names is True:
-                _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
-            if validate_names is False:
-                validate_machine_name = "EXP120A" # Assume stricter parameters for unvalidated machine name
-            if validate_machine_name.lower() in ("iqx", "idx"):
+            _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
+            logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
+            if validate_machine_name is None:  # Assume more lenient parameters if machine name cannot be validated
                 mzmine_running_parameters = mzine_batch_params_file_iqx
                 mzmine_parameter = 5
-            else:
+            elif any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
+                mzmine_running_parameters = mzine_batch_params_file_iqx
+                mzmine_parameter = 5
+            elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
                 mzmine_running_parameters = mzine_batch_params_file
                 mzmine_parameter = 2
+            else:  # Assume more lenient parameters if machine name cannot be validated
+                mzmine_running_parameters = mzine_batch_params_file_iqx
+                mzmine_parameter = 5
+            logging.info(tab_print("Using MZmine parameters: %s"%(os.path.basename(mzmine_running_parameters)), 2))
             lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
             lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
 
@@ -2015,11 +2105,11 @@ def update_new_untargeted_tasks(
                 mzmine_status_header = f"mzmine_{polarity_short}_status"
                 fbmn_status_header = f"fbmn_{polarity_short}_status"
                 file_count_header = f"num_{polarity_short}_files"
+                lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant' # Set default to skip
+                lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant' # Set default to skip
                 if polarity not in polarity_list: # Write blank columns to LIMS and skip writing directory/files to disk
                     lims_untargeted_table_updater[metadata_header] = ""
                     lims_untargeted_table_updater[file_count_header] = 0
-                    lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
-                    lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
                 else: # Write directory/files to disk for present polarity and fill in LIMS columns
                     logging.info(tab_print("Writing MZmine submission input files...",2))
                     logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
@@ -2060,6 +2150,13 @@ def update_new_untargeted_tasks(
                     lims_untargeted_table_updater[mzmine_status_header] = '01 initiation'
                     lims_untargeted_table_updater[fbmn_status_header] = '13 waiting'
 
+                    if lims_untargeted_table_updater[file_count_header] is None or lims_untargeted_table_updater[file_count_header] == "NaN":
+                        lims_untargeted_table_updater[file_count_header] = 0
+                    if lims_untargeted_table_updater[mzmine_status_header] == "NaN":
+                        lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
+                    if lims_untargeted_table_updater[fbmn_status_header] == "NaN":
+                        lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
+
             lims_untargeted_list.append(lims_untargeted_table_updater)
 
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
@@ -2074,5 +2171,5 @@ def update_new_untargeted_tasks(
         lims_untargeted_list = []
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
 
-    logging.info(tab_print("Exported new project info for MZmine submission.", 1))
+    logging.info(tab_print("Exported info for %s new projects for MZmine submission."%(lims_untargeted_df.shape[0]), 1))
     return lims_untargeted_df

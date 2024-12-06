@@ -4,10 +4,8 @@ import functools
 import logging
 
 import ipywidgets as widgets
-import matchms
+from matchms import Spectrum, filtering
 import numpy as np
-
-from matchms.filtering.load_adducts import load_adducts_dict
 from rdkit import Chem
 
 from metatlas.interfaces.compounds import structure_cleaning as cleaning
@@ -18,37 +16,39 @@ logger = logging.getLogger(__name__)
 @functools.lru_cache
 def get_parent_mass(precursor_mz: float, adduct: str) -> float:
     """Returns the mass of the input molecule that would result in the supplied precursor_mz and adduct"""
-    dummy = matchms.Spectrum(
+    dummy = Spectrum(
         mz=np.array([]), intensities=np.array([]), metadata={"precursor_mz": precursor_mz, "adduct": adduct}
     )
-    updated = matchms.filtering.add_parent_mass(dummy)
+    updated = filtering.metadata_processing.derive_ionmode.derive_ionmode(dummy)
+    updated = filtering.metadata_processing.correct_charge.correct_charge(updated)
+    updated = filtering.metadata_processing.add_parent_mass.add_parent_mass(updated)
     return updated.metadata["parent_mass"]
 
 
 @functools.lru_cache
 def get_precursor_mz(parent_mass: float, adduct: str) -> float:
     """For an input molecule with parent_mass that generates adduct, return the resutling precursor_mz"""
-    adducts = load_adducts_dict()
-    if adduct not in adducts:
+    adducts = filtering.filter_utils.load_known_adducts.load_known_adducts()
+    if adduct not in adducts['adduct'].tolist():
         raise KeyError("Adduct '%s' is not supported")
-    multiplier = adducts[adduct]["mass_multiplier"]
-    correction_mass = adducts[adduct]["correction_mass"]
-    return (parent_mass + correction_mass) / multiplier
+    multiplier = adducts.loc[adducts['adduct'] == adduct, 'mass_multiplier'].values[0]
+    correction_mass = adducts.loc[adducts['adduct'] == adduct, 'correction_mass'].values[0]
+    return (parent_mass * multiplier) + correction_mass
 
 
 @functools.lru_cache
 def is_positive_mode(adduct: str) -> bool:
     """Returns True if the MS mode for an adduct is positive"""
-    adducts = load_adducts_dict()
-    if adduct not in adducts:
-        raise KeyError("Adduct '%s' is not supported")
-    return adducts[adduct]["ionmode"] == "positive"
+    adducts = filtering.filter_utils.load_known_adducts.load_known_adducts()
+    if adduct not in adducts['adduct'].values:
+        raise KeyError(f"Adduct '{adduct}' is not supported")
+    return adducts.loc[adducts['adduct'] == adduct, "ionmode"].values[0] == "positive"
 
 
 @functools.lru_cache
 def is_valid_inchi_pair(test_inchi: str, test_inchi_key: str) -> bool:
     """True if if test_inchi has the inchi key test_inchi_key"""
-    if not matchms.metadata_utils.is_valid_inchi(test_inchi):
+    if not filtering.filter_utils.smile_inchi_inchikey_conversions.is_valid_inchi(test_inchi):
         return False
     return test_inchi_key == Chem.inchi.InchiToInchiKey(test_inchi)
 
@@ -149,8 +149,8 @@ def valid_adduct(value: str) -> bool:
     True if the value is an adduct listed supported by the matchms package
     This is not a comprehensive list, so it will return False for some uncommon adducts
     """
-    adducts = load_adducts_dict()
-    return value in adducts
+    adducts = filtering.filter_utils.load_known_adducts.load_known_adducts()
+    return value in adducts['adduct'].tolist()
 
 
 def mol_to_image(mol: Chem.rdchem.Mol, **kwargs) -> widgets.Image:

@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # Whether to fetch stubs automatically, disabled when we want to display
 # a large number of objects.
 FETCH_STUBS = True
-ADDUCTS = ('','[M]+','[M+H]+','[M+H]2+','[M+2H]2+','[M+H-H2O]2+','[M+K]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-H+Cl]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M+formate]-','[M-H+Cl]2-','[M-H+2Na]+')
+ADDUCTS = ('','[M]+','[M+H]+','[M+H]2+','[M+2H]2+','[M+H-H2O]2+','[M+K]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-H+Cl]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M+formate]-','[M-H+Cl]2-','[M-H+2Na]+','[M+3H]3+','[M-3H]3-')
 POLARITY = ('positive', 'negative', 'alternating')
 FRAGMENTATION_TECHNIQUE = ('hcd','cid','etd','ecd','irmpd')
 
