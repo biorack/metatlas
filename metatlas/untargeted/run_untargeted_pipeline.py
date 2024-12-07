@@ -31,6 +31,15 @@ def main():
                                                    output_dir=args.output_dir, raw_data_dir=args.raw_data_dir, raw_data_subdir=args.raw_data_subdir, \
                                                    background_designator=args.background_designator,skip_sync=step_bools[0])
     
+    ##### Step 1.5/7: Mirror raw data to GNPS2
+    if args.hard_raw_data_mirror:
+        if args.direct_input is not None:
+            for project in args.direct_input:
+                mzm.mirror_raw_data_to_gnps2(project=project,username="bpbowen",raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
+        else:
+            logging.info('Hard mirroring of raw data to GNPS2 requires --direct_input flag. Exiting.')
+            sys.exit(1)
+
     ##### Step 2/7: Checking and updating status of MZmine jobs in LIMS
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=args.direct_input,background_designator=args.background_designator, \
                                                  skip_mzmine_status=step_bools[1],background_ratio=args.background_ratio, \
@@ -74,6 +83,8 @@ def add_arguments(parser):
     ## Step 1 only
     parser.add_argument('--validate_names', action='store_true', help='Validate filenames and project names')
     parser.add_argument('--mzmine_batch_params', type=str, default=None, help='Add custom mzmine batch parameters xml')
+    ## Step 1.5 only
+    parser.add_argument('--hard_raw_data_mirror', action='store_true', help='Run the raw data mirror to GNPS2 before proceeding with pipeline')
     ## Step 2 only
     parser.add_argument('--background_ratio', type=float, default=5, help='Ratio of background to sample intensity for filtering features')
     parser.add_argument('--zero_value', type=float, default=(2/3), help='Proportion of the lowest intensity value from the experiment to use as replacement zero value')

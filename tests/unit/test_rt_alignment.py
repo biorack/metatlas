@@ -2,7 +2,7 @@
 # pylint: disable=missing-function-docstring
 
 import pandas as pd
-
+import math
 from metatlas.targeted import rt_alignment
 
 
@@ -25,10 +25,10 @@ def test_plot_actual_vs_aligned_rts01(model):
 def test_align_atlas(atlas_with_2_cids, model):
     out = rt_alignment.align_atlas(atlas_with_2_cids, model, 0)
     assert out.name == "HILICz150_ANT20190824_PRD_EMA_Unlab_POS"
-    assert atlas_with_2_cids.compound_identifications[0].rt_references[0].rt_peak != -0.8035359946292822
-    assert out.compound_identifications[0].rt_references[0].rt_peak == -0.8035359946292822
-    assert atlas_with_2_cids.compound_identifications[1].rt_references[0].rt_peak != 0.02331840799266649
-    assert out.compound_identifications[1].rt_references[0].rt_peak == 0.02331840799266649
+    assert not math.isclose(atlas_with_2_cids.compound_identifications[0].rt_references[0].rt_peak, -0.8035359946292822, abs_tol=1e-7)
+    assert math.isclose(out.compound_identifications[0].rt_references[0].rt_peak, -0.8035359946292822, abs_tol=1e-7)
+    assert not math.isclose(atlas_with_2_cids.compound_identifications[1].rt_references[0].rt_peak, 0.02331840799266649, abs_tol=1e-7)
+    assert math.isclose(out.compound_identifications[1].rt_references[0].rt_peak, 0.02331840799266649, abs_tol=1e-7)
     assert len(out.compound_identifications) == 2
 
 
