@@ -21,7 +21,7 @@ import zipfile
 import shutil
 from typing import List, Dict, Union, Optional
 
-BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
+BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files'
 BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
 
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
@@ -52,8 +52,10 @@ SLURM_PERLMUTTER_HEADER = """#!/bin/bash
 #SBATCH -t 3:00:00
 """
 
-mzine_batch_params_file = "/global/common/software/m2650/mzmine_parameters/batch_files/mzmine-3.7.2-batchparams.xml"
-mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/batch_files/IQX-mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file = f"{BATCH_FILE_PATH}/mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_iqx = f"{BATCH_FILE_PATH}/IQX-mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_pos = f"{BATCH_FILE_PATH}/POS-mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_neg = f"{BATCH_FILE_PATH}/NEG-mzmine-3.7.2-batchparams.xml"
 
 def call_logger(log_filename: str, log_level: str, log_format: str):
     logging.basicConfig(filename=log_filename, level=log_level, format=log_format, filemode='a')
@@ -1965,6 +1967,7 @@ def write_metadata_per_new_project(
 def update_new_untargeted_tasks(
     background_designator: List[str],
     validate_names: bool,
+    mzmine_batch_params: str,
     skip_sync: bool,
     output_dir: str,
     raw_data_dir: str,
@@ -2054,17 +2057,21 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['output_dir'] = output_dir
             _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
             logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
-            if validate_machine_name is None:  # Assume more lenient parameters if machine name cannot be validated
-                mzmine_running_parameters = mzine_batch_params_file_iqx
-                mzmine_parameter = 5
-            elif any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
-                mzmine_running_parameters = mzine_batch_params_file_iqx
-                mzmine_parameter = 5
-            elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
-                mzmine_running_parameters = mzine_batch_params_file
-                mzmine_parameter = 2
-            else:  # Assume more lenient parameters if machine name cannot be validated
-                mzmine_running_parameters = mzine_batch_params_file_iqx
+            if mzmine_batch_params is None:
+                if validate_machine_name is None:  # Assume more lenient parameters if machine name cannot be validated
+                    mzmine_running_parameters = mzine_batch_params_file_iqx
+                    mzmine_parameter = 5
+                elif any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
+                    mzmine_running_parameters = mzine_batch_params_file_iqx
+                    mzmine_parameter = 5
+                elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
+                    mzmine_running_parameters = mzine_batch_params_file
+                    mzmine_parameter = 2
+                else:  # Assume more lenient parameters if machine name cannot be validated
+                    mzmine_running_parameters = mzine_batch_params_file_iqx
+                    mzmine_parameter = 5
+            else:
+                mzmine_running_parameters = mzmine_batch_params
                 mzmine_parameter = 5
             logging.info(tab_print("Using MZmine parameters: %s"%(os.path.basename(mzmine_running_parameters)), 2))
             lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters

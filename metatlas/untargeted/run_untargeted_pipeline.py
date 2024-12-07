@@ -27,7 +27,7 @@ def main():
     logging.info(f'Arguments used: {args}')
 
     ##### Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
-    new_projects = mzm.update_new_untargeted_tasks(validate_names=args.validate_names, \
+    new_projects = mzm.update_new_untargeted_tasks(validate_names=args.validate_names, mzmine_batch_params=args.mzmine_batch_params, \
                                                    output_dir=args.output_dir, raw_data_dir=args.raw_data_dir, raw_data_subdir=args.raw_data_subdir, \
                                                    background_designator=args.background_designator,skip_sync=step_bools[0])
     
@@ -73,6 +73,7 @@ def add_arguments(parser):
     parser.add_argument('--overwrite_fbmn', action='store_true', help='Overwrite existing fbmn results files that are already in the output directory')
     ## Step 1 only
     parser.add_argument('--validate_names', action='store_true', help='Validate filenames and project names')
+    parser.add_argument('--mzmine_batch_params', type=str, default=None, help='Add custom mzmine batch parameters xml')
     ## Step 2 only
     parser.add_argument('--background_ratio', type=float, default=5, help='Ratio of background to sample intensity for filtering features')
     parser.add_argument('--zero_value', type=float, default=(2/3), help='Proportion of the lowest intensity value from the experiment to use as replacement zero value')
