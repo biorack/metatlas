@@ -121,11 +121,8 @@ def add_arguments(parser):
 
 def check_args(args):
     ##### Check if the input arguments are valid
-    if args.custom_mzmine_batch_params is not None and not os.path.exists(args.custom_mzmine_batch_params):
-        logging.error('Custom mzmine batch parameters file does not exist. Please check flag and path.')
-        sys.exit(1)
     if args.fps_files_only and args.custom_mzmine_batch_params is None:
-        logging.error('FPS files only flag requires custom mzmine batch parameters. Please check flags.')
+        logging.error('FPS files only flag requires custom mzmine batch parameters list (e.g., POS-, NEG- prefixes). Please check flags.')
         sys.exit(1)
     if args.direct_input:
         args.direct_input = args.direct_input.split(',')
