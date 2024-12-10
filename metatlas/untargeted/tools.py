@@ -1828,12 +1828,80 @@ def write_mzmine_sbatch_and_runner(
     with open(runner_filename,'w') as fid:
         fid.write('sbatch %s'%sbatch_filename)
 
+def metadata_file_filter(data, polarity, skip_blank_filter=False, fps_files_only=False, nonstandard_filename=False):
+    if nonstandard_filename and skip_blank_filter and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if nonstandard_filename and skip_blank_filter and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        "_"+polarity+"_" in x and
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if nonstandard_filename and not skip_blank_filter and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if nonstandard_filename and not skip_blank_filter and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        "_"+polarity+"_" in x and
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if skip_blank_filter and not nonstandard_filename and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        len(x.split('_')) > 9 and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    if skip_blank_filter and not nonstandard_filename and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        len(x.split('_')) > 9 and
+                        polarity in x.split('_')[9] and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    if not skip_blank_filter and not nonstandard_filename and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        len(x.split('_')) > 9 and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    if not skip_blank_filter and not nonstandard_filename and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        len(x.split('_')) > 9 and
+                        polarity in x.split('_')[9] and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    
 def write_metadata_per_new_project(
     df: pd.DataFrame,
     background_designator: List[str],
     validate_names: bool,
     raw_data_dir: str,
-    raw_data_subdir: Optional[str] = None
+    raw_data_subdir: Optional[str] = None,
+    skip_blank_filter: Optional[bool] = False,
+    fps_files_only: Optional[bool] = False
 ) -> List:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
@@ -1883,19 +1951,9 @@ def write_metadata_per_new_project(
 
         # Determine which polarities need metadata
         try:
-            positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: len(x.split('_')) > 9 and 'POS' in x.split('_')[9] and
-                'Blank' not in x and
-                len(x.split('_')) > 12 and 'QC' not in x.split('_')[12] and
-                'InjBl' not in x.split('_')[12] and
-                'ISTD' not in x.split('_')[12])].to_list()
+            positive_file_subset = metadata_file_filter(df_filtered, polarity="POS", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=False)
         except IndexError:
-            positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: '_POS_' in x and
-                'Blank' not in x and
-                'QC' not in x and
-                'InjBl' not in x and
-                'ISTD' not in x)].to_list()
+            positive_file_subset = metadata_file_filter(df_filtered, polarity="POS", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=True)
         if positive_file_subset:
             positive_file_list = [os.path.join(full_mzml_path, file) for file in positive_file_subset]
             positive_file_count = len(positive_file_list)
@@ -1915,19 +1973,9 @@ def write_metadata_per_new_project(
             positive_file_count = 0
 
         try:
-            negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: len(x.split('_')) > 9 and 'NEG' in x.split('_')[9] and
-                'Blank' not in x and
-                len(x.split('_')) > 12 and 'QC' not in x.split('_')[12] and
-                'InjBl' not in x.split('_')[12] and
-                'ISTD' not in x.split('_')[12])].to_list()
+            negative_file_subset = metadata_file_filter(df_filtered, polarity="NEG", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=False)
         except IndexError:
-            negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: '_NEG_' in x and
-                'Blank' not in x and
-                'QC' not in x and
-                'InjBl' not in x and
-                'ISTD' not in x)].to_list()
+            negative_file_subset = metadata_file_filter(df_filtered, polarity="NEG", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=True)
         if negative_file_subset:
             negative_file_list = [os.path.join(full_mzml_path, file) for file in negative_file_subset]
             negative_file_count = len(negative_file_list)
@@ -1994,11 +2042,13 @@ def write_metadata_per_new_project(
 def update_new_untargeted_tasks(
     background_designator: List[str],
     validate_names: bool,
-    mzmine_batch_params: str,
     skip_sync: bool,
     output_dir: str,
     raw_data_dir: str,
-    raw_data_subdir: Optional[str] = None
+    mzmine_batch_params: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None,
+    skip_blank_filter: Optional[bool] = False,
+    fps_files_only: Optional[bool] = False
 ) -> None:
     """
     This script is called by run_mzmine.py before the untargeted pipeline kicks off
@@ -2065,8 +2115,8 @@ def update_new_untargeted_tasks(
     # Check for polarities by looking for positive and negative mzml files
     df_new = df[df['parent_dir'].isin(new_folders)]
     logging.info(tab_print("Checking for polarities in new projects and validating mzml file names...", 1))
-    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_dir=raw_data_dir, \
-                                                           raw_data_subdir=raw_data_subdir, validate_names=validate_names)
+    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_dir=raw_data_dir, fps_files_only=fps_files_only, \
+                                                           skip_blank_filter=skip_blank_filter, raw_data_subdir=raw_data_subdir, validate_names=validate_names)
     new_project_info_list_subset = [d for d in new_project_info_list if d.get('polarities') is not None]
 
     # Create metadata for new projects with relevant polarities
@@ -2086,6 +2136,7 @@ def update_new_untargeted_tasks(
             logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
             if mzmine_batch_params is None:
                 if validate_machine_name is None:  # Assume more lenient parameters if machine name cannot be validated
+                    logging.warning(tab_print("Warning! Could not validate machine name. Using lenient (IQX) MZmine parameters...", 2))
                     mzmine_running_parameters = mzine_batch_params_file_iqx
                     mzmine_parameter = 5
                 elif any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
