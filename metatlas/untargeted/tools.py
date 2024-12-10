@@ -2068,6 +2068,11 @@ def update_new_untargeted_tasks(
     logging.info('Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
     # Get lcmsrun table and subset
     df = get_table_from_lims('lcmsrun_plus')
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+        if df.empty:
+            logging.info(tab_print("Projects in direct input (%s) are not in LIMS lcmsruns table"%(direct_input), 1))
+            return
     df = df[pd.notna(df['mzml_file'])]
     df['basename'] = df['mzml_file'].apply(os.path.basename)
     df.sort_values('timeepoch',ascending=False,inplace=True)
@@ -2113,8 +2118,6 @@ def update_new_untargeted_tasks(
     logging.info(tab_print("Finding new projects to initate...", 1))
     new_folders = np.setdiff1d(all_folders,folders_in_tasks)
     new_folders = list(set(new_folders) & set(time_old_folders) & set(dirs_with_m2_files))
-    if direct_input is not None:
-        new_folders = [folder for folder in new_folders if folder in direct_input]
     if len(new_folders) == 0:
         logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
         return None
@@ -2180,9 +2183,8 @@ def update_new_untargeted_tasks(
                     lims_untargeted_table_updater[file_count_header] = 0
                 else: # Write directory/files to disk for present polarity and fill in LIMS columns
                     logging.info(tab_print("Writing MZmine submission input files...",2))
-                    logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
                     if os.path.exists(basepath):
-                        logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 2))
+                        logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 3))
                         continue
                     else:
                         os.mkdir(basepath)
@@ -2190,6 +2192,8 @@ def update_new_untargeted_tasks(
                         recursive_chown(basepath, 'metatlas')
                     except:
                         logging.info(tab_print("Note: Could not change group ownership of %s"%(basepath), 2))
+
+                    logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
                     metadata_df = new_project_dict[polarity]['metadata_df']
                     metadata_filename = os.path.join(basepath,'%s_metadata.tab'%(parent_dir))
                     metadata_df.to_csv(metadata_filename, sep='\t', index=False)
