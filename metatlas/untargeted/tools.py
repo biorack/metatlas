@@ -2094,8 +2094,12 @@ def update_new_untargeted_tasks(
             logging.info(tab_print(folder, 3))
 
     # Get all folders in raw data table
-    all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
-    all_folders = [a.strip() for a in all_folders]
+    if fps_files_only:
+        all_folders = df.loc[df['polarity'].isin(['FPS']),'parent_dir'].unique()
+        all_folders = [a.strip() for a in all_folders]
+    else:
+        all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
+        all_folders = [a.strip() for a in all_folders]
 
     # Get all folders in untargeted tasks table
     if df_untargeted.shape[0]>0:
