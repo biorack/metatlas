@@ -27,7 +27,7 @@ def main():
     logging.info(f'Arguments used: {args}')
 
     ##### Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
-    new_projects = mzm.update_new_untargeted_tasks(validate_names=args.validate_names, mzmine_batch_params=args.mzmine_batch_params, \
+    new_projects = mzm.update_new_untargeted_tasks(direct_input=args.direct_input,validate_names=args.validate_names, custom_mzmine_batch_params=args.custom_mzmine_batch_params, \
                                                    output_dir=args.output_dir, raw_data_dir=args.raw_data_dir, raw_data_subdir=args.raw_data_subdir, \
                                                    skip_blank_filter=args.skip_blank_filter, background_designator=args.background_designator, \
                                                    fps_files_only=args.fps_files_only, skip_sync=step_bools[0])
@@ -83,7 +83,7 @@ def add_arguments(parser):
     parser.add_argument('--overwrite_fbmn', action='store_true', help='Overwrite existing fbmn results files that are already in the output directory')
     ## Step 1 only
     parser.add_argument('--validate_names', action='store_true', help='Validate filenames and project names')
-    parser.add_argument('--mzmine_batch_params', type=str, default=None, help='Add custom mzmine batch parameters xml')
+    parser.add_argument('--custom_mzmine_batch_params', type=str, default=None, help='Full path to custom mzmine batch parameters xml. If using FPS only mode, supply a csv list of pos and neg parameter files')
     parser.add_argument('--skip_blank_filter', action='store_true', help='Do not filter out files with "Blank" in the name from the untargeted task list')
     parser.add_argument('--fps_files_only', action='store_true', help='Only FPS files will be input, so do not check for polarity in file name and use custom mzmine batch parameters')
     ## Step 1.5 only
@@ -121,10 +121,10 @@ def add_arguments(parser):
 
 def check_args(args):
     ##### Check if the input arguments are valid
-    if args.mzmine_batch_params is not None and not os.path.exists(args.mzmine_batch_params):
+    if args.custom_mzmine_batch_params is not None and not os.path.exists(args.custom_mzmine_batch_params):
         logging.error('Custom mzmine batch parameters file does not exist. Please check flag and path.')
         sys.exit(1)
-    if args.fps_files_only and args.mzmine_batch_params is None:
+    if args.fps_files_only and args.custom_mzmine_batch_params is None:
         logging.error('FPS files only flag requires custom mzmine batch parameters. Please check flags.')
         sys.exit(1)
     if args.direct_input:
@@ -133,6 +133,8 @@ def check_args(args):
         args.background_designator = args.background_designator.split(',')
     if args.skip_steps:
         args.skip_steps = args.skip_steps.split(',')
+    if args.custom_mzmine_batch_params:
+        args.custom_mzmine_batch_params = args.custom_mzmine_batch_params.split(',')
     if args.overwrite_drive is True and args.gdrive_upload is False:
         logging.error('Incompatible flags. Cannot overwrite google drive if not uploading to google drive.')
         sys.exit(1)
