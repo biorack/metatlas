@@ -2045,7 +2045,8 @@ def update_new_untargeted_tasks(
     skip_sync: bool,
     output_dir: str,
     raw_data_dir: str,
-    mzmine_batch_params: Optional[str] = None,
+    direct_input: Optional[str] = None,
+    custom_mzmine_batch_params: Optional[str] = None,
     raw_data_subdir: Optional[str] = None,
     skip_blank_filter: Optional[bool] = False,
     fps_files_only: Optional[bool] = False
@@ -2112,6 +2113,8 @@ def update_new_untargeted_tasks(
     logging.info(tab_print("Finding new projects to initate...", 1))
     new_folders = np.setdiff1d(all_folders,folders_in_tasks)
     new_folders = list(set(new_folders) & set(time_old_folders) & set(dirs_with_m2_files))
+    if direct_input is not None:
+        new_folders = [folder for folder in new_folders if folder in direct_input]
     if len(new_folders) == 0:
         logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
         return None
@@ -2138,8 +2141,8 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['output_dir'] = output_dir
             _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
             logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
-            if mzmine_batch_params is None:
-                if validate_machine_name is None:  # Assume more lenient parameters if machine name cannot be validated
+            if custom_mzmine_batch_params is None: # When there is not a custom input
+                if validate_machine_name is None:  # Assume more lenient parameters if machine name is not going to be validated
                     logging.warning(tab_print("Warning! Could not validate machine name. Using lenient (IQX) MZmine parameters...", 2))
                     mzmine_running_parameters = mzine_batch_params_file_iqx
                     mzmine_parameter = 5
@@ -2152,12 +2155,15 @@ def update_new_untargeted_tasks(
                 else:  # Assume more lenient parameters if machine name cannot be validated
                     mzmine_running_parameters = mzine_batch_params_file_iqx
                     mzmine_parameter = 5
+                logging.info(tab_print("Using MZmine parameters: %s"%(os.path.basename(mzmine_running_parameters)), 2))
+                lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
+                lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
             else:
-                mzmine_running_parameters = mzmine_batch_params
+                mzmine_running_parameters = ','.join(custom_mzmine_batch_params)
                 mzmine_parameter = 5
-            logging.info(tab_print("Using MZmine parameters: %s"%(os.path.basename(mzmine_running_parameters)), 2))
-            lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
-            lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
+                logging.info(tab_print("Using custom MZmine parameter file(s): %s"%(mzmine_running_parameters), 2))
+                lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
+                lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
 
             for polarity in ['positive','negative']: # Don't initiate mzmine jobs on polarities that don't have sample mzmls
                 polarity_short = polarity[:3]
@@ -2188,14 +2194,38 @@ def update_new_untargeted_tasks(
                     metadata_filename = os.path.join(basepath,'%s_metadata.tab'%(parent_dir))
                     metadata_df.to_csv(metadata_filename, sep='\t', index=False)
                     
-                    logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
-                    params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
-                    with open(mzmine_running_parameters,'r') as fid:
-                        orig_params = fid.read()
-                    new_param_path = os.path.join(basepath,parent_dir)
-                    custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
-                    with open(params_filename,'w') as fid:
-                        fid.write('%s'%custom_params)
+                    if custom_mzmine_batch_params is None:
+                        logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
+                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        with open(mzmine_running_parameters,'r') as fid:
+                            orig_params = fid.read()
+                        new_param_path = os.path.join(basepath,parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        with open(params_filename,'w') as fid:
+                            fid.write('%s'%custom_params)
+                    elif custom_mzmine_batch_params is not None and len(custom_mzmine_batch_params) == 1:
+                        logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
+                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        with open(mzmine_running_parameters,'r') as fid:
+                            orig_params = fid.read()
+                        new_param_path = os.path.join(basepath,parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        with open(params_filename,'w') as fid:
+                            fid.write('%s'%custom_params)                        
+                    else:
+                        logging.info(tab_print("%s MZmine parameter file (CUSTOM *_batch-params.xml)"%(polarity), 3))
+                        custom_params_list = custom_mzmine_batch_params.split(',')
+                        for custom_param in custom_params_list:
+                            if polarity_short.upper()+"-" in custom_param:
+                                mzmine_running_parameters = custom_param
+                                break
+                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        with open(mzmine_running_parameters,'r') as fid:
+                            orig_params = fid.read()
+                        new_param_path = os.path.join(basepath,parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        with open(params_filename,'w') as fid:
+                            fid.write('%s'%custom_params)
 
                     logging.info(tab_print("%s mzML path list file (*_filelist.txt)"%(polarity), 3))
                     file_list = new_project_dict[polarity]['file_list']
