@@ -2217,9 +2217,8 @@ def update_new_untargeted_tasks(
                         with open(params_filename,'w') as fid:
                             fid.write('%s'%custom_params)                        
                     else:
-                        logging.info(tab_print("%s MZmine parameter file (CUSTOM *_batch-params.xml)"%(polarity), 3))
-                        custom_params_list = custom_mzmine_batch_params.split(',')
-                        for custom_param in custom_params_list:
+                        logging.info(tab_print("%s MZmine parameter file (see custom input above)"%(polarity), 3))
+                        for custom_param in custom_mzmine_batch_params:
                             if polarity_short.upper()+"-" in custom_param:
                                 mzmine_running_parameters = custom_param
                                 break
