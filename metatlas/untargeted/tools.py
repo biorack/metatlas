@@ -21,9 +21,6 @@ import zipfile
 import shutil
 from typing import List, Dict, Union, Optional
 
-BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files'
-BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
-
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
     api_key = fid.read().strip()
@@ -52,6 +49,8 @@ SLURM_PERLMUTTER_HEADER = """#!/bin/bash
 #SBATCH -t 3:00:00
 """
 
+BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files'
+BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
 mzine_batch_params_file = f"{BATCH_FILE_PATH}/mzmine-3.7.2-batchparams.xml"
 mzine_batch_params_file_iqx = f"{BATCH_FILE_PATH}/IQX-mzmine-3.7.2-batchparams.xml"
 mzine_batch_params_file_pos = f"{BATCH_FILE_PATH}/POS-mzmine-3.7.2-batchparams.xml"
@@ -1817,7 +1816,8 @@ def write_mzmine_sbatch_and_runner(
     """
     Write the sbatch and runner files for mzmine submission via slurm
     """
-    mzmine_launcher = '/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
+    #mzmine_launcher = f'{BINARY_PATH}/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
+    mzmine_launcher = f'{BINARY_PATH}/MZmine-4.4.3/bin/mzmine -threads auto -t /tmp'
 
     sbatch_filename = '%s_mzmine-sbatch.sbatch'%os.path.join(basepath,parent_dir)
     runner_filename = '%s_mzmine.sh'%os.path.join(basepath,parent_dir)
