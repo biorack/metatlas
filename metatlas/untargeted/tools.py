@@ -1816,8 +1816,8 @@ def write_mzmine_sbatch_and_runner(
     """
     Write the sbatch and runner files for mzmine submission via slurm
     """
-    #mzmine_launcher = f'{BINARY_PATH}/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
-    mzmine_launcher = f'{BINARY_PATH}/MZmine-4.4.3/bin/mzmine -threads auto -t /tmp'
+    mzmine_launcher = f'{BINARY_PATH}/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
+    #mzmine_launcher = f'{BINARY_PATH}/MZmine-4.4.3/bin/mzmine -threads auto -t /tmp'
 
     sbatch_filename = '%s_mzmine-sbatch.sbatch'%os.path.join(basepath,parent_dir)
     runner_filename = '%s_mzmine.sh'%os.path.join(basepath,parent_dir)
