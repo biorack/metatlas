@@ -9,6 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, time
 import time
+import glob
 import subprocess
 import math
 sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
@@ -2129,6 +2130,15 @@ def update_new_untargeted_tasks(
                                                            skip_blank_filter=skip_blank_filter, raw_data_subdir=raw_data_subdir, validate_names=validate_names)
     new_project_info_list_subset = [d for d in new_project_info_list if d.get('polarities') is not None]
 
+    # Check for nountargeted.txt file in new projects dirs and skip them
+    new_project_info_list_subset = [
+        d for d in new_project_info_list_subset 
+        if not glob.glob(os.path.join(raw_data_dir, '*', d['parent_dir'], 'nountargeted.txt'))
+    ]
+
+    logging.info(tab_print("New projects to add to untargeted tasks:", 2))
+    logging.info(tab_print(new_project_info_list_subset, 3))
+
     # Create metadata for new projects with relevant polarities
     if len(new_project_info_list_subset)>0:
         lims_untargeted_list = []
@@ -2176,8 +2186,8 @@ def update_new_untargeted_tasks(
                 mzmine_status_header = f"mzmine_{polarity_short}_status"
                 fbmn_status_header = f"fbmn_{polarity_short}_status"
                 file_count_header = f"num_{polarity_short}_files"
-                lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant' # Set default to skip
-                lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant' # Set default to skip
+                lims_untargeted_table_updater[mzmine_status_header] = '09 error' # Set default to error to indicate not passing required steps
+                lims_untargeted_table_updater[fbmn_status_header] = '09 error'
                 if polarity not in polarity_list: # Write blank columns to LIMS and skip writing directory/files to disk
                     lims_untargeted_table_updater[metadata_header] = ""
                     lims_untargeted_table_updater[file_count_header] = 0
