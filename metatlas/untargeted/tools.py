@@ -2135,10 +2135,12 @@ def update_new_untargeted_tasks(
         d for d in new_project_info_list_subset 
         if not glob.glob(os.path.join(raw_data_dir, '*', d['parent_dir'], 'nountargeted.txt'))
     ]
-
+    if not new_project_info_list_subset:
+        logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
+        return None
     logging.info(tab_print("New projects to add to untargeted tasks:", 2))
-    print_new_projects = "\n".join(new_project_info_list_subset)
-    logging.info(tab_print(print_new_projects, 3))
+    print_new_projects = "\n".join(["\t\t\t" + d['parent_dir'] for d in new_project_info_list_subset])
+    logging.info(tab_print(print_new_projects, 0))
 
     # Create metadata for new projects with relevant polarities
     if len(new_project_info_list_subset)>0:
