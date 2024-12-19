@@ -2137,7 +2137,8 @@ def update_new_untargeted_tasks(
     ]
 
     logging.info(tab_print("New projects to add to untargeted tasks:", 2))
-    logging.info(tab_print(new_project_info_list_subset, 3))
+    print_new_projects = "\n".join(new_project_info_list_subset)
+    logging.info(tab_print(print_new_projects, 3))
 
     # Create metadata for new projects with relevant polarities
     if len(new_project_info_list_subset)>0:
