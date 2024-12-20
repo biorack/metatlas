@@ -510,25 +510,25 @@ class adjust_rt_for_selected_compound(object):
     def configure_flags(self):
         default_peak = ['keep',
                         'remove',
-                        'unresolvable isomers',
-                        'poor peak shape']
+                        'keep, unresolvable isomers',
+                        'keep, poor peak shape']
         
         default_msms = ['NA   no selection',
                         
-                        '-1   poor match, should be removed',
-                        '0    no match or no MSMS collected',
+                        '-1    poor match, should be removed',
+                        '0     no match or no MSMS collected',
 
                         '0.5  possible match, partial match of fragments',
-                        '1    good match but minor differences due to voltage or instrument',
-                        '1    good match (internal reference library)',
-                        '1    good match (external reference library)',
+                        '1     good match but minor differences due to voltage or instrument',
+                        '1     good match (internal reference library)',
+                        '1     good match (external reference library)',
 
                         '0.5  co-isolated precursor, partial match',
-                        '1    co-isolated precursor, good match (plus extra fragments)',
+                        '1     co-isolated precursor, good match (plus extra fragments)',
                         
-                        '0    single ion, no confidence',
-                        '0.5  single ion, possible match',
-                        '1    single ion, good based on ISTD or known reference spectra']
+                        '0     single ion match, no confidence or precusor ion only',
+                        '0.5  single ion match, possible or probable',
+                        '1     single ion match, good based on ISTD or known ref spectra']
         
         if self.peak_flags is None or self.peak_flags == '':
             self.peak_flags = default_peak
