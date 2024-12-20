@@ -301,9 +301,9 @@ def zip_and_upload_untargeted_results(
                             continue
         
         if zip_count == 0:
-            logging.info(tab_print("No new untargeted projects to be zipped.", 1))
+            logging.info(tab_print("No newly completed untargeted projects to be zipped.", 2))
         
-        logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
+        logging.info(tab_print("%s new complete untargeted projects uploaded."%(upload_count), 1))
 
 
 def zip_untargeted_results(
@@ -2139,8 +2139,8 @@ def update_new_untargeted_tasks(
         logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
         return None
     logging.info(tab_print("New projects to add to untargeted tasks:", 2))
-    print_new_projects = "\n".join(["\t\t\t" + d['parent_dir'] for d in new_project_info_list_subset])
-    logging.info(tab_print(print_new_projects, 0))
+    print_new_projects = "\n".join(["\t"*8 + d['parent_dir'] for d in new_project_info_list_subset])
+    logging.info(tab_print("\n" + print_new_projects, 0))
 
     # Create metadata for new projects with relevant polarities
     if len(new_project_info_list_subset)>0:
@@ -2279,5 +2279,5 @@ def update_new_untargeted_tasks(
         lims_untargeted_list = []
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
 
-    logging.info(tab_print("Exported info for %s new projects for MZmine submission."%(lims_untargeted_df.shape[0]), 1))
+    logging.info(tab_print("Exported table for %s new projects to pass to MZmine submission function."%(lims_untargeted_df.shape[0]), 1))
     return lims_untargeted_df
