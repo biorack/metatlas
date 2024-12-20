@@ -508,15 +508,28 @@ class adjust_rt_for_selected_compound(object):
                                  picker=True, pickradius=5, color=color, label=label)
 
     def configure_flags(self):
-        default_peak = ['keep', 'remove', 'unresolvable isomers', 'poor peak shape']
-        default_msms = ['no selection',
-                        '-1, bad match - should remove compound',
-                        '0, no ref match available or no MSMS collected',
-                        '0.5, co-isolated precursor, partial match',
-                        '0.5, partial match of fragments',
-                        '1, perfect match to internal reference library',
-                        '1, perfect match to external reference library',
-                        '1, co-isolated precursor but all reference ions are in sample spectrum']
+        default_peak = ['keep',
+                        'remove',
+                        'unresolvable isomers',
+                        'poor peak shape']
+        
+        default_msms = ['NA   no selection',
+                        
+                        '-1   poor match, should be removed',
+                        '0    no match or no MSMS collected',
+
+                        '0.5  possible match, partial match of fragments',
+                        '1    good match but minor differences due to voltage or instrument',
+                        '1    good match (internal reference library)',
+                        '1    good match (external reference library)',
+
+                        '0.5  co-isolated precursor, partial match',
+                        '1    co-isolated precursor, good match (plus extra fragments)',
+                        
+                        '0    single ion, no confidence',
+                        '0.5  single ion, possible match',
+                        '1    single ion, good based on ISTD or known reference spectra']
+        
         if self.peak_flags is None or self.peak_flags == '':
             self.peak_flags = default_peak
         if self.msms_flags is None or self.msms_flags == '':
