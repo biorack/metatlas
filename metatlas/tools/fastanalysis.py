@@ -353,19 +353,26 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                 single_matching_ion = float(final_df.loc[compound_idx, 'msms_matchingions'].split(',')[0])
                 precursor_mass = mz_theoretical
                 if abs(single_matching_ion - precursor_mass) <= ppm_tolerance:
-                    logger.info("Notice! Single matching MSMS fragment ion %s is within ppm tolerance (%s) of the precursor mass (%s) for %s. Setting MSMS score to zero.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
-                    # Set score to zero when the single matching fragment ion is the precursor.
-                    final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
-                    final_df.loc[compound_idx, 'msms_score'] = 0.0
-                    # Then, overwrite the 'MSMS Score (0 to 1)' column of COMPOUND IDENTIFICATION SCORES
-                    final_df.loc[compound_idx, 'msms_quality'] = 0
-                    quality_scores[0] = 0 # Overwrite the MSMS score in quality_scores since it's named independently from final_df.loc[compound_idx, 'msms_quality'] above
-                    # Last, recalculate total score of COMPOUND IDENTIFICATION SCORES
-                    if all(isinstance(x, (int, float)) for x in quality_scores):
-                        final_df = calculate_compound_total_score(final_df, compound_idx, quality_scores)
-                    else:
-                        final_df.loc[compound_idx, 'total_score'] = np.nan
-                        final_df.loc[compound_idx, 'msi_level'] = ""
+                    logger.info("Notice! Single matching MSMS fragment ion %s is within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
+                    # Check if it's a known single ion
+                    known_single_ions = pd.read_csv("/global/cfs/cdirs/m2650/targeted_analysis/known_nonfragmenting_compounds.txt", sep='\t', header=None, names=['name', 'inchikey'])
+                    inchikey_set = set(known_single_ions['inchikey'])
+                    if final_df.loc[compound_idx, 'inchikey'] in inchikey_set:
+                        logger.info("\tParent ion is known to remain unfragmented. Retaining MSMS score and quality.")
+                        final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+                    else: # Compound is expected to fragment but did not
+                        # Set score to zero when the single matching fragment ion is the precursor.
+                        final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
+                        final_df.loc[compound_idx, 'msms_score'] = 0.0
+                        # Then, overwrite the 'MSMS Score (0 to 1)' column of COMPOUND IDENTIFICATION SCORES
+                        final_df.loc[compound_idx, 'msms_quality'] = 0
+                        quality_scores[0] = 0 # Overwrite the MSMS score in quality_scores since it's named independently from final_df.loc[compound_idx, 'msms_quality'] above
+                        # Last, recalculate total score of COMPOUND IDENTIFICATION SCORES
+                        if all(isinstance(x, (int, float)) for x in quality_scores):
+                            final_df = calculate_compound_total_score(final_df, compound_idx, quality_scores)
+                        else:
+                            final_df.loc[compound_idx, 'total_score'] = np.nan
+                            final_df.loc[compound_idx, 'msi_level'] = ""
                 else: # When single matching fragment ion is not the precursor, set score to best.
                     logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s. Setting MSMS score to the best score of %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'], scores[0])
                     final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is NOT the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
