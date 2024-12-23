@@ -515,7 +515,7 @@ class adjust_rt_for_selected_compound(object):
         
         default_msms = ['NA   no selection',
                         
-                        '-1    poor match, should be removed',
+                        '-1    remove, poor match',
                         '0     no match or no MSMS collected',
 
                         '0.5  possible match, partial match of fragments',
