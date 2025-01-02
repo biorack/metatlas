@@ -354,15 +354,12 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                 precursor_mass = mz_theoretical
                 if abs(single_matching_ion - precursor_mass) <= ppm_tolerance:
                     logger.info("Notice! Single matching MSMS fragment ion %s is within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
-                    # Check if it's a known single ion
-                    known_single_ions = pd.read_csv("/global/cfs/cdirs/m2650/targeted_analysis/known_nonfragmenting_compounds.txt", sep='\t', header=None, names=['name', 'inchikey'])
-                    inchikey_set = set(known_single_ions['inchikey'])
-                    if final_df.loc[compound_idx, 'inchikey'] in inchikey_set:
-                        logger.info("\tParent ion is known to remain unfragmented. Retaining MSMS score and quality.")
-                        final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
-                    else: # Compound is expected to fragment but did not
+                    # SKIP CHECK OF KNOWN UNFRAGMENTING PARENTS: final_df = check_known_single_fragments(final_df, compound_idx, scores)
+                    if final_df.loc[compound_idx, 'ms2_notes'] == "1.0, single ion match, ISTD/ref evidence":
+                        logger.info("\tParent ion is known to not fragment (ISTD/ref evidence). Retaining MSMS score.")
+                    else:
                         # Set score to zero when the single matching fragment ion is the precursor.
-                        final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
+                        #final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
                         final_df.loc[compound_idx, 'msms_score'] = 0.0
                         # Then, overwrite the 'MSMS Score (0 to 1)' column of COMPOUND IDENTIFICATION SCORES
                         final_df.loc[compound_idx, 'msms_quality'] = 0
@@ -374,11 +371,10 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                             final_df.loc[compound_idx, 'total_score'] = np.nan
                             final_df.loc[compound_idx, 'msi_level'] = ""
                 else: # When single matching fragment ion is not the precursor, set score to best.
-                    logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s. Setting MSMS score to the best score of %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'], scores[0])
-                    final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is NOT the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
+                    logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s. Retaining best MSMS score: %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'], scores[0])
+                    #final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is NOT the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
                     final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
             else:
-                #logger.info("Note: Multiple matching fragment ions found for %s.", final_df.loc[compound_idx, 'identified_metabolite'])
                 final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
         else:
             final_df.loc[compound_idx, 'msms_file'] = ""
@@ -480,6 +476,17 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
         passing[metric][passing[metric] == 0] = np.nan
     stats_table = []
 
+
+def check_known_single_fragments(final_df, compound_idx, scores):
+    known_single_ions = pd.read_csv("/global/cfs/cdirs/m2650/targeted_analysis/known_nonfragmenting_compounds.txt", sep='\t', header=None, names=['name', 'inchikey'])
+    inchikey_set = set(known_single_ions['inchikey'])
+
+    if final_df.loc[compound_idx, 'inchikey'] in inchikey_set:
+        logger.info("\tParent ion is known to remain unfragmented. Retaining MSMS score and quality.")
+        final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+        return final_df
+    else:
+        return final_df
 
 #    for metric in metrics:
 #        test = np.product(np.array([passing[dep] for dep in dependencies[metric]]), axis=0)
