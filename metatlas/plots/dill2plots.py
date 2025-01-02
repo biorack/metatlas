@@ -513,22 +513,18 @@ class adjust_rt_for_selected_compound(object):
                         'keep, unresolvable isomers',
                         'keep, poor peak shape']
         
-        default_msms = ['NA   no selection',
+        default_msms = ['NA, no selection',
                         
-                        '-1    remove, poor match',
-                        '0     no match or no MSMS collected',
+                        '-1.0, poor match, should remove',
+                        '0.0, no match or no MSMS collected',
+                        '0.5, partial or putative match of fragments',
+                        '1.0, good match',
 
-                        '0.5  possible match, partial match of fragments',
-                        '1     good match but minor differences due to voltage or instrument',
-                        '1     good match (internal reference library)',
-                        '1     good match (external reference library)',
-
-                        '0.5  co-isolated precursor, partial match',
-                        '1     co-isolated precursor, good match (plus extra fragments)',
+                        '0.5, co-isolated precursor, partial match',
+                        '1.0, co-isolated precursor, good match',
                         
-                        '0     single ion match, no confidence or precusor ion only',
-                        '0.5  single ion match, possible or probable',
-                        '1     single ion match, good based on ISTD or known ref spectra']
+                        '0.5, single ion match, no evidence',
+                        '1.0, single ion match, ISTD/ref evidence']
         
         if self.peak_flags is None or self.peak_flags == '':
             self.peak_flags = default_peak
