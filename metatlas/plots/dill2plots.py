@@ -513,7 +513,7 @@ class adjust_rt_for_selected_compound(object):
                         'keep, unresolvable isomers',
                         'keep, poor peak shape']
         
-        default_msms = ['NA, no selection',
+        default_msms = ['no selection',
                         
                         '-1.0, poor match, should remove',
                         '0.0, no match or no MSMS collected',
