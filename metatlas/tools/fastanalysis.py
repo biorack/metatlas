@@ -357,9 +357,10 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                     # SKIP CHECK OF KNOWN UNFRAGMENTING PARENTS: final_df = check_known_single_fragments(final_df, compound_idx, scores)
                     if final_df.loc[compound_idx, 'ms2_notes'] == "1.0, single ion match, ISTD/ref evidence":
                         logger.info("\tParent ion is known to not fragment (ISTD/ref evidence). Retaining MSMS score.")
+                        final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is the precursor but has evidence for ID; " + final_df.loc[compound_idx, 'ms2_notes']
                     else:
                         # Set score to zero when the single matching fragment ion is the precursor.
-                        #final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
+                        final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is the precursor and does not have evidence for ID; " + final_df.loc[compound_idx, 'ms2_notes']
                         final_df.loc[compound_idx, 'msms_score'] = 0.0
                         # Then, overwrite the 'MSMS Score (0 to 1)' column of COMPOUND IDENTIFICATION SCORES
                         final_df.loc[compound_idx, 'msms_quality'] = 0
@@ -372,7 +373,7 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                             final_df.loc[compound_idx, 'msi_level'] = ""
                 else: # When single matching fragment ion is not the precursor, set score to best.
                     logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s. Retaining best MSMS score: %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'], scores[0])
-                    #final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is NOT the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
+                    final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is NOT the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
                     final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
             else:
                 final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
