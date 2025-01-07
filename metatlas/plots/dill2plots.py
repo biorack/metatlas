@@ -1743,6 +1743,16 @@ def make_boxplot_plots(df: pd.DataFrame, output_loc: Path, use_shortnames: bool 
                        overwrite: bool = True, max_cpus: int = 1, logy: bool = False) -> None:
     output_loc = Path(os.path.expandvars(output_loc))
     logger.info('Exporting box plots of %s to %s.', ylabel, output_loc)
+    df.to_csv("/out/make_boxplots_df_unsorted.tsv", sep="\t")
+
+    # Reorder columns for boxplots
+    istd_cols = [col for col in df.columns if 'ISTD' in col]
+    exctrl_cols = [col for col in df.columns if 'ExCtrl' in col]
+    refstd_cols = [col for col in df.columns if 'RefStd' in col]
+    sample_cols = sorted([col for col in df.columns if col not in istd_cols and col not in exctrl_cols])
+    df = df[istd_cols + exctrl_cols + sample_cols + refstd_cols]
+    
+    df.to_csv("/out/make_boxplots_df_sorted.tsv", sep="\t")
     disable_interactive_plots()
     args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy) for compound in df.index]
     parallel.parallel_process(_make_boxplot_single_arg, args, max_cpus, unit='plot')
