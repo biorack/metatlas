@@ -1743,35 +1743,29 @@ def make_boxplot_plots(df: pd.DataFrame, output_loc: Path, use_shortnames: bool 
                        overwrite: bool = True, max_cpus: int = 1, logy: bool = False) -> None:
     output_loc = Path(os.path.expandvars(output_loc))
     logger.info('Exporting box plots of %s to %s.', ylabel, output_loc)
-
-    # Reorder columns for boxplots
-    logger.info('Df columns: %s', df.columns)
-    istd_cols = [col for col in df.columns if 'ISTD' in col[-1]]
-    exctrl_cols = [col for col in df.columns if 'ExCtrl' in col[-1]]
-    refstd_cols = [col for col in df.columns if 'RefStd' in col[-1]]
-    sample_cols = sorted([col for col in df.columns if col not in istd_cols and col not in exctrl_cols and col not in refstd_cols])
-    df = df[istd_cols + exctrl_cols + sample_cols + refstd_cols]
-    
     disable_interactive_plots()
-    args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy) for compound in df.index]
-    parallel.parallel_process(_make_boxplot_single_arg, args, max_cpus, unit='plot')
-
-
-def _make_boxplot_single_arg(arg_list):
-    """ this is a hack, but multiprocessing constrains the functions that can be passed """
-    make_boxplot(*arg_list)
-
+    for compound in df.index:
+        make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy)
 
 def make_boxplot(compound: int, df: pd.DataFrame, output_loc: Path, use_shortnames: bool, ylabel: str, overwrite: bool, logy: bool) -> None:
     fig_path = output_loc / f"{compound}{'_log' if logy else ''}_boxplot.pdf"
     write_utils.check_existing_file(fig_path, overwrite)
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     num_points = 0
-    g = df.loc[compound].groupby(level=level)
+
+    # Reorder columns for boxplots
+    istd_cols = [col for col in df.columns if 'istd' in col[-1].lower()]
+    exctrl_cols = [col for col in df.columns if 'exctrl' in col[-1].lower() or 'txctrl' in col[-1].lower()]
+    refstd_cols = [col for col in df.columns if 'refstd' in col[-1].lower()]
+    sample_cols = sorted([col for col in df.columns if col not in istd_cols and col not in exctrl_cols and col not in refstd_cols])
+    df_sorted = df[istd_cols + exctrl_cols + sample_cols + refstd_cols]
+    g_sorted = df_sorted.loc[compound].groupby(level=level, sort=False)
+
     plt.rcParams.update({'font.size': 12})
-    f, ax = plt.subplots(1, 1, figsize=(max(len(g)*0.5, 12), 12))
-    g.apply(pd.DataFrame).plot(kind='box', ax=ax)
-    for i, (n, grp) in enumerate(g):
+    f, ax = plt.subplots(1, 1, figsize=(max(len(g_sorted)*0.5, 12), 12))
+
+    g_sorted.apply(pd.DataFrame).plot(kind='box', ax=ax)
+    for i, (n, grp) in enumerate(g_sorted):
         x = [i+1] *len(grp)
         x = np.random.normal(x, 0.04, size=len(x))
         plt.scatter(x, grp)
