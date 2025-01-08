@@ -1744,8 +1744,12 @@ def make_boxplot_plots(df: pd.DataFrame, output_loc: Path, use_shortnames: bool 
     output_loc = Path(os.path.expandvars(output_loc))
     logger.info('Exporting box plots of %s to %s.', ylabel, output_loc)
     disable_interactive_plots()
-    for compound in df.index:
-        make_boxplot(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy)
+    args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy) for compound in df.index]
+    parallel.parallel_process(_make_boxplot_single_arg, args, max_cpus, unit='plot')
+
+def _make_boxplot_single_arg(arg_list):
+    """ this is a hack, but multiprocessing constrains the functions that can be passed """
+    make_boxplot(*arg_list)
 
 def make_boxplot(compound: int, df: pd.DataFrame, output_loc: Path, use_shortnames: bool, ylabel: str, overwrite: bool, logy: bool) -> None:
     fig_path = output_loc / f"{compound}{'_log' if logy else ''}_boxplot.pdf"
