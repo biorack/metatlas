@@ -1760,7 +1760,7 @@ def make_boxplot(compound: int, df: pd.DataFrame, output_loc: Path, use_shortnam
     # Reorder columns for boxplots
     istd_cols = [col for col in df.columns if 'istd' in col[-1].lower()]
     exctrl_cols = [col for col in df.columns if 'exctrl' in col[-1].lower() or 'txctrl' in col[-1].lower()]
-    refstd_cols = [col for col in df.columns if 'refstd' in col[-1].lower()]
+    refstd_cols = [col for col in df.columns if 'refstd' in col[-1].lower() or 'metasci' in col[-1].lower()]
     sample_cols = sorted([col for col in df.columns if col not in istd_cols and col not in exctrl_cols and col not in refstd_cols])
     df_sorted = df[istd_cols + exctrl_cols + sample_cols + refstd_cols]
     g_sorted = df_sorted.loc[compound].groupby(level=level, sort=False)
