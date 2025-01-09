@@ -353,16 +353,29 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
             if len(mz_sample_matches) == 1: # There is only a single MSMS fragment that matches the reference
                 single_matching_ion = float(final_df.loc[compound_idx, 'msms_matchingions'].split(',')[0])
                 precursor_mass = mz_theoretical
-                if "single ion match" in final_df.loc[compound_idx, 'ms2_notes']: # Analyst annotated this hit as single ion match
-                    if abs(single_matching_ion - precursor_mass) <= ppm_tolerance: # Is the precursor
+                precursor_is_parent = abs(single_matching_ion - precursor_mass) <= ppm_tolerance
+                if final_df.loc[compound_idx, 'ms2_notes'] == "1.0, single ion match, ISTD/ref evidence": # Analyst annotated this hit as single ion match with good evidence
+                    if precursor_is_parent:
                         logger.info("Notice! Single matching MSMS fragment ion %s is within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
+                        logger.info("\tAnalyst identified this hit as single ion match with good evidence.")
                         final_df.loc[compound_idx, 'ms2_notes'] = final_df.loc[compound_idx, 'ms2_notes'] + " (single matching fragment ion is the precursor)"
                         final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
-                    else: # Is not the precursor
+                    else:
                         logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
+                        logger.info("\tAnalyst identified this hit as single ion match with good evidence.")
                         final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
-                else: # Analyst did not annotate this hit as single ion match
-                    final_df.loc[compound_idx, 'ms2_notes'] =  "Unannotated single ion match needs review. Setting MSMS score to 0.5. Original annotation: " + final_df.loc[compound_idx, 'ms2_notes']
+                elif final_df.loc[compound_idx, 'ms2_notes'] == "0.5, single ion match, no evidence": # Analyst annotated this hit as single ion match with no evidence
+                    if precursor_is_parent:
+                        logger.info("Notice! Single matching MSMS fragment ion %s is within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
+                        logger.info("\tAnalyst identified this hit as single ion match with no evidence.")
+                        final_df.loc[compound_idx, 'ms2_notes'] = final_df.loc[compound_idx, 'ms2_notes'] + " (single matching fragment ion is the precursor)"
+                        final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+                    else:
+                        logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
+                        logger.info("\tAnalyst identified this hit as single ion match with no evidence.")
+                        final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+                else: # Analyst did not annotate this hit as single ion match even though it is
+                    final_df.loc[compound_idx, 'ms2_notes'] =  "Unannotated single ion match, needs review. Setting MSMS quality to 0.5. Original annotation: " + final_df.loc[compound_idx, 'ms2_notes']
                     final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
                     final_df.loc[compound_idx, 'msms_quality'] = 0.5
                     quality_scores[0] = 0.5
