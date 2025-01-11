@@ -90,7 +90,7 @@ def add_arguments(parser):
     ## Step 1.5 only
     parser.add_argument('--hard_raw_data_mirror', action='store_true', help='Run the raw data mirror to GNPS2 before proceeding with pipeline')
     ## Step 2 only
-    parser.add_argument('--background_ratio', type=float, default=5, help='Ratio of background to sample intensity for filtering features')
+    parser.add_argument('--background_ratio', type=float, default=3, help='Ratio of background to sample intensity for filtering features')
     parser.add_argument('--zero_value', type=float, default=(2/3), help='Proportion of the lowest intensity value from the experiment to use as replacement zero value')
     parser.add_argument('--polar_solvent_front', type=float, default=0.8, help='Retention time to use as HILIC solvent front (mins) for filtering features')
     parser.add_argument('--nonpolar_solvent_front', type=float, default=0.5, help='Retention time to use as C18/LIPID solvent front (mins) for filtering features')
