@@ -45,7 +45,8 @@ def main():
     mzm.update_mzmine_status_in_untargeted_tasks(direct_input=args.direct_input,background_designator=args.background_designator, \
                                                  skip_mzmine_status=step_bools[1],background_ratio=args.background_ratio, \
                                                  zero_value=args.zero_value,nonpolar_solvent_front=args.nonpolar_solvent_front, \
-                                                 polar_solvent_front=args.polar_solvent_front)
+                                                 polar_solvent_front=args.polar_solvent_front,nonpolar_solvent_end=args.nonpolar_solvent_end, \
+                                                 polar_solvent_end=args.polar_solvent_end)
 
     ##### Step 3/7: Submitting new MZmine jobs that are "initialized"
     mzm.submit_mzmine_jobs(new_projects=new_projects,direct_input=args.direct_input,skip_mzmine_submit=step_bools[2], \
@@ -89,10 +90,12 @@ def add_arguments(parser):
     ## Step 1.5 only
     parser.add_argument('--hard_raw_data_mirror', action='store_true', help='Run the raw data mirror to GNPS2 before proceeding with pipeline')
     ## Step 2 only
-    parser.add_argument('--background_ratio', type=float, default=5, help='Ratio of background to sample intensity for filtering features')
+    parser.add_argument('--background_ratio', type=float, default=3, help='Ratio of background to sample intensity for filtering features')
     parser.add_argument('--zero_value', type=float, default=(2/3), help='Proportion of the lowest intensity value from the experiment to use as replacement zero value')
     parser.add_argument('--polar_solvent_front', type=float, default=0.8, help='Retention time to use as HILIC solvent front (mins) for filtering features')
     parser.add_argument('--nonpolar_solvent_front', type=float, default=0.5, help='Retention time to use as C18/LIPID solvent front (mins) for filtering features')
+    parser.add_argument('--polar_solvent_end', type=float, default=17.5, help='Retention time to use as HILIC solvent end (mins) for filtering features')
+    parser.add_argument('--nonpolar_solvent_end', type=float, default=10, help='Retention time to use as C18/LIPID solvent end (mins) for filtering features')
     ## Step 3 only
     parser.add_argument('--overwrite_mzmine', action='store_true', help='Overwrite existing mzmine results files that are already in the output directory')
     ## Step 5 only

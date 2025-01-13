@@ -1517,7 +1517,9 @@ def update_mzmine_status_in_untargeted_tasks(
     background_ratio: int = 5,
     zero_value: float = (2/3),
     nonpolar_solvent_front: float = 0.5,
-    polar_solvent_front: float = 0.8
+    polar_solvent_front: float = 0.8,
+    nonpolar_solvent_end: float = 10,
+    polar_solvent_end: float = 17.5
 ) -> None:
     """    
     finds initiated or running mzmine tasks
@@ -1560,7 +1562,6 @@ def update_mzmine_status_in_untargeted_tasks(
                 mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(project_name,polarity))
                 metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(project_name,polarity))
                 mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(project_name,polarity))
-                peak_height_filtered_filename = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (project_name, polarity))
 
                 if direct_input is None:
                     if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
@@ -1581,10 +1582,10 @@ def update_mzmine_status_in_untargeted_tasks(
 
                     if feature_count > 0:
                         logging.info(tab_print("Filtering features by peak height ratio compared to background (control) signal and writing to file", 4))
-                        df_filtered = create_filtered_peakheight_file(peakheight_filename,background_designator=background_designator, \
-                                                                      background_ratio=background_ratio,zero_value=zero_value, \
-                                                                      nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front)
-                        df_filtered.to_csv(peak_height_filtered_filename, index=False)
+                        create_filtered_peakheight_file(peakheight_filename=peakheight_filename,background_designator=background_designator,output_dir=pathname, \
+                                                        project_name=project_name,polarity=polarity,background_ratio=background_ratio,zero_value=zero_value, \
+                                                        nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front,
+                                                        nonpolar_solvent_end=nonpolar_solvent_end,polar_solvent_end=polar_solvent_end)
                     else:
                         logging.warning(tab_print("Warning! No features were found, not writing a filtered peak height file.", 4))
 
@@ -1623,69 +1624,132 @@ def update_mzmine_status_in_untargeted_tasks(
 def create_filtered_peakheight_file(
     peakheight_filename: str,
     background_designator: List[str],
+    output_dir: str,
+    project_name: str,
+    polarity: str,
     background_ratio: int = 3,
     zero_value: float = (2/3),
     nonpolar_solvent_front: float = 0.5,
-    polar_solvent_front: float = 0.8
+    polar_solvent_front: float = 0.8,
+    nonpolar_solvent_end: float = 10,
+    polar_solvent_end: float = 17.5
 ) -> None:
     """
     Accepts a peakheight file and filters out features that have a max peak height in exp samples that is less than
-    3 times the peak height in the control samples.
+    3 times the peak height in the control samples. Does additional filtering and reporting for EGSB
     """
+    # Read in data and create tables
     data_table = pd.read_csv(peakheight_filename, sep=',')
+    filtered_filenames = {
+        f'in_{background_ratio}x_control_file': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-{background_ratio}x-ctrl.csv')
+    }
+    if project_name.split('_')[1] == "EB":
+        filtered_filenames.update({
+            'in_1e4+_control_file': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e4-ctrl.csv'),
+            'in_1e5+_control_file': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e5-ctrl.csv')
+        })
+    summary_filename = os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtering-summary.csv')
 
     # Get background (extraction control) and sample columns
     header = data_table.columns
     empty_data_table = pd.DataFrame([list(header)[1:]])
     exctrl_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
     sample_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+    if not exctrl_columns:
+        logging.info(tab_print(f"Note! No columns found in peak height table with designation {background_designator}. Trying 'TxCtrl' instead.", 4))
+        exctrl_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in ['TxCtrl']) and 'mzml' in col.lower()]
+        if not exctrl_columns:
+            logging.warning(tab_print(f"Warning! No columns found in peak height table with designation {background_designator} or 'TxCtrl'. Returning empty dataframes.", 5))
+            for filename in filtered_filenames.values():
+                empty_data_table.to_csv(filename, index=False)
+            return
 
-    # Filter by comparing max peak heights in exctrl and sample columns
-    if not exctrl_columns and not sample_columns:
-        logging.warning(tab_print("Warning! No columns found in peak height table with designation %s. Returning empty dataframe."%(background_designator), 4))
-        return empty_data_table
+    # Determine solvent columns
+    if "_HILIC" in peakheight_filename:
+        solvent_front = polar_solvent_front
+        solvent_end = polar_solvent_end
+    elif "_C18" in peakheight_filename:
+        solvent_front = nonpolar_solvent_front
+        solvent_end = nonpolar_solvent_end
     else:
-        features_to_keep = []
-        for i,row in data_table.iterrows():
-            if i == 0:
-                features_to_keep.append(i) # keep the header row
+        logging.warning(tab_print("Warning! Could not infer solvent front and end for filtering, check peak height files and project names. Returning empty dataframes.", 5))
+        for filename in filtered_filenames.values():
+            empty_data_table.to_csv(filename, index=False)
+        return
+    column_limits = f'in_{solvent_front}_to_{solvent_end}_min_window'
+
+    # Initialize summary table
+    summary_table = pd.DataFrame(columns=['row ID', 'control_max', 'sample_max', 'rt_peak', column_limits] + list(filtered_filenames.keys()))
+
+    # Run the filtering and create summary rows
+    if exctrl_columns and sample_columns:
+        features_per_filtered_file = {key: [] for key in filtered_filenames.keys()}
+        for i, row in data_table.iterrows():
+            if i == 0:  # keep headers
+                for key in features_per_filtered_file.keys():
+                    features_per_filtered_file[key].append(i)
                 continue
-            exctrl_max = None
-            feature_max = None
-            exctrl_max = row[exctrl_columns].max()
-            feature_max = row[sample_columns].max()
-            if exctrl_max and feature_max:
-                if feature_max > exctrl_max*background_ratio:
-                    features_to_keep.append(i)
-        if len(features_to_keep) <= 1: # only the header row was retained
-            logging.warning(tab_print("Warning! No features passed the background filter. Returning empty dataframe.", 5))
-            return empty_data_table
-        elif len(features_to_keep) > 1:
-            # Do the filter
-            data_table_filtered = data_table.loc[features_to_keep]
-            data_table_filtered = data_table_filtered.loc[:, ~data_table_filtered.columns.str.contains('^Unnamed:')]
             
-            # Replace zeros with a small value
-            values = data_table_filtered[sample_columns + exctrl_columns]
-            lowest_non_zero = values[values != 0].min().min()
-            new_value = lowest_non_zero * zero_value
-            data_table_filtered.replace(0, new_value, inplace=True)
+            # Set up filtering parameters
+            control_max = row[exctrl_columns].max()
+            sample_max = row[sample_columns].max()
+            rt_peak = row['row retention time']
+            row_id = int(row['row ID'])
+            summary_row = {
+                'row ID': row_id,
+                'control_max': control_max,
+                'sample_max': sample_max,
+                'rt_peak': rt_peak
+            }
 
-            # Remove features in the solvent front
-            if peakheight_filename.split('_')[7] == "HILIC":
-                solvent_front = polar_solvent_front
+            # Perform the solvent and background filtering
+            summary_row[column_limits] = 'Within' if rt_peak >= solvent_front and rt_peak <= solvent_end else 'Outside'
+            peak_height_filters = {
+                f'in_{background_ratio}x_control_file': control_max * background_ratio
+            }
+            if project_name.split('_')[1] == "EB":
+                peak_height_filters.update({
+                    'in_1e4+_control_file': control_max + 1e4,
+                    'in_1e5+_control_file': control_max + 1e5,
+                })
+            for filter_name, threshold in peak_height_filters.items():
+                if sample_max > threshold and summary_row[column_limits] == 'Within':
+                    summary_row[filter_name] = '1'
+                    features_per_filtered_file[filter_name].append(i)
+                else:
+                    summary_row[filter_name] = '0'
+            
+            # Append the summary row to the summary table
+            if summary_table.empty: # First iteration of the peak height table
+                summary_table = pd.DataFrame([summary_row], columns=summary_table.columns)
             else:
-                solvent_front = nonpolar_solvent_front
-            data_table_filtered = data_table_filtered[data_table_filtered['row retention time'] >= solvent_front]
+                summary_table = pd.concat([summary_table, pd.DataFrame([summary_row])], ignore_index=True)
 
-            # Log the number of features removed
-            difference = data_table.shape[0] - data_table_filtered.shape[0]
-            logging.info(tab_print("%s features removed by background filter"%(difference), 5))
+        for key, indices in features_per_filtered_file.items():
+            if len(indices) <= 1:  # only the header row was retained
+                empty_data_table.to_csv(filtered_filenames[key], index=False)
+            else:
+                data_table_filtered = data_table.loc[indices]
+                data_table_filtered = data_table_filtered.loc[:, ~data_table_filtered.columns.str.contains('^Unnamed:')]
 
-            return data_table_filtered
-        else:
-            logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframe.", 5))
-            return empty_data_table
+                # Replace zeros with a small value
+                if key == f'in_{background_ratio}x_control_file':
+                    values = data_table_filtered[sample_columns + exctrl_columns]
+                    lowest_non_zero = values[values != 0].min().min()
+                    new_value = lowest_non_zero * zero_value
+                    data_table_filtered.replace(0, new_value, inplace=True)
+
+                # Log the number of features removed and save file
+                difference = data_table.shape[0] - data_table_filtered.shape[0]
+                logging.info(tab_print(f"{difference} features removed by the {key} background filter. Saving filtered peak height table.", 5))
+                data_table_filtered.to_csv(filtered_filenames[key], index=False)
+    else:
+        logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframes.", 5))
+        for filename in filtered_filenames.values():
+            empty_data_table.to_csv(filename, index=False)
+
+    # Save the summary table
+    summary_table.to_csv(summary_filename, index=False)
 
 def calculate_counts_for_lims_table(
     peakheight_filename: str,
