@@ -1733,7 +1733,7 @@ def create_filtered_peakheight_file(
                 data_table_filtered = data_table_filtered.loc[:, ~data_table_filtered.columns.str.contains('^Unnamed:')]
 
                 # Replace zeros with a small value
-                if key == f'{background_ratio}x_control':
+                if key == f'in_{background_ratio}x_control_file':
                     values = data_table_filtered[sample_columns + exctrl_columns]
                     lowest_non_zero = values[values != 0].min().min()
                     new_value = lowest_non_zero * zero_value
