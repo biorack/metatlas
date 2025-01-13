@@ -1641,10 +1641,13 @@ def create_filtered_peakheight_file(
     # Read in data and create tables
     data_table = pd.read_csv(peakheight_filename, sep=',')
     filtered_filenames = {
-        f'in_{background_ratio}x_control_file': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-{background_ratio}x-ctrl.csv'),
-        'in_1e4+_control_file': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e4-ctrl.csv'),
-        'in_1e5+_control_file': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e5-ctrl.csv')
+        f'in_{background_ratio}x_control_file': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-{background_ratio}x-ctrl.csv')
     }
+    if project_name.split('_')[1] == "EB":
+        filtered_filenames.update({
+            'in_1e4+_control_file': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e4-ctrl.csv'),
+            'in_1e5+_control_file': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e5-ctrl.csv')
+        })
     summary_filename = os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtering-summary.csv')
 
     # Get background (extraction control) and sample columns
@@ -1676,7 +1679,7 @@ def create_filtered_peakheight_file(
     column_limits = f'in_{solvent_front}_to_{solvent_end}_min_window'
 
     # Initialize summary table
-    summary_table = pd.DataFrame(columns=['row ID', 'control_max', 'sample_max', 'rt_peak', column_limits, f'in_{background_ratio}x_control_file', 'in_1e4+_control_file', 'in_1e5+_control_file'])
+    summary_table = pd.DataFrame(columns=['row ID', 'control_max', 'sample_max', 'rt_peak', column_limits] + list(filtered_filenames.keys()))
 
     # Run the filtering and create summary rows
     if exctrl_columns and sample_columns:
@@ -1702,10 +1705,13 @@ def create_filtered_peakheight_file(
             # Perform the solvent and background filtering
             summary_row[column_limits] = 'Within' if rt_peak >= solvent_front and rt_peak <= solvent_end else 'Outside'
             peak_height_filters = {
-                f'in_{background_ratio}x_control_file': control_max * background_ratio,
-                'in_1e4+_control_file': control_max + 1e4,
-                'in_1e5+_control_file': control_max + 1e5,
+                f'in_{background_ratio}x_control_file': control_max * background_ratio
             }
+            if project_name.split('_')[1] == "EB":
+                peak_height_filters.update({
+                    'in_1e4+_control_file': control_max + 1e4,
+                    'in_1e5+_control_file': control_max + 1e5,
+                })
             for filter_name, threshold in peak_height_filters.items():
                 if sample_max > threshold and summary_row[column_limits] == 'Within':
                     summary_row[filter_name] = '1'
