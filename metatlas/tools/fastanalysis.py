@@ -385,6 +385,8 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                         final_df.loc[compound_idx, 'total_score'] = np.nan
                         final_df.loc[compound_idx, 'msi_level'] = ""
             else: # Multiple fragment ion matches to reference
+                if 'single ion match' in final_df.loc[compound_idx, 'ms2_notes'] and len(mz_sample_matches) > 1:
+                    final_df.loc[compound_idx, 'ms2_notes'] = final_df.loc[compound_idx, 'ms2_notes'] + " (multiple matching fragment ions even though analyst IDed as single)"
                 final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
 
         else:
