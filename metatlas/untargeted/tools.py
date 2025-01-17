@@ -12,7 +12,7 @@ import time
 import glob
 import subprocess
 import math
-sys.path.insert(0,'/global/homes/b/bkieft/metatlas/')
+sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
 import metatlas.tools.validate_filenames as vfn
 import subprocess
 import grp

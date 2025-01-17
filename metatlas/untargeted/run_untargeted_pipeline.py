@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 import logging
-sys.path.insert(0,'/global/homes/b/bkieft/metatlas/')
+sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
 from metatlas.untargeted import tools as mzm
 
 ##### Parse command line arguments
