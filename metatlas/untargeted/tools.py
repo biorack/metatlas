@@ -9,6 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, time
 import time
+import glob
 import subprocess
 import math
 sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
@@ -20,9 +21,6 @@ import paramiko
 import zipfile
 import shutil
 from typing import List, Dict, Union, Optional
-
-BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
-BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
 
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
@@ -52,8 +50,12 @@ SLURM_PERLMUTTER_HEADER = """#!/bin/bash
 #SBATCH -t 3:00:00
 """
 
-mzine_batch_params_file = "/global/common/software/m2650/mzmine_parameters/batch_files/mzmine-3.7.2-batchparams.xml"
-mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/batch_files/IQX-mzmine-3.7.2-batchparams.xml"
+BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files'
+BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
+mzine_batch_params_file = f"{BATCH_FILE_PATH}/mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_iqx = f"{BATCH_FILE_PATH}/IQX-mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_pos = f"{BATCH_FILE_PATH}/POS-mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_neg = f"{BATCH_FILE_PATH}/NEG-mzmine-3.7.2-batchparams.xml"
 
 def call_logger(log_filename: str, log_level: str, log_format: str):
     logging.basicConfig(filename=log_filename, level=log_level, format=log_format, filemode='a')
@@ -160,9 +162,7 @@ def zip_and_upload_untargeted_results(
     direct_input: Optional[str] = None,
     min_features_admissible: int = 0
 ) -> None:
-    """
-    This function is called by export_untargeted_results.py
-    
+    """    
     Specify the download folder (where the zip files will be saved) and
     the output folder (where task directories are located) in case the info
     in the LIMS table is not accurate
@@ -301,9 +301,9 @@ def zip_and_upload_untargeted_results(
                             continue
         
         if zip_count == 0:
-            logging.info(tab_print("No new untargeted projects to be zipped.", 1))
+            logging.info(tab_print("No newly completed untargeted projects to be zipped.", 2))
         
-        logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
+        logging.info(tab_print("%s new complete untargeted projects uploaded."%(upload_count), 1))
 
 
 def zip_untargeted_results(
@@ -465,7 +465,7 @@ def upload_to_google_drive(
             logging.critical(tab_print("Warning! Google Drive upload failed on upload with overwrite=%s with exception on command %s"%(overwrite, upload_command), 3))
             return False
         # Check that upload worked
-        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs --max-depth 1 | grep "{project_folder}"'
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
@@ -479,7 +479,7 @@ def upload_to_google_drive(
             return False
     if overwrite == False:
         # Overwrite is False, so first check if the project folder already exists on Google Drive
-        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+        check_upload_command = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs --max-depth 1 | grep "{project_folder}"'
         try:
             check_upload_out = subprocess.check_output(check_upload_command, shell=True)
             if check_upload_out.decode('utf-8').strip():
@@ -490,7 +490,7 @@ def upload_to_google_drive(
             try:
                 subprocess.check_output(upload_command, shell=True)
                 try:
-                    check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs | grep "{project_folder}"'
+                    check_upload = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone ls ben_lbl_gdrive:/untargeted_outputs --max-depth 1 | grep "{project_folder}"'
                     check_upload_out = subprocess.check_output(check_upload, shell=True)
                     if check_upload_out.decode('utf-8').strip():
                         logging.info(tab_print("Google Drive upload confirmed!", 3))
@@ -541,8 +541,6 @@ def get_untargeted_status(
     print_recent: str = None
 ) -> None:
     """
-    This function is called by check_untargeted_status.py
-
     Print the status of a user-defined list of projects
     by calling this function with a csv list of project names
     """
@@ -557,7 +555,7 @@ def get_untargeted_status(
         return
     if not df.empty:
         # Get all projects in gdrive
-        all_gdrive_projects_cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsl ben_lbl_gdrive:/untargeted_outputs'
+        all_gdrive_projects_cmd = f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone lsl ben_lbl_gdrive:/untargeted_outputs --max-depth 1'
         try:
             all_gdrive_projects = subprocess.check_output(all_gdrive_projects_cmd, shell=True)
             all_gdrive_projects_list = all_gdrive_projects.decode('utf-8').strip().split('\n')
@@ -627,8 +625,6 @@ def download_fbmn_results(
     direct_input: Optional[str] = None
 ) -> None:
     """
-    This function is called by download_fbmn_results.py
-
     finds complete fbmn tasks (which also have complete mzmine status)
     downloads the graphml and results table files
     renames and moves results to the untargeted_tasks folder
@@ -647,6 +643,7 @@ def download_fbmn_results(
     df = filter_common_bad_project_names(df)
     if direct_input is not None:
         df = df[df['parent_dir'].isin(direct_input)]
+        df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before downloading fbmn
     status_list = ['07 complete','09 error']
     if direct_input is None:
         df = subset_df_by_status(df,tasktype,status_list)
@@ -663,11 +660,6 @@ def download_fbmn_results(
                 continue
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
-                    continue
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! FBMN task for %s %s has error status. Not downloading files."%(project_name,polarity), 1))
-                    continue
                 pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 if os.path.isfile(fbmn_filename)==True:
@@ -677,26 +669,41 @@ def download_fbmn_results(
                     results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(project_name,polarity))
                     gnps2_link_filename = os.path.join(pathname,'%s_%s_gnps2-page-link.txt'%(project_name,polarity))
                     if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename) and os.path.exists(gnps2_link_filename):
+                        continue # Skip finished projects unless overwrite is forced
+                    # Bail out conditions
+                    logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
+                    if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                        logging.info(tab_print("Bailed out because FBMN status for %s mode is '12 not relevant'. Skipping download."%(polarity), 2))
                         continue
-                    logging.info(tab_print("Downloading %s mode FBMN results for %s with task ID %s"%(polarity,project_name,taskid), 1))
+                    if row['%s_%s_status'%(tasktype,polarity_short)] != '07 complete':
+                        logging.info(tab_print("Bailed out because FBMN status for %s mode is not '07 complete'. Skipping download."%(polarity), 2))
+                        continue # skip this polarity even if the other one is finished
+                    if row['%s_%s_status'%("mzmine",polarity_short)] != '07 complete':
+                        logging.info(tab_print("Bailed out because MZmine status for %s mode is not '07 complete'. Skipping download."%(polarity), 2))
+                        continue # skip this polarity even if the other one is finished
+                    if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                        logging.info(tab_print("Bailed out because FBMN status for %s mode is '09 error'. Not downloading files."%(polarity), 2))
+                        continue
+
+                    logging.info(tab_print("Downloading %s mode FBMN results with task ID %s"%(polarity,taskid), 2))
                     if overwrite_fbmn == True or not os.path.exists(gnps2_link_filename):
                         with open(gnps2_link_filename,'w') as fid:
                             fid.write(f"https://gnps2.org/status?task={taskid}\n")
-                            logging.info(tab_print("Wrote GNPS2 link", 2))
+                            logging.info(tab_print("Wrote GNPS2 link", 3))
                     if overwrite_fbmn == True or not os.path.exists(graphml_filename):
                         graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
                         if graphml_download:
-                            logging.info(tab_print("Downloaded graphml file", 2))
+                            logging.info(tab_print("Downloaded graphml file", 3))
                             count += 1
                         else:
-                            logging.critical(tab_print("Error: Failed to download graphml file", 2))
+                            logging.critical(tab_print("Error: Failed to download graphml file", 3))
                     if overwrite_fbmn == True or not os.path.exists(results_table_filename):
                         results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
                         if results_table_download:
-                            logging.info(tab_print("Downloaded result table file", 2))
+                            logging.info(tab_print("Downloaded result table file", 3))
                             count += 1
                         else:
-                            logging.critical(tab_print("Error: Failed to download results table", 2))
+                            logging.critical(tab_print("Error: Failed to download results table", 3))
                     try:
                         recursive_chown(pathname, 'metatlas')
                     except:
@@ -929,9 +936,15 @@ def mirror_mzmine_results_to_gnps2(
 
     if not password:
         logging.error(tab_print("Password is required to mirror data to GNPS2. Exiting", 3))
-        return
+        return "Failed"
     
     logging.info(tab_print("Mirroring MZmine results for %s to GNPS2..."%(project), 3))
+
+    # Suppress all paramiko logs
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.CRITICAL)
+    paramiko_logger.addHandler(logging.NullHandler())
+    paramiko_logger.propagate = False
 
     project_directory = f"{project}_{polarity}"
     local_directory = os.path.join(output_dir, project_directory)
@@ -945,37 +958,49 @@ def mirror_mzmine_results_to_gnps2(
         transport.connect(username=remote_user, password=password)
         sftp = paramiko.SFTPClient.from_transport(transport)
     except paramiko.SSHException as e:
-        logging.error(f"Failed to connect to GNPS2: {e}")
-        return
+        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
+        wait_time = 30
+        logging.info(tab_print("Waiting %s seconds and attempting to connect again..."%(wait_time), 5))
+        time.sleep(wait_time)
+        try:
+            transport = paramiko.Transport((remote_host, remote_port))
+            transport.connect(username=remote_user, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+        except paramiko.SSHException as e:
+            logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 4))
+            return "Failed"
     
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+        if "mkdir file exists" not in str(e).lower():
+            logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
 
     try:
         local_directory = Path(local_directory)
-        logging.info("Walking through local directory %s and uploading mzmine results to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix in ('.mgf', '.csv', '.tab'):
-                logging.info("Uploading %s to GNPS2..." % file_path.name)
+                #logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{remote_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
-                logging.info(f"Uploaded {file_path.name} to GNPS2...")
+                logging.info(tab_print(f"Uploaded {file_path.name} to GNPS2...", 4))
         sftp.close()
         transport.close()
         logging.info(tab_print(f"Completed MZmine results mirror to GNPS2 for {project}...", 3))
+        return "Passed"
     except:
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
-        return
+        return "Failed"
 
 def mirror_raw_data_to_gnps2(
     project: str,
-    polarity: str,
     username: str,
     raw_data_dir: str,
-    raw_data_subdir: Optional[str] = None
+    overwrite_existing_dir: bool = False,
+    polarity: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None,
+    use_polarity_subdir: Optional[bool] = False
 ) -> None:
     """
     Mirrors raw data (mzML files) to GNPS2.
@@ -1000,25 +1025,34 @@ def mirror_raw_data_to_gnps2(
                     break
     except FileNotFoundError:
         logging.error("Password file not found. Exiting.")
-        return
+        return "Failed"
 
     if not password:
         logging.error("Password is required to mirror data to GNPS2. Exiting.")
-        return
+        return "Failed"
     
-    logging.info(f"Mirroring raw data (mzML files) for {project} to GNPS2...")
+    logging.info(tab_print(f"Mirroring raw data (mzML files) for {project} to GNPS2...", 2))
+
+    # Suppress all paramiko logs
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.CRITICAL)
+    paramiko_logger.addHandler(logging.NullHandler())
+    paramiko_logger.propagate = False
 
     if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
         _, validate_department, _ = vfn.field_exists(PurePath(project), field_num=1)
         try:
-            subdir = validate_department.lower()
+            if validate_department is None:
+                subdir = 'jgi' # Assume a raw data location if project name is not parseable
+            else:
+                subdir = validate_department.lower()
             if subdir == 'eb':
                 subdir = 'egsb'
             check_project_raw_dir = os.path.join(raw_data_dir,subdir,project)
             if os.path.exists(check_project_raw_dir):
                 local_directory = check_project_raw_dir
             else:
-                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie"]
+                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood"]
                 for subdir in possible_subdirs:
                     check_project_raw_dir = os.path.join(raw_data_dir, subdir, project)
                     if os.path.exists(check_project_raw_dir):
@@ -1026,20 +1060,25 @@ def mirror_raw_data_to_gnps2(
                         break
                 else:
                     logging.error(f"Raw data directory for {project} could not be found after trying several possible alternatives. Not creating metadata.")
-                    return
+                    return "Failed"
         except Exception as e:
             logging.error(tab_print(f"Error when trying to locate mzML files on disk: {e}", 2))
-            return
+            return "Failed"
     else:
         local_directory = os.path.join(raw_data_dir,raw_data_subdir,project)
         if not os.path.exists(local_directory):
             logging.error(tab_print(f"Raw data directory for {project} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
-            return
+            return "Failed"
 
     local_directory = Path(local_directory)
     remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter instead of inferring from the project name directly
     remote_directory = f"/raw_data/{remote_subdir}/{project}"
-    polarity_directory = f"{remote_directory}/{polarity}"
+    if use_polarity_subdir is True:
+        if polarity is None:
+            logging.error(tab_print("Polarity is required when use_polarity_subdir is True. Exiting.", 2))
+            return "Failed"
+        else:
+            polarity_directory = f"{remote_directory}/{polarity}"
     remote_host = "sftp.gnps2.org"
     remote_port = 443
     remote_user = username
@@ -1049,35 +1088,66 @@ def mirror_raw_data_to_gnps2(
         transport.connect(username=remote_user, password=password)
         sftp = paramiko.SFTPClient.from_transport(transport)
     except paramiko.SSHException as e:
-        logging.error(f"Failed to connect to GNPS2: {e}")
-        return
+        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
+        wait_time = 30
+        logging.info(tab_print("Waiting %s seconds and attempting to connect again..."%(wait_time), 5))
+        time.sleep(wait_time)
+        try:
+            transport = paramiko.Transport((remote_host, remote_port))
+            transport.connect(username=remote_user, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+        except paramiko.SSHException as e:
+            logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 4))
+            return "Failed"
 
-    polarity_short = f"_{polarity[:3].upper()}_"
     try:
         sftp.mkdir(remote_directory)
     except Exception as e:
-        logging.error(f"Failed to create remote directory {remote_directory} at GNPS2: {e}")
+        if "mkdir file exists" in str(e).lower():
+            if overwrite_existing_dir is False:
+                logging.info(tab_print(f"Found existing directory {remote_directory} at GNPS2 and overwrite_existing_dir is False. Exiting.", 3))
+                return "Failed"
+        else:
+            logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
+            return "Failed"
+        
+    if use_polarity_subdir is True and polarity is not None:
+        polarity_short = f"_{polarity[:3].upper()}_"
+        try:
+            sftp.mkdir(polarity_directory)
+        except Exception as e:
+            if "mkdir file exists" in str(e).lower():
+                if overwrite_existing_dir is False:
+                    logging.info(tab_print(f"Found existing directory {polarity_directory} at GNPS2 and overwrite_existing_dir is False. Exiting.", 3))
+                    return "Failed"
+            else:
+                logging.warning(tab_print(f"Notice! Did not create {polarity_directory} at GNPS2 for reason: {e}", 3))
+                return "Failed"
     try:
-        sftp.mkdir(polarity_directory)
-    except Exception as e:
-        logging.error(f"Failed to create remote directory {polarity_directory} at GNPS2: {e}")
-
-    try:
-        logging.info("Walking through local directory %s and uploading mzML files to GNPS2..."%(local_directory))
         for file_path in local_directory.rglob('*'):
-            if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
-                logging.info("Uploading %s to GNPS2..." % file_path.name)
-                local_path = str(file_path)
-                remote_path = f"{polarity_directory}/{file_path.name}"
-                sftp.put(local_path, remote_path)
-                logging.info(f"Uploaded {file_path.name} to GNPS2...")
+            if use_polarity_subdir is True:
+                polarity_short = f"_{polarity[:3].upper()}_"
+                if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
+                    #logging.info("Uploading %s to GNPS2..." % file_path.name)
+                    local_path = str(file_path)
+                    remote_path = f"{polarity_directory}/{file_path.name}"
+                    sftp.put(local_path, remote_path)
+                    logging.info(tab_print(f"Uploaded {file_path.name} to {remote_path} at GNPS2...", 3))
+            if use_polarity_subdir is False:
+                if file_path.is_file() and file_path.suffix == '.mzML' in file_path.name:
+                    #logging.info("Uploading %s to GNPS2..." % file_path.name)
+                    local_path = str(file_path)
+                    remote_path = f"{remote_directory}/{file_path.name}"
+                    sftp.put(local_path, remote_path)
+                    logging.info(tab_print(f"Uploaded {file_path.name} to {remote_path} at GNPS2...", 3))     
 
         sftp.close()
         transport.close()
-        logging.info(f"Completed raw data mirror to GNPS2 for {project}...")
+        logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {project}...", 2))
+        return "Passed"
     except Exception as e:
         logging.error(f"Failed to mirror raw data for {project} to GNPS2: {e}")
-        return
+        return "Failed"
 
 # def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
@@ -1212,7 +1282,6 @@ def submit_fbmn_jobs(
         index_list = []
         for i,row in df.iterrows():
             project_name = row['parent_dir']
-            logging.info(tab_print("Working on project %s:"%(project_name), 1))
             polarity_list = check_for_polarities(row['output_dir'],project_name)
             if polarity_list is None:
                 logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
@@ -1223,21 +1292,27 @@ def submit_fbmn_jobs(
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 
                 # Bail out conditions
+                logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    logging.warning(tab_print("Warning! Project %s mode has an error status. Attempting to resubmit..."%(polarity), 2))
+                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
+                    logging.info(tab_print("Bailed out because FBMN status is '12 not relevant' for %s mode"%(polarity), 2))
                     continue
                 if row['%s_%s_status'%('mzmine',polarity_short)] != '07 complete':
+                    logging.info(tab_print("Bailed out because MZmine status is not '07 complete' for %s mode"%(polarity), 2))
                     continue
                 if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==False:
+                    logging.info(tab_print("Bailed out because FBMN task file already exists for %s mode and overwrite is False"%(polarity), 2))
                     continue
-
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! %s in %s mode has an error status. Attempting to resubmit..."%(project_name,polarity), 2))
-                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
 
                 if raw_data_subdir is None:
                     _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
                     try:
-                        subdir = validate_department.lower()
+                        if validate_department is None:
+                            subdir = 'jgi' # Assume raw data location if project name is not paresable
+                        else:
+                            subdir = validate_department.lower()
                         if subdir == 'eb':
                             subdir = 'egsb'
                     except:
@@ -1247,15 +1322,21 @@ def submit_fbmn_jobs(
                     subdir = raw_data_subdir
 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
-                logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
                 if skip_mirror_mzmine_results is False:
-                    mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
+                    logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
+                    mirror = mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
+                    if mirror == "Failed":
+                        logging.warning(tab_print("Skipping FBMN submission for %s mode because of MZmine results upload failure"%(polarity), 3))
+                        continue
                 else:
                     logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
                 if skip_mirror_raw_data is False:
-                    mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir)
+                    logging.info(tab_print("Ensuring raw mzML data are at GNPS2 before submitting FBMN job...", 2))
+                    mirror = mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir,use_polarity_subdir=False)
+                    if mirror == "Failed":
+                        logging.info(tab_print("Notice! Proceeding with FBMN submission for %s mode even though raw data mirror failed"%(polarity), 3))
                 else:
-                    logging.info(tab_print("Skipping raw data mirroring to GNPS2...", 2))
+                    logging.info(tab_print("Skipping raw data mirroring to GNPS2 for %s mode..."%(polarity), 2))
 
                 description = '%s_%s'%(project_name,polarity)
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
@@ -1265,7 +1346,9 @@ def submit_fbmn_jobs(
                 mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
                 mgf_lines = count_mgf_lines(mgf_filename)
                 if mgf_lines == 0:
-                    logging.warning(tab_print("Warning! %s in %s mode has mgf file but no mgf data. Skipping..."%(project_name, polarity), 2))
+                    logging.info(tab_print("Note! MGF file in %s mode has no MSMS data. Updating FBMN status to '12 not relevant'"%(polarity), 2))
+                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
+                    index_list.append(i)
                     continue
                 params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
                 job_id = submit_quickstart_fbmn(params, "bpbowen")
@@ -1309,8 +1392,6 @@ def submit_mzmine_jobs(
     direct_input: Optional[str] = None
 ) -> None:
     """
-    This function is called by run_mzmine.py
-
     finds initiated mzmine tasks
     submits the tasks as mzmine jobs on perlmutter
     updates the LIMS table with status running if successful
@@ -1436,11 +1517,11 @@ def update_mzmine_status_in_untargeted_tasks(
     background_ratio: int = 5,
     zero_value: float = (2/3),
     nonpolar_solvent_front: float = 0.5,
-    polar_solvent_front: float = 0.8
+    polar_solvent_front: float = 0.8,
+    nonpolar_solvent_end: float = 10,
+    polar_solvent_end: float = 17.5
 ) -> None:
-    """
-    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
-    
+    """    
     finds initiated or running mzmine tasks
     checks if they have valid output
     updates the LIMS table with status complete if successful
@@ -1481,7 +1562,6 @@ def update_mzmine_status_in_untargeted_tasks(
                 mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(project_name,polarity))
                 metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(project_name,polarity))
                 mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(project_name,polarity))
-                peak_height_filtered_filename = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (project_name, polarity))
 
                 if direct_input is None:
                     if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
@@ -1501,11 +1581,11 @@ def update_mzmine_status_in_untargeted_tasks(
                     index_list.append(i)
 
                     if feature_count > 0:
-                        logging.info(tab_print("Filtering features by peak height ratio compared to background (control) signal and writing to file", 4))
-                        df_filtered = create_filtered_peakheight_file(peakheight_filename,background_designator=background_designator, \
-                                                                      background_ratio=background_ratio,zero_value=zero_value, \
-                                                                      nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front)
-                        df_filtered.to_csv(peak_height_filtered_filename, index=False)
+                        logging.info(tab_print("Filtering peak height file to remove features below background...", 4))
+                        create_filtered_peakheight_file(peakheight_filename=peakheight_filename,background_designator=background_designator,output_dir=pathname, \
+                                                        project_name=project_name,polarity=polarity,background_ratio=background_ratio,zero_value=zero_value, \
+                                                        nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front,
+                                                        nonpolar_solvent_end=nonpolar_solvent_end,polar_solvent_end=polar_solvent_end)
                     else:
                         logging.warning(tab_print("Warning! No features were found, not writing a filtered peak height file.", 4))
 
@@ -1544,69 +1624,148 @@ def update_mzmine_status_in_untargeted_tasks(
 def create_filtered_peakheight_file(
     peakheight_filename: str,
     background_designator: List[str],
+    output_dir: str,
+    project_name: str,
+    polarity: str,
     background_ratio: int = 3,
     zero_value: float = (2/3),
     nonpolar_solvent_front: float = 0.5,
-    polar_solvent_front: float = 0.8
+    polar_solvent_front: float = 0.8,
+    nonpolar_solvent_end: float = 10,
+    polar_solvent_end: float = 17.5
 ) -> None:
     """
     Accepts a peakheight file and filters out features that have a max peak height in exp samples that is less than
-    3 times the peak height in the control samples.
+    3 times the peak height in the control samples. Does additional filtering and reporting for EGSB
     """
-    data_table = pd.read_csv(peakheight_filename, sep=',')
+    if "JGI" not in project_name.split('_')[1]:
+        jgi_project = False
+    else:
+        jgi_project = True
 
+    def print_empty_filter_files(data_table, filtered_filenames, jgi_project):
+        empty_data_table = pd.DataFrame(columns=data_table.columns[1:])
+        for filename in filtered_filenames.values():
+            if jgi_project:
+                if 'x_exctrl' in filename:
+                    empty_data_table.to_csv(filename, index=False)
+            else:
+                empty_data_table.to_csv(filename, index=False)
+        return
+
+    # Read in data and create tables
+    data_table = pd.read_csv(peakheight_filename, sep=',')
+    filtered_filenames = {
+        f'>{background_ratio}x_exctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-{background_ratio}x-exctrl.csv'),
+        '>1e4_exctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e4-exctrl.csv'),
+        '>1e5_exctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e5-exctrl.csv'),
+        f'>{background_ratio}x_txctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-{background_ratio}x-txctrl.csv'),
+        '>1e4_txctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e4-txctrl.csv'),
+        '>1e5_txctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e5-txctrl.csv')
+        }
+    
     # Get background (extraction control) and sample columns
     header = data_table.columns
-    empty_data_table = pd.DataFrame([list(header)[1:]])
     exctrl_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
-    sample_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+    txctrl_columns = [col for col in header if len(col.split('_')) > 12 and 'txctrl' in col.split('_')[12].lower() and 'mzml' in col.lower()]
+    sample_columns = [col for col in header if col not in exctrl_columns and col not in txctrl_columns]
+    if not exctrl_columns and not txctrl_columns:
+        logging.warning(tab_print(f"Warning! No columns found in peak height table with designation {background_designator} or 'TxCtrl'. Returning empty dataframes.", 5))
+        print_empty_filter_files(data_table, filtered_filenames, jgi_project)
+        return
+    if not sample_columns:
+        logging.warning(tab_print("Warning! No sample columns found in peak height table. Returning empty dataframes.", 5))
+        print_empty_filter_files(data_table, filtered_filenames, jgi_project)
+        return
 
-    # Filter by comparing max peak heights in exctrl and sample columns
-    if not exctrl_columns and not sample_columns:
-        logging.warning(tab_print("Warning! No columns found in peak height table with designation %s. Returning empty dataframe."%(background_designator), 4))
-        return empty_data_table
+    # Determine solvent columns
+    if "_HILIC" in peakheight_filename:
+        solvent_front = polar_solvent_front
+        solvent_end = polar_solvent_end
+    elif "_C18" in peakheight_filename:
+        solvent_front = nonpolar_solvent_front
+        solvent_end = nonpolar_solvent_end
     else:
-        features_to_keep = []
-        for i,row in data_table.iterrows():
-            if i == 0:
-                features_to_keep.append(i) # keep the header row
+        logging.warning(tab_print("Warning! Could not infer solvent front and end for filtering, check peak height files and project names. Returning empty dataframes.", 5))
+        print_empty_filter_files(data_table, filtered_filenames, jgi_project)
+        return
+    column_limits = f'rt_in_{solvent_front}-{solvent_end}min_window'
+
+    # Run the filtering and create summary rows
+    summary_table = []
+    peak_height_filtered_files = {key: [] for key in filtered_filenames.keys()}
+    for i, row in data_table.iterrows():
+        # Set up summary row and filtering parameters
+        exctrl_max = row[exctrl_columns].max() if exctrl_columns else 1e20 # Set to a large number if no exctrl columns
+        txctrl_max = row[txctrl_columns].max() if txctrl_columns else 1e20 # Set to a large number if no txctrl columns
+        sample_max = row[sample_columns].max()
+        rt_peak = row['row retention time']
+        row_id = int(row['row ID'])
+        summary_row = {
+            'row ID': row_id,
+            'exctrl_max': exctrl_max,
+            'txctrl_max': txctrl_max,
+            'sample_max': sample_max,
+            'rt_peak': rt_peak
+        }
+
+        # Perform the solvent filtering
+        summary_row[column_limits] = '1' if rt_peak >= solvent_front and rt_peak <= solvent_end else '0'
+        
+        # Perform peak height filtering
+        peak_height_filters = {
+            f'>{background_ratio}x_exctrl': exctrl_max * background_ratio,
+            '>1e4_exctrl': exctrl_max + 1e4,
+            '>1e5_exctrl': exctrl_max + 1e5,
+            f'>{background_ratio}x_txctrl': txctrl_max * background_ratio,
+            '>1e4_txctrl': txctrl_max + 1e4,
+            '>1e5_txctrl': txctrl_max + 1e5
+            }
+        for filter_name, threshold in peak_height_filters.items():
+            summary_row[filter_name] = '1' if sample_max >= threshold else '0'
+            if summary_row[filter_name] == '1' and summary_row[column_limits] == '1':
+                peak_height_filtered_files[filter_name].append(i)
+        
+        # Append the summary row to the summary table
+        summary_table.append(summary_row)
+
+    # Convert summary table to DataFrame
+    summary_columns = ['row ID', 'exctrl_max', 'txctrl_max', 'sample_max', 'rt_peak', column_limits] + list(filtered_filenames.keys())
+    summary_table = pd.DataFrame(summary_table, columns=summary_columns)
+    if not exctrl_columns:
+        summary_table['exctrl_max'] = np.nan # Replace large value with NA
+    if not txctrl_columns:
+        summary_table['txctrl_max'] = np.nan # Replace large value with NA
+    if jgi_project:
+        columns_to_drop = ['txctrl_max', '>1e4_exctrl', '>1e5_exctrl', f'>{background_ratio}x_txctrl', '>1e4_txctrl', '>1e5_txctrl']
+        summary_table.drop(columns=[col for col in columns_to_drop if col in summary_table.columns], inplace=True)
+    summary_filename = os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtering-summary.csv')
+    summary_table.to_csv(summary_filename, index=False)
+
+    # Write the filtered peak height files
+    for filter_file, indices in peak_height_filtered_files.items():
+        if jgi_project:
+            if filter_file in ['>1e4_exctrl', '>1e5_exctrl', f'>{background_ratio}x_txctrl', '>1e4_txctrl', '>1e5_txctrl']:
                 continue
-            exctrl_max = None
-            feature_max = None
-            exctrl_max = row[exctrl_columns].max()
-            feature_max = row[sample_columns].max()
-            if exctrl_max and feature_max:
-                if feature_max > exctrl_max*background_ratio:
-                    features_to_keep.append(i)
-        if len(features_to_keep) <= 1: # only the header row was retained
-            logging.warning(tab_print("Warning! No features passed the background filter. Returning empty dataframe.", 5))
-            return empty_data_table
-        elif len(features_to_keep) > 1:
-            # Do the filter
-            data_table_filtered = data_table.loc[features_to_keep]
-            data_table_filtered = data_table_filtered.loc[:, ~data_table_filtered.columns.str.contains('^Unnamed:')]
-            
-            # Replace zeros with a small value
-            values = data_table_filtered[sample_columns + exctrl_columns]
-            lowest_non_zero = values[values != 0].min().min()
-            new_value = lowest_non_zero * zero_value
-            data_table_filtered.replace(0, new_value, inplace=True)
-
-            # Remove features in the solvent front
-            if peakheight_filename.split('_')[7] == "HILIC":
-                solvent_front = polar_solvent_front
-            else:
-                solvent_front = nonpolar_solvent_front
-            data_table_filtered = data_table_filtered[data_table_filtered['row retention time'] >= solvent_front]
-
-            # Log the number of features removed
-            difference = data_table.shape[0] - data_table_filtered.shape[0]
-            logging.info(tab_print("%s features removed by background filter"%(difference), 5))
-
-            return data_table_filtered
+        if len(indices) == 0:  # only the header row was retained for this particular filtered file (no features retained)
+            print_empty_filter_files(data_table, {filter_file: filtered_filenames[filter_file]}, jgi_project)
+            continue
         else:
-            logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframe.", 5))
-            return empty_data_table
+            data_table_filtered = data_table.loc[[0] + indices]
+
+            # Replace zeros with a small value for JGI projects
+            if filter_file == f'>{background_ratio}x_exctrl':
+                if jgi_project:
+                    values = data_table_filtered[sample_columns + exctrl_columns]
+                    lowest_non_zero = values[values != 0].min().min()
+                    new_value = lowest_non_zero * zero_value
+                    data_table_filtered.replace(0, new_value, inplace=True)
+
+            # Log the number of features removed and save file
+            difference = data_table.shape[0] - data_table_filtered.shape[0]
+            logging.info(tab_print(f"{difference} features removed by the {filter_file} background filter; {data_table_filtered.shape[0]} features retained. Saving filtered peak height table.", 5))
+            data_table_filtered = data_table_filtered.drop(data_table_filtered.filter(regex="^Unnamed").columns, axis=1)
+            data_table_filtered.to_csv(filtered_filenames[filter_file], index=False)
 
 def calculate_counts_for_lims_table(
     peakheight_filename: str,
@@ -1657,9 +1816,7 @@ def update_fbmn_status_in_untargeted_tasks(
     skip_fbmn_status: bool,
     direct_input: Optional[str] = None
 ) -> None:
-    """
-    This function is called by run_mzmine.py, run_fbmn.py, download_fbmn_results.py, export_untargeted_results.py and check_untargeted_status.py
-    
+    """    
     finds running or waiting fbmn tasks
     checks if they have valid output
     updates the LIMS table with status complete if successful
@@ -1740,7 +1897,8 @@ def write_mzmine_sbatch_and_runner(
     """
     Write the sbatch and runner files for mzmine submission via slurm
     """
-    mzmine_launcher = '/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
+    mzmine_launcher = f'{BINARY_PATH}/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
+    #mzmine_launcher = f'{BINARY_PATH}/MZmine-4.4.3/bin/mzmine -threads auto -t /tmp'
 
     sbatch_filename = '%s_mzmine-sbatch.sbatch'%os.path.join(basepath,parent_dir)
     runner_filename = '%s_mzmine.sh'%os.path.join(basepath,parent_dir)
@@ -1751,12 +1909,80 @@ def write_mzmine_sbatch_and_runner(
     with open(runner_filename,'w') as fid:
         fid.write('sbatch %s'%sbatch_filename)
 
+def metadata_file_filter(data, polarity, skip_blank_filter=False, fps_files_only=False, nonstandard_filename=False):
+    if nonstandard_filename and skip_blank_filter and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if nonstandard_filename and skip_blank_filter and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        "_"+polarity+"_" in x and
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if nonstandard_filename and not skip_blank_filter and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if nonstandard_filename and not skip_blank_filter and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        "_"+polarity+"_" in x and
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if skip_blank_filter and not nonstandard_filename and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        len(x.split('_')) > 9 and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    if skip_blank_filter and not nonstandard_filename and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        len(x.split('_')) > 9 and
+                        polarity in x.split('_')[9] and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    if not skip_blank_filter and not nonstandard_filename and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        len(x.split('_')) > 9 and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    if not skip_blank_filter and not nonstandard_filename and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        len(x.split('_')) > 9 and
+                        polarity in x.split('_')[9] and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    
 def write_metadata_per_new_project(
     df: pd.DataFrame,
     background_designator: List[str],
     validate_names: bool,
     raw_data_dir: str,
-    raw_data_subdir: Optional[str] = None
+    raw_data_subdir: Optional[str] = None,
+    skip_blank_filter: Optional[bool] = False,
+    fps_files_only: Optional[bool] = False
 ) -> List:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
@@ -1771,14 +1997,17 @@ def write_metadata_per_new_project(
         if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
             _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
             try:
-                subdir = validate_department.lower()
+                if validate_department is None:
+                    subdir = 'jgi' # Assume raw data location if project name is not parseable
+                else:
+                    subdir = validate_department.lower()
                 if subdir == 'eb':
                     subdir = 'egsb'
                 check_project_raw_dir = os.path.join(raw_data_dir,subdir,parent_dir)
                 if os.path.exists(check_project_raw_dir):
                     full_mzml_path = check_project_raw_dir
                 else:
-                    possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie"]
+                    possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood"]
                     for subdir in possible_subdirs:
                         check_project_raw_dir = os.path.join(raw_data_dir, subdir, parent_dir)
                         if os.path.exists(check_project_raw_dir):
@@ -1803,59 +2032,46 @@ def write_metadata_per_new_project(
 
         # Determine which polarities need metadata
         try:
-            positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: len(x.split('_')) > 9 and 'POS' in x.split('_')[9] and
-                'Blank' not in x and
-                len(x.split('_')) > 12 and 'QC' not in x.split('_')[12] and
-                'InjBl' not in x.split('_')[12] and
-                'ISTD' not in x.split('_')[12])].to_list()
+            positive_file_subset = metadata_file_filter(df_filtered, polarity="POS", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=False)
         except IndexError:
-            positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: '_POS_' in x and
-                'Blank' not in x and
-                'QC' not in x and
-                'InjBl' not in x and
-                'ISTD' not in x)].to_list()
+            positive_file_subset = metadata_file_filter(df_filtered, polarity="POS", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=True)
         if positive_file_subset:
             positive_file_list = [os.path.join(full_mzml_path, file) for file in positive_file_subset]
             positive_file_count = len(positive_file_list)
             if validate_names is True:
                 file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in positive_file_list]
-                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
-                    logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
-                    continue
-                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in positive_file_list]
-                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
-                    logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
-                    continue
+                try:
+                    if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                    project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in positive_file_list]
+                    if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                except:
+                    logging.warning(tab_print("mzML file name validation failed", 2))
         else:
             positive_file_count = 0
 
         try:
-            negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: len(x.split('_')) > 9 and 'NEG' in x.split('_')[9] and
-                'Blank' not in x and
-                len(x.split('_')) > 12 and 'QC' not in x.split('_')[12] and
-                'InjBl' not in x.split('_')[12] and
-                'ISTD' not in x.split('_')[12])].to_list()
+            negative_file_subset = metadata_file_filter(df_filtered, polarity="NEG", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=False)
         except IndexError:
-            negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: '_NEG_' in x and
-                'Blank' not in x and
-                'QC' not in x and
-                'InjBl' not in x and
-                'ISTD' not in x)].to_list()
+            negative_file_subset = metadata_file_filter(df_filtered, polarity="NEG", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=True)
         if negative_file_subset:
             negative_file_list = [os.path.join(full_mzml_path, file) for file in negative_file_subset]
             negative_file_count = len(negative_file_list)
             if validate_names is True:
                 file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in negative_file_list]
-                if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
-                    logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
-                    continue
-                project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in negative_file_list]
-                if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
-                    logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                try:
+                    if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
+                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                    project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in negative_file_list]
+                    if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
+                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        continue
+                except:
+                    logging.warning(tab_print("mzML file name validation failed", 2))
                     continue
         else:
             negative_file_count = 0
@@ -1910,7 +2126,11 @@ def update_new_untargeted_tasks(
     skip_sync: bool,
     output_dir: str,
     raw_data_dir: str,
-    raw_data_subdir: Optional[str] = None
+    direct_input: Optional[str] = None,
+    custom_mzmine_batch_params: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None,
+    skip_blank_filter: Optional[bool] = False,
+    fps_files_only: Optional[bool] = False
 ) -> None:
     """
     This script is called by run_mzmine.py before the untargeted pipeline kicks off
@@ -1929,6 +2149,11 @@ def update_new_untargeted_tasks(
     logging.info('Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
     # Get lcmsrun table and subset
     df = get_table_from_lims('lcmsrun_plus')
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+        if df.empty:
+            logging.info(tab_print("Projects in direct input (%s) are not in LIMS lcmsruns table"%(direct_input), 1))
+            return
     df = df[pd.notna(df['mzml_file'])]
     df['basename'] = df['mzml_file'].apply(os.path.basename)
     df.sort_values('timeepoch',ascending=False,inplace=True)
@@ -1947,7 +2172,7 @@ def update_new_untargeted_tasks(
     time_old_folders = time_old[time_old==True].index.tolist()
     time_new_folders = time_new[time_new==True].index.tolist()
     #Check that files have "M2" in the name
-    dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any('_MS2_' in filename or '_MSMS_' in filename for filename in x))
+    dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any(('MS2' in filename or 'MSMS' in filename) and '_MS1_' not in filename for filename in x))
     dirs_with_m2_files = dirs_with_m2_files[dirs_with_m2_files].index.tolist()
     # Print parent_dirs with files less than 3 hours old
     if time_new_folders:
@@ -1956,8 +2181,12 @@ def update_new_untargeted_tasks(
             logging.info(tab_print(folder, 3))
 
     # Get all folders in raw data table
-    all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
-    all_folders = [a.strip() for a in all_folders]
+    if fps_files_only:
+        all_folders = df.loc[df['polarity'].isin(['FPS']),'parent_dir'].unique()
+        all_folders = [a.strip() for a in all_folders]
+    else:
+        all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
+        all_folders = [a.strip() for a in all_folders]
 
     # Get all folders in untargeted tasks table
     if df_untargeted.shape[0]>0:
@@ -1977,9 +2206,21 @@ def update_new_untargeted_tasks(
     # Check for polarities by looking for positive and negative mzml files
     df_new = df[df['parent_dir'].isin(new_folders)]
     logging.info(tab_print("Checking for polarities in new projects and validating mzml file names...", 1))
-    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_dir=raw_data_dir, \
-                                                           raw_data_subdir=raw_data_subdir, validate_names=validate_names)
+    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_dir=raw_data_dir, fps_files_only=fps_files_only, \
+                                                           skip_blank_filter=skip_blank_filter, raw_data_subdir=raw_data_subdir, validate_names=validate_names)
     new_project_info_list_subset = [d for d in new_project_info_list if d.get('polarities') is not None]
+
+    # Check for nountargeted.txt file in new projects dirs and skip them
+    new_project_info_list_subset = [
+        d for d in new_project_info_list_subset 
+        if not glob.glob(os.path.join(raw_data_dir, '*', d['parent_dir'], 'nountargeted.txt'))
+    ]
+    if not new_project_info_list_subset:
+        logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
+        return None
+    logging.info(tab_print("New projects to add to untargeted tasks:", 2))
+    print_new_projects = "\n".join(["\t"*8 + d['parent_dir'] for d in new_project_info_list_subset])
+    logging.info(tab_print("\n" + print_new_projects, 0))
 
     # Create metadata for new projects with relevant polarities
     if len(new_project_info_list_subset)>0:
@@ -1994,18 +2235,31 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['conforming_filenames'] = True
             lims_untargeted_table_updater['file_conversion_complete'] = True
             lims_untargeted_table_updater['output_dir'] = output_dir
-            if validate_names is True:
-                _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
-            if validate_names is False:
-                validate_machine_name = "EXP120A" # Assume stricter parameters for unvalidated machine name
-            if validate_machine_name.lower() in ("iqx", "idx"):
-                mzmine_running_parameters = mzine_batch_params_file_iqx
-                mzmine_parameter = 5
+            _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
+            logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
+            if custom_mzmine_batch_params is None: # When there is not a custom input
+                if validate_machine_name is None:  # Assume more lenient parameters if machine name is not going to be validated
+                    logging.warning(tab_print("Warning! Could not validate machine name. Using lenient (IQX) MZmine parameters...", 2))
+                    mzmine_running_parameters = mzine_batch_params_file_iqx
+                    mzmine_parameter = 5
+                elif any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
+                    mzmine_running_parameters = mzine_batch_params_file_iqx
+                    mzmine_parameter = 5
+                elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
+                    mzmine_running_parameters = mzine_batch_params_file
+                    mzmine_parameter = 2
+                else:  # Assume more lenient parameters if machine name cannot be validated
+                    mzmine_running_parameters = mzine_batch_params_file_iqx
+                    mzmine_parameter = 5
+                logging.info(tab_print("Using MZmine parameters: %s"%(os.path.basename(mzmine_running_parameters)), 2))
+                lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
+                lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
             else:
-                mzmine_running_parameters = mzine_batch_params_file
-                mzmine_parameter = 2
-            lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
-            lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
+                mzmine_running_parameters = ','.join(custom_mzmine_batch_params)
+                mzmine_parameter = 5
+                logging.info(tab_print("Using custom MZmine parameter file(s): %s"%(mzmine_running_parameters), 2))
+                lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
+                lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
 
             for polarity in ['positive','negative']: # Don't initiate mzmine jobs on polarities that don't have sample mzmls
                 polarity_short = polarity[:3]
@@ -2015,16 +2269,15 @@ def update_new_untargeted_tasks(
                 mzmine_status_header = f"mzmine_{polarity_short}_status"
                 fbmn_status_header = f"fbmn_{polarity_short}_status"
                 file_count_header = f"num_{polarity_short}_files"
+                lims_untargeted_table_updater[mzmine_status_header] = '09 error' # Set default to error to indicate not passing required steps
+                lims_untargeted_table_updater[fbmn_status_header] = '09 error'
                 if polarity not in polarity_list: # Write blank columns to LIMS and skip writing directory/files to disk
                     lims_untargeted_table_updater[metadata_header] = ""
                     lims_untargeted_table_updater[file_count_header] = 0
-                    lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
-                    lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
                 else: # Write directory/files to disk for present polarity and fill in LIMS columns
                     logging.info(tab_print("Writing MZmine submission input files...",2))
-                    logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
                     if os.path.exists(basepath):
-                        logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 2))
+                        logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 3))
                         continue
                     else:
                         os.mkdir(basepath)
@@ -2032,18 +2285,43 @@ def update_new_untargeted_tasks(
                         recursive_chown(basepath, 'metatlas')
                     except:
                         logging.info(tab_print("Note: Could not change group ownership of %s"%(basepath), 2))
+
+                    logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
                     metadata_df = new_project_dict[polarity]['metadata_df']
                     metadata_filename = os.path.join(basepath,'%s_metadata.tab'%(parent_dir))
                     metadata_df.to_csv(metadata_filename, sep='\t', index=False)
                     
-                    logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
-                    params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
-                    with open(mzmine_running_parameters,'r') as fid:
-                        orig_params = fid.read()
-                    new_param_path = os.path.join(basepath,parent_dir)
-                    custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
-                    with open(params_filename,'w') as fid:
-                        fid.write('%s'%custom_params)
+                    if custom_mzmine_batch_params is None:
+                        logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
+                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        with open(mzmine_running_parameters,'r') as fid:
+                            orig_params = fid.read()
+                        new_param_path = os.path.join(basepath,parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        with open(params_filename,'w') as fid:
+                            fid.write('%s'%custom_params)
+                    elif custom_mzmine_batch_params is not None and len(custom_mzmine_batch_params) == 1:
+                        logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
+                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        with open(mzmine_running_parameters,'r') as fid:
+                            orig_params = fid.read()
+                        new_param_path = os.path.join(basepath,parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        with open(params_filename,'w') as fid:
+                            fid.write('%s'%custom_params)                        
+                    else:
+                        logging.info(tab_print("%s MZmine parameter file (see custom input above)"%(polarity), 3))
+                        for custom_param in custom_mzmine_batch_params:
+                            if polarity_short.upper()+"-" in custom_param:
+                                mzmine_running_parameters = custom_param
+                                break
+                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        with open(mzmine_running_parameters,'r') as fid:
+                            orig_params = fid.read()
+                        new_param_path = os.path.join(basepath,parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        with open(params_filename,'w') as fid:
+                            fid.write('%s'%custom_params)
 
                     logging.info(tab_print("%s mzML path list file (*_filelist.txt)"%(polarity), 3))
                     file_list = new_project_dict[polarity]['file_list']
@@ -2060,6 +2338,13 @@ def update_new_untargeted_tasks(
                     lims_untargeted_table_updater[mzmine_status_header] = '01 initiation'
                     lims_untargeted_table_updater[fbmn_status_header] = '13 waiting'
 
+                    if lims_untargeted_table_updater[file_count_header] is None or lims_untargeted_table_updater[file_count_header] == "NaN":
+                        lims_untargeted_table_updater[file_count_header] = 0
+                    if lims_untargeted_table_updater[mzmine_status_header] == "NaN":
+                        lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
+                    if lims_untargeted_table_updater[fbmn_status_header] == "NaN":
+                        lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
+
             lims_untargeted_list.append(lims_untargeted_table_updater)
 
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
@@ -2074,5 +2359,5 @@ def update_new_untargeted_tasks(
         lims_untargeted_list = []
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
 
-    logging.info(tab_print("Exported new project info for MZmine submission.", 1))
+    logging.info(tab_print("Exported table for %s new projects to pass to MZmine submission function."%(lims_untargeted_df.shape[0]), 1))
     return lims_untargeted_df

@@ -508,15 +508,24 @@ class adjust_rt_for_selected_compound(object):
                                  picker=True, pickradius=5, color=color, label=label)
 
     def configure_flags(self):
-        default_peak = ['keep', 'remove', 'unresolvable isomers', 'poor peak shape']
+        default_peak = ['keep',
+                        'remove',
+                        'keep, unresolvable isomers',
+                        'keep, poor peak shape']
+        
         default_msms = ['no selection',
-                        '-1, bad match - should remove compound',
-                        '0, no ref match available or no MSMS collected',
+                        
+                        '-1.0, poor match, should remove',
+                        '0.0, no match or no MSMS collected',
+                        '0.5, partial or putative match of fragments',
+                        '1.0, good match',
+
                         '0.5, co-isolated precursor, partial match',
-                        '0.5, partial match of fragments',
-                        '1, perfect match to internal reference library',
-                        '1, perfect match to external reference library',
-                        '1, co-isolated precursor but all reference ions are in sample spectrum']
+                        '1.0, co-isolated precursor, good match',
+                        
+                        '0.5, single ion match, no evidence',
+                        '1.0, single ion match, ISTD/ref evidence']
+        
         if self.peak_flags is None or self.peak_flags == '':
             self.peak_flags = default_peak
         if self.msms_flags is None or self.msms_flags == '':
@@ -1747,22 +1756,29 @@ def make_boxplot_plots(df: pd.DataFrame, output_loc: Path, use_shortnames: bool 
     args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy) for compound in df.index]
     parallel.parallel_process(_make_boxplot_single_arg, args, max_cpus, unit='plot')
 
-
 def _make_boxplot_single_arg(arg_list):
     """ this is a hack, but multiprocessing constrains the functions that can be passed """
     make_boxplot(*arg_list)
-
 
 def make_boxplot(compound: int, df: pd.DataFrame, output_loc: Path, use_shortnames: bool, ylabel: str, overwrite: bool, logy: bool) -> None:
     fig_path = output_loc / f"{compound}{'_log' if logy else ''}_boxplot.pdf"
     write_utils.check_existing_file(fig_path, overwrite)
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     num_points = 0
-    g = df.loc[compound].groupby(level=level)
+
+    # Reorder columns for boxplots
+    istd_cols = [col for col in df.columns if 'istd' in col[-1].lower()]
+    exctrl_cols = [col for col in df.columns if 'exctrl' in col[-1].lower() or 'txctrl' in col[-1].lower()]
+    refstd_cols = [col for col in df.columns if 'refstd' in col[-1].lower() or 'metasci' in col[-1].lower()]
+    sample_cols = sorted([col for col in df.columns if col not in istd_cols and col not in exctrl_cols and col not in refstd_cols])
+    df_sorted = df[istd_cols + exctrl_cols + sample_cols + refstd_cols]
+    g_sorted = df_sorted.loc[compound].groupby(level=level, sort=False)
+
     plt.rcParams.update({'font.size': 12})
-    f, ax = plt.subplots(1, 1, figsize=(max(len(g)*0.5, 12), 12))
-    g.apply(pd.DataFrame).plot(kind='box', ax=ax)
-    for i, (n, grp) in enumerate(g):
+    f, ax = plt.subplots(1, 1, figsize=(max(len(g_sorted)*0.5, 12), 12))
+
+    g_sorted.apply(pd.DataFrame).plot(kind='box', ax=ax)
+    for i, (n, grp) in enumerate(g_sorted):
         x = [i+1] *len(grp)
         x = np.random.normal(x, 0.04, size=len(x))
         plt.scatter(x, grp)
