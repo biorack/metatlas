@@ -110,12 +110,6 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
     msms_hits_df = msms_hits.copy()
     msms_hits_df.reset_index(inplace=True)
 
-    msms_hits_df_filename = "msms_hits_df.xlsx"
-    msms_hits_df_path = output_loc / msms_hits_df_filename
-    write_utils.check_existing_file(msms_hits_df_path, overwrite)
-    with pd.ExcelWriter(msms_hits_df_path, engine='xlsxwriter') as writer:
-        msms_hits_df.to_excel(writer, sheet_name='All_hits', index=False, startrow=1)
-
     for compound_idx, compound_name in enumerate(compound_names):
         ref_rt_peak = dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
         ref_mz = dataset[0][compound_idx]['identification'].mz_references[0].mz
