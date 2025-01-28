@@ -2340,7 +2340,7 @@ def get_hits_per_compound(cos: Type[CosineHungarian], compound_idx: int,
     filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
     filtered_msms_refs = build_msms_refs_spectra(filtered_msms_refs)
 
-    filtered_msms_data = msms_data[msms_data['inchi_key']==inchi_key].reset_index(drop=True).drop(columns=['inchi_key', 'precursor_mz']).copy()
+    filtered_msms_data = msms_data[msms_data['compound_idx']==compound_idx].reset_index(drop=True).drop(columns=['inchi_key', 'precursor_mz']).copy()
 
     scores_matches = score_matrix(cos, filtered_msms_data.matchms_spectrum.tolist(), filtered_msms_refs.matchms_spectrum.tolist())
 
