@@ -1577,3 +1577,39 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
             contributions[i, j, c] = np.round((ifft((fft_ptA / (tAs[i])) * (itAs[i, j])).real[cutoff_idx][c] / ptA[cutoff_idx][c]) * element_vector[i])
 
     return np.array([MA[cutoff_idx], ptA[cutoff_idx]]), contributions
+
+
+def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd.DataFrame:
+    """
+    Takes an msms hits dataframe and returns a sorted version of it based on the sorting method. Typically
+    this function is called while iterating over compounds, so each dataframe input will likely be for a single compound.
+    """
+    if sorting_method == "score":
+        sorted_msms_hits = msms_hits.sort_values('score', ascending=False)
+
+    elif sorting_method == "sums":
+        sorted_msms_hits = msms_hits.copy()
+        sorted_msms_hits.loc[:, 'summed_ratios_and_score'] = (
+                                                              (sorted_msms_hits['num_matches'] / sorted_msms_hits['ref_frags']) +
+                                                              (sorted_msms_hits['ref_frags'] / sorted_msms_hits['data_frags']) +
+                                                              (sorted_msms_hits['num_matches'] / sorted_msms_hits['data_frags']) +
+                                                              (sorted_msms_hits['score'])
+                                                              )
+        sorted_msms_hits = sorted_msms_hits.sort_values('summed_ratios_and_score', ascending=False)
+
+    elif sorting_method == "weighted":
+        sorted_msms_hits = msms_hits.copy()
+        weights = {'score': 0.5,
+                    'num_matches': 0,
+                    'ratio_putative': 0.25,
+                    'ratio_known': 0.25
+                    }
+        sorted_msms_hits.loc[:, 'weighted_score'] = (
+                                                    (sorted_msms_hits['score'] * weights['score']) +
+                                                    (sorted_msms_hits['num_matches'] * weights['num_matches']) +
+                                                    ((sorted_msms_hits['num_matches'] / sorted_msms_hits['data_frags']) * weights['ratio_putative']) +
+                                                    ((sorted_msms_hits['num_matches'] / sorted_msms_hits['ref_frags']) * weights['ratio_known'])
+                                                    )
+        sorted_msms_hits = sorted_msms_hits.sort_values('weighted_score', ascending=False)
+
+    return sorted_msms_hits

@@ -306,7 +306,7 @@ class adjust_rt_for_selected_compound(object):
         """
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
-        self.msms_hits = msms_hits.sort_values('score', ascending=False)
+        self.msms_hits = sp.sort_msms_hits(msms_hits)
         self.color_me = or_default(color_me, [('black', '')])
         self.compound_idx = compound_idx
         self.width = width
@@ -2278,6 +2278,8 @@ def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str, compoun
     compound_msms_hits['score'] = compound_msms_hits['measured_precursor_intensity']
     compound_msms_hits['num_matches'] = 0
     compound_msms_hits['spectrum'] = [np.array([np.array([]), np.array([])])] * len(compound_msms_hits)
+    compound_msms_hits['ref_frags'] = 0
+    compound_msms_hits['data_frags'] = 0
 
     return compound_msms_hits
 
@@ -2348,6 +2350,9 @@ def get_hits_per_compound(cos: Type[CosineHungarian], compound_idx: int,
     inchi_msms_hits['score'] = scores_matches['score'].flatten()
     inchi_msms_hits['num_matches'] = scores_matches['matches'].flatten()
 
+    inchi_msms_hits['ref_frags'] = inchi_msms_hits['spectrum'].apply(lambda x: len(x[0]) if x.any() else 0)
+    inchi_msms_hits['data_frags'] = inchi_msms_hits['query_spectrum'].apply(lambda x: len(x[0]) if x.any() else 0)
+
     inchi_msms_hits['precursor_ppm_error'] = (abs(inchi_msms_hits['measured_precursor_mz'] - inchi_msms_hits['precursor_mz']) / inchi_msms_hits['precursor_mz']) * 1000000
     inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
 
@@ -2385,6 +2390,7 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
     """
 
     msms_hits_cols = ['database', 'id', 'file_name', 'msms_scan', 'score', 'num_matches',
+                     'ref_frags', 'data_frags',
                      'msv_query_aligned', 'msv_ref_aligned', 'name', 'adduct', 'inchi_key',
                      'precursor_mz', 'measured_precursor_mz',
                      'measured_precursor_intensity']
