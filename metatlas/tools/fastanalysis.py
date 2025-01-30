@@ -433,6 +433,7 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
     # msms_hits_sorted_df.to_csv(f"/out/msms_hits_sorted_{method}.csv")
     # best_hits = msms_hits_sorted_df.groupby(['inchi_key', 'adduct']).first().reset_index()
     # best_hits.to_csv(f"/out/best_hits_{method}.csv")
+    # best_hits.to_json(f"/out/best_hits_{method}.json")
 
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
