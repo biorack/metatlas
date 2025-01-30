@@ -1595,6 +1595,7 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
                                                               (sorted_msms_hits['score'])
                                                               )
         sorted_msms_hits = sorted_msms_hits.sort_values('summed_ratios_and_score', ascending=False)
+        sorted_msms_hits.drop(columns=['summed_ratios_and_score'], inplace=True)
 
     elif sorting_method == "weighted":
         sorted_msms_hits = msms_hits.copy()
@@ -1608,6 +1609,7 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
                                                     ((sorted_msms_hits['num_matches'] / sorted_msms_hits['ref_frags']) * weights['match_to_ref_frag_ratio'])
                                                     )
         sorted_msms_hits = sorted_msms_hits.sort_values('weighted_score', ascending=False)
+        sorted_msms_hits.drop(columns=['weighted_score'], inplace=True)
 
     elif sorting_method == "numeric_hierarchy":
         sorted_msms_hits = msms_hits.copy()
@@ -1615,6 +1617,7 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
         labels = ['0-0.1', '0.1-0.2', '0.2-0.3', '0.3-0.4', '0.4-0.5', '0.5-0.6', '0.6-0.7', '0.7-0.8', '0.8-0.9', '0.9-0.95', '0.95-0.97', '0.97-0.99', '0.99-1']
         sorted_msms_hits['score_bin'] = pd.cut(sorted_msms_hits['score'], bins=bins, labels=labels, right=False)
         sorted_msms_hits = sorted_msms_hits.sort_values(by=['score_bin', 'num_matches', 'score'], ascending=[False, False, False])
+        sorted_msms_hits.drop(columns=['score_bin'], inplace=True)
 
     elif sorting_method == "quantile_hierarchy":
         sorted_msms_hits = msms_hits.copy()
@@ -1622,5 +1625,6 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
         sorted_msms_hits['score'] += np.random.normal(0, 1e-8, size=len(sorted_msms_hits))  # Add small noise to handle duplicates
         sorted_msms_hits['score_bin'] = pd.qcut(sorted_msms_hits['score'], duplicates='drop', q=5)
         sorted_msms_hits = sorted_msms_hits.sort_values(by=['score_bin', 'num_matches', 'score'], ascending=[False, False, False])
+        sorted_msms_hits.drop(columns=['score_bin'], inplace=True)
 
     return sorted_msms_hits
