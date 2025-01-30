@@ -1591,7 +1591,6 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
         sorted_msms_hits = msms_hits.copy()
         sorted_msms_hits.loc[:, 'summed_ratios_and_score'] = (
                                                               (sorted_msms_hits['num_matches'] / sorted_msms_hits['ref_frags']) +
-                                                              (sorted_msms_hits['ref_frags'] / sorted_msms_hits['data_frags']) +
                                                               (sorted_msms_hits['num_matches'] / sorted_msms_hits['data_frags']) +
                                                               (sorted_msms_hits['score'])
                                                               )
@@ -1600,16 +1599,28 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
     elif sorting_method == "weighted":
         sorted_msms_hits = msms_hits.copy()
         weights = {'score': 0.5,
-                    'num_matches': 0,
-                    'ratio_putative': 0.25,
-                    'ratio_known': 0.25
+                    'match_to_data_frag_ratio': 0.25,
+                    'match_to_ref_frag_ratio': 0.25
                     }
         sorted_msms_hits.loc[:, 'weighted_score'] = (
                                                     (sorted_msms_hits['score'] * weights['score']) +
-                                                    (sorted_msms_hits['num_matches'] * weights['num_matches']) +
-                                                    ((sorted_msms_hits['num_matches'] / sorted_msms_hits['data_frags']) * weights['ratio_putative']) +
-                                                    ((sorted_msms_hits['num_matches'] / sorted_msms_hits['ref_frags']) * weights['ratio_known'])
+                                                    ((sorted_msms_hits['num_matches'] / sorted_msms_hits['data_frags']) * weights['match_to_data_frag_ratio']) +
+                                                    ((sorted_msms_hits['num_matches'] / sorted_msms_hits['ref_frags']) * weights['match_to_ref_frag_ratio'])
                                                     )
         sorted_msms_hits = sorted_msms_hits.sort_values('weighted_score', ascending=False)
+
+    elif sorting_method == "numeric_hierarchy":
+        sorted_msms_hits = msms_hits.copy()
+        bins = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.97, 0.99, 1]
+        labels = ['0-0.1', '0.1-0.2', '0.2-0.3', '0.3-0.4', '0.4-0.5', '0.5-0.6', '0.6-0.7', '0.7-0.8', '0.8-0.9', '0.9-0.95', '0.95-0.97', '0.97-0.99', '0.99-1']
+        sorted_msms_hits['score_bin'] = pd.cut(sorted_msms_hits['score'], bins=bins, labels=labels, right=False)
+        sorted_msms_hits = sorted_msms_hits.sort_values(by=['score_bin', 'num_matches', 'score'], ascending=[False, False, False])
+
+    elif sorting_method == "quantile_hierarchy":
+        sorted_msms_hits = msms_hits.copy()
+        sorted_msms_hits = sorted_msms_hits.dropna(subset=['score'])
+        sorted_msms_hits['score'] += np.random.normal(0, 1e-8, size=len(sorted_msms_hits))  # Add small noise to handle duplicates
+        sorted_msms_hits['score_bin'] = pd.qcut(sorted_msms_hits['score'], duplicates='drop', q=5)
+        sorted_msms_hits = sorted_msms_hits.sort_values(by=['score_bin', 'num_matches', 'score'], ascending=[False, False, False])
 
     return sorted_msms_hits
