@@ -1579,16 +1579,16 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
     return np.array([MA[cutoff_idx], ptA[cutoff_idx]]), contributions
 
 
-def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> tuple[pd.DataFrame, str]:
+def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'cosine_score') -> tuple[pd.DataFrame, str]:
     """
     Takes an msms hits dataframe and returns a sorted version of it based on the sorting method. Typically
     this function is called while iterating over compounds, so each dataframe input will likely be for a single compound.
+
+    Note: Every time you add a possible scoring method to this function, update the validate function in the class Atlas in
+    the script metatlas.tools.config 
     """
-    allowed_methods = ['score', 'sums', 'weighted', 'numeric_hierarchy', 'quantile_hierarchy']
-    if sorting_method not in allowed_methods:
-        raise ValueError(f"Invalid sorting method: {sorting_method}. Allowed methods are: {allowed_methods}")
     
-    if sorting_method == "score":
+    if sorting_method == "cosine_score":
         sorted_msms_hits = msms_hits.sort_values('score', ascending=False)
 
     elif sorting_method == "sums":
