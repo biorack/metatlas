@@ -1579,11 +1579,15 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
     return np.array([MA[cutoff_idx], ptA[cutoff_idx]]), contributions
 
 
-def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd.DataFrame:
+def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> tuple[pd.DataFrame, str]:
     """
     Takes an msms hits dataframe and returns a sorted version of it based on the sorting method. Typically
     this function is called while iterating over compounds, so each dataframe input will likely be for a single compound.
     """
+    allowed_methods = ['score', 'sums', 'weighted', 'numeric_hierarchy', 'quantile_hierarchy']
+    if sorting_method not in allowed_methods:
+        raise ValueError(f"Invalid sorting method: {sorting_method}. Allowed methods are: {allowed_methods}")
+    
     if sorting_method == "score":
         sorted_msms_hits = msms_hits.sort_values('score', ascending=False)
 
@@ -1595,8 +1599,6 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
                                                               (sorted_msms_hits['score'])
                                                               )
         sorted_msms_hits = sorted_msms_hits.sort_values('summed_ratios_and_score', ascending=False)
-        # droppable_columns = ['summed_ratios_and_score', 'data_frags', 'ref_frags']
-        # sorted_msms_hits.drop(columns=droppable_columns, inplace=True)
 
     elif sorting_method == "weighted":
         sorted_msms_hits = msms_hits.copy()
@@ -1610,8 +1612,6 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
                                                     ((sorted_msms_hits['num_matches'] / sorted_msms_hits['ref_frags']) * weights['match_to_ref_frag_ratio'])
                                                     )
         sorted_msms_hits = sorted_msms_hits.sort_values('weighted_score', ascending=False)
-        # droppable_columns = ['weighted_score', 'data_frags', 'ref_frags']
-        # sorted_msms_hits.drop(columns=droppable_columns, inplace=True)
 
     elif sorting_method == "numeric_hierarchy":
         sorted_msms_hits = msms_hits.copy()
@@ -1619,8 +1619,6 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
         labels = ['0-0.1', '0.1-0.2', '0.2-0.3', '0.3-0.4', '0.4-0.5', '0.5-0.6', '0.6-0.7', '0.7-0.8', '0.8-0.9', '0.9-0.95', '0.95-0.97', '0.97-0.99', '0.99-1']
         sorted_msms_hits['score_bin'] = pd.cut(sorted_msms_hits['score'], bins=bins, labels=labels, right=False)
         sorted_msms_hits = sorted_msms_hits.sort_values(by=['score_bin', 'num_matches', 'score'], ascending=[False, False, False])
-        # droppable_columns = ['score_bin', 'data_frags', 'ref_frags']
-        # sorted_msms_hits.drop(columns=droppable_columns, inplace=True)
 
     elif sorting_method == "quantile_hierarchy":
         sorted_msms_hits = msms_hits.copy()
@@ -1628,7 +1626,5 @@ def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str = 'score') -> pd
         sorted_msms_hits['score'] += np.random.normal(0, 1e-8, size=len(sorted_msms_hits))  # Add small noise to handle duplicates
         sorted_msms_hits['score_bin'] = pd.qcut(sorted_msms_hits['score'], duplicates='drop', q=5)
         sorted_msms_hits = sorted_msms_hits.sort_values(by=['score_bin', 'num_matches', 'score'], ascending=[False, False, False])
-        # droppable_columns = ['score_bin', 'data_frags', 'ref_frags']
-        # sorted_msms_hits.drop(columns=droppable_columns, inplace=True)
 
-    return sorted_msms_hits
+    return sorted_msms_hits, sorting_method

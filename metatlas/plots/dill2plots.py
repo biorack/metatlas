@@ -306,7 +306,7 @@ class adjust_rt_for_selected_compound(object):
         """
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
-        self.msms_hits = sp.sort_msms_hits(msms_hits)
+        self.msms_hits, _ = sp.sort_msms_hits(msms_hits)
         self.color_me = or_default(color_me, [('black', '')])
         self.compound_idx = compound_idx
         self.width = width
