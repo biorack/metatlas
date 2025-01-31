@@ -390,6 +390,10 @@ def align_atlas(atlas: metob.Atlas, model: Model, rt_offset: float, align_rt_min
         new_mins = model.predict(np.array(old_mins, dtype=float))
         new_maxs = model.predict(np.array(old_maxs, dtype=float))
         for peak, min, max, cid in zip(new_peaks, new_mins, new_maxs, aligned.compound_identifications):
+            if peak - min < 0.05 or peak - min > 5:
+                logger.warning(f"Bound between RT peak and RT minimum for {cid.name} is abnormal: peak={peak} and minimum={min}.")
+            if max - peak < 0.05 or max - peak > 5:
+                logger.warning(f"Bound between RT maximum and RT peak for {cid.name} is abnormal: peak={peak} and maximum={max}.")
             rt_ref = cid.rt_references[0]
             rt_ref.rt_peak = peak
             rt_ref.rt_min = min
