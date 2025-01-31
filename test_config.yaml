@@ -71,6 +71,7 @@ workflows:
             unique_id: 89694aa326cd46958d38d8e9066de16c
             do_alignment: True
             do_prefilter: False
+            align_rt_min_max: False
           parameters:
             copy_atlas: True
             polarity: positive
@@ -109,6 +110,7 @@ workflows:
             unique_id: f74a731c590544aba5c3720b346e508e
             do_alignment: True
             do_prefilter: True
+            align_rt_min_max: False
             rt_offset: 0.2
           parameters:
             copy_atlas: True
