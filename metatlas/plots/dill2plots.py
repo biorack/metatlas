@@ -250,6 +250,7 @@ class LayoutPosition(Enum):
 class adjust_rt_for_selected_compound(object):
     def __init__(self,
                  data,
+                 msms_sorting_method=None,
                  include_lcmsruns=None,
                  exclude_lcmsruns=None,
                  include_groups=None,
@@ -306,7 +307,7 @@ class adjust_rt_for_selected_compound(object):
         """
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
-        self.msms_hits, _ = sp.sort_msms_hits(msms_hits)
+        self.msms_hits, _ = sp.sort_msms_hits(msms_hits, sorting_method=msms_sorting_method)
         self.color_me = or_default(color_me, [('black', '')])
         self.compound_idx = compound_idx
         self.width = width

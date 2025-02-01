@@ -119,10 +119,10 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     export_msms_fragment_ions: bool = False
     slurm_execute: bool = False
     clear_cache: bool = False
+    msms_sorting_method: Optional[str] = None
     # these are populated from the workflow's RTAlignment if None
     google_folder: Optional[str] = None
     msms_refs: Optional[Path] = None
-
 
 class RTAlignmentNotebookParameters(BaseNotebookParameters):
     """Parameters used in RT Alignment notebooks"""
@@ -145,7 +145,6 @@ class Atlas(BaseModel):
     do_alignment: bool = False
     do_prefilter: bool = False
     rt_offset: float = 0.5
-    msms_scoring_method: str = "cosine_score"
     
     @validator("unique_id")
     @classmethod
@@ -167,15 +166,6 @@ class Atlas(BaseModel):
         unique_id = values["unique_id"]
         if len(metob.retrieve("Atlas", unique_id=unique_id, name=to_check, username="*")) == 0:
             raise ValueError(f"Atlas with unique_id '{unique_id}' does not have name '{to_check}'.")
-        return to_check
-
-    @validator("msms_scoring_method")
-    @classmethod
-    def scoring_method_is_valid(cls, to_check):
-        """Check that msms scoring_method is valid"""
-        valid_scoring_methods = ['cosine_score', 'sums', 'weighted', 'numeric_hierarchy', 'quantile_hierarchy']
-        if to_check not in valid_scoring_methods:
-            raise ValueError(f"MSMS scoring_method must be one of {valid_scoring_methods}")
         return to_check
 
 class RTAlignment(BaseModel):
