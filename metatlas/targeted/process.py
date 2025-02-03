@@ -75,6 +75,7 @@ def annotation_gui(
     adjustable_rt_peak=False,
     peak_flags=None,
     msms_flags=None,
+    msms_sorting_method: str = None,
 ) -> Optional[dp.adjust_rt_for_selected_compound]:
     """
     Opens the interactive GUI for setting RT bounds and annotating peaks
@@ -94,6 +95,7 @@ def annotation_gui(
     display(dp.LOGGING_WIDGET)  # surface event handler error messages in UI
     return dp.adjust_rt_for_selected_compound(
         data,
+        msms_sorting_method=msms_sorting_method,
         msms_hits=data.hits,
         color_me=colors,
         compound_idx=compound_idx,
