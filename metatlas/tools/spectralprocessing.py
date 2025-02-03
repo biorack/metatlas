@@ -1577,3 +1577,61 @@ def make_isotope_distribution(element_vector, isotope_matrix, mass_removed_vec,
             contributions[i, j, c] = np.round((ifft((fft_ptA / (tAs[i])) * (itAs[i, j])).real[cutoff_idx][c] / ptA[cutoff_idx][c]) * element_vector[i])
 
     return np.array([MA[cutoff_idx], ptA[cutoff_idx]]), contributions
+
+
+def sort_msms_hits(msms_hits: pd.DataFrame, sorting_method: str) -> tuple[pd.DataFrame, str]:
+    """
+    Takes an msms hits dataframe and returns a sorted version of it based on the sorting method. Typically
+    this function is called while iterating over compounds, so each dataframe input will likely be for a single compound.
+
+    Note: Every time you add a possible scoring method to this function, update the validate function in the class Atlas in
+    the script metatlas.tools.config 
+    """
+    if sorting_method is None:
+        sorting_method = 'cosine_score'
+    valid_scoring_method_list = ['cosine_score', 'sums', 'weighted', 'numeric_hierarchy', 'quantile_hierarchy']
+    if sorting_method not in valid_scoring_method_list:
+        raise ValueError(f"Invalid MSMS sorting method: {sorting_method}. Should be one of {valid_scoring_method_list}.")
+
+    if sorting_method == "cosine_score":
+        sorted_msms_hits = msms_hits.sort_values('score', ascending=False)
+
+    elif sorting_method == "sums":
+        sorted_msms_hits = msms_hits.copy()
+        sorted_msms_hits.loc[:, 'summed_ratios_and_score'] = (
+                                                              (sorted_msms_hits['num_matches'] / sorted_msms_hits['ref_frags']) +
+                                                              (sorted_msms_hits['num_matches'] / sorted_msms_hits['data_frags']) +
+                                                              (sorted_msms_hits['score'])
+                                                              )
+        sorted_msms_hits = sorted_msms_hits.sort_values('summed_ratios_and_score', ascending=False)
+
+    elif sorting_method == "weighted":
+        sorted_msms_hits = msms_hits.copy()
+        weights = {'score': 0.5,
+                    'match_to_data_frag_ratio': 0.25,
+                    'match_to_ref_frag_ratio': 0.25
+                    }
+        sorted_msms_hits.loc[:, 'weighted_score'] = (
+                                                    (sorted_msms_hits['score'] * weights['score']) +
+                                                    ((sorted_msms_hits['num_matches'] / sorted_msms_hits['data_frags']) * weights['match_to_data_frag_ratio']) +
+                                                    ((sorted_msms_hits['num_matches'] / sorted_msms_hits['ref_frags']) * weights['match_to_ref_frag_ratio'])
+                                                    )
+        sorted_msms_hits = sorted_msms_hits.sort_values('weighted_score', ascending=False)
+
+    elif sorting_method == "numeric_hierarchy":
+        sorted_msms_hits = msms_hits.copy()
+        bins = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.97, 0.99, 1]
+        labels = ['0-0.1', '0.1-0.2', '0.2-0.3', '0.3-0.4', '0.4-0.5', '0.5-0.6', '0.6-0.7', '0.7-0.8', '0.8-0.9', '0.9-0.95', '0.95-0.97', '0.97-0.99', '0.99-1']
+        sorted_msms_hits = sorted_msms_hits.dropna(subset=['score'])
+        sorted_msms_hits['score_bin'] = pd.cut(sorted_msms_hits['score'], bins=bins, labels=labels, right=False)
+        sorted_msms_hits = sorted_msms_hits.sort_values(by=['score_bin', 'num_matches', 'score'], ascending=[False, False, False])
+
+    elif sorting_method == "quantile_hierarchy":
+        sorted_msms_hits = msms_hits.copy()
+        sorted_msms_hits = sorted_msms_hits.dropna(subset=['score'])
+        sorted_msms_hits['score_temp'] = sorted_msms_hits['score'] + np.random.normal(0, 1e-8, size=len(sorted_msms_hits))  # Add small noise to handle duplicates
+        sorted_msms_hits['score_bin'] = pd.qcut(sorted_msms_hits['score_temp'], duplicates='drop', q=5)
+        sorted_msms_hits = sorted_msms_hits.sort_values(by=['score_bin', 'num_matches', 'score_temp'], ascending=[False, False, False])
+        sorted_msms_hits = sorted_msms_hits.drop(columns=['score_temp'])
+
+    return sorted_msms_hits, sorting_method

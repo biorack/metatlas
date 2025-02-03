@@ -44,7 +44,7 @@ def calculate_compound_total_score(final_df, compound_idx, quality_scores):
         final_df.loc[compound_idx, 'msi_level'] = "Level 1"
     return final_df
 
-def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Path] = None, input_dataset = [], msms_hits_df = None,
+def make_stats_table(workflow_name: str = "JGI-HILIC", msms_sorting_method: str = None, input_fname: Optional[Path] = None, input_dataset = [], msms_hits_df = None,
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
                      output_loc: Optional[Path] = None,
                      polarity = '',
@@ -110,6 +110,7 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
     msms_hits_df = msms_hits.copy()
     msms_hits_df.reset_index(inplace=True)
 
+    msms_hits_sorted_list = []
     for compound_idx, compound_name in enumerate(compound_names):
         ref_rt_peak = dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
         ref_mz = dataset[0][compound_idx]['identification'].mz_references[0].mz
@@ -135,7 +136,8 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                                     & ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float) - mz_theoretical)/mz_theoretical) \
                                     <= cid.mz_references[0].mz_tolerance*1e-6)]
 
-        comp_msms_hits = comp_msms_hits.sort_values('score', ascending=False)
+        comp_msms_hits, sorting_method_used = sp.sort_msms_hits(comp_msms_hits, sorting_method=msms_sorting_method)
+        msms_hits_sorted_list.append(comp_msms_hits)
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
         if len(comp_msms_hits) > 0 and not np.isnan(np.concatenate(comp_msms_hits['msv_ref_aligned'].values, axis=1)).all():
             file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name'] if f in file_names]
@@ -425,6 +427,10 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                 if not np.isnan(np.concatenate(rows['msv_ref_aligned'].values, axis=1)).all():
                     dfs['msms_score'].iat[compound_idx, file_idx] = rows.loc[rows['score'].astype(float).idxmax()]['score']
                 dfs['num_frag_matches'].iat[compound_idx, file_idx] = rows.loc[rows['score'].astype(float).idxmax()]['num_matches']
+
+    logger.info(f"Finished processing all compounds and sorted MSMS scores by method '{sorting_method_used}'.")
+    #msms_hits_sorted_df = pd.concat(msms_hits_sorted_list)
+    #msms_hits_sorted_df.to_csv(f"/out/msms_hits_sorted_by_{sorting_method}.csv") # Use this for examining hits with different scoring methods
 
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
