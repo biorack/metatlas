@@ -86,8 +86,10 @@ def test_sort_msms_hits_cosine_score():
         "ref_frags": np.array([6, 5, 4, 7]),
         "data_frags": np.array([9, 8, 7, 10])
     })
-    function_sorted_msms_data_df = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method='cosine_score')
+    true_sorting_method = 'cosine_score'
+    function_sorted_msms_data_df, function_sorting_method = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method=true_sorting_method)
     assert np.array_equal(true_sorted_msms_data_df.to_numpy(), function_sorted_msms_data_df.to_numpy())
+    assert true_sorting_method == function_sorting_method
 
 def test_sort_msms_hits_sums():
     unsorted_msms_data_df = pd.DataFrame({
@@ -105,9 +107,10 @@ def test_sort_msms_hits_sums():
         "data_frags": np.array([9, 10, 8, 7]),
         "summed_ratios_and_score": np.array([1.2333333333333334, 1.0714285714285714, 0.95, 0.5928571428571429])
     })
-    function_sorted_msms_data_df = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method='sums')
+    true_sorting_method = 'sums'
+    function_sorted_msms_data_df, function_sorting_method = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method=true_sorting_method)
     assert np.array_equal(true_sorted_msms_data_df.to_numpy(), function_sorted_msms_data_df.to_numpy())
-
+    assert true_sorting_method == function_sorting_method
 
 def test_sort_msms_hits_weighted():
     unsorted_msms_data_df = pd.DataFrame({
@@ -125,8 +128,10 @@ def test_sort_msms_hits_weighted():
         "data_frags": np.array([9, 8, 10, 7]),
         "weighted_score": np.array([0.4083333333333333, 0.3125, 0.29285714285714287, 0.19821428571428573])
     })
-    function_sorted_msms_data_df = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method='weighted')
+    true_sorting_method = 'weighted'
+    function_sorted_msms_data_df, function_sorting_method = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method=true_sorting_method)
     assert np.array_equal(true_sorted_msms_data_df.to_numpy(), function_sorted_msms_data_df.to_numpy())
+    assert true_sorting_method == function_sorting_method
 
 def test_sort_msms_hits_numeric_hierarchy():
     unsorted_msms_data_df = pd.DataFrame({
@@ -144,8 +149,10 @@ def test_sort_msms_hits_numeric_hierarchy():
         "data_frags": np.array([9, 8, 7, 10]),
         "score_bin": ['0.4-0.5', '0.3-0.4', '0.2-0.3', '0.1-0.2']
     })
-    function_sorted_msms_data_df = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method='numeric_hierarchy')
+    true_sorting_method = 'numeric_hierarchy'
+    function_sorted_msms_data_df, function_sorting_method = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method=true_sorting_method)
     assert np.array_equal(true_sorted_msms_data_df.to_numpy(), function_sorted_msms_data_df.to_numpy())
+    assert true_sorting_method == function_sorting_method
 
 def test_sort_msms_hits_quantile_hierarchy():
     unsorted_msms_data_df = pd.DataFrame({
@@ -168,5 +175,7 @@ def test_sort_msms_hits_quantile_hierarchy():
                         pd.Interval(0.099, 0.16, closed='right')
                     ]
     })
-    function_sorted_msms_data_df = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method='quantile_hierarchy')
+    true_sorting_method = 'quantile_hierarchy'
+    function_sorted_msms_data_df, function_sorting_method = sp.sort_msms_hits(unsorted_msms_data_df, sorting_method=true_sorting_method)
     assert np.array_equal(true_sorted_msms_data_df.to_numpy(), function_sorted_msms_data_df.to_numpy())
+    assert true_sorting_method == function_sorting_method
