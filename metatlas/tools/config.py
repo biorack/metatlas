@@ -67,8 +67,6 @@ class BaseNotebookParameters(BaseModel):
     include_lcmsruns: OutputLists = OutputLists()
     exclude_lcmsruns: OutputLists = OutputLists()
     groups_controlled_vocab: List[str] = []
-    rt_min_delta: Optional[float] = None
-    rt_max_delta: Optional[float] = None
     mz_tolerance_default: float = 10  # units of ppm
     mz_tolerance_override: Optional[float] = None  # units of ppm
     frag_mz_tolerance: Optional[float] = 0.02  # units of Daltons
@@ -135,7 +133,8 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
     stop_before: Optional[str] = None
     google_folder: str
     msms_refs: Path
-
+    rt_min_delta: Optional[float] = None
+    rt_max_delta: Optional[float] = None
 
 class Atlas(BaseModel):
     """Atlas specification"""
