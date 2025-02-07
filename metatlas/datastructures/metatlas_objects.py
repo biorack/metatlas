@@ -133,7 +133,7 @@ class MetatlasObject(HasTraits):
 
     def __init__(self, **kwargs):
         """Set the default attributes."""
-        logger.debug('Creating new instance of %s with parameters %s', self.__class__.__name__, kwargs)
+        #logger.debug('Creating new instance of %s with parameters %s', self.__class__.__name__, kwargs)
         kwargs.setdefault('unique_id', uuid.uuid4().hex)
         kwargs.setdefault('head_id', kwargs['unique_id'])
         kwargs.setdefault('username', getpass.getuser())
@@ -181,7 +181,7 @@ class MetatlasObject(HasTraits):
         obj: MetatlasObject
             Cloned object.
         """
-        logger.info('Started cloning instance of %s with recursive=%s', self.__class__.__name__, recursive)
+        logger.debug('Started cloning instance of %s with recursive=%s', self.__class__.__name__, recursive)
         obj = self.__class__()
         for (tname, trait) in self.traits().items():
             if tname.startswith('_') or trait.metadata.get('readonly', False):
@@ -195,7 +195,7 @@ class MetatlasObject(HasTraits):
         obj.prev_uid = self.unique_id
         obj.head_id = self.unique_id
         obj.unique_id = uuid.uuid4().hex
-        logger.info('Finished cloning instance of %s object (%s to %s)', self.__class__.__name__, self.unique_id, obj.unique_id)
+        logger.debug('Finished cloning instance of %s object (%s to %s)', self.__class__.__name__, self.unique_id, obj.unique_id)
         return obj
 
     def show_diff(self, unique_id=None):

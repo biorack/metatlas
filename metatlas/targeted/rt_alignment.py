@@ -477,7 +477,6 @@ def run(
     set_parameters: dict,
 ) -> MetatlasDataset:
     """Generates RT alignment model, applies to atlases, and generates all outputs"""
-    logger.info("Using the correct branch")
     params = workflow.rt_alignment.parameters
     ids = AnalysisIdentifiers(
         project_directory=params.project_directory,
@@ -490,7 +489,6 @@ def run(
     )
     shutil.copy2(params.config_file_name, ids.output_dir)
     ids.set_output_state(params, "rt_alignment")
-    #metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus, rt_min_delta=params.rt_min_delta, rt_max_delta=params.rt_max_delta)
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus, rt_min_delta=params.rt_min_delta, rt_max_delta=params.rt_max_delta)
     generate_outputs(metatlas_dataset, workflow, set_parameters)
     return metatlas_dataset

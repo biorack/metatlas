@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 def repo_dir() -> Path:
     """Returns a string with the path to the root of the Metatlas git repo"""
-    logger.info("Metatlas repo dir: %s", Path(__file__).resolve().parent.parent.parent)
     return Path(__file__).resolve().parent.parent.parent
 
 

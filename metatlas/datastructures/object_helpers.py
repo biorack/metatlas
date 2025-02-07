@@ -198,7 +198,7 @@ class Workspace(object):
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
-        logger.info('Entering Workspace.save_objects')
+        logger.debug('Entering Workspace.save_objects')
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
@@ -208,24 +208,24 @@ class Workspace(object):
         for obj in objects:
             self._get_save_data(obj, _override)
         if self._inserts:
-            logger.info("Doing database insert task...")
-            logger.debug('Workspace._inserts=%s', self._inserts)
+            logger.debug("Doing database insert task...")
+            #logger.debug('Workspace._inserts=%s', self._inserts)
         if self._updates:
-            logger.info("Doing database update task...")
-            logger.debug('Workspace._updates=%s', self._updates)
+            logger.debug("Doing database update task...")
+            #logger.debug('Workspace._updates=%s', self._updates)
         if self._link_updates:
-            logger.info("Doing database link update task...")
-            logger.debug('Workspace._link_updates=%s', self._link_updates)
-        logger.info('Connecting to database...')
+            logger.debug("Doing database link update task...")
+            #logger.debug('Workspace._link_updates=%s', self._link_updates)
+        logger.debug('Connecting to database...')
         db = self.get_connection()
         db.begin()
-        logger.info("Database path: %s", self.path)
+        logger.debug("Database path: %s", self.path)
         try:
             for (table_name, updates) in self._link_updates.items():
                 if table_name not in db:
                     continue
                 for (uid, prev_uid) in updates:
-                    logger.info('QUERY: update `%s` set source_id = "%s" where source_id = "%s"' %
+                    logger.debug('QUERY: update `%s` set source_id = "%s" where source_id = "%s"' %
                              (table_name, prev_uid, uid))
                     db.query('update `%s` set source_id = "%s" where source_id = "%s"' %
                              (table_name, prev_uid, uid))
@@ -235,7 +235,7 @@ class Workspace(object):
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 for (uid, prev_uid) in updates:
-                    logger.info('QUERY: update `%s` set unique_id = "%s" where unique_id = "%s"' %
+                    logger.debug('QUERY: update `%s` set unique_id = "%s" where unique_id = "%s"' %
                              (table_name, prev_uid, uid))
                     db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' %
                              (table_name, prev_uid, uid))
@@ -245,14 +245,14 @@ class Workspace(object):
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 db[table_name].insert_many(inserts)
-                logger.debug('inserting %s', inserts)
-            logger.info("Committing changes to database")
+                #logger.debug('inserting %s', inserts)
+            logger.debug("Committing changes to database")
             db.commit()
-            logger.info('Exiting Workspace.save_objects')
+            logger.debug('Exiting Workspace.save_objects')
         except Exception as err:
             rollback_and_log(db, err)
         finally:
-            logger.info('Closing database connection')
+            logger.debug('Closing database connection')
             close_db_connection(db)
 
     def create_link_tables(self, klass):
