@@ -121,7 +121,8 @@ class Workspace(object):
         logger.debug('Using database at: %s', self.get_database_path(with_password=False))
         self.path = self.get_database_path(with_password=True)
         mysql_kwargs = {"pool_recycle": 3600, "connect_args": {"connect_timeout": 120}}
-        self.engine_kwargs = {} if self.path.startswith("sqlite") else mysql_kwargs
+        sqlite_kwargs = {"connect_args": {"timeout": 0.01}}
+        self.engine_kwargs = sqlite_kwargs if self.path.startswith("sqlite") else mysql_kwargs
 
         self.tablename_lut = {}
         self.subclass_lut = {}
@@ -197,7 +198,7 @@ class Workspace(object):
 
     def save_objects(self, objects, _override=False):
         """Save objects to the database"""
-        logger.debug('Entering Workspace.save_objects')
+        logger.info('Entering Workspace.save_objects')
         if not isinstance(objects, (list, set)):
             objects = [objects]
         self._seen = dict()
@@ -207,19 +208,25 @@ class Workspace(object):
         for obj in objects:
             self._get_save_data(obj, _override)
         if self._inserts:
+            logger.info("Doing database insert task...")
             logger.debug('Workspace._inserts=%s', self._inserts)
         if self._updates:
+            logger.info("Doing database update task...")
             logger.debug('Workspace._updates=%s', self._updates)
         if self._link_updates:
+            logger.info("Doing database link update task...")
             logger.debug('Workspace._link_updates=%s', self._link_updates)
+        logger.info('Connecting to database...')
         db = self.get_connection()
         db.begin()
-        db.query('set innodb_lock_wait_timeout = 10')
+        logger.info("Database path: %s", self.path)
         try:
             for (table_name, updates) in self._link_updates.items():
                 if table_name not in db:
                     continue
                 for (uid, prev_uid) in updates:
+                    logger.info('QUERY: update `%s` set source_id = "%s" where source_id = "%s"' %
+                             (table_name, prev_uid, uid))
                     db.query('update `%s` set source_id = "%s" where source_id = "%s"' %
                              (table_name, prev_uid, uid))
             for (table_name, updates) in self._updates.items():
@@ -228,6 +235,8 @@ class Workspace(object):
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 for (uid, prev_uid) in updates:
+                    logger.info('QUERY: update `%s` set unique_id = "%s" where unique_id = "%s"' %
+                             (table_name, prev_uid, uid))
                     db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' %
                              (table_name, prev_uid, uid))
             for (table_name, inserts) in self._inserts.items():
@@ -237,12 +246,13 @@ class Workspace(object):
                         self.fix_table(table_name)
                 db[table_name].insert_many(inserts)
                 logger.debug('inserting %s', inserts)
+            logger.info("Committing changes to database")
             db.commit()
+            logger.info('Exiting Workspace.save_objects')
         except Exception as err:
-            logger.info(f"{db.query('show open tables where in_use>0;')}")
-            logger.info(f"{db.query('show full processlist;')}")
             rollback_and_log(db, err)
         finally:
+            logger.info('Closing database connection')
             close_db_connection(db)
 
     def create_link_tables(self, klass):

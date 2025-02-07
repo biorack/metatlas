@@ -181,7 +181,7 @@ class MetatlasObject(HasTraits):
         obj: MetatlasObject
             Cloned object.
         """
-        logger.debug('Cloning instance of %s with recursive=%s', self.__class__.__name__, recursive)
+        logger.info('Started cloning instance of %s with recursive=%s', self.__class__.__name__, recursive)
         obj = self.__class__()
         for (tname, trait) in self.traits().items():
             if tname.startswith('_') or trait.metadata.get('readonly', False):
@@ -195,6 +195,7 @@ class MetatlasObject(HasTraits):
         obj.prev_uid = self.unique_id
         obj.head_id = self.unique_id
         obj.unique_id = uuid.uuid4().hex
+        logger.info('Finished cloning instance of %s object (%s to %s)', self.__class__.__name__, self.unique_id, obj.unique_id)
         return obj
 
     def show_diff(self, unique_id=None):
