@@ -477,6 +477,7 @@ def run(
     set_parameters: dict,
 ) -> MetatlasDataset:
     """Generates RT alignment model, applies to atlases, and generates all outputs"""
+    logger.info("Using the correct branch")
     params = workflow.rt_alignment.parameters
     ids = AnalysisIdentifiers(
         project_directory=params.project_directory,
