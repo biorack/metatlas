@@ -214,6 +214,7 @@ class Workspace(object):
             logger.debug('Workspace._link_updates=%s', self._link_updates)
         db = self.get_connection()
         db.begin()
+        db.query('set innodb_lock_wait_timeout = 10')
         try:
             for (table_name, updates) in self._link_updates.items():
                 if table_name not in db:
@@ -238,6 +239,8 @@ class Workspace(object):
                 logger.debug('inserting %s', inserts)
             db.commit()
         except Exception as err:
+            logger.info(f"{db.query('show open tables where in_use>0;')}")
+            logger.info(f"{db.query('show full processlist;')}")
             rollback_and_log(db, err)
         finally:
             close_db_connection(db)
