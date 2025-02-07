@@ -120,6 +120,7 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     slurm_execute: bool = False
     clear_cache: bool = False
     msms_sorting_method: Optional[str] = None
+    msms_radio_buttons: Optional[str] = None
     # these are populated from the workflow's RTAlignment if None
     google_folder: Optional[str] = None
     msms_refs: Optional[Path] = None

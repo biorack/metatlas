@@ -251,6 +251,7 @@ class adjust_rt_for_selected_compound(object):
     def __init__(self,
                  data,
                  msms_sorting_method=None,
+                 msms_radio_buttons=None,
                  include_lcmsruns=None,
                  exclude_lcmsruns=None,
                  include_groups=None,
@@ -308,6 +309,7 @@ class adjust_rt_for_selected_compound(object):
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
         self.msms_hits, _ = sp.sort_msms_hits(msms_hits, sorting_method=msms_sorting_method)
+        self.msms_radio_buttons = msms_radio_buttons
         self.color_me = or_default(color_me, [('black', '')])
         self.compound_idx = compound_idx
         self.width = width
@@ -509,24 +511,32 @@ class adjust_rt_for_selected_compound(object):
                                  picker=True, pickradius=5, color=color, label=label)
 
     def configure_flags(self):
-        default_peak = ['keep',
-                        'remove',
-                        'keep, unresolvable isomers',
-                        'keep, poor peak shape']
         
-        default_msms = ['no selection',
+        if self.msms_radio_buttons is None or self.msms_radio_buttons == 'new':
+            default_peak = ['keep','remove','keep, unresolvable isomers','keep, poor peak shape']
                         
-                        '-1.0, poor match, should remove',
-                        '0.0, no match or no MSMS collected',
-                        '0.5, partial or putative match of fragments',
-                        '1.0, good match',
+            default_msms = ['no selection',
+                            '-1.0, poor match, should remove',
+                            '0.0, no match or no MSMS collected',
+                            '0.5, partial or putative match of fragments',
+                            '1.0, good match',
+                            '0.5, co-isolated precursor, partial match',
+                            '1.0, co-isolated precursor, good match',
+                            '0.5, single ion match, no evidence',
+                            '1.0, single ion match, ISTD/ref evidence']
+        elif self.msms_radio_buttons == 'old':
+            default_peak = ['keep','remove','unresolvable isomers','poor peak shape']
+                        
+            default_msms = ['no selection',
+                            '-1, bad match - should remove compound',
+                            '0, no ref match available or no MSMS collected',
+                            '0.5, partial match of fragments',
+                            '1, perfect match to internal reference library',
+                            '1, perfect match to external reference library',
+                            '1, co-isolated precursor but all reference ions are in sample spectrum']
+        else:
+            logger.warning('Unknown value for msms_radio_buttons: %s. Must use "old" or "new" or remove.', self.msms_radio_buttons)
 
-                        '0.5, co-isolated precursor, partial match',
-                        '1.0, co-isolated precursor, good match',
-                        
-                        '0.5, single ion match, no evidence',
-                        '1.0, single ion match, ISTD/ref evidence']
-        
         if self.peak_flags is None or self.peak_flags == '':
             self.peak_flags = default_peak
         if self.msms_flags is None or self.msms_flags == '':
