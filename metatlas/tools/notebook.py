@@ -54,10 +54,9 @@ def configure_notebook_display() -> None:
 
 def setup(log_level: str, source_code_version_id: Optional[str] = None) -> None:
     """High level function to prepare the metatlas notebook"""
-    configure_environment(log_level)
     if source_code_version_id is not None:
-        logger.info("Notice: setting custom git commit ID to run notebook.")
         set_git_head(source_code_version_id)
+    configure_environment(log_level)
     logger.info("Running on git commit: %s from %s", get_repo_hash(), get_commit_date())
     configure_notebook_display()
     configure_pandas_display()
