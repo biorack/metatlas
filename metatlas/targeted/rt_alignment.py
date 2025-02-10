@@ -378,16 +378,37 @@ def get_atlas_name(ids: AnalysisIdentifiers, workflow: Workflow, analysis: Analy
     )
 
 
-def align_atlas(atlas: metob.Atlas, model: Model, rt_offset: float) -> metob.Atlas:
+def align_atlas(atlas: metob.Atlas, model: Model, rt_offset: float, align_rt_min_max: bool) -> metob.Atlas:
     """use model to align RTs within atlas"""
-    aligned = atlas.clone(recursive=True)
-    old_peaks = [cid.rt_references[0].rt_peak for cid in aligned.compound_identifications]
-    new_peaks = model.predict(np.array(old_peaks, dtype=float))
-    for peak, cid in zip(new_peaks, aligned.compound_identifications):
-        rt_ref = cid.rt_references[0]
-        rt_ref.rt_peak = peak
-        rt_ref.rt_min = peak - rt_offset
-        rt_ref.rt_max = peak + rt_offset
+    if align_rt_min_max is True:
+        logger.info(f"Using model to predict new RT peak, min, and max values for each compound (ignoring rt offset of {rt_offset}).")
+        aligned = atlas.clone(recursive=True)
+        old_peaks = [cid.rt_references[0].rt_peak for cid in aligned.compound_identifications]
+        new_peaks = model.predict(np.array(old_peaks, dtype=float))
+        old_mins = [cid.rt_references[0].rt_min for cid in aligned.compound_identifications]
+        old_maxs = [cid.rt_references[0].rt_max for cid in aligned.compound_identifications]
+        new_mins = model.predict(np.array(old_mins, dtype=float))
+        new_maxs = model.predict(np.array(old_maxs, dtype=float))
+        for peak, min, max, cid in zip(new_peaks, new_mins, new_maxs, aligned.compound_identifications):
+            if peak - min < 0.05 or peak - min > 5:
+                logger.warning(f"Bound between RT peak and RT minimum for {cid.name} is abnormal: peak={peak} and minimum={min}.")
+            if max - peak < 0.05 or max - peak > 5:
+                logger.warning(f"Bound between RT maximum and RT peak for {cid.name} is abnormal: peak={peak} and maximum={max}.")
+            rt_ref = cid.rt_references[0]
+            rt_ref.rt_peak = peak
+            rt_ref.rt_min = min
+            rt_ref.rt_max = max
+    else:
+        logger.info(f"Using model to predict new RT peak for each compound and then setting min and max by {rt_offset} mins.")
+        aligned = atlas.clone(recursive=True)
+        old_peaks = [cid.rt_references[0].rt_peak for cid in aligned.compound_identifications]
+        new_peaks = model.predict(np.array(old_peaks, dtype=float))
+        for peak, cid in zip(new_peaks, aligned.compound_identifications):
+            rt_ref = cid.rt_references[0]
+            rt_ref.rt_peak = peak
+            rt_ref.rt_min = peak - rt_offset
+            rt_ref.rt_max = peak + rt_offset
+
     return aligned
 
 
@@ -419,7 +440,7 @@ def create_aligned_atlases(
             logger.info("Creating atlas %s", name)
             out_atlas_file_name = ids.output_dir / f"{name}.csv"
 
-            aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset) if analysis.atlas.do_alignment else template_atlas
+            aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset, analysis.atlas.align_rt_min_max) if analysis.atlas.do_alignment else template_atlas
             logger.info("Collecting data for pre-filter") if analysis.atlas.do_prefilter else None
             aligned_filtered_atlas = filter_atlas(aligned_atlas, ids, analysis, data) if analysis.atlas.do_prefilter else aligned_atlas
             aligned_filtered_atlas.name = name

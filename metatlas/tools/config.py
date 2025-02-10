@@ -144,6 +144,7 @@ class Atlas(BaseModel):
     name: str
     do_alignment: bool = False
     do_prefilter: bool = False
+    align_rt_min_max: bool = False
     rt_offset: float = 0.5
     
     @validator("unique_id")
