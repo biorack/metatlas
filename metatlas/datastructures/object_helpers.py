@@ -121,7 +121,7 @@ class Workspace(object):
         logger.debug('Using database at: %s', self.get_database_path(with_password=False))
         self.path = self.get_database_path(with_password=True)
         mysql_kwargs = {"pool_recycle": 3600, "connect_args": {"connect_timeout": 120}}
-        sqlite_kwargs = {"connect_args": {"timeout": 0.01}}
+        sqlite_kwargs = {"connect_args": {"timeout": 7200}}
         self.engine_kwargs = sqlite_kwargs if self.path.startswith("sqlite") else mysql_kwargs
 
         self.tablename_lut = {}
