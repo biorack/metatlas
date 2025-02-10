@@ -63,8 +63,9 @@ def filter_lcmsruns(
         )
     else:
         post_exclude = post_include
-    for run in post_exclude:
-        logger.debug("Run: %s", run.name)
+    #for run in post_exclude:
+    #    logger.debug("Run: %s", run.name)
+    logger.debug("Runs: %s", len(post_exclude))
     logger.debug("After filtering, %s LCMS output files remain.", len(post_exclude))
     try:
         if len(post_exclude) == 0:

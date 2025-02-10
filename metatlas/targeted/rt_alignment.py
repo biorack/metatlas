@@ -418,12 +418,12 @@ def create_aligned_atlases(
             name = get_atlas_name(ids, workflow, analysis, model)
             logger.info("Creating atlas %s", name)
             out_atlas_file_name = ids.output_dir / f"{name}.csv"
-
+            logger.info("Aligning atlas %s using template: %s", name, template_atlas.name) if analysis.atlas.do_alignment else None
             aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset) if analysis.atlas.do_alignment else template_atlas
             logger.info("Collecting data for pre-filter") if analysis.atlas.do_prefilter else None
             aligned_filtered_atlas = filter_atlas(aligned_atlas, ids, analysis, data) if analysis.atlas.do_prefilter else aligned_atlas
             aligned_filtered_atlas.name = name
-
+            logger.info("Storing aligned atlas %s in DB", aligned_filtered_atlas.name)
             metob.store(aligned_filtered_atlas)
             aligned_filtered_atlas_df = ma_data.make_atlas_df(aligned_filtered_atlas)
             write_utils.export_dataframe_die_on_diff(

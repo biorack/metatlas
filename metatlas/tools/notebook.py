@@ -117,7 +117,8 @@ def create_notebook(
     """
     with open(input_file_name, "r", encoding="utf8") as in_fh:
         notebook = json.load(in_fh)
-    logger.debug("Creating notebook with parameters: %s", str(parameters))
+    #logger.debug("Creating notebook with parameters: %s", str(parameters))
+    logger.debug("Creating notebook from template: %s", input_file_name)
     notebook["cells"][injection_cell]["source"] = [assignment_string(k, v) for k, v in parameters.items()]
     with open(output_file_name, "w", encoding="utf-8") as out_fh:
         json.dump(notebook, out_fh, ensure_ascii=False, indent=4)

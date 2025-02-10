@@ -113,6 +113,7 @@ def store(objects, **kwargs):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
+    logger.debug("Starting workspace instance")
     workspace = Workspace.get_instance()
     workspace.save_objects(objects, **kwargs)
 
@@ -188,13 +189,18 @@ class MetatlasObject(HasTraits):
                 continue
             val = getattr(self, tname)
             if recursive and isinstance(trait, MetList):
+                logger.debug("Cloning MetList instance %s", tname)
                 val = [v.clone(True) for v in val]
             elif recursive and isinstance(trait, MetInstance) and val:
+                logger.debug("Cloning MetInstance instance %s", tname)
                 val = val.clone(True)
             setattr(obj, tname, val)
         obj.prev_uid = self.unique_id
+        logger.debug("Updated prev_uid: %s", obj.prev_uid)
         obj.head_id = self.unique_id
+        logger.debug("Updated head_id: %s", obj.head_id)
         obj.unique_id = uuid.uuid4().hex
+        logger.debug("Updated unique_id: %s", obj.unique_id)
         logger.debug('Finished cloning instance of %s object (%s to %s)', self.__class__.__name__, self.unique_id, obj.unique_id)
         return obj
 
