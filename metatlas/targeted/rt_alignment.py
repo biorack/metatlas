@@ -107,6 +107,7 @@ def generate_rt_alignment_models(
     Returns a tuple with linear, polynomial and offset models
     """
     params = workflow.rt_alignment.parameters
+    logger.info("Generating RT alignment models with QC atlas %s and RT expansion of %s and %s", workflow.rt_alignment.atlas.name, params.rt_min_delta, params.rt_max_delta)
     rts_df = get_rts(data)
     actual, pred = subset_data_for_model_input(
         params.dependent_data_source, rts_df, data.atlas_df, params.inchi_keys_not_in_model
@@ -468,7 +469,7 @@ def write_notebooks(
                         before processing of the config file
     Returns a list of Paths to notebooks
     """
-    parameters_not_to_forward = ["rt_min_delta", "rt_max_delta"]
+    parameters_not_to_forward = []
     out = []
     for atlas, analysis in zip(atlases, workflow.analyses):
         source = repo_path() / "notebooks" / "reference" / "Targeted.ipynb"
@@ -509,6 +510,6 @@ def run(
     )
     shutil.copy2(params.config_file_name, ids.output_dir)
     ids.set_output_state(params, "rt_alignment")
-    metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
+    metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus, rt_min_delta=params.rt_min_delta, rt_max_delta=params.rt_max_delta)
     generate_outputs(metatlas_dataset, workflow, set_parameters)
     return metatlas_dataset
