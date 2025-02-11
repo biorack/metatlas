@@ -212,14 +212,11 @@ class Workspace(object):
         self._inserts = defaultdict(list)
         for obj in objects:
             self._get_save_data(obj, _override)
-        if self._inserts:
-            logger.debug("Doing database insert task...")
+        #if self._inserts:
             #logger.debug('Workspace._inserts=%s', self._inserts)
-        if self._updates:
-            logger.debug("Doing database update task...")
+        #if self._updates:
             #logger.debug('Workspace._updates=%s', self._updates)
-        if self._link_updates:
-            logger.debug("Doing database link update task...")
+        #if self._link_updates:
             #logger.debug('Workspace._link_updates=%s', self._link_updates)
         logger.debug('Connecting to database...')
         db = self.get_connection()
@@ -227,10 +224,13 @@ class Workspace(object):
         logger.debug('Using database at: %s', self.path)
         logger.debug("Database path: %s", self.path)
         lock_wait_time = db.query("SHOW SESSION VARIABLES LIKE '%INNODB_LOCK_WAIT_TIMEOUT%';")
-        logger.debug("Database lock wait time from engine kwargs: %s", lock_wait_time)
+        for row in lock_wait_time:
+            logger.debug("Database lock wait time from engine kwargs: %s", row)
         db.query("SET SESSION innodb_lock_wait_timeout=10000;")
         lock_wait_time = db.query("SHOW SESSION VARIABLES LIKE '%INNODB_LOCK_WAIT_TIMEOUT%';")
-        logger.debug("Database lock wait time after direct query: %s", lock_wait_time)
+        db.query("SET SESSION transaction_isolation = 'READ-COMMITTED';")
+        for row in lock_wait_time:
+            logger.debug("Database lock wait time after direct set: %s", row)
         try:
             for (table_name, updates) in self._link_updates.items():
                 if table_name not in db:
