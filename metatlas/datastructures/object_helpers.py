@@ -118,10 +118,15 @@ class Workspace(object):
     instance = None
 
     def __init__(self):
-        logger.debug('Using database at: %s', self.get_database_path(with_password=False))
         self.path = self.get_database_path(with_password=True)
-        mysql_kwargs = {"pool_recycle": 3600, "connect_args": {"connect_timeout": 120}}
-        sqlite_kwargs = {"connect_args": {"timeout": 7200}}
+        mysql_kwargs = {
+            "pool_recycle": 3600,
+            "connect_args": {
+                "connect_timeout": 120,
+                "init_command": "SET SESSION innodb_lock_wait_timeout=10000" # This sets the production mysql timeout
+            }
+        }
+        sqlite_kwargs = {"connect_args": {"timeout": 7200}} # This sets the development sqlite timeout
         self.engine_kwargs = sqlite_kwargs if self.path.startswith("sqlite") else mysql_kwargs
 
         self.tablename_lut = {}
@@ -219,6 +224,7 @@ class Workspace(object):
         logger.debug('Connecting to database...')
         db = self.get_connection()
         db.begin()
+        logger.debug('Using database at: %s', self.path)
         logger.debug("Database path: %s", self.path)
         try:
             for (table_name, updates) in self._link_updates.items():
