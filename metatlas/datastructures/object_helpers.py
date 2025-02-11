@@ -226,6 +226,11 @@ class Workspace(object):
         db.begin()
         logger.debug('Using database at: %s', self.path)
         logger.debug("Database path: %s", self.path)
+        lock_wait_time = db.query("SHOW SESSION VARIABLES LIKE '%INNODB_LOCK_WAIT_TIMEOUT%';")
+        logger.debug("Database lock wait time from engine kwargs: %s", lock_wait_time)
+        db.query("SET SESSION innodb_lock_wait_timeout=10000;")
+        lock_wait_time = db.query("SHOW SESSION VARIABLES LIKE '%INNODB_LOCK_WAIT_TIMEOUT%';")
+        logger.debug("Database lock wait time after direct query: %s", lock_wait_time)
         try:
             for (table_name, updates) in self._link_updates.items():
                 if table_name not in db:
