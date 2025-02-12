@@ -1278,7 +1278,7 @@ def submit_fbmn_jobs(
     #     logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
     #     return
     if not df.empty:
-        logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2"%(df.shape[0],status_list), 1))
+        #logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2:"%(df.shape[0],status_list), 1))
         index_list = []
         for i,row in df.iterrows():
             project_name = row['parent_dir']
@@ -1292,8 +1292,14 @@ def submit_fbmn_jobs(
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 
                 # Bail out conditions
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete' and row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete':
+                    continue
                 logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
+                    if row['num_%s_files'%polarity_short] == 0:
+                        logging.info(tab_print("No raw data files for %s. Setting status to '12 not relevant'"%(polarity), 2))
+                        df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
+                        continue
                     logging.warning(tab_print("Warning! Project %s mode has an error status. Attempting to resubmit..."%(polarity), 2))
                     os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
@@ -1412,7 +1418,7 @@ def submit_mzmine_jobs(
         if new_projects is not None and not new_projects.empty: # this means step 1 returned a dataframe of new projects to run
             df = df[df['parent_dir'].isin(new_projects['parent_dir'])]
         else:
-            logging.info(tab_print("No new MZmine jobs initialized! Use the --direct_input flag to bypass submitting initialized-only projects.", 1))
+            logging.info(tab_print("No new MZmine jobs initialized to submit!", 1))
             return
     status_list = ['01 initiation','09 error']
     if direct_input is None:
@@ -1425,7 +1431,7 @@ def submit_mzmine_jobs(
     #     return
     if not df.empty:
         index_list = []
-        logging.info(tab_print("Total of %s new MZmine job(s) with status %s to submit"%(df.shape[0],status_list), 1))
+        #logging.info(tab_print("Total of %s new MZmine job(s) with status %s to submit"%(df.shape[0],status_list), 1))
         for i,row in df.iterrows():
             project_name = row['parent_dir']
             polarity_list = check_for_polarities(row['output_dir'],project_name)
