@@ -223,14 +223,22 @@ class Workspace(object):
         db.begin()
         logger.debug('Using database at: %s', self.path)
         logger.debug("Database path: %s", self.path)
+
+        # Confirm that session initiation set the correct lock wait time
         lock_wait_time = db.query("SHOW SESSION VARIABLES LIKE '%INNODB_LOCK_WAIT_TIMEOUT%';")
         for row in lock_wait_time:
             logger.debug("Database lock wait time from engine kwargs: %s", row)
+
+        # Directly set the lock wait time in case session init didn't work
         db.query("SET SESSION innodb_lock_wait_timeout=10000;")
         lock_wait_time = db.query("SHOW SESSION VARIABLES LIKE '%INNODB_LOCK_WAIT_TIMEOUT%';")
-        db.query("SET SESSION transaction_isolation = 'READ-COMMITTED';")
         for row in lock_wait_time:
             logger.debug("Database lock wait time after direct set: %s", row)
+
+        # Set the isolation level to READ-COMMITTED based on
+        # https://stackoverflow.com/questions/5836623/getting-lock-wait-timeout-exceeded-try-restarting-transaction-even-though-im
+        db.query("SET SESSION transaction_isolation = 'READ-COMMITTED';")
+
         try:
             for (table_name, updates) in self._link_updates.items():
                 if table_name not in db:
