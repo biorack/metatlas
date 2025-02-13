@@ -122,10 +122,10 @@ def filter_common_bad_project_names(df:pd.DataFrame=None) -> pd.DataFrame:
     projects with common strings that are in untargeted tasks which should not be run
     """
     df = df[~(df['parent_dir'].str.contains(' '))]
-    df = df[~(df['parent_dir'].str.contains('&'))]
+    #df = df[~(df['parent_dir'].str.contains('&'))]
     #df = df[~(df['parent_dir'].str.contains('Niyogi'))]
     #df = df[~(df['parent_dir'].str.contains('_partial'))]
-    df = df[~(df['parent_dir'].str.contains('_old'))]
+    #df = df[~(df['parent_dir'].str.contains('_old'))]
     return df
 
 def write_fbmn_tasks_to_file(
@@ -1431,7 +1431,7 @@ def submit_mzmine_jobs(
     #     return
     if not df.empty:
         index_list = []
-        #logging.info(tab_print("Total of %s new MZmine job(s) with status %s to submit"%(df.shape[0],status_list), 1))
+        logging.info(tab_print("Total of %s new MZmine job(s) with status %s to submit"%(df.shape[0],status_list), 1))
         for i,row in df.iterrows():
             project_name = row['parent_dir']
             polarity_list = check_for_polarities(row['output_dir'],project_name)
@@ -2225,7 +2225,7 @@ def update_new_untargeted_tasks(
         logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
         return None
     logging.info(tab_print("New projects to add to untargeted tasks:", 2))
-    print_new_projects = "\n".join(["\t"*8 + d['parent_dir'] for d in new_project_info_list_subset])
+    print_new_projects = "\n".join(["\t"*7 + d['parent_dir'] for d in new_project_info_list_subset])
     logging.info(tab_print("\n" + print_new_projects, 0))
 
     # Create metadata for new projects with relevant polarities
