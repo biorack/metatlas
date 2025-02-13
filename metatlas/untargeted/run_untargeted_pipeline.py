@@ -150,7 +150,7 @@ def check_args(args):
 
 def check_skipped_steps(args):
     ##### Check for steps to skip during direct input
-    if args.skip_steps is not None and args.direct_input is not None:
+    if args.skip_steps is not None:
         step_skip_bool_list = [False] * 7
         if 'Sync' in args.skip_steps:
             step_skip_bool_list[0] = True
