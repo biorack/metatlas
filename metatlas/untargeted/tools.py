@@ -124,7 +124,7 @@ def filter_common_bad_project_names(df:pd.DataFrame=None) -> pd.DataFrame:
     df = df[~(df['parent_dir'].str.contains(' '))]
     df = df[~(df['parent_dir'].str.contains('&'))]
     #df = df[~(df['parent_dir'].str.contains('Niyogi'))]
-    df = df[~(df['parent_dir'].str.contains('_partial'))]
+    #df = df[~(df['parent_dir'].str.contains('_partial'))]
     df = df[~(df['parent_dir'].str.contains('_old'))]
     return df
 
@@ -1292,7 +1292,7 @@ def submit_fbmn_jobs(
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 
                 # Bail out conditions
-                if row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete' and row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete':
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete' and row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete' and overwrite_fbmn is False:
                     continue
                 logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
