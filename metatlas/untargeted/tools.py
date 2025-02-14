@@ -1297,11 +1297,16 @@ def submit_fbmn_jobs(
                 logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
                     if row['num_%s_files'%polarity_short] == 0:
-                        logging.info(tab_print("No raw data files for %s. Setting status to '12 not relevant'"%(polarity), 2))
+                        logging.info(tab_print("Notice! No raw data files for %s mode. Setting status to '12 not relevant'"%(polarity), 2))
                         df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
                         continue
-                    logging.warning(tab_print("Warning! Project %s mode has an error status. Attempting to resubmit..."%(polarity), 2))
-                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
+                    if row['num_%s_msms'%polarity_short] < 3:
+                        logging.info(tab_print("Notice! Insufficient MSMS hits for %s mode. Setting status to '12 not relevant'"%(polarity), 2))
+                        df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
+                        continue
+                    logging.warning(tab_print("Warning! Project %s mode has an error status but appears to have data to run FBMN. Attempting to resubmit..."%(polarity), 2))
+                    if os.path.isfile(fbmn_filename):
+                        os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                     logging.info(tab_print("Bailed out because FBMN status is '12 not relevant' for %s mode"%(polarity), 2))
                     continue
