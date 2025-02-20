@@ -71,6 +71,7 @@ workflows:
             unique_id: 89694aa326cd46958d38d8e9066de16c
             do_alignment: True
             do_prefilter: False
+            align_rt_min_max: False
           parameters:
             copy_atlas: True
             polarity: positive
@@ -87,6 +88,7 @@ workflows:
             peak_height: 4e5
             generate_analysis_outputs: True
             slurm_execute: True
+            msms_sorting_method: 'cosine_score'
   - name: Test-C18
     rt_alignment:
         atlas:
@@ -109,6 +111,7 @@ workflows:
             unique_id: f74a731c590544aba5c3720b346e508e
             do_alignment: True
             do_prefilter: True
+            align_rt_min_max: False
             rt_offset: 0.2
           parameters:
             copy_atlas: True
@@ -128,6 +131,7 @@ workflows:
             filter_removed: True
             generate_analysis_outputs: True
             slurm_execute: True
+            msms_sorting_method: 'cosine_score'
   - name: Hybrid
     rt_alignment:
         atlas:

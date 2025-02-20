@@ -250,6 +250,8 @@ class LayoutPosition(Enum):
 class adjust_rt_for_selected_compound(object):
     def __init__(self,
                  data,
+                 msms_sorting_method=None,
+                 msms_radio_buttons=None,
                  include_lcmsruns=None,
                  exclude_lcmsruns=None,
                  include_groups=None,
@@ -306,7 +308,8 @@ class adjust_rt_for_selected_compound(object):
         """
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
-        self.msms_hits = msms_hits.sort_values('score', ascending=False)
+        self.msms_hits, _ = sp.sort_msms_hits(msms_hits, sorting_method=msms_sorting_method)
+        self.msms_radio_buttons = msms_radio_buttons
         self.color_me = or_default(color_me, [('black', '')])
         self.compound_idx = compound_idx
         self.width = width
@@ -508,15 +511,32 @@ class adjust_rt_for_selected_compound(object):
                                  picker=True, pickradius=5, color=color, label=label)
 
     def configure_flags(self):
-        default_peak = ['keep', 'remove', 'unresolvable isomers', 'poor peak shape']
-        default_msms = ['no selection',
-                        '-1, bad match - should remove compound',
-                        '0, no ref match available or no MSMS collected',
-                        '0.5, co-isolated precursor, partial match',
-                        '0.5, partial match of fragments',
-                        '1, perfect match to internal reference library',
-                        '1, perfect match to external reference library',
-                        '1, co-isolated precursor but all reference ions are in sample spectrum']
+        
+        if self.msms_radio_buttons is None or self.msms_radio_buttons == 'new':
+            default_peak = ['keep','remove','keep, unresolvable isomers','keep, poor peak shape']
+                        
+            default_msms = ['no selection',
+                            '-1.0, poor match, should remove',
+                            '0.0, no match or no MSMS collected',
+                            '0.5, partial or putative match of fragments',
+                            '1.0, good match',
+                            '0.5, co-isolated precursor, partial match',
+                            '1.0, co-isolated precursor, good match',
+                            '0.5, single ion match, no evidence',
+                            '1.0, single ion match, ISTD/ref evidence']
+        elif self.msms_radio_buttons == 'old':
+            default_peak = ['keep','remove','unresolvable isomers','poor peak shape']
+                        
+            default_msms = ['no selection',
+                            '-1, bad match - should remove compound',
+                            '0, no ref match available or no MSMS collected',
+                            '0.5, partial match of fragments',
+                            '1, perfect match to internal reference library',
+                            '1, perfect match to external reference library',
+                            '1, co-isolated precursor but all reference ions are in sample spectrum']
+        else:
+            logger.warning('Unknown value for msms_radio_buttons: %s. Must use "old" or "new" or remove.', self.msms_radio_buttons)
+
         if self.peak_flags is None or self.peak_flags == '':
             self.peak_flags = default_peak
         if self.msms_flags is None or self.msms_flags == '':
@@ -1747,22 +1767,29 @@ def make_boxplot_plots(df: pd.DataFrame, output_loc: Path, use_shortnames: bool 
     args = [(compound, df, output_loc, use_shortnames, ylabel, overwrite, logy) for compound in df.index]
     parallel.parallel_process(_make_boxplot_single_arg, args, max_cpus, unit='plot')
 
-
 def _make_boxplot_single_arg(arg_list):
     """ this is a hack, but multiprocessing constrains the functions that can be passed """
     make_boxplot(*arg_list)
-
 
 def make_boxplot(compound: int, df: pd.DataFrame, output_loc: Path, use_shortnames: bool, ylabel: str, overwrite: bool, logy: bool) -> None:
     fig_path = output_loc / f"{compound}{'_log' if logy else ''}_boxplot.pdf"
     write_utils.check_existing_file(fig_path, overwrite)
     level = 'short groupname' if use_shortnames and 'short groupname' in df.columns.names else 'group'
     num_points = 0
-    g = df.loc[compound].groupby(level=level)
+
+    # Reorder columns for boxplots
+    istd_cols = [col for col in df.columns if 'istd' in col[-1].lower()]
+    exctrl_cols = [col for col in df.columns if 'exctrl' in col[-1].lower() or 'txctrl' in col[-1].lower()]
+    refstd_cols = [col for col in df.columns if 'refstd' in col[-1].lower() or 'metasci' in col[-1].lower()]
+    sample_cols = sorted([col for col in df.columns if col not in istd_cols and col not in exctrl_cols and col not in refstd_cols])
+    df_sorted = df[istd_cols + exctrl_cols + sample_cols + refstd_cols]
+    g_sorted = df_sorted.loc[compound].groupby(level=level, sort=False)
+
     plt.rcParams.update({'font.size': 12})
-    f, ax = plt.subplots(1, 1, figsize=(max(len(g)*0.5, 12), 12))
-    g.apply(pd.DataFrame).plot(kind='box', ax=ax)
-    for i, (n, grp) in enumerate(g):
+    f, ax = plt.subplots(1, 1, figsize=(max(len(g_sorted)*0.5, 12), 12))
+
+    g_sorted.apply(pd.DataFrame).plot(kind='box', ax=ax)
+    for i, (n, grp) in enumerate(g_sorted):
         x = [i+1] *len(grp)
         x = np.random.normal(x, 0.04, size=len(x))
         plt.scatter(x, grp)
@@ -2262,6 +2289,8 @@ def create_nonmatched_msms_hits(msms_data: pd.DataFrame, inchi_key: str, compoun
     compound_msms_hits['score'] = compound_msms_hits['measured_precursor_intensity']
     compound_msms_hits['num_matches'] = 0
     compound_msms_hits['spectrum'] = [np.array([np.array([]), np.array([])])] * len(compound_msms_hits)
+    compound_msms_hits['ref_frags'] = 0
+    compound_msms_hits['data_frags'] = 0
 
     return compound_msms_hits
 
@@ -2324,13 +2353,16 @@ def get_hits_per_compound(cos: Type[CosineHungarian], compound_idx: int,
     filtered_msms_refs = msms_refs[msms_refs['inchi_key']==inchi_key].reset_index(drop=True).copy()
     filtered_msms_refs = build_msms_refs_spectra(filtered_msms_refs)
 
-    filtered_msms_data = msms_data[msms_data['inchi_key']==inchi_key].reset_index(drop=True).drop(columns=['inchi_key', 'precursor_mz']).copy()
+    filtered_msms_data = msms_data[msms_data['compound_idx']==compound_idx].reset_index(drop=True).drop(columns=['inchi_key', 'precursor_mz']).copy()
 
     scores_matches = score_matrix(cos, filtered_msms_data.matchms_spectrum.tolist(), filtered_msms_refs.matchms_spectrum.tolist())
 
     inchi_msms_hits = pd.merge(filtered_msms_data, filtered_msms_refs.drop(columns=['name', 'adduct']), how='cross')
     inchi_msms_hits['score'] = scores_matches['score'].flatten()
     inchi_msms_hits['num_matches'] = scores_matches['matches'].flatten()
+
+    inchi_msms_hits['ref_frags'] = inchi_msms_hits['spectrum'].apply(lambda x: len(x[0]) if x.any() else 0)
+    inchi_msms_hits['data_frags'] = inchi_msms_hits['query_spectrum'].apply(lambda x: len(x[0]) if x.any() else 0)
 
     inchi_msms_hits['precursor_ppm_error'] = (abs(inchi_msms_hits['measured_precursor_mz'] - inchi_msms_hits['precursor_mz']) / inchi_msms_hits['precursor_mz']) * 1000000
     inchi_msms_hits = inchi_msms_hits[inchi_msms_hits['precursor_ppm_error']<=inchi_msms_hits['cid_pmz_tolerance']]
@@ -2369,6 +2401,7 @@ def get_msms_hits(metatlas_dataset: MetatlasDataset, extra_time: bool | float = 
     """
 
     msms_hits_cols = ['database', 'id', 'file_name', 'msms_scan', 'score', 'num_matches',
+                     'ref_frags', 'data_frags',
                      'msv_query_aligned', 'msv_ref_aligned', 'name', 'adduct', 'inchi_key',
                      'precursor_mz', 'measured_precursor_mz',
                      'measured_precursor_intensity']

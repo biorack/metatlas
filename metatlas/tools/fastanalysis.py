@@ -44,7 +44,7 @@ def calculate_compound_total_score(final_df, compound_idx, quality_scores):
         final_df.loc[compound_idx, 'msi_level'] = "Level 1"
     return final_df
 
-def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Path] = None, input_dataset = [], msms_hits_df = None,
+def make_stats_table(workflow_name: str = "JGI-HILIC", msms_sorting_method: str = None, input_fname: Optional[Path] = None, input_dataset = [], msms_hits_df = None,
                      include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [],
                      output_loc: Optional[Path] = None,
                      polarity = '',
@@ -110,6 +110,7 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
     msms_hits_df = msms_hits.copy()
     msms_hits_df.reset_index(inplace=True)
 
+    msms_hits_sorted_list = []
     for compound_idx, compound_name in enumerate(compound_names):
         ref_rt_peak = dataset[0][compound_idx]['identification'].rt_references[0].rt_peak
         ref_mz = dataset[0][compound_idx]['identification'].mz_references[0].mz
@@ -135,7 +136,8 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                                     & ((abs(msms_hits_df['measured_precursor_mz'].values.astype(float) - mz_theoretical)/mz_theoretical) \
                                     <= cid.mz_references[0].mz_tolerance*1e-6)]
 
-        comp_msms_hits = comp_msms_hits.sort_values('score', ascending=False)
+        comp_msms_hits, sorting_method_used = sp.sort_msms_hits(comp_msms_hits, sorting_method=msms_sorting_method)
+        msms_hits_sorted_list.append(comp_msms_hits)
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
         if len(comp_msms_hits) > 0 and not np.isnan(np.concatenate(comp_msms_hits['msv_ref_aligned'].values, axis=1)).all():
             file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name'] if f in file_names]
@@ -349,30 +351,46 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
             final_df.loc[compound_idx, 'msms_rt'] = float("%.2f" % rt_list[0])
             final_df.loc[compound_idx, 'msms_numberofions'] = len(mz_sample_matches)
             final_df.loc[compound_idx, 'msms_matchingions'] = ','.join(['%5.3f'%m for m in mz_sample_matches])
-            if len(mz_sample_matches) == 1:
+            
+            if len(mz_sample_matches) == 1: # There is only a single MSMS fragment that matches the reference
                 single_matching_ion = float(final_df.loc[compound_idx, 'msms_matchingions'].split(',')[0])
                 precursor_mass = mz_theoretical
-                if abs(single_matching_ion - precursor_mass) <= ppm_tolerance:
-                    logger.info("Notice! Single matching MSMS fragment ion %s is within ppm tolerance (%s) of the precursor mass (%s) for %s. Setting MSMS score to zero.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
-                    # Set score to zero when the single matching fragment ion is the precursor.
-                    final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
-                    final_df.loc[compound_idx, 'msms_score'] = 0.0
-                    # Then, overwrite the 'MSMS Score (0 to 1)' column of COMPOUND IDENTIFICATION SCORES
-                    final_df.loc[compound_idx, 'msms_quality'] = 0
-                    quality_scores[0] = 0 # Overwrite the MSMS score in quality_scores since it's named independently from final_df.loc[compound_idx, 'msms_quality'] above
-                    # Last, recalculate total score of COMPOUND IDENTIFICATION SCORES
+                precursor_is_parent = abs(single_matching_ion - precursor_mass) <= ppm_tolerance
+                if final_df.loc[compound_idx, 'ms2_notes'] == "1.0, single ion match, ISTD/ref evidence": # Analyst annotated this hit as single ion match with good evidence
+                    if precursor_is_parent:
+                        logger.info("Notice! Single matching MSMS fragment ion %s is within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
+                        logger.info("\tAnalyst identified this hit as single ion match with good evidence.")
+                        final_df.loc[compound_idx, 'ms2_notes'] = final_df.loc[compound_idx, 'ms2_notes'] + " (single matching fragment ion is the precursor)"
+                        final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+                    else:
+                        logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
+                        logger.info("\tAnalyst identified this hit as single ion match with good evidence.")
+                        final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+                elif final_df.loc[compound_idx, 'ms2_notes'] == "0.5, single ion match, no evidence": # Analyst annotated this hit as single ion match with no evidence
+                    if precursor_is_parent:
+                        logger.info("Notice! Single matching MSMS fragment ion %s is within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
+                        logger.info("\tAnalyst identified this hit as single ion match with no evidence.")
+                        final_df.loc[compound_idx, 'ms2_notes'] = final_df.loc[compound_idx, 'ms2_notes'] + " (single matching fragment ion is the precursor)"
+                        final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+                    else:
+                        logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'])
+                        logger.info("\tAnalyst identified this hit as single ion match with no evidence.")
+                        final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+                else: # Analyst did not annotate this hit as single ion match even though it is
+                    final_df.loc[compound_idx, 'ms2_notes'] =  "Unannotated single ion match, needs review. Setting MSMS quality to 0.5. Original annotation: " + final_df.loc[compound_idx, 'ms2_notes']
+                    final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+                    final_df.loc[compound_idx, 'msms_quality'] = 0.5
+                    quality_scores[0] = 0.5
                     if all(isinstance(x, (int, float)) for x in quality_scores):
                         final_df = calculate_compound_total_score(final_df, compound_idx, quality_scores)
                     else:
                         final_df.loc[compound_idx, 'total_score'] = np.nan
                         final_df.loc[compound_idx, 'msi_level'] = ""
-                else: # When single matching fragment ion is not the precursor, set score to best.
-                    logger.info("Notice! Single matching MSMS fragment ion %s is not within ppm tolerance (%s) of the precursor mass (%s) for %s. Setting MSMS score to the best score of %s.", single_matching_ion, ppm_tolerance, precursor_mass, final_df.loc[compound_idx, 'identified_metabolite'], scores[0])
-                    final_df.loc[compound_idx, 'ms2_notes'] = "Single matching fragment ion is NOT the precursor; " + final_df.loc[compound_idx, 'ms2_notes']
-                    final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
-            else:
-                #logger.info("Note: Multiple matching fragment ions found for %s.", final_df.loc[compound_idx, 'identified_metabolite'])
+            else: # Multiple fragment ion matches to reference
+                if 'single ion match' in final_df.loc[compound_idx, 'ms2_notes'] and len(mz_sample_matches) > 1:
+                    final_df.loc[compound_idx, 'ms2_notes'] = final_df.loc[compound_idx, 'ms2_notes'] + " (multiple matching fragment ions even though analyst IDed as single)"
                 final_df.loc[compound_idx, 'msms_score'] = float("%.4f" % scores[0])
+
         else:
             final_df.loc[compound_idx, 'msms_file'] = ""
             final_df.loc[compound_idx, 'msms_rt'] = np.nan
@@ -409,6 +427,10 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
                 if not np.isnan(np.concatenate(rows['msv_ref_aligned'].values, axis=1)).all():
                     dfs['msms_score'].iat[compound_idx, file_idx] = rows.loc[rows['score'].astype(float).idxmax()]['score']
                 dfs['num_frag_matches'].iat[compound_idx, file_idx] = rows.loc[rows['score'].astype(float).idxmax()]['num_matches']
+
+    logger.info(f"Finished processing all compounds and sorted MSMS scores by method '{sorting_method_used}'.")
+    #msms_hits_sorted_df = pd.concat(msms_hits_sorted_list)
+    #msms_hits_sorted_df.to_csv(f"/out/msms_hits_sorted_by_{sorting_method}.csv") # Use this for examining hits with different scoring methods
 
     passing['msms_score'] = (np.nan_to_num(dfs['msms_score'].values) >= min_msms_score).astype(float)
     passing['num_frag_matches'] = (np.nan_to_num(dfs['num_frag_matches'].values) >= min_num_frag_matches).astype(float)
@@ -472,7 +494,6 @@ def make_stats_table(workflow_name: str = "JGI-HILIC", input_fname: Optional[Pat
     for metric in metrics:
         passing[metric][passing[metric] == 0] = np.nan
     stats_table = []
-
 
 #    for metric in metrics:
 #        test = np.product(np.array([passing[dep] for dep in dependencies[metric]]), axis=0)

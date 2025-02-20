@@ -67,8 +67,6 @@ class BaseNotebookParameters(BaseModel):
     include_lcmsruns: OutputLists = OutputLists()
     exclude_lcmsruns: OutputLists = OutputLists()
     groups_controlled_vocab: List[str] = []
-    rt_min_delta: Optional[float] = None
-    rt_max_delta: Optional[float] = None
     mz_tolerance_default: float = 10  # units of ppm
     mz_tolerance_override: Optional[float] = None  # units of ppm
     frag_mz_tolerance: Optional[float] = 0.02  # units of Daltons
@@ -119,10 +117,11 @@ class AnalysisNotebookParameters(BaseNotebookParameters):
     export_msms_fragment_ions: bool = False
     slurm_execute: bool = False
     clear_cache: bool = False
+    msms_sorting_method: Optional[str] = None
+    msms_radio_buttons: Optional[str] = None
     # these are populated from the workflow's RTAlignment if None
     google_folder: Optional[str] = None
     msms_refs: Optional[Path] = None
-
 
 class RTAlignmentNotebookParameters(BaseNotebookParameters):
     """Parameters used in RT Alignment notebooks"""
@@ -135,7 +134,8 @@ class RTAlignmentNotebookParameters(BaseNotebookParameters):
     stop_before: Optional[str] = None
     google_folder: str
     msms_refs: Path
-
+    rt_min_delta: Optional[float] = None
+    rt_max_delta: Optional[float] = None
 
 class Atlas(BaseModel):
     """Atlas specification"""
@@ -144,8 +144,9 @@ class Atlas(BaseModel):
     name: str
     do_alignment: bool = False
     do_prefilter: bool = False
+    align_rt_min_max: bool = False
     rt_offset: float = 0.5
-
+    
     @validator("unique_id")
     @classmethod
     def single_unique_id(cls, to_check):
@@ -167,7 +168,6 @@ class Atlas(BaseModel):
         if len(metob.retrieve("Atlas", unique_id=unique_id, name=to_check, username="*")) == 0:
             raise ValueError(f"Atlas with unique_id '{unique_id}' does not have name '{to_check}'.")
         return to_check
-
 
 class RTAlignment(BaseModel):
     """Define an RT-Alingment workflow step"""

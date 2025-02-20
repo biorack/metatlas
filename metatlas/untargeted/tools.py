@@ -9,6 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, time
 import time
+import glob
 import subprocess
 import math
 sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
@@ -20,9 +21,6 @@ import paramiko
 import zipfile
 import shutil
 from typing import List, Dict, Union, Optional
-
-BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files/'
-BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
 
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
 with open(key_file,'r') as fid:
@@ -52,8 +50,12 @@ SLURM_PERLMUTTER_HEADER = """#!/bin/bash
 #SBATCH -t 3:00:00
 """
 
-mzine_batch_params_file = "/global/common/software/m2650/mzmine_parameters/batch_files/mzmine-3.7.2-batchparams.xml"
-mzine_batch_params_file_iqx = "/global/common/software/m2650/mzmine_parameters/batch_files/IQX-mzmine-3.7.2-batchparams.xml"
+BATCH_FILE_PATH = '/global/common/software/m2650/mzmine_parameters/batch_files'
+BINARY_PATH = '/global/common/software/m2650/mzmine_parameters/MZmine'
+mzine_batch_params_file = f"{BATCH_FILE_PATH}/mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_iqx = f"{BATCH_FILE_PATH}/IQX-mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_pos = f"{BATCH_FILE_PATH}/POS-mzmine-3.7.2-batchparams.xml"
+mzine_batch_params_file_neg = f"{BATCH_FILE_PATH}/NEG-mzmine-3.7.2-batchparams.xml"
 
 def call_logger(log_filename: str, log_level: str, log_format: str):
     logging.basicConfig(filename=log_filename, level=log_level, format=log_format, filemode='a')
@@ -120,10 +122,10 @@ def filter_common_bad_project_names(df:pd.DataFrame=None) -> pd.DataFrame:
     projects with common strings that are in untargeted tasks which should not be run
     """
     df = df[~(df['parent_dir'].str.contains(' '))]
-    df = df[~(df['parent_dir'].str.contains('&'))]
+    #df = df[~(df['parent_dir'].str.contains('&'))]
     #df = df[~(df['parent_dir'].str.contains('Niyogi'))]
-    df = df[~(df['parent_dir'].str.contains('_partial'))]
-    df = df[~(df['parent_dir'].str.contains('_old'))]
+    #df = df[~(df['parent_dir'].str.contains('_partial'))]
+    #df = df[~(df['parent_dir'].str.contains('_old'))]
     return df
 
 def write_fbmn_tasks_to_file(
@@ -299,9 +301,9 @@ def zip_and_upload_untargeted_results(
                             continue
         
         if zip_count == 0:
-            logging.info(tab_print("No new untargeted projects to be zipped.", 1))
+            logging.info(tab_print("No newly completed untargeted projects to be zipped.", 2))
         
-        logging.info(tab_print("%s new untargeted projects completed and uploaded."%(upload_count), 1))
+        logging.info(tab_print("%s new complete untargeted projects uploaded."%(upload_count), 1))
 
 
 def zip_untargeted_results(
@@ -1276,7 +1278,7 @@ def submit_fbmn_jobs(
     #     logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
     #     return
     if not df.empty:
-        logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2"%(df.shape[0],status_list), 1))
+        #logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2:"%(df.shape[0],status_list), 1))
         index_list = []
         for i,row in df.iterrows():
             project_name = row['parent_dir']
@@ -1290,10 +1292,21 @@ def submit_fbmn_jobs(
                 fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
                 
                 # Bail out conditions
+                if row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete' and row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete' and overwrite_fbmn is False:
+                    continue
                 logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.warning(tab_print("Warning! Project %s mode has an error status. Attempting to resubmit..."%(polarity), 2))
-                    os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
+                    if row['num_%s_files'%polarity_short] == 0:
+                        logging.info(tab_print("Notice! No raw data files for %s mode. Setting status to '12 not relevant'"%(polarity), 2))
+                        df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
+                        continue
+                    if row['num_%s_msms'%polarity_short] < 3:
+                        logging.info(tab_print("Notice! Insufficient MSMS hits for %s mode. Setting status to '12 not relevant'"%(polarity), 2))
+                        df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
+                        continue
+                    logging.warning(tab_print("Warning! Project %s mode has an error status but appears to have data to run FBMN. Attempting to resubmit..."%(polarity), 2))
+                    if os.path.isfile(fbmn_filename):
+                        os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                     logging.info(tab_print("Bailed out because FBMN status is '12 not relevant' for %s mode"%(polarity), 2))
                     continue
@@ -1410,7 +1423,7 @@ def submit_mzmine_jobs(
         if new_projects is not None and not new_projects.empty: # this means step 1 returned a dataframe of new projects to run
             df = df[df['parent_dir'].isin(new_projects['parent_dir'])]
         else:
-            logging.info(tab_print("No new MZmine jobs initialized! Use the --direct_input flag to bypass submitting initialized-only projects.", 1))
+            logging.info(tab_print("No new MZmine jobs initialized to submit!", 1))
             return
     status_list = ['01 initiation','09 error']
     if direct_input is None:
@@ -1515,7 +1528,9 @@ def update_mzmine_status_in_untargeted_tasks(
     background_ratio: int = 5,
     zero_value: float = (2/3),
     nonpolar_solvent_front: float = 0.5,
-    polar_solvent_front: float = 0.8
+    polar_solvent_front: float = 0.8,
+    nonpolar_solvent_end: float = 10,
+    polar_solvent_end: float = 17.5
 ) -> None:
     """    
     finds initiated or running mzmine tasks
@@ -1558,7 +1573,6 @@ def update_mzmine_status_in_untargeted_tasks(
                 mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(project_name,polarity))
                 metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(project_name,polarity))
                 mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(project_name,polarity))
-                peak_height_filtered_filename = os.path.join(pathname, '%s_%s_peak-height-filtered.csv' % (project_name, polarity))
 
                 if direct_input is None:
                     if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
@@ -1578,11 +1592,11 @@ def update_mzmine_status_in_untargeted_tasks(
                     index_list.append(i)
 
                     if feature_count > 0:
-                        logging.info(tab_print("Filtering features by peak height ratio compared to background (control) signal and writing to file", 4))
-                        df_filtered = create_filtered_peakheight_file(peakheight_filename,background_designator=background_designator, \
-                                                                      background_ratio=background_ratio,zero_value=zero_value, \
-                                                                      nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front)
-                        df_filtered.to_csv(peak_height_filtered_filename, index=False)
+                        logging.info(tab_print("Filtering peak height file to remove features below background...", 4))
+                        create_filtered_peakheight_file(peakheight_filename=peakheight_filename,background_designator=background_designator,output_dir=pathname, \
+                                                        project_name=project_name,polarity=polarity,background_ratio=background_ratio,zero_value=zero_value, \
+                                                        nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front,
+                                                        nonpolar_solvent_end=nonpolar_solvent_end,polar_solvent_end=polar_solvent_end)
                     else:
                         logging.warning(tab_print("Warning! No features were found, not writing a filtered peak height file.", 4))
 
@@ -1621,69 +1635,148 @@ def update_mzmine_status_in_untargeted_tasks(
 def create_filtered_peakheight_file(
     peakheight_filename: str,
     background_designator: List[str],
+    output_dir: str,
+    project_name: str,
+    polarity: str,
     background_ratio: int = 3,
     zero_value: float = (2/3),
     nonpolar_solvent_front: float = 0.5,
-    polar_solvent_front: float = 0.8
+    polar_solvent_front: float = 0.8,
+    nonpolar_solvent_end: float = 10,
+    polar_solvent_end: float = 17.5
 ) -> None:
     """
     Accepts a peakheight file and filters out features that have a max peak height in exp samples that is less than
-    3 times the peak height in the control samples.
+    3 times the peak height in the control samples. Does additional filtering and reporting for EGSB
     """
-    data_table = pd.read_csv(peakheight_filename, sep=',')
+    if "JGI" not in project_name.split('_')[1]:
+        jgi_project = False
+    else:
+        jgi_project = True
 
+    def print_empty_filter_files(data_table, filtered_filenames, jgi_project):
+        empty_data_table = pd.DataFrame(columns=data_table.columns[1:])
+        for filename in filtered_filenames.values():
+            if jgi_project:
+                if 'x_exctrl' in filename:
+                    empty_data_table.to_csv(filename, index=False)
+            else:
+                empty_data_table.to_csv(filename, index=False)
+        return
+
+    # Read in data and create tables
+    data_table = pd.read_csv(peakheight_filename, sep=',')
+    filtered_filenames = {
+        f'>{background_ratio}x_exctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-{background_ratio}x-exctrl.csv'),
+        '>1e4_exctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e4-exctrl.csv'),
+        '>1e5_exctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e5-exctrl.csv'),
+        f'>{background_ratio}x_txctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-{background_ratio}x-txctrl.csv'),
+        '>1e4_txctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e4-txctrl.csv'),
+        '>1e5_txctrl': os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtered-1e5-txctrl.csv')
+        }
+    
     # Get background (extraction control) and sample columns
     header = data_table.columns
-    empty_data_table = pd.DataFrame([list(header)[1:]])
     exctrl_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
-    sample_columns = [col for col in header if len(col.split('_')) > 12 and any(designator.lower() not in col.split('_')[12].lower() for designator in background_designator) and 'mzml' in col.lower()]
+    txctrl_columns = [col for col in header if len(col.split('_')) > 12 and 'txctrl' in col.split('_')[12].lower() and 'mzml' in col.lower()]
+    sample_columns = [col for col in header if col not in exctrl_columns and col not in txctrl_columns]
+    if not exctrl_columns and not txctrl_columns:
+        logging.warning(tab_print(f"Warning! No columns found in peak height table with designation {background_designator} or 'TxCtrl'. Returning empty dataframes.", 5))
+        print_empty_filter_files(data_table, filtered_filenames, jgi_project)
+        return
+    if not sample_columns:
+        logging.warning(tab_print("Warning! No sample columns found in peak height table. Returning empty dataframes.", 5))
+        print_empty_filter_files(data_table, filtered_filenames, jgi_project)
+        return
 
-    # Filter by comparing max peak heights in exctrl and sample columns
-    if not exctrl_columns and not sample_columns:
-        logging.warning(tab_print("Warning! No columns found in peak height table with designation %s. Returning empty dataframe."%(background_designator), 4))
-        return empty_data_table
+    # Determine solvent columns
+    if "_HILIC" in peakheight_filename:
+        solvent_front = polar_solvent_front
+        solvent_end = polar_solvent_end
+    elif "_C18" in peakheight_filename:
+        solvent_front = nonpolar_solvent_front
+        solvent_end = nonpolar_solvent_end
     else:
-        features_to_keep = []
-        for i,row in data_table.iterrows():
-            if i == 0:
-                features_to_keep.append(i) # keep the header row
+        logging.warning(tab_print("Warning! Could not infer solvent front and end for filtering, check peak height files and project names. Returning empty dataframes.", 5))
+        print_empty_filter_files(data_table, filtered_filenames, jgi_project)
+        return
+    column_limits = f'rt_in_{solvent_front}-{solvent_end}min_window'
+
+    # Run the filtering and create summary rows
+    summary_table = []
+    peak_height_filtered_files = {key: [] for key in filtered_filenames.keys()}
+    for i, row in data_table.iterrows():
+        # Set up summary row and filtering parameters
+        exctrl_max = row[exctrl_columns].max() if exctrl_columns else 1e20 # Set to a large number if no exctrl columns
+        txctrl_max = row[txctrl_columns].max() if txctrl_columns else 1e20 # Set to a large number if no txctrl columns
+        sample_max = row[sample_columns].max()
+        rt_peak = row['row retention time']
+        row_id = int(row['row ID'])
+        summary_row = {
+            'row ID': row_id,
+            'exctrl_max': exctrl_max,
+            'txctrl_max': txctrl_max,
+            'sample_max': sample_max,
+            'rt_peak': rt_peak
+        }
+
+        # Perform the solvent filtering
+        summary_row[column_limits] = '1' if rt_peak >= solvent_front and rt_peak <= solvent_end else '0'
+        
+        # Perform peak height filtering
+        peak_height_filters = {
+            f'>{background_ratio}x_exctrl': exctrl_max * background_ratio,
+            '>1e4_exctrl': exctrl_max + 1e4,
+            '>1e5_exctrl': exctrl_max + 1e5,
+            f'>{background_ratio}x_txctrl': txctrl_max * background_ratio,
+            '>1e4_txctrl': txctrl_max + 1e4,
+            '>1e5_txctrl': txctrl_max + 1e5
+            }
+        for filter_name, threshold in peak_height_filters.items():
+            summary_row[filter_name] = '1' if sample_max >= threshold else '0'
+            if summary_row[filter_name] == '1' and summary_row[column_limits] == '1':
+                peak_height_filtered_files[filter_name].append(i)
+        
+        # Append the summary row to the summary table
+        summary_table.append(summary_row)
+
+    # Convert summary table to DataFrame
+    summary_columns = ['row ID', 'exctrl_max', 'txctrl_max', 'sample_max', 'rt_peak', column_limits] + list(filtered_filenames.keys())
+    summary_table = pd.DataFrame(summary_table, columns=summary_columns)
+    if not exctrl_columns:
+        summary_table['exctrl_max'] = np.nan # Replace large value with NA
+    if not txctrl_columns:
+        summary_table['txctrl_max'] = np.nan # Replace large value with NA
+    if jgi_project:
+        columns_to_drop = ['txctrl_max', '>1e4_exctrl', '>1e5_exctrl', f'>{background_ratio}x_txctrl', '>1e4_txctrl', '>1e5_txctrl']
+        summary_table.drop(columns=[col for col in columns_to_drop if col in summary_table.columns], inplace=True)
+    summary_filename = os.path.join(output_dir, f'{project_name}_{polarity}_peak-height-filtering-summary.csv')
+    summary_table.to_csv(summary_filename, index=False)
+
+    # Write the filtered peak height files
+    for filter_file, indices in peak_height_filtered_files.items():
+        if jgi_project:
+            if filter_file in ['>1e4_exctrl', '>1e5_exctrl', f'>{background_ratio}x_txctrl', '>1e4_txctrl', '>1e5_txctrl']:
                 continue
-            exctrl_max = None
-            feature_max = None
-            exctrl_max = row[exctrl_columns].max()
-            feature_max = row[sample_columns].max()
-            if exctrl_max and feature_max:
-                if feature_max > exctrl_max*background_ratio:
-                    features_to_keep.append(i)
-        if len(features_to_keep) <= 1: # only the header row was retained
-            logging.warning(tab_print("Warning! No features passed the background filter. Returning empty dataframe.", 5))
-            return empty_data_table
-        elif len(features_to_keep) > 1:
-            # Do the filter
-            data_table_filtered = data_table.loc[features_to_keep]
-            data_table_filtered = data_table_filtered.loc[:, ~data_table_filtered.columns.str.contains('^Unnamed:')]
-            
-            # Replace zeros with a small value
-            values = data_table_filtered[sample_columns + exctrl_columns]
-            lowest_non_zero = values[values != 0].min().min()
-            new_value = lowest_non_zero * zero_value
-            data_table_filtered.replace(0, new_value, inplace=True)
-
-            # Remove features in the solvent front
-            if peakheight_filename.split('_')[7] == "HILIC":
-                solvent_front = polar_solvent_front
-            else:
-                solvent_front = nonpolar_solvent_front
-            data_table_filtered = data_table_filtered[data_table_filtered['row retention time'] >= solvent_front]
-
-            # Log the number of features removed
-            difference = data_table.shape[0] - data_table_filtered.shape[0]
-            logging.info(tab_print("%s features removed by background filter"%(difference), 5))
-
-            return data_table_filtered
+        if len(indices) == 0:  # only the header row was retained for this particular filtered file (no features retained)
+            print_empty_filter_files(data_table, {filter_file: filtered_filenames[filter_file]}, jgi_project)
+            continue
         else:
-            logging.warning(tab_print("Warning! Something went wrong with the background filter. Returning empty dataframe.", 5))
-            return empty_data_table
+            data_table_filtered = data_table.loc[[0] + indices]
+
+            # Replace zeros with a small value for JGI projects
+            if filter_file == f'>{background_ratio}x_exctrl':
+                if jgi_project:
+                    values = data_table_filtered[sample_columns + exctrl_columns]
+                    lowest_non_zero = values[values != 0].min().min()
+                    new_value = lowest_non_zero * zero_value
+                    data_table_filtered.replace(0, new_value, inplace=True)
+
+            # Log the number of features removed and save file
+            difference = data_table.shape[0] - data_table_filtered.shape[0]
+            logging.info(tab_print(f"{difference} features removed by the {filter_file} background filter; {data_table_filtered.shape[0]} features retained. Saving filtered peak height table.", 5))
+            data_table_filtered = data_table_filtered.drop(data_table_filtered.filter(regex="^Unnamed").columns, axis=1)
+            data_table_filtered.to_csv(filtered_filenames[filter_file], index=False)
 
 def calculate_counts_for_lims_table(
     peakheight_filename: str,
@@ -1815,7 +1908,8 @@ def write_mzmine_sbatch_and_runner(
     """
     Write the sbatch and runner files for mzmine submission via slurm
     """
-    mzmine_launcher = '/global/common/software/m2650/mzmine_parameters/MZmine/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
+    mzmine_launcher = f'{BINARY_PATH}/MZmine-3.7.2/bin/MZmine -threads auto -t /tmp'
+    #mzmine_launcher = f'{BINARY_PATH}/MZmine-4.4.3/bin/mzmine -threads auto -t /tmp'
 
     sbatch_filename = '%s_mzmine-sbatch.sbatch'%os.path.join(basepath,parent_dir)
     runner_filename = '%s_mzmine.sh'%os.path.join(basepath,parent_dir)
@@ -1826,12 +1920,80 @@ def write_mzmine_sbatch_and_runner(
     with open(runner_filename,'w') as fid:
         fid.write('sbatch %s'%sbatch_filename)
 
+def metadata_file_filter(data, polarity, skip_blank_filter=False, fps_files_only=False, nonstandard_filename=False):
+    if nonstandard_filename and skip_blank_filter and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if nonstandard_filename and skip_blank_filter and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        "_"+polarity+"_" in x and
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if nonstandard_filename and not skip_blank_filter and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if nonstandard_filename and not skip_blank_filter and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        "_"+polarity+"_" in x and
+                        'QC' not in x and
+                        'InjBl' not in x and
+                        'ISTD' not in x)].to_list()
+    if skip_blank_filter and not nonstandard_filename and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        len(x.split('_')) > 9 and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    if skip_blank_filter and not nonstandard_filename and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        len(x.split('_')) > 9 and
+                        polarity in x.split('_')[9] and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    if not skip_blank_filter and not nonstandard_filename and fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        len(x.split('_')) > 9 and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    if not skip_blank_filter and not nonstandard_filename and not fps_files_only:
+        return data['basename'][data['basename'].apply(
+                        lambda x:
+                        'Blank' not in x and
+                        len(x.split('_')) > 9 and
+                        polarity in x.split('_')[9] and
+                        len(x.split('_')) > 12 and
+                        'QC' not in x.split('_')[12] and
+                        'InjBl' not in x.split('_')[12] and
+                        'ISTD' not in x.split('_')[12])].to_list()
+    
 def write_metadata_per_new_project(
     df: pd.DataFrame,
     background_designator: List[str],
     validate_names: bool,
     raw_data_dir: str,
-    raw_data_subdir: Optional[str] = None
+    raw_data_subdir: Optional[str] = None,
+    skip_blank_filter: Optional[bool] = False,
+    fps_files_only: Optional[bool] = False
 ) -> List:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
@@ -1881,19 +2043,9 @@ def write_metadata_per_new_project(
 
         # Determine which polarities need metadata
         try:
-            positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: len(x.split('_')) > 9 and 'POS' in x.split('_')[9] and
-                'Blank' not in x and
-                len(x.split('_')) > 12 and 'QC' not in x.split('_')[12] and
-                'InjBl' not in x.split('_')[12] and
-                'ISTD' not in x.split('_')[12])].to_list()
+            positive_file_subset = metadata_file_filter(df_filtered, polarity="POS", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=False)
         except IndexError:
-            positive_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: '_POS_' in x and
-                'Blank' not in x and
-                'QC' not in x and
-                'InjBl' not in x and
-                'ISTD' not in x)].to_list()
+            positive_file_subset = metadata_file_filter(df_filtered, polarity="POS", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=True)
         if positive_file_subset:
             positive_file_list = [os.path.join(full_mzml_path, file) for file in positive_file_subset]
             positive_file_count = len(positive_file_list)
@@ -1913,19 +2065,9 @@ def write_metadata_per_new_project(
             positive_file_count = 0
 
         try:
-            negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: len(x.split('_')) > 9 and 'NEG' in x.split('_')[9] and
-                'Blank' not in x and
-                len(x.split('_')) > 12 and 'QC' not in x.split('_')[12] and
-                'InjBl' not in x.split('_')[12] and
-                'ISTD' not in x.split('_')[12])].to_list()
+            negative_file_subset = metadata_file_filter(df_filtered, polarity="NEG", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=False)
         except IndexError:
-            negative_file_subset = df_filtered['basename'][df_filtered['basename'].apply(
-                lambda x: '_NEG_' in x and
-                'Blank' not in x and
-                'QC' not in x and
-                'InjBl' not in x and
-                'ISTD' not in x)].to_list()
+            negative_file_subset = metadata_file_filter(df_filtered, polarity="NEG", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=True)
         if negative_file_subset:
             negative_file_list = [os.path.join(full_mzml_path, file) for file in negative_file_subset]
             negative_file_count = len(negative_file_list)
@@ -1995,7 +2137,11 @@ def update_new_untargeted_tasks(
     skip_sync: bool,
     output_dir: str,
     raw_data_dir: str,
-    raw_data_subdir: Optional[str] = None
+    direct_input: Optional[str] = None,
+    custom_mzmine_batch_params: Optional[str] = None,
+    raw_data_subdir: Optional[str] = None,
+    skip_blank_filter: Optional[bool] = False,
+    fps_files_only: Optional[bool] = False
 ) -> None:
     """
     This script is called by run_mzmine.py before the untargeted pipeline kicks off
@@ -2014,6 +2160,11 @@ def update_new_untargeted_tasks(
     logging.info('Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
     # Get lcmsrun table and subset
     df = get_table_from_lims('lcmsrun_plus')
+    if direct_input is not None:
+        df = df[df['parent_dir'].isin(direct_input)]
+        if df.empty:
+            logging.info(tab_print("Projects in direct input (%s) are not in LIMS lcmsruns table"%(direct_input), 1))
+            return
     df = df[pd.notna(df['mzml_file'])]
     df['basename'] = df['mzml_file'].apply(os.path.basename)
     df.sort_values('timeepoch',ascending=False,inplace=True)
@@ -2041,8 +2192,12 @@ def update_new_untargeted_tasks(
             logging.info(tab_print(folder, 3))
 
     # Get all folders in raw data table
-    all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
-    all_folders = [a.strip() for a in all_folders]
+    if fps_files_only:
+        all_folders = df.loc[df['polarity'].isin(['FPS']),'parent_dir'].unique()
+        all_folders = [a.strip() for a in all_folders]
+    else:
+        all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
+        all_folders = [a.strip() for a in all_folders]
 
     # Get all folders in untargeted tasks table
     if df_untargeted.shape[0]>0:
@@ -2062,9 +2217,21 @@ def update_new_untargeted_tasks(
     # Check for polarities by looking for positive and negative mzml files
     df_new = df[df['parent_dir'].isin(new_folders)]
     logging.info(tab_print("Checking for polarities in new projects and validating mzml file names...", 1))
-    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_dir=raw_data_dir, \
-                                                           raw_data_subdir=raw_data_subdir, validate_names=validate_names)
+    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_dir=raw_data_dir, fps_files_only=fps_files_only, \
+                                                           skip_blank_filter=skip_blank_filter, raw_data_subdir=raw_data_subdir, validate_names=validate_names)
     new_project_info_list_subset = [d for d in new_project_info_list if d.get('polarities') is not None]
+
+    # Check for nountargeted.txt file in new projects dirs and skip them
+    new_project_info_list_subset = [
+        d for d in new_project_info_list_subset 
+        if not glob.glob(os.path.join(raw_data_dir, '*', d['parent_dir'], 'nountargeted.txt'))
+    ]
+    if not new_project_info_list_subset:
+        logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
+        return None
+    logging.info(tab_print("New projects to add to untargeted tasks:", 2))
+    print_new_projects = "\n".join(["\t"*7 + d['parent_dir'] for d in new_project_info_list_subset])
+    logging.info(tab_print("\n" + print_new_projects, 0))
 
     # Create metadata for new projects with relevant polarities
     if len(new_project_info_list_subset)>0:
@@ -2081,21 +2248,29 @@ def update_new_untargeted_tasks(
             lims_untargeted_table_updater['output_dir'] = output_dir
             _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
             logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
-            if validate_machine_name is None:  # Assume more lenient parameters if machine name cannot be validated
-                mzmine_running_parameters = mzine_batch_params_file_iqx
+            if custom_mzmine_batch_params is None: # When there is not a custom input
+                if validate_machine_name is None:  # Assume more lenient parameters if machine name is not going to be validated
+                    logging.warning(tab_print("Warning! Could not validate machine name. Using lenient (IQX) MZmine parameters...", 2))
+                    mzmine_running_parameters = mzine_batch_params_file_iqx
+                    mzmine_parameter = 5
+                elif any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
+                    mzmine_running_parameters = mzine_batch_params_file_iqx
+                    mzmine_parameter = 5
+                elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
+                    mzmine_running_parameters = mzine_batch_params_file
+                    mzmine_parameter = 2
+                else:  # Assume more lenient parameters if machine name cannot be validated
+                    mzmine_running_parameters = mzine_batch_params_file_iqx
+                    mzmine_parameter = 5
+                logging.info(tab_print("Using MZmine parameters: %s"%(os.path.basename(mzmine_running_parameters)), 2))
+                lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
+                lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
+            else:
+                mzmine_running_parameters = ','.join(custom_mzmine_batch_params)
                 mzmine_parameter = 5
-            elif any(substring in validate_machine_name.lower() for substring in ("iqx", "idx")):
-                mzmine_running_parameters = mzine_batch_params_file_iqx
-                mzmine_parameter = 5
-            elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
-                mzmine_running_parameters = mzine_batch_params_file
-                mzmine_parameter = 2
-            else:  # Assume more lenient parameters if machine name cannot be validated
-                mzmine_running_parameters = mzine_batch_params_file_iqx
-                mzmine_parameter = 5
-            logging.info(tab_print("Using MZmine parameters: %s"%(os.path.basename(mzmine_running_parameters)), 2))
-            lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
-            lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
+                logging.info(tab_print("Using custom MZmine parameter file(s): %s"%(mzmine_running_parameters), 2))
+                lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
+                lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
 
             for polarity in ['positive','negative']: # Don't initiate mzmine jobs on polarities that don't have sample mzmls
                 polarity_short = polarity[:3]
@@ -2105,16 +2280,15 @@ def update_new_untargeted_tasks(
                 mzmine_status_header = f"mzmine_{polarity_short}_status"
                 fbmn_status_header = f"fbmn_{polarity_short}_status"
                 file_count_header = f"num_{polarity_short}_files"
-                lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant' # Set default to skip
-                lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant' # Set default to skip
+                lims_untargeted_table_updater[mzmine_status_header] = '09 error' # Set default to error to indicate not passing required steps
+                lims_untargeted_table_updater[fbmn_status_header] = '09 error'
                 if polarity not in polarity_list: # Write blank columns to LIMS and skip writing directory/files to disk
                     lims_untargeted_table_updater[metadata_header] = ""
                     lims_untargeted_table_updater[file_count_header] = 0
                 else: # Write directory/files to disk for present polarity and fill in LIMS columns
                     logging.info(tab_print("Writing MZmine submission input files...",2))
-                    logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
                     if os.path.exists(basepath):
-                        logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 2))
+                        logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 3))
                         continue
                     else:
                         os.mkdir(basepath)
@@ -2122,18 +2296,43 @@ def update_new_untargeted_tasks(
                         recursive_chown(basepath, 'metatlas')
                     except:
                         logging.info(tab_print("Note: Could not change group ownership of %s"%(basepath), 2))
+
+                    logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
                     metadata_df = new_project_dict[polarity]['metadata_df']
                     metadata_filename = os.path.join(basepath,'%s_metadata.tab'%(parent_dir))
                     metadata_df.to_csv(metadata_filename, sep='\t', index=False)
                     
-                    logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
-                    params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
-                    with open(mzmine_running_parameters,'r') as fid:
-                        orig_params = fid.read()
-                    new_param_path = os.path.join(basepath,parent_dir)
-                    custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
-                    with open(params_filename,'w') as fid:
-                        fid.write('%s'%custom_params)
+                    if custom_mzmine_batch_params is None:
+                        logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
+                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        with open(mzmine_running_parameters,'r') as fid:
+                            orig_params = fid.read()
+                        new_param_path = os.path.join(basepath,parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        with open(params_filename,'w') as fid:
+                            fid.write('%s'%custom_params)
+                    elif custom_mzmine_batch_params is not None and len(custom_mzmine_batch_params) == 1:
+                        logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
+                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        with open(mzmine_running_parameters,'r') as fid:
+                            orig_params = fid.read()
+                        new_param_path = os.path.join(basepath,parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        with open(params_filename,'w') as fid:
+                            fid.write('%s'%custom_params)                        
+                    else:
+                        logging.info(tab_print("%s MZmine parameter file (see custom input above)"%(polarity), 3))
+                        for custom_param in custom_mzmine_batch_params:
+                            if polarity_short.upper()+"-" in custom_param:
+                                mzmine_running_parameters = custom_param
+                                break
+                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        with open(mzmine_running_parameters,'r') as fid:
+                            orig_params = fid.read()
+                        new_param_path = os.path.join(basepath,parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        with open(params_filename,'w') as fid:
+                            fid.write('%s'%custom_params)
 
                     logging.info(tab_print("%s mzML path list file (*_filelist.txt)"%(polarity), 3))
                     file_list = new_project_dict[polarity]['file_list']
@@ -2171,5 +2370,5 @@ def update_new_untargeted_tasks(
         lims_untargeted_list = []
         lims_untargeted_df = pd.DataFrame(lims_untargeted_list)
 
-    logging.info(tab_print("Exported info for %s new projects for MZmine submission."%(lims_untargeted_df.shape[0]), 1))
+    logging.info(tab_print("Exported table for %s new projects to pass to MZmine submission function."%(lims_untargeted_df.shape[0]), 1))
     return lims_untargeted_df

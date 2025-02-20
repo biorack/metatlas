@@ -90,6 +90,7 @@ def write_identifications_spreadsheet(
     output_sheetname = f"{ids.project}_{ids.workflow}_{ids.analysis}_Identifications.xlsx"
     fa.make_stats_table(
         workflow_name=metatlas_workflow.name,
+        msms_sorting_method=analysis_parameters.msms_sorting_method,
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
         output_loc=ids.additional_output_dir,

@@ -147,8 +147,8 @@ class MetatlasDataset(HasTraits):
     keep_nonmatches: bool = Bool(default_value=True)
     ids: analysis_ids.AnalysisIdentifiers = Instance(klass=analysis_ids.AnalysisIdentifiers)
     atlas: metob.Atlas = Instance(klass=metob.Atlas)
-    rt_min_delta = Int(allow_none=True, default_value=None)
-    rt_max_delta = Int(allow_none=True, default_value=None)
+    rt_min_delta = Float(allow_none=True, default_value=None)
+    rt_max_delta = Float(allow_none=True, default_value=None)
     _atlas_df: Optional[pd.DataFrame] = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
     # _all_data contanis all data in experiement before any filtering
     _all_data: Optional[SampleSet] = traitlets.Tuple(allow_none=True, default_value=None)
