@@ -263,6 +263,7 @@ class AnalysisIdentifiers(HasTraits):
     @property
     def lcmsruns(self) -> List[metob.LcmsRun]:
         """Get LCMS runs from DB matching experiment"""
+        logger.debug("Getting LCMS runs for experiment %s", self.experiment)
         return groups.get_groups_and_runs(
             self.execution,
             self.groups_controlled_vocab,
@@ -276,6 +277,7 @@ class AnalysisIdentifiers(HasTraits):
 
     def _get_lcmsruns(self, all_lcmsruns: Optional[List[metob.LcmsRun]] = None) -> List[metob.LcmsRun]:
         """Get the set of lcmsruns that are currently selected"""
+        logger.debug("Getting all LCMS runs with dp.get_metatlas_files for experiment %s", self.experiment)
         return or_default(all_lcmsruns, dp.get_metatlas_files(experiment=self.experiment, name="%"))
 
     @property

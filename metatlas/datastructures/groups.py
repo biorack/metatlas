@@ -38,6 +38,7 @@ def get_groups_and_runs(
     if all_groups is None:
         all_groups = create_groups(execution, groups_controlled_vocab, filtered_lcmsruns)
     groups = filter_groups(all_groups, include_groups, exclude_groups)
+    logger.debug("Getting LCMS runs for groups: %s", groups)
     return (groups, get_lcmsruns(groups))
 
 
@@ -45,6 +46,7 @@ def filter_lcmsruns(
     all_lcmsruns: LcmsRunsList, include: FileMatchList, exclude: FileMatchList
 ) -> LcmsRunsList:
     """filter lcmsruns by include and exclude lists"""
+    logger.debug("Filtering %s LCMS runs", len(all_lcmsruns))
     if include:
         post_include = [r for r in all_lcmsruns if any(map(r.name.__contains__, include))]
         logger.debug(

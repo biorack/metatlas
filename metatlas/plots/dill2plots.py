@@ -3057,11 +3057,13 @@ def get_metatlas_files(experiment: Union[str, Sequence[str]] = '%', name: str = 
     name is the filename
     """
     batches = [experiment] if isinstance(experiment, str) else experiment
+    logger.debug(f"Running metob.retrieve to get metatlas files for {batches}")
     files = list(itertools.chain.from_iterable(
         [metob.retrieve('LcmsRun', experiment=batch.rstrip('%'), name=name, username='*') for batch in batches]
     ))
     if most_recent:
         files = filter_metatlas_objects_to_most_recent(files, 'mzml_file')
+    logger.debug(f"Found {len(files)} files")
     return sorted(files, key=lambda x: x.name)
 
 
