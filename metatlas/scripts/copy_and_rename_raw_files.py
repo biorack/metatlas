@@ -30,9 +30,7 @@ def default_logger():
             __name__,
             console_level="INFO",
             console_format="{color}{levelname:8}{reset} {message}",
-            file_level="INFO",
-            filename=Path("/global/cfs/cdirs/m2650/copy_rename_logs"),
-        )
+            file_level="INFO")
 
 def copy_and_rename(table_file, current_path, new_path, checks, logger=None):
 
@@ -81,9 +79,7 @@ def main():
             __name__,
             console_level="INFO",
             console_format="{color}{levelname:8}{reset} {message}",
-            file_level="INFO",
-            filename=Path("/global/cfs/cdirs/m2650/copy_rename_logs"),
-            )
+            file_level="INFO")
 
     copy_and_rename(args.table_file, args.current_path, args.new_path, checks=args.checks, logger=logger)
 
