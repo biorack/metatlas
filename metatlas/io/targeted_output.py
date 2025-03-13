@@ -232,26 +232,36 @@ def write_msms_fragment_ions(
         max_mz: maximum threshold MSMS mz value. Relative to precursor mz with highest intensity
         scale_intensity: If not None, normalize output intensity to maximum of scale_intensity
     """
-    out = []
+    full_out = []
+    intensity_fraction_out = []
     for compound_idx, _ in enumerate(data[0]):
         max_vars = get_max_precursor_intensity(data, compound_idx)
         if max_vars.file_idx is not None:
-            out.append(
-                get_spectra_strings(
-                    data,
-                    max_vars.file_idx,
-                    compound_idx,
-                    max_vars.pre_intensity,
-                    min_mz,
-                    max_mz_offset + max_vars.precursor_mz,
-                    intensity_fraction,
-                    scale_intensity,
-                )
-            )
-    out_df = pd.DataFrame(out)
-    path = data.ids.output_dir / f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut.csv"
-    export_dataframe_die_on_diff(out_df, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
-    return out_df
+            spectra_string_dict = get_spectra_strings(
+                                        data,
+                                        max_vars.file_idx,
+                                        compound_idx,
+                                        max_vars.pre_intensity,
+                                        min_mz,
+                                        max_mz_offset + max_vars.precursor_mz,
+                                        intensity_fraction,
+                                        scale_intensity,
+                                    )
+            for key, spectra_dict in spectra_string_dict.items():
+                if key == 0:
+                    full_out.append(spectra_dict)
+                elif key == intensity_fraction:
+                    intensity_fraction_out.append(spectra_dict)
+                else:
+                    raise ValueError(f"Unexpected key: {key}")
+    full_out_df = pd.DataFrame(full_out)
+    intensity_fraction_out_df = pd.DataFrame(intensity_fraction_out)
+    full_out_path = data.ids.output_dir / f"spectra_top1000_{int(min_mz)}cut.csv"
+    intensity_fraction_out_path = data.ids.output_dir / f"spectra_{intensity_fraction}pct_{int(min_mz)}cut.csv"
+    export_dataframe_die_on_diff(full_out_df, full_out_path, "MSMS fragment ions, top 1000", overwrite=overwrite, float_format="%.8e", header=True)
+    export_dataframe_die_on_diff(intensity_fraction_out_df, intensity_fraction_out_path, f"MSMS fragment ions, {intensity_fraction}pct cutoff", overwrite=overwrite, float_format="%.8e", header=True)
+    return
+    #return full_out_df
 
     # Write two dataframes with different mz significant figures
     # if "mz4" in out_df.columns:
@@ -310,28 +320,31 @@ def get_spectra_strings(
     returns a dict containing compound name and string representations of the spectra
     """
     compound_data = data[sample_idx][compound_idx]
-    mz_list, intensity_list = get_spectra(
+    exported_fragment_dict = get_spectra(
         compound_data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity
     )
-    mz_str_2 = str([f"{x:.2f}" for x in mz_list]).replace("'", "")
-    mz_str_4 = str([f"{x:.4f}" for x in mz_list]).replace("'", "")
-    intensity_str = str([int(x) for x in intensity_list]).replace("'", "")
-    spectra_str = str([mz_str_2, mz_str_4, intensity_str]).replace("'", "")
-    name = compound_data["identification"].name
-    run = Path(compound_data["lcmsrun"].hdf5_file).stem
-    mz_peak = compound_data["data"]["ms1_summary"]["mz_peak"]
-    rt_peak = compound_data["data"]["ms1_summary"]["rt_peak"]
-    return {
-        "compound_idx": compound_idx,
-        "name": name,
-        "run": run,
-        "rt_peak": rt_peak,
-        "mz_peak": mz_peak,
-        "spectrum": spectra_str,
-        "mz2": mz_str_2,
-        "mz4": mz_str_4,
-        "intensity": intensity_str,
-    }
+    spectra_string_dict = {}
+    for key, (mz_list, intensity_list) in exported_fragment_dict.items():
+        mz_str_2 = str([f"{x:.2f}" for x in mz_list]).replace("'", "")
+        mz_str_4 = str([f"{x:.4f}" for x in mz_list]).replace("'", "")
+        intensity_str = str([int(x) for x in intensity_list]).replace("'", "")
+        spectra_str = str([mz_str_2, mz_str_4, intensity_str]).replace("'", "")
+        name = compound_data["identification"].name
+        run = Path(compound_data["lcmsrun"].hdf5_file).stem
+        mz_peak = compound_data["data"]["ms1_summary"]["mz_peak"]
+        rt_peak = compound_data["data"]["ms1_summary"]["rt_peak"]
+        spectra_string_dict[key] = {
+            "compound_idx": compound_idx,
+            "name": name,
+            "run": run,
+            "rt_peak": rt_peak,
+            "mz_peak": mz_peak,
+            "spectrum": spectra_str,
+            "mz2": mz_str_2,
+            "mz4": mz_str_4,
+            "intensity": intensity_str,
+        }
+    return spectra_string_dict
 
 
 def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, scale_intensity):
@@ -352,14 +365,32 @@ def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fraction, sca
         msms_mz = msms["mz"][idx]
         intensity = msms["i"][idx]
         max_msms_intensity = intensity.max()
-        cutoff = intensity_fraction * max_msms_intensity
-        conditions = (intensity > cutoff) & (min_mz < msms_mz) & (msms_mz < max_mz)
-        if any(conditions):
-            keep_idx = np.argwhere(conditions).flatten()
-            if scale_intensity is not None:
-                intensity = (intensity / max_msms_intensity * scale_intensity).astype(int)
-            return msms_mz[keep_idx], intensity[keep_idx]
-    return None, None
+        exported_fragments = {
+            intensity_fraction: (None, None),
+            0: (None, None)
+        }
+        for key in exported_fragments.keys():
+            cutoff = key * max_msms_intensity
+            conditions = (intensity > cutoff) & (min_mz < msms_mz) & (msms_mz < max_mz)
+            if any(conditions):
+                keep_idx = np.argwhere(conditions).flatten()
+                msms_mz = msms_mz[keep_idx]
+                intensity = intensity[keep_idx]
+                if key == 0:
+                    sorted_indices = np.argsort(intensity)[::-1][:1000]                    
+                else:
+                    sorted_indices = np.argsort(intensity)[::-1]
+                msms_mz_keep = msms_mz[sorted_indices]
+                intensity_keep = intensity[sorted_indices]
+                if scale_intensity is not None:
+                    intensity_keep = (intensity_keep / max_msms_intensity * scale_intensity).astype(int)
+                exported_fragments[key] = (msms_mz_keep, intensity_keep)
+            else:
+                exported_fragments[key] = (None, None)
+        return exported_fragments
+    else:
+        exported_fragments[key] = (None, None)
+        return exported_fragments
 
 
 def generate_standard_outputs(
