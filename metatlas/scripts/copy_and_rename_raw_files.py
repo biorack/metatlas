@@ -30,7 +30,8 @@ def default_logger():
             __name__,
             console_level="INFO",
             console_format="{color}{levelname:8}{reset} {message}",
-            file_level="INFO")
+            file_level="INFO",
+            filename="/global/cfs/cdirs/m2650/copy_rename_logs/copy_and_rename_raw_files.log")
 
 def copy_and_rename(table_file, current_path, new_path, checks, logger=None):
 
@@ -62,26 +63,28 @@ def copy_and_rename(table_file, current_path, new_path, checks, logger=None):
         new_file = os.path.join(new_path, new_name)
         if os.path.exists(current_file):
             shutil.copy2(current_file, new_file)
+            shutil.chown(new_file, group='metatlas')
             logger.info(f"Copied: {current_file} -> {new_file}")
         else:
             logger.error(f"File not found: {current_file}")
 
-def main():
-    parser = argparse.ArgumentParser(description="Rename raw files based on a CSV table and copy to new location.")
-    parser.add_argument("table_file", type=str, help="CSV file with two columns: current_name, new_name")
-    parser.add_argument("current_path", type=str, help="Path to the current files")
-    parser.add_argument("new_path", type=str, help="Path to the new files")
-    parser.add_argument("checks", type=bool, help="True for checks on new names, else False")
+# def main():
+#     parser = argparse.ArgumentParser(description="Rename raw files based on a CSV table and copy to new location.")
+#     parser.add_argument("table_file", type=str, help="CSV file with two columns: current_name, new_name")
+#     parser.add_argument("current_path", type=str, help="Path to the current files")
+#     parser.add_argument("new_path", type=str, help="Path to the new files")
+#     parser.add_argument("checks", type=bool, help="True for checks on new names, else False")
 
-    args = parser.parse_args()
+#     args = parser.parse_args()
 
-    logger = activate_module_logging(
-            __name__,
-            console_level="INFO",
-            console_format="{color}{levelname:8}{reset} {message}",
-            file_level="INFO")
+#     logger = activate_module_logging(
+#             __name__,
+#             console_level="INFO",
+#             console_format="{color}{levelname:8}{reset} {message}",
+#             file_level="INFO",
+#             filename="/global/cfs/cdirs/m2650/copy_rename_logs/copy_and_rename_raw_files.log")
 
-    copy_and_rename(args.table_file, args.current_path, args.new_path, checks=args.checks, logger=logger)
+#     copy_and_rename(args.table_file, args.current_path, args.new_path, checks=args.checks, logger=logger)
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__": 
+#     main()
