@@ -222,7 +222,7 @@ Max = namedtuple("Max", ["file_idx", "pre_intensity_idx", "pre_intensity", "prec
 
 
 def write_msms_fragment_ions(
-    data, intensity_fraction=0.01, min_mz=0, max_mz_offset=5, scale_intensity=1e5, overwrite=False
+    data, intensity_fraction=0.00001, min_mz=0, max_mz_offset=5, scale_intensity=1e5, overwrite=False
 ):
     """
     inputs:
