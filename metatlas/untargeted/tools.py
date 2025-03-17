@@ -1059,7 +1059,7 @@ def mirror_raw_data_to_gnps2(
                         local_directory = check_project_raw_dir
                         break
                 else:
-                    logging.error(f"Raw data directory for {project} could not be found after trying several possible alternatives. Not creating metadata.")
+                    logging.error(f"Raw data directory for {project} could not be found after trying several possible alternatives. Not mirroring to GNPS2.")
                     return "Failed"
         except Exception as e:
             logging.error(tab_print(f"Error when trying to locate mzML files on disk: {e}", 2))
@@ -1067,7 +1067,7 @@ def mirror_raw_data_to_gnps2(
     else:
         local_directory = os.path.join(raw_data_dir,raw_data_subdir,project)
         if not os.path.exists(local_directory):
-            logging.error(tab_print(f"Raw data directory for {project} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
+            logging.error(tab_print(f"Raw data directory for {project} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not mirroring to GNPS2.", 2))
             return "Failed"
 
     local_directory = Path(local_directory)
@@ -1317,21 +1317,6 @@ def submit_fbmn_jobs(
                     logging.info(tab_print("Bailed out because FBMN task file already exists for %s mode and overwrite is False"%(polarity), 2))
                     continue
 
-                if raw_data_subdir is None:
-                    _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
-                    try:
-                        if validate_department is None:
-                            subdir = 'jgi' # Assume raw data location if project name is not paresable
-                        else:
-                            subdir = validate_department.lower()
-                        if subdir == 'eb':
-                            subdir = 'egsb'
-                    except:
-                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
-                        subdir = "other"
-                else:
-                    subdir = raw_data_subdir
-
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 if skip_mirror_mzmine_results is False:
                     logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
@@ -1343,7 +1328,7 @@ def submit_fbmn_jobs(
                     logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
                 if skip_mirror_raw_data is False:
                     logging.info(tab_print("Ensuring raw mzML data are at GNPS2 before submitting FBMN job...", 2))
-                    mirror = mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=subdir,use_polarity_subdir=False)
+                    mirror = mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir,use_polarity_subdir=False)
                     if mirror == "Failed":
                         logging.info(tab_print("Notice! Proceeding with FBMN submission for %s mode even though raw data mirror failed"%(polarity), 3))
                 else:
