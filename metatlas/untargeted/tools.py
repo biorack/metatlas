@@ -1300,11 +1300,11 @@ def submit_fbmn_jobs(
                         logging.info(tab_print("Notice! No raw data files for %s mode. Setting status to '12 not relevant'"%(polarity), 2))
                         df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
                         continue
-                    if row['num_%s_msms'%polarity_short] < 3:
-                        logging.info(tab_print("Notice! Insufficient MSMS hits for %s mode. Setting status to '12 not relevant'"%(polarity), 2))
+                    if row['num_%s_msms'%polarity_short] < 2:
+                        logging.info(tab_print("Notice! Insufficient MSMS detected for %s mode. Setting status to '12 not relevant'"%(polarity), 2))
                         df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
                         continue
-                    logging.warning(tab_print("Warning! Project %s mode has an error status but appears to have data to run FBMN. Attempting to resubmit..."%(polarity), 2))
+                    logging.warning(tab_print("Warning! Project %s mode has an error status but appears to have raw data and Mzmine results. Attempting to resubmit..."%(polarity), 2))
                     if os.path.isfile(fbmn_filename):
                         os.remove(fbmn_filename) # Remove failed task ID file in order to submit again
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
@@ -1316,6 +1316,21 @@ def submit_fbmn_jobs(
                 if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==False:
                     logging.info(tab_print("Bailed out because FBMN task file already exists for %s mode and overwrite is False"%(polarity), 2))
                     continue
+
+                if raw_data_subdir is None:
+                    _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
+                    try:
+                        if validate_department is None:
+                            gnps2_subdir = 'jgi' # Assume raw data location if project name is not paresable
+                        else:
+                            gnps2_subdir = validate_department.lower()
+                        if gnps2_subdir == 'eb':
+                            gnps2_subdir = 'egsb'
+                    except:
+                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                        gnps2_subdir = "other"
+                else:
+                    gnps2_subdir = raw_data_subdir
 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 if skip_mirror_mzmine_results is False:
@@ -1338,7 +1353,7 @@ def submit_fbmn_jobs(
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
                 quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_quant.csv'
                 metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_metadata.tab'
-                raw_data = f'USERUPLOAD/bpbowen/raw_data/{subdir}/{project_name}'
+                raw_data = f'USERUPLOAD/bpbowen/raw_data/{gnps2_subdir}/{project_name}'
                 mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
                 mgf_lines = count_mgf_lines(mgf_filename)
                 if mgf_lines == 0:
@@ -1430,8 +1445,12 @@ def submit_mzmine_jobs(
                 continue
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
+                parent_dir = '%s_%s'%(project_name,polarity)
+                pathname = os.path.join(row['output_dir'],parent_dir)
+                submission_script_filename = os.path.join(pathname,'%s_mzmine.sh'%(parent_dir))
                 mzmine_peak_height_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s_peak-height.csv'%(project_name,polarity))
                 mzmine_mgf_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
+                
                 if row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete' and overwrite_mzmine is False:
                     continue
                 if os.path.exists(mzmine_peak_height_file) and os.path.exists(mzmine_mgf_file) and overwrite_mzmine is False:
@@ -1440,10 +1459,21 @@ def submit_mzmine_jobs(
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                     continue # skip the completed polarity if the other polarity is initiated or errored and needs to be (re)submitted
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
-                    logging.info(tab_print("Note: MZmine task for %s in %s mode has error status. Attempting to resubmit..."%(project_name,polarity), 2))
-                parent_dir = '%s_%s'%(project_name,polarity)
-                pathname = os.path.join(row['output_dir'],parent_dir)
-                submission_script_filename = os.path.join(pathname,'%s_mzmine.sh'%(parent_dir))
+                    if row['num_%s_files'%polarity_short] == 0:
+                        logging.warning(tab_print("Warning! No raw data files for %s mode. Setting status to '12 not relevant'"%(polarity), 2))
+                        df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
+                        df.loc[i,'%s_%s_status'%("fbmn",polarity_short)] = '12 not relevant'
+                        continue
+                    else:
+                        logging.info(tab_print("Note: MZmine task for %s in %s mode has error status but has raw files. Attempting to resubmit with longer runtime."%(project_name,polarity), 2))
+                        batch_submission_file = os.path.join(pathname,'%s_mzmine-sbatch.sbatch'%(parent_dir))
+                        if os.path.isfile(batch_submission_file):
+                            with open(batch_submission_file, 'r') as file:
+                                data = file.read()
+                            data = data.replace('-t 3:00:00', '-t 6:00:00')
+                            with open(batch_submission_file, 'w') as file:
+                                file.write(data)
+
                 if os.path.isfile(submission_script_filename)==True:
                     with open(submission_script_filename,'r') as fid:
                         logging.info(tab_print("Submitting %s mode mzmine job for project %s"%(polarity, project_name), 2))
