@@ -1052,7 +1052,7 @@ def mirror_raw_data_to_gnps2(
             if os.path.exists(check_project_raw_dir):
                 local_directory = check_project_raw_dir
             else:
-                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood"]
+                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood", "bpb"]
                 for subdir in possible_subdirs:
                     check_project_raw_dir = os.path.join(raw_data_dir, subdir, project)
                     if os.path.exists(check_project_raw_dir):
@@ -2033,7 +2033,7 @@ def write_metadata_per_new_project(
                 if os.path.exists(check_project_raw_dir):
                     full_mzml_path = check_project_raw_dir
                 else:
-                    possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood"]
+                    possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood", "bpb"]
                     for subdir in possible_subdirs:
                         check_project_raw_dir = os.path.join(raw_data_dir, subdir, parent_dir)
                         if os.path.exists(check_project_raw_dir):
