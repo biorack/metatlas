@@ -275,7 +275,7 @@ def plot_actual_vs_aligned_rts(
     # pylint: disable=too-many-locals
     rows = int(math.ceil((rts_df.shape[1] + 1) / 5))
     cols = 5
-    fig = plt.figure(constrained_layout=False)
+    fig = plt.figure(constrained_layout=False, figsize=(cols * 2, rows * 2))
     grid = gridspec.GridSpec(rows, cols, figure=fig)
     plt.rc("font", size=6)
     plt.rc("axes", labelsize=6)
