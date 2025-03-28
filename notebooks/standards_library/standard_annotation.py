@@ -118,12 +118,17 @@ def calc_all_adducts(exact_mass, polarity, include_adducts):
     return adduct_pmzs
 
 def build_adduct_annotated_table(standard_lcmsruns_table, include_adducts=['[M+H]+', '[M+Na]+', '[M-H2O+H]+', '[M+K]+', '[M+NH4]+', '[M]+', '[M+2H]2+', '[M-H]-', '[M+Cl]-', '[M-H2O-H]-', '[M]-', '[M-2H]2-']):
+    print("Adding polarities")
     standard_lcmsruns_table['polarity'] = standard_lcmsruns_table.apply(lambda row: get_file_polarity(row.standard_lcmsrun), axis=1)
+    print("Adding exact masses")
     standard_lcmsruns_table['exact_mass'] = standard_lcmsruns_table.apply(lambda row: inchi_or_smiles_to_mass(row.smiles), axis=1)
-    
+    print("Calculating all adducts")
     standard_lcmsruns_table['all_adducts'] = standard_lcmsruns_table[['exact_mass', 'polarity']].apply(lambda row: calc_all_adducts(row.exact_mass, row.polarity, include_adducts), axis=1)
-    
+    print("Creating standard lcmsruns table")
     standard_lcmsruns_table = standard_lcmsruns_table.explode('all_adducts').reset_index(drop=True).rename(columns={'all_adducts': 'adduct_data'})
+    print("Adding adduct and precursor_mz columns")
+    print(standard_lcmsruns_table)
+    print(standard_lcmsruns_table['adduct_data'].tolist())
     standard_lcmsruns_table[['adduct', 'precursor_mz']] = pd.DataFrame(standard_lcmsruns_table['adduct_data'].tolist(), index=standard_lcmsruns_table.index)
     
     return standard_lcmsruns_table
