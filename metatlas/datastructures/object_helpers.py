@@ -212,6 +212,10 @@ class Workspace(object):
         for obj in objects:
             logger.debug("Getting saved data for %s", obj.unique_id)
             self._get_save_data(obj, _override)
+            logger.debug("Seen: %s", self._seen)
+            logger.debug("Link updates: %s", self._link_updates)
+            logger.debug("Updates: %s", self._updates)
+            logger.debug("Inserts: %s", self._inserts)
 
         logger.debug('Connecting to database...')
         db = self.get_connection()
@@ -236,6 +240,7 @@ class Workspace(object):
             # https://stackoverflow.com/questions/5836623/getting-lock-wait-timeout-exceeded-try-restarting-transaction-even-though-im
             db.query("SET SESSION transaction_isolation = 'READ-COMMITTED';")
 
+        logger.debug("Link updates: %s", self._link_updates.items())
         try:
             for (table_name, updates) in self._link_updates.items():
                 logger.debug("Linking updates for object %s in table %s", updates, table_name)
@@ -246,15 +251,18 @@ class Workspace(object):
                 self._execute_bulk(db, sql, [(prev_uid, uid) for (uid, prev_uid) in updates])
                 logger.debug("Update query completed")
 
+            logger.debug("Updates: %s", self._updates.items())
             for (table_name, updates) in self._updates.items():
                 logger.debug("Updating object %s in table %s", updates, table_name)
                 if '_' not in table_name and table_name not in db:
                     try:
+                        logger.debug("Creating table %s", table_name)
                         table = db.get_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
                         # Ensure the table has the required columns
                         for col in updates[0].keys():
                             if col != 'unique_id':
                                 table.create_column(col, db.types.text)  # Adjust data types as necessary
+                                logger.debug("Added column %s to table %s", col, table_name)
                     except Exception as e:
                         logger.error("Failed to create table %s: %s", table_name, e)
                     if 'sqlite' not in self.path:
@@ -263,6 +271,7 @@ class Workspace(object):
                 self._execute_bulk(db, sql, [(prev_uid, uid) for (uid, prev_uid) in updates])
                 logger.debug("Update query completed")
 
+            logger.debug("Inserts: %s", self._inserts.items())
             for (table_name, inserts) in self._inserts.items():
                 logger.debug("Table name: %s", table_name)
                 logger.debug("Inserts: %s", inserts)
@@ -280,7 +289,9 @@ class Workspace(object):
                 if inserts:
                     logger.debug("Inserting data into table %s", table_name)
                     columns = ', '.join(inserts[0].keys())
+                    logger.debug("Columns: %s", columns)
                     placeholders = ', '.join(['?'] * len(inserts[0]))
+                    logger.debug("Placeholders: %s", placeholders)
                     sql = f"INSERT INTO `{table_name}` ({columns}) VALUES ({placeholders})"
                     logger.debug("Running SQL insert query: %s", sql)
                     self._execute_bulk(db, sql, [tuple(row.values()) for row in inserts])
@@ -323,7 +334,7 @@ class Workspace(object):
                 if isinstance(trait, MetList):
                     table_name = '_'.join([name, tname])
                     if table_name not in db:
-                        db.create_table(table_name)
+                        db.get_table(table_name)
                         link = dict(source_id=uuid.uuid4().hex,
                                     head_id=uuid.uuid4().hex,
                                     target_id=uuid.uuid4().hex,
@@ -337,16 +348,22 @@ class Workspace(object):
 
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
+        logger.debug("Getting saved data for object %s", obj.unique_id)
         if obj.unique_id in self._seen:
+            logger.debug("Object %s already seen, skipping", obj.unique_id)
             return
         if isinstance(obj, Stub):
+            logger.debug("Object %s is a Stub, skipping", obj.unique_id)
             return
         name = self.tablename_lut[obj.__class__]
+        logger.debug("Table name: %s", name)
         self._seen[obj.unique_id] = True
         changed, prev_uid = obj._update(override)
+        logger.debug("Changed: %s, Prev UID: %s", changed, prev_uid)
         state = dict()
         for (tname, trait) in obj.traits().items():
             if tname.startswith('_'):
+                logger.debug("Skipping trait %s", tname)
                 continue
             if isinstance(trait, MetList):
                 logger.debug("Getting saved data for List trait")
@@ -361,9 +378,10 @@ class Workspace(object):
                 else:
                     logger.debug("Skipping link updates")
                 value = getattr(obj, tname)
-                #logger.debug("List type value to store: %s", value)
+                logger.debug("List type value to store: %s", value)
                 # do not store this entry in our own table
                 if not value:
+                    logger.debug("List value is empty, skipping")
                     continue
                 # create an entry in the table for each item
                 # store the item in its own table
@@ -496,114 +514,114 @@ class Workspace(object):
             close_db_connection(db)
         return items
 
-    def remove(self, object_type, **kwargs):
-        """Remove an object from the database"""
-        override = kwargs.pop('_override', False)
-        if not override:
-            msg = 'Are you sure you want to delete the entries? (Y/N)'
-            ans = input(msg)
-            if not ans[0].lower().startswith('y'):
-                print('Aborting')
-                return
-        object_type = object_type.lower()
-        klass = self.subclass_lut.get(object_type, None)
-        if not klass:
-            raise ValueError('Unknown object type: %s' % object_type)
-        object_type = self.tablename_lut[klass]
-        kwargs.setdefault('username', getpass.getuser())
-        query = 'delete from `%s` where (' % object_type
-        clauses = []
-        for (key, value) in kwargs.items():
-            if not isinstance(value, str):
-                clauses.append("%s = %s" % (key, value))
-                continue
-            if '%%' in value:
-                clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
-            elif '%' in value:
-                clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
-            else:
-                clauses.append('%s = "%s"' % (key, value))
-        query += ' and '.join(clauses)
-        query += ')'
-        if not clauses:
-            query = query.replace(' where ()', '')
-        db = self.get_connection()
-        db.begin()
-        try:
-            if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
-                uid_query = query.replace('delete ', 'select unique_id ')
-                uids = [i['unique_id'] for i in db.query(uid_query)]
-                sub_query = 'delete from `%s` where source_id in ("%s")'
-                for (tname, trait) in klass.class_traits().items():
-                    table_name = '%s_%s' % (object_type, tname)
-                    if not uids or table_name not in db:
-                        continue
-                    if isinstance(trait, MetList):
-                        table_query = sub_query % (table_name, '", "'.join(uids))
-                        try:
-                            db.query(table_query)
-                        except Exception as e:
-                            print(e)
-            try:
-                db.query(query)
-            except Exception as e:
-                if 'Unknown column' in str(e):
-                    keys = [k for k in klass.class_traits().keys()
-                            if not k.startswith('_')]
-                    raise ValueError('Invalid column name, valid columns: %s' % keys)
-                else:
-                    raise e
-            print('Removed')
-            db.commit()
-        except Exception as err:
-            rollback_and_log(db, err)
-        finally:
-            close_db_connection(db)
+    # def remove(self, object_type, **kwargs):
+    #     """Remove an object from the database"""
+    #     override = kwargs.pop('_override', False)
+    #     if not override:
+    #         msg = 'Are you sure you want to delete the entries? (Y/N)'
+    #         ans = input(msg)
+    #         if not ans[0].lower().startswith('y'):
+    #             print('Aborting')
+    #             return
+    #     object_type = object_type.lower()
+    #     klass = self.subclass_lut.get(object_type, None)
+    #     if not klass:
+    #         raise ValueError('Unknown object type: %s' % object_type)
+    #     object_type = self.tablename_lut[klass]
+    #     kwargs.setdefault('username', getpass.getuser())
+    #     query = 'delete from `%s` where (' % object_type
+    #     clauses = []
+    #     for (key, value) in kwargs.items():
+    #         if not isinstance(value, str):
+    #             clauses.append("%s = %s" % (key, value))
+    #             continue
+    #         if '%%' in value:
+    #             clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
+    #         elif '%' in value:
+    #             clauses.append('%s like "%s"' % (key, value.replace('*', '%')))
+    #         else:
+    #             clauses.append('%s = "%s"' % (key, value))
+    #     query += ' and '.join(clauses)
+    #     query += ')'
+    #     if not clauses:
+    #         query = query.replace(' where ()', '')
+    #     db = self.get_connection()
+    #     db.begin()
+    #     try:
+    #         if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
+    #             uid_query = query.replace('delete ', 'select unique_id ')
+    #             uids = [i['unique_id'] for i in db.query(uid_query)]
+    #             sub_query = 'delete from `%s` where source_id in ("%s")'
+    #             for (tname, trait) in klass.class_traits().items():
+    #                 table_name = '%s_%s' % (object_type, tname)
+    #                 if not uids or table_name not in db:
+    #                     continue
+    #                 if isinstance(trait, MetList):
+    #                     table_query = sub_query % (table_name, '", "'.join(uids))
+    #                     try:
+    #                         db.query(table_query)
+    #                     except Exception as e:
+    #                         print(e)
+    #         try:
+    #             db.query(query)
+    #         except Exception as e:
+    #             if 'Unknown column' in str(e):
+    #                 keys = [k for k in klass.class_traits().keys()
+    #                         if not k.startswith('_')]
+    #                 raise ValueError('Invalid column name, valid columns: %s' % keys)
+    #             else:
+    #                 raise e
+    #         print('Removed')
+    #         db.commit()
+    #     except Exception as err:
+    #         rollback_and_log(db, err)
+    #     finally:
+    #         close_db_connection(db)
 
-    def remove_objects(self, objects, all_versions=True, **kwargs):
-        """Remove a list of objects from the database."""
-        if not isinstance(objects, (list, set)):
-            objects = [objects]
-        if not objects:
-            print('No objects selected')
-            return
-        override = kwargs.pop('_override', False)
-        if not override:
-            msg = ('Are you sure you want to delete the %s object(s)? (Y/N)'
-                   % len(objects))
-            ans = input(msg)
-            if not ans[0].lower().startswith('y'):
-                print('Aborting')
-                return
-        ids = defaultdict(list)
-        username = getpass.getuser()
-        attr = 'head_id' if all_versions else 'unique_id'
-        db = self.get_connection()
-        db.begin()
-        try:
-            for obj in objects:
-                if not override and obj.username != username:
-                    continue
-                name = self.tablename_lut[obj.__class__]
-                ids[name].append(getattr(obj, attr))
-                for (tname, trait) in obj.traits().items():
-                    if isinstance(trait, MetList):
-                        subname = '%s_%s' % (name, tname)
-                        ids[subname].append(getattr(obj, attr))
-            for (table_name, uids) in ids.items():
-                if table_name not in db:
-                    continue
-                query = 'delete from `%s` where %s in ("'
-                query = query % (table_name, attr)
-                query += '" , "'.join(uids)
-                query += '")'
-                db.query(query)
-            print(('Removed %s object(s)' % len(objects)))
-            db.commit()
-        except Exception as err:
-            rollback_and_log(db, err)
-        finally:
-            close_db_connection(db)
+    # def remove_objects(self, objects, all_versions=True, **kwargs):
+    #     """Remove a list of objects from the database."""
+    #     if not isinstance(objects, (list, set)):
+    #         objects = [objects]
+    #     if not objects:
+    #         print('No objects selected')
+    #         return
+    #     override = kwargs.pop('_override', False)
+    #     if not override:
+    #         msg = ('Are you sure you want to delete the %s object(s)? (Y/N)'
+    #                % len(objects))
+    #         ans = input(msg)
+    #         if not ans[0].lower().startswith('y'):
+    #             print('Aborting')
+    #             return
+    #     ids = defaultdict(list)
+    #     username = getpass.getuser()
+    #     attr = 'head_id' if all_versions else 'unique_id'
+    #     db = self.get_connection()
+    #     db.begin()
+    #     try:
+    #         for obj in objects:
+    #             if not override and obj.username != username:
+    #                 continue
+    #             name = self.tablename_lut[obj.__class__]
+    #             ids[name].append(getattr(obj, attr))
+    #             for (tname, trait) in obj.traits().items():
+    #                 if isinstance(trait, MetList):
+    #                     subname = '%s_%s' % (name, tname)
+    #                     ids[subname].append(getattr(obj, attr))
+    #         for (table_name, uids) in ids.items():
+    #             if table_name not in db:
+    #                 continue
+    #             query = 'delete from `%s` where %s in ("'
+    #             query = query % (table_name, attr)
+    #             query += '" , "'.join(uids)
+    #             query += '")'
+    #             db.query(query)
+    #         print(('Removed %s object(s)' % len(objects)))
+    #         db.commit()
+    #     except Exception as err:
+    #         rollback_and_log(db, err)
+    #     finally:
+    #         close_db_connection(db)
 
 def _get_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__()

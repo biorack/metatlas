@@ -244,7 +244,7 @@ def test_retrieve01(sqlite):
     assert mo.retrieve("Compounds", inchi=[ADENOSINE_INCHI], username="*")[0].inchi == ADENOSINE_INCHI
 
 
-def test_get_latest(sqlite):
+def test_get_latest():
     test = mo.Compound(name="hello")
     mo.store(test)
     test.name = "goodbye"
@@ -254,7 +254,7 @@ def test_get_latest(sqlite):
     assert test[0].name == "goodbye"
 
 
-def test_retrieve_head(sqlite):
+def test_retrieve_head():
     test = mo.LcmsRun(name="foo")
     mo.store(test)
     old = len(mo.retrieve("lcmsrun", name="foo"))
