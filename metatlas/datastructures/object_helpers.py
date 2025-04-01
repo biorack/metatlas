@@ -18,6 +18,7 @@ import socket
 import os.path
 import yaml
 from six.moves import input
+from sqlalchemy import create_engine
 
 try:
     from traitlets import (
@@ -109,41 +110,38 @@ def set_docstring(cls):
     cls.__doc__ = doc
     return cls
 
-
-def _get_subclasses(cls):
-    return cls.__subclasses__() + [g for s in cls.__subclasses__()
-                                   for g in _get_subclasses(s)]
-
 class Workspace(object):
     instance = None
 
     def __init__(self):
-        self.path = self.get_database_path(with_password=True)
-        mysql_kwargs = {
-            "pool_recycle": 3600,
-            "connect_args": {
-                "connect_timeout": 120,
-                "init_command": "SET SESSION innodb_lock_wait_timeout=10000" # This sets the production mysql timeout
+            self.path = self.get_database_path(with_password=True)
+            mysql_kwargs = {
+                "pool_recycle": 3600,
+                "connect_args": {
+                    "connect_timeout": 120,
+                    "init_command": "SET SESSION innodb_lock_wait_timeout=10000"  # This sets the production mysql timeout
+                }
             }
-        }
-        sqlite_kwargs = {"connect_args": {"timeout": 7200}} # This sets the development sqlite timeout
-        self.engine_kwargs = sqlite_kwargs if self.path.startswith("sqlite") else mysql_kwargs
+            sqlite_kwargs = {"connect_args": {"timeout": 7200}}  # This sets the development sqlite timeout
+            self.engine_kwargs = sqlite_kwargs if self.path.startswith("sqlite") else mysql_kwargs
 
-        self.tablename_lut = {}
-        self.subclass_lut = {}
-        from .metatlas_objects import MetatlasObject
-        for klass in _get_subclasses(MetatlasObject):
-            name = klass.__name__.lower()
-            self.subclass_lut[name] = klass
-            if name.endswith('s'):
-                self.subclass_lut[name + 'es'] = klass
-                self.tablename_lut[klass] = name + 'es'
-            else:
-                self.subclass_lut[name + 's'] = klass
-                self.tablename_lut[klass] = name + 's'
-        # handle circular references
-        self.seen = {}
-        Workspace.instance = self
+            self.tablename_lut = {}
+            self.subclass_lut = {}
+
+            # Delayed import to avoid circular import
+            from .metatlas_objects import MetatlasObject, MetList, MetInstance, MetFloat, Stub
+            for klass in _get_subclasses(MetatlasObject):
+                name = klass.__name__.lower()
+                self.subclass_lut[name] = klass
+                if name.endswith('s'):
+                    self.subclass_lut[name + 'es'] = klass
+                    self.tablename_lut[klass] = name + 'es'
+                else:
+                    self.subclass_lut[name + 's'] = klass
+                    self.tablename_lut[klass] = name + 's'
+            # handle circular references
+            self.seen = {}
+            Workspace.instance = self
 
     @classmethod
     def get_instance(cls):
@@ -213,12 +211,7 @@ class Workspace(object):
         for obj in objects:
             logger.debug("Getting saved data for %s", obj.unique_id)
             self._get_save_data(obj, _override)
-        #if self._inserts:
-            #logger.debug('Workspace._inserts=%s', self._inserts)
-        #if self._updates:
-            #logger.debug('Workspace._updates=%s', self._updates)
-        #if self._link_updates:
-            #logger.debug('Workspace._link_updates=%s', self._link_updates)
+
         logger.debug('Connecting to database...')
         db = self.get_connection()
         db.begin()
@@ -233,12 +226,6 @@ class Workspace(object):
             for row in lock_wait_time:
                 logger.debug("Database lock wait time from engine kwargs: %s", row)
 
-            # Directly set the lock wait time in case session init didn't work
-            #db.query("SET SESSION innodb_lock_wait_timeout=10000;")
-            #lock_wait_time = db.query("SHOW SESSION VARIABLES LIKE '%INNODB_LOCK_WAIT_TIMEOUT%';")
-            #for row in lock_wait_time:
-            #    logger.debug("Database lock wait time after direct set: %s", row)
-
             # Set the isolation level to READ-COMMITTED based on
             # https://stackoverflow.com/questions/5836623/getting-lock-wait-timeout-exceeded-try-restarting-transaction-even-though-im
             db.query("SET SESSION transaction_isolation = 'READ-COMMITTED';")
@@ -249,34 +236,34 @@ class Workspace(object):
                 if table_name not in db:
                     logger.debug("Table %s not in database", table_name)
                     continue
-                for (uid, prev_uid) in updates:
-                    logger.debug('QUERY: update `%s` set source_id = "%s" where source_id = "%s"' %
-                             (table_name, prev_uid, uid))
-                    db.query('update `%s` set source_id = "%s" where source_id = "%s"' %
-                             (table_name, prev_uid, uid))
-                    logger.debug("Update query completed")
+                sql = f"UPDATE `{table_name}` SET source_id = %s WHERE source_id = %s"
+                self._execute_bulk(db, sql, [(prev_uid, uid) for (uid, prev_uid) in updates])
+                logger.debug("Update query completed")
+
             for (table_name, updates) in self._updates.items():
                 logger.debug("Updating object %s in table %s", updates, table_name)
                 if '_' not in table_name and table_name not in db:
                     db.create_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
-                for (uid, prev_uid) in updates:
-                    logger.debug('QUERY: update `%s` set unique_id = "%s" where unique_id = "%s"' %
-                             (table_name, prev_uid, uid))
-                    db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' %
-                             (table_name, prev_uid, uid))
-                    logger.debug("Update query completed")
+                sql = f"UPDATE `{table_name}` SET unique_id = %s WHERE unique_id = %s"
+                self._execute_bulk(db, sql, [(prev_uid, uid) for (uid, prev_uid) in updates])
+                logger.debug("Update query completed")
+
             for (table_name, inserts) in self._inserts.items():
-                logger.debug("Inserting object %s in table %s", inserts, table_name)
+                logger.debug("Inserting object in table %s", table_name)
                 if '_' not in table_name and table_name not in db:
                     logger.debug("Table not in database, creating table %s", table_name)
                     db.create_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
-                db[table_name].insert_many(inserts)
-                logger.debug("Insert query completed")
-                #logger.debug('inserting %s', inserts)
+                if inserts:
+                    columns = ', '.join(inserts[0].keys())
+                    placeholders = ', '.join(['%s'] * len(inserts[0]))
+                    sql = f"INSERT INTO `{table_name}` ({columns}) VALUES ({placeholders})"
+                    self._execute_bulk(db, sql, [tuple(row.values()) for row in inserts])
+                    logger.debug("Insert query completed")
+
             logger.debug("Committing changes to database")
             db.commit()
             logger.debug('Exiting Workspace.save_objects')
@@ -286,11 +273,26 @@ class Workspace(object):
             logger.debug('Closing database connection')
             close_db_connection(db)
 
+    def _execute_bulk(self, db, sql, params):
+        """Execute a bulk operation using the underlying database connection."""
+        engine = create_engine(self.path, **self.engine_kwargs)
+        with engine.connect() as connection:
+            with connection.begin() as transaction:
+                try:
+                    # Determine the placeholder based on the database type
+                    if self.path.startswith("sqlite"):
+                        sql = sql.replace('%s', '?')
+                    connection.execute(sql, params)
+                    transaction.commit()
+                except Exception as err:
+                    transaction.rollback()
+                    raise err
+            
     def create_link_tables(self, klass):
         """
         Create a link table in the database of the given trait klass
         """
-        name = self.table_name[klass]
+        name = self.tablename_lut[klass]
         db = self.get_connection()
         db.begin()
         try:
@@ -323,7 +325,7 @@ class Workspace(object):
         for (tname, trait) in obj.traits().items():
             if tname.startswith('_'):
                 continue
-            if isinstance(trait, List):
+            if isinstance(trait, MetList):
                 logger.debug("Getting saved data for List trait")
                 # handle a list of objects by using a Link table
                 # create the link table if necessary
@@ -336,7 +338,7 @@ class Workspace(object):
                 else:
                     logger.debug("Skipping link updates")
                 value = getattr(obj, tname)
-                logger.debug("List type value to store: %s", value)
+                #logger.debug("List type value to store: %s", value)
                 # do not store this entry in our own table
                 if not value:
                     continue
@@ -354,7 +356,7 @@ class Workspace(object):
             elif isinstance(trait, MetInstance):
                 logger.debug("Getting saved data for MetInstance trait")
                 value = getattr(obj, tname)
-                logger.debug("MetInstance type value to store: %s", value)
+                #logger.debug("MetInstance type value to store: %s", value)
                 # handle a sub-object
                 # if it is not assigned, use and empty unique_id
                 if value is None:
@@ -409,18 +411,6 @@ class Workspace(object):
                     kwargs.pop('username')
                 else:
                     kwargs.setdefault('username', getpass.getuser())
-            # Example query if group id is given
-            # SELECT *
-            # FROM tablename
-            # WHERE (city = 'New York' AND name like 'IBM%')
-
-            # Example query where unique id and group id are not given
-            # (to avoid getting all versions of the same object)
-            # http://stackoverflow.com/a/12102288
-            # SELECT *
-            # from (SELECT * from `groups`
-            #       WHERE (name='spam') ORDER BY last_modified)
-            # x GROUP BY head_id
             query = 'select * from `%s` where (' % object_type
             clauses = []
             for (key, value) in kwargs.items():
@@ -428,7 +418,7 @@ class Workspace(object):
                     if len(value) == 0:
                         return []
                     clauses.append('%s in ("%s")' % (key, '", "'.join(value)))
-                elif not isinstance(value, six.string_types):
+                elif not isinstance(value, str):
                     clauses.append("%s = %s" % (key, value))
                 elif '%%' in value:
                     clauses.append('%s = "%s"' % (key, value.replace('%%', '%')))
@@ -452,9 +442,8 @@ class Workspace(object):
             uids = [i.unique_id for i in items]
             if not items:
                 return []
-            # get stubs for each of the list items
             for (tname, trait) in items[0].traits().items():
-                if isinstance(trait, List):
+                if isinstance(trait, MetList):
                     table_name = '_'.join([object_type, tname])
                     if table_name not in db:
                         for i in items:
@@ -489,7 +478,7 @@ class Workspace(object):
         override = kwargs.pop('_override', False)
         if not override:
             msg = 'Are you sure you want to delete the entries? (Y/N)'
-            ans = eval(input(msg))
+            ans = input(msg)
             if not ans[0].lower().startswith('y'):
                 print('Aborting')
                 return
@@ -499,14 +488,10 @@ class Workspace(object):
             raise ValueError('Unknown object type: %s' % object_type)
         object_type = self.tablename_lut[klass]
         kwargs.setdefault('username', getpass.getuser())
-        # Example query:
-        # DELETE *
-        # FROM tablename
-        # WHERE (city = 'New York' AND name like 'IBM%')
         query = 'delete from `%s` where (' % object_type
         clauses = []
         for (key, value) in kwargs.items():
-            if not isinstance(value, six.string_types):
+            if not isinstance(value, str):
                 clauses.append("%s = %s" % (key, value))
                 continue
             if '%%' in value:
@@ -522,7 +507,6 @@ class Workspace(object):
         db = self.get_connection()
         db.begin()
         try:
-            # check for lists items that need removal
             if any([isinstance(i, MetList) for i in klass.class_traits().values()]):
                 uid_query = query.replace('delete ', 'select unique_id ')
                 uids = [i['unique_id'] for i in db.query(uid_query)]
@@ -564,7 +548,7 @@ class Workspace(object):
         if not override:
             msg = ('Are you sure you want to delete the %s object(s)? (Y/N)'
                    % len(objects))
-            ans = eval(input(msg))
+            ans = input(msg)
             if not ans[0].lower().startswith('y'):
                 print('Aborting')
                 return
@@ -579,7 +563,6 @@ class Workspace(object):
                     continue
                 name = self.tablename_lut[obj.__class__]
                 ids[name].append(getattr(obj, attr))
-                # remove list items as well
                 for (tname, trait) in obj.traits().items():
                     if isinstance(trait, MetList):
                         subname = '%s_%s' % (name, tname)
@@ -599,6 +582,9 @@ class Workspace(object):
         finally:
             close_db_connection(db)
 
+def _get_subclasses(cls):
+    return cls.__subclasses__() + [g for s in cls.__subclasses__()
+                                   for g in _get_subclasses(s)]
 
 def format_timestamp(tstamp):
     """Get a formatted representation of a timestamp."""
