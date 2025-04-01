@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # Whether we are running from NERSC
 ON_NERSC = 'METATLAS_LOCAL' not in os.environ
 logger.info('NERSC=%s', ON_NERSC)
+os.environ["METATLAS_LOCAL"] = "1"
 
 # Observable List from
 # http://stackoverflow.com/a/13259435
@@ -124,7 +125,6 @@ class Workspace(object):
             }
             sqlite_kwargs = {"connect_args": {"timeout": 7200}}  # This sets the development sqlite timeout
             self.engine_kwargs = sqlite_kwargs if self.path.startswith("sqlite") else mysql_kwargs
-
             self.tablename_lut = {}
             self.subclass_lut = {}
 
@@ -185,6 +185,7 @@ class Workspace(object):
         Get a re-useable connection to the database.
         Each activity that queries the database needs to have this function preceeding it.
         """
+        logger.debug("Getting connection to database at: %s with engine kwargs: %s", self.path, self.engine_kwargs)
         return dataset.connect(self.path, engine_kwargs=self.engine_kwargs)
 
     def convert_to_double(self, table, entry):
