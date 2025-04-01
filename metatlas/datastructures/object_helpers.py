@@ -215,8 +215,13 @@ class Workspace(object):
 
         logger.debug('Connecting to database...')
         db = self.get_connection()
+        logger.debug("DB: %s", db)
+        if db is None:
+            logger.error("Failed to establish a database connection.")
+            print("Failed to establish a database connection.")
+            return
         db.begin()
-        logger.debug('Using database at: %s', self.path)
+        logger.debug("Database type: %s", type(db))
         logger.debug("Database path: %s", self.path)
 
         if self.path.startswith("sqlite"):
@@ -244,24 +249,40 @@ class Workspace(object):
             for (table_name, updates) in self._updates.items():
                 logger.debug("Updating object %s in table %s", updates, table_name)
                 if '_' not in table_name and table_name not in db:
-                    db.create_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
+                    try:
+                        table = db.get_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
+                        # Ensure the table has the required columns
+                        for col in updates[0].keys():
+                            if col != 'unique_id':
+                                table.create_column(col, db.types.text)  # Adjust data types as necessary
+                    except Exception as e:
+                        logger.error("Failed to create table %s: %s", table_name, e)
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
-                sql = f"UPDATE `{table_name}` SET unique_id = %s WHERE unique_id = %s"
+                sql = f"UPDATE `{table_name}` SET unique_id = ? WHERE unique_id = ?"
                 self._execute_bulk(db, sql, [(prev_uid, uid) for (uid, prev_uid) in updates])
                 logger.debug("Update query completed")
 
             for (table_name, inserts) in self._inserts.items():
-                logger.debug("Inserting object in table %s", table_name)
-                if '_' not in table_name and table_name not in db:
-                    logger.debug("Table not in database, creating table %s", table_name)
-                    db.create_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
-                    if 'sqlite' not in self.path:
-                        self.fix_table(table_name)
+                logger.debug("Table name: %s", table_name)
+                logger.debug("Inserts: %s", inserts)
+                if table_name not in db:
+                    logger.debug("Table %s not in database, creating it.", table_name)
+                    # Ensure the table exists with the appropriate columns
+                    if inserts:
+                        table = db.get_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
+                        logger.debug("Created table %s", table)
+                        # Ensure the table has the required columns
+                        for col in inserts[0].keys():
+                            if col != 'unique_id':
+                                table.create_column(col, db.types.text)  # Adjust data types as necessary
+                                logger.debug("Added column %s to table %s", col, table_name)
                 if inserts:
+                    logger.debug("Inserting data into table %s", table_name)
                     columns = ', '.join(inserts[0].keys())
-                    placeholders = ', '.join(['%s'] * len(inserts[0]))
+                    placeholders = ', '.join(['?'] * len(inserts[0]))
                     sql = f"INSERT INTO `{table_name}` ({columns}) VALUES ({placeholders})"
+                    logger.debug("Running SQL insert query: %s", sql)
                     self._execute_bulk(db, sql, [tuple(row.values()) for row in inserts])
                     logger.debug("Insert query completed")
 
@@ -276,6 +297,7 @@ class Workspace(object):
 
     def _execute_bulk(self, db, sql, params):
         """Execute a bulk operation using the underlying database connection."""
+        logger.debug("Executing bulk operation to db %s with SQL: %s", self.path, sql)
         engine = create_engine(self.path, **self.engine_kwargs)
         with engine.connect() as connection:
             with connection.begin() as transaction:

@@ -81,11 +81,12 @@ def fixture_analysis_ids_with_2_cids(
     )
 
 
-@pytest.fixture(name="sqlite")
 def fixture_sqlite(username):
-    logging.debug("creating database file in %s", os.getcwd())
+    logger.debug("creating database file in %s", os.getcwd())
     db_file = f"{username}_workspace.db"
-    assert not os.path.exists(db_file)
+    if os.path.exists(db_file):
+        os.remove(db_file) 
+    #assert not os.path.exists(f"{username}_workspace.db")
     sqlite3.connect(db_file).close()
     logger.debug("Storing empty objects to create tables")
     metob.store(metob.Atlas())
@@ -96,7 +97,7 @@ def fixture_sqlite(username):
     metob.store(metob.Reference())
     metob.store(metob.LcmsRun())
     logger.debug("Done storing empty objects to create tables")
-    yield
+    #yield
     metoh.Workspace.instance = None
 
 

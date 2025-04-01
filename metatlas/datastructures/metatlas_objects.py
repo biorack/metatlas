@@ -113,6 +113,7 @@ def store(objects, **kwargs):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
+    logger.debug("Storing objects with metob.store: %s", objects)
     workspace = Workspace.get_instance()
     workspace.save_objects(objects, **kwargs)
 
