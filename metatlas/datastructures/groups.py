@@ -38,7 +38,7 @@ def get_groups_and_runs(
     if all_groups is None:
         all_groups = create_groups(execution, groups_controlled_vocab, filtered_lcmsruns)
     groups = filter_groups(all_groups, include_groups, exclude_groups)
-    logger.debug("Getting LCMS runs for groups: %s", groups)
+    #logger.debug("Getting LCMS runs for groups: %s", groups)
     return (groups, get_lcmsruns(groups))
 
 
@@ -65,8 +65,8 @@ def filter_lcmsruns(
         )
     else:
         post_exclude = post_include
-    for run in post_exclude:
-        logger.debug("Run: %s", run.name)
+    #for run in post_exclude:
+        #logger.debug("Run: %s", run.name)
     logger.debug("After filtering, %s LCMS output files remain.", len(post_exclude))
     try:
         if len(post_exclude) == 0:

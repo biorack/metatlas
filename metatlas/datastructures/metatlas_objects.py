@@ -113,7 +113,9 @@ def store(objects, **kwargs):
     objects: Metatlas object or list of Metatlas Objects
         Object(s) to store in the database.
     """
+    logger.debug("Storing objects with metob.store: %s", objects)
     workspace = Workspace.get_instance()
+    #workspace.get_table_info("atlases")
     workspace.save_objects(objects, **kwargs)
 
 
@@ -576,8 +578,7 @@ class CompoundIdentification(MetatlasObject):
     compound's identity to an Atlas."""
     compound = MetList(MetInstance(Compound))
     identification_grade = _IdGradeTrait(
-        help='Identification grade of the id (can be specified by a letter A-H'
-    )
+        help='Identification grade of the id (can be specified by a letter A-H')
     identification_notes = MetUnicode('',
                              help='notes about this identifiation')
     ms1_notes = MetUnicode('',

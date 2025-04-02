@@ -62,7 +62,7 @@ def pre_annotation(
         shutil.rmtree(ids.cache_dir)
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus)
     metatlas_dataset.filter_compounds_by_signal(params.num_points, params.peak_height, params.msms_score)
-    return metatlas_dataset
+    return ids, metatlas_dataset
 
 
 def annotation_gui(
