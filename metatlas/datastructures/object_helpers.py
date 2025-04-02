@@ -346,6 +346,33 @@ class Workspace(object):
         finally:
             close_db_connection(db)
 
+    def get_table_info(self, table_name):
+        """
+        Get the schema information for a specified table.
+        
+        Parameters:
+        table_name (str): The name of the table to retrieve information for.
+
+        Returns:
+        list: A list of dictionaries containing column information.
+        """
+        logger.debug("Getting table info for %s", table_name)
+        db = self.get_connection()
+        db.begin()
+        try:
+            query = f"PRAGMA table_info({table_name});"
+            logger.debug("Executing query: %s", query)
+            result = db.query(query)
+            logger.debug("Result: %s", result)
+            result_list = list(result)
+            for row in result_list:
+                logger.debug("Row: %s", row)
+        except Exception as err:
+            logger.error("Error getting table info for %s: %s", table_name, err)
+            rollback_and_log(db, err)
+        finally:
+            close_db_connection(db)
+
     def _get_save_data(self, obj, override=False):
         """Get the data that will be used to save an object to the database"""
         logger.debug("Getting saved data for object %s", obj.unique_id)
@@ -377,6 +404,7 @@ class Workspace(object):
                                                            obj.prev_uid))
                 else:
                     logger.debug("Skipping link updates")
+                    logger.debug("Unique ID for object: %s", obj.unique_id)
                 value = getattr(obj, tname)
                 logger.debug("List type value to store: %s", value)
                 # do not store this entry in our own table
