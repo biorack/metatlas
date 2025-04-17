@@ -10,6 +10,13 @@ import math
 import pubchempy as pcp
 import base64
 from io import BytesIO
+import pickle
+from datetime import datetime
+
+import ipywidgets as widgets
+from IPython.display import display, clear_output
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -83,14 +90,14 @@ def build_standard_lcmsrun_table(csv_standard_info_path, include_polarities=['PO
 
 def inchi_or_smiles_to_mass(molecule_id):
     mol = inchi_or_smiles_to_molecule(molecule_id)
-    
-    return ExactMolWt(mol)
+    molweight = ExactMolWt(mol)
+    return molweight
 
 def load_adducts_dict():
     return load_known_adducts().set_index('adduct').to_dict(orient='index')
 
 
-def load_filtered_adducts(include_adducts):
+def load_selected_adducts(include_adducts):
     all_adducts = load_adducts_dict()
     filtered_adducts = {adduct: all_adducts[adduct] for adduct in include_adducts}
     
@@ -112,7 +119,7 @@ def separate_adducts_dict(all_adducts):
 def calc_all_adducts(exact_mass, polarity, include_adducts):
     assert polarity == 'POS' or polarity == 'NEG'
     
-    all_adducts = load_filtered_adducts(include_adducts)
+    all_adducts = load_selected_adducts(include_adducts)
     pos_adducts, neg_adducts = separate_adducts_dict(all_adducts)   
             
     adduct_pmzs = []
@@ -176,6 +183,52 @@ def monoisotopic_mass_from_inchi(inchi):
 #########################
 # Extract data and plot #
 #########################
+
+def save_full_data(eics, top_spectra, group_names, rt_peaks, image_grid, \
+               standards_info_path):
+
+    current_time = datetime.now().strftime("%Y%m%d%H%M%S")
+    standards_data_filename = standards_info_path.replace(".csv", f"_{current_time}_ref_stds_data_full.pkl")
+    print(f"Saving data to: {standards_data_filename}")
+    with open(standards_data_filename, 'wb') as f:
+        pickle.dump((eics, top_spectra, group_names, rt_peaks, image_grid), f)
+        return
+    
+def load_full_data(standards_info_path):
+    
+    pkl_files = glob.glob(standards_info_path.replace(".csv", f"*_ref_stds_data_full.pkl"))
+    try:
+        most_recent_pkl = max(pkl_files, key=os.path.getmtime)
+    except:
+        print(f"No pkl files found with prefix {standards_info_path}.")
+        return
+    print(f"Loading most recent pkl file: {most_recent_pkl}")
+    with open(most_recent_pkl, 'rb') as f:
+        return pickle.load(f)
+    
+
+def save_selected_data(eics_selected, top_spectra_selected, rt_peaks_selected, \
+               standards_info_path):
+
+    current_time = datetime.now().strftime("%Y%m%d%H%M%S")
+    standards_data_filename = standards_info_path.replace(".csv", f"_{current_time}_ref_stds_data_selected.pkl")
+    print(f"Saving data to: {standards_data_filename}")
+    with open(standards_data_filename, 'wb') as f:
+        pickle.dump((eics_selected, top_spectra_selected, rt_peaks_selected), f)
+        return
+    
+def load_selected_data(standards_info_path):
+    
+    pkl_files = glob.glob(standards_info_path.replace(".csv", f"*_ref_stds_data_selected.pkl"))
+    try:
+        most_recent_pkl = max(pkl_files, key=os.path.getmtime)
+    except:
+        print(f"No pkl files found with prefix {standards_info_path}.")
+        return
+    print(f"Loading most recent pkl file: {most_recent_pkl}")
+    with open(most_recent_pkl, 'rb') as f:
+        return pickle.load(f)
+
 
 def extract_adducts(eics):
     eic_adducts = []
@@ -343,7 +396,11 @@ def get_all_ms1_and_ms2(eics, ms2_data, standard_lcmsrun, theoretical_mzs, compo
                 })
             predicted_peaks.extend(peak_data)
 
-    rt_peaks.append(pd.DataFrame(predicted_peaks))
+    try:
+        rt_peaks.append(pd.DataFrame(predicted_peaks))
+    except:
+        rt_peaks = pd.DataFrame()
+        #print(f"Warning! No MS1 peaks found for EICs in {standard_lcmsrun}.")
 
     top_spectra = []
     if standard_lcmsrun in ms2_data.keys():
@@ -366,6 +423,10 @@ def get_all_ms1_and_ms2(eics, ms2_data, standard_lcmsrun, theoretical_mzs, compo
                         closest_idx = (adduct_ms2_data['rt'] - rt_value).abs().argsort()[:1]
                         closest_spectrum = adduct_ms2_data.iloc[closest_idx].copy()  # Create explicit copy
                         
+                        # Check if the closest spectrum is within 0.3 minutes of the RT value
+                        if abs(closest_spectrum['rt'].values[0] - rt_value) > 0.3:
+                            continue  # Skip this spectrum if it is too far away from peak rt
+
                         # Use .loc to safely modify the dataframe copy
                         closest_spectrum.loc[:, 'total_intensity_fraction'] = closest_spectrum['total_intensity'] / standard_ms2_data['total_intensity'].max()
                         closest_spectrum.loc[:, 'peak_index'] = rt_peak['peak_index']
@@ -377,7 +438,11 @@ def get_all_ms1_and_ms2(eics, ms2_data, standard_lcmsrun, theoretical_mzs, compo
                     except: # There is no "closest" spectrum
                         continue
 
-    rt_matched_spectra = pd.concat(top_spectra).reset_index(drop=True)
+    try:
+        rt_matched_spectra = pd.concat(top_spectra).reset_index(drop=True)
+    except:
+        rt_matched_spectra = pd.DataFrame()
+        #print(f"Warning! No MS2 spectra found for RT peaks in {standard_lcmsrun}.")
 
     return rt_peaks, rt_matched_spectra
 
@@ -461,7 +526,7 @@ def extract_data(lcmsruns_table, method="intensity", ppm_tolerance=5):
     group_name_list = []
     rt_peak_list = []
 
-    for group_name, group in tqdm(grouped_lcmsruns_table, unit=' Compound LCMSRun Group'):
+    for group_name, group in tqdm(grouped_lcmsruns_table, total=len(grouped_lcmsruns_table),  unit='Compound Group'):
         theoretical_mzs = dict(group['adduct_data'].tolist())
         compound_smiles = group['smiles'].iloc[0]
         adduct_to_polarity = dict(zip(group['adduct'].tolist(), group['polarity'].tolist()))
@@ -649,183 +714,330 @@ def plot_top_spectra(top_spectra, adduct_color, fig_title):
     plt.tight_layout()
 
 
-def save_rt_peaks_to_atlas_format(rt_peaks):
+def filter_top_compounds(rt_peaks):
+    
+    unfiltered_rt_peaks = rt_peaks.copy()
 
     # Find the row with the highest intensity for each group
-    idx_max_intensity = rt_peaks.groupby(['chromatography', 'polarity', 'compound_name'])['intensity'].idxmax()
-    highest_intensity_row = rt_peaks.loc[idx_max_intensity]
+    unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
+    group_list = ['chromatography', 'polarity', 'label']
+    idx_max_intensity = unfiltered_rt_peaks.groupby(group_list)['intensity'].idxmax()
+    highest_intensity_row = unfiltered_rt_peaks.loc[idx_max_intensity]
 
-    # Filter rows to keep only those with the same adduct as the highest intensity row
-    top_adducts_per_pol = rt_peaks.merge(
-        highest_intensity_row[['chromatography', 'polarity', 'compound_name', 'adduct']],
-        on=['chromatography', 'polarity', 'compound_name', 'adduct'],
+    # # Filter rows to keep only those with the same adduct as the highest intensity row
+    group_list.extend(['adduct', 'collision_energy'])
+    top_adducts_per_pol = unfiltered_rt_peaks.merge(
+        highest_intensity_row[group_list],
+        on=group_list,
         how='inner'
     )
 
-    # Find other good peaks for the selected adduct
-    top_adducts_per_pol_grouped = top_adducts_per_pol.groupby(['compound_name', 'chromatography', 'polarity', 'adduct'])
-    for (compound, chromatography, polarity, adduct), group in top_adducts_per_pol_grouped:
-        if len(group) > 1:  # Check if there are multiple rows in the group
-            # Update the 'compound_name' column to include the peak_index
-            top_adducts_per_pol.loc[group.index, 'compound_name'] = group['compound_name'] + ' ' + group['peak_index']
+    # Find all other peaks for the selected adduct
+    top_adducts_per_pol_grouped = top_adducts_per_pol.groupby(group_list)
+    unfiltered_rt_peaks_grouped = unfiltered_rt_peaks.groupby(group_list)
+    all_peaks = []
+
+    for group_key, _ in top_adducts_per_pol_grouped:
+        # Check if the group_key exists in rt_peaks_grouped
+        if group_key in unfiltered_rt_peaks_grouped.groups:
+            # Retrieve all rows for the matching group
+            matching_rows = unfiltered_rt_peaks_grouped.get_group(group_key)
+            if matching_rows.shape[0] > 1: # Are there multiple peaks per chrom+polarity+compound+adduct+collision_energy?
+                matching_rows.loc[:,'label'] = matching_rows.apply(lambda row: f"{row['label']} ({row['peak_index']})", axis=1)
+            all_peaks.append(matching_rows)
+
+    top_adducts_per_pol_allpeaks = pd.concat(all_peaks, ignore_index=True) if all_peaks else pd.DataFrame()
+
+    # Group by monoisotopic_mass and identify isomers if present
+    top_adducts_per_pol_allpeaks_isomer_grouping = top_adducts_per_pol_allpeaks.groupby(['monoisotopic_mass','polarity','chromatography'])
+    grouped_compounds = top_adducts_per_pol_allpeaks_isomer_grouping['label'].nunique()
+    multiple_compounds_per_mim = grouped_compounds[grouped_compounds > 1]
+
+    if not multiple_compounds_per_mim.empty:
+        # Iterate over each monoisotopic mass with multiple compounds
+        for isomer_mim in multiple_compounds_per_mim.index:
+            isomer_data = top_adducts_per_pol_allpeaks[
+                (top_adducts_per_pol_allpeaks['monoisotopic_mass'] == isomer_mim[0]) &
+                (top_adducts_per_pol_allpeaks['polarity'] == isomer_mim[1]) &
+                (top_adducts_per_pol_allpeaks['chromatography'] == isomer_mim[2])
+            ]
+            
+            # Check if all adducts are the same
+            unique_adducts = isomer_data['adduct'].unique()
+            if len(unique_adducts) == 1:
+                # All adducts are the same, do nothing
+                print(f"Found isomers in {isomer_mim[2]} {isomer_mim[1]} mode at {isomer_mim[0]} ({list(isomer_data['label'])}) but they had matching selected adducts {unique_adducts[0]}.")
+                continue
+            else: # Adducts for isomers do not agree
+                print(f"Adducts for isomers do not agree! See data for monoisotopic mass {isomer_mim}:\n")
+                display(isomer_data[['label', 'adduct', 'inchi', 'monoisotopic_mass']])
+                print("\nPlease return to the GUI to select a matching adduct for isomers.")
+    
+    return top_adducts_per_pol_allpeaks
+
+
+def convert_rt_peaks_to_atlas_format(rt_peaks):
+
+    rt_peaks_unformatted = rt_peaks.copy()
 
     # enrich for atlas related metadata
-    top_adducts_per_pol['rt_min'] = top_adducts_per_pol['rt_peak'] - 0.5
-    top_adducts_per_pol['rt_max'] = top_adducts_per_pol['rt_peak'] + 0.5
-    top_adducts_per_pol['label'] = top_adducts_per_pol['compound_name']
-    top_adducts_per_pol['mz_tolerance'] = 5
-    top_adducts_per_pol['inchi'] = top_adducts_per_pol['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
-    top_adducts_per_pol['inchi_key'] = top_adducts_per_pol['inchi'].apply(inchi_to_inchikey)
+    rt_peaks_unformatted['rt_min'] = rt_peaks_unformatted['rt_peak'] - 0.5
+    rt_peaks_unformatted['rt_max'] = rt_peaks_unformatted['rt_peak'] + 0.5
+    rt_peaks_unformatted['mz_tolerance'] = 5
+    rt_peaks_unformatted['inchi'] = rt_peaks_unformatted['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
+    rt_peaks_unformatted['inchi_key'] = rt_peaks_unformatted['inchi'].apply(inchi_to_inchikey)
 
     # rename and drop columns to match metatlas atlas convention
-    top_adducts_per_pol.rename({'mz_theoretical': 'mz'})
-    top_adducts_per_pol['polarity'] = top_adducts_per_pol['polarity'].apply(lambda pol: 'positive' if pol == 'POS' else 'negative')
-    top_adducts_per_pol.drop(columns=['peak_index', 'standard_lcmsrun', 'intensity', 'mz_observed', 'ppm_error'], inplace=True)
+    rt_peaks_unformatted.rename({'mz_theoretical': 'mz'})
+    rt_peaks_unformatted['polarity'] = rt_peaks_unformatted['polarity'].apply(lambda pol: 'positive' if pol == 'POS' else 'negative')
+    rt_peaks_unformatted.drop(columns=['intensity', 'mz_observed', 'ppm_error'], inplace=True)
 
-    pos_annotations = top_adducts_per_pol[top_adducts_per_pol['polarity'] == 'positive']
-    neg_annotations = top_adducts_per_pol[top_adducts_per_pol['polarity'] == 'negative']
-
+    # Export chrom+pol atlases
+    pos_annotations = rt_peaks_unformatted[rt_peaks_unformatted['polarity'] == 'positive']
+    neg_annotations = rt_peaks_unformatted[rt_peaks_unformatted['polarity'] == 'negative']
     c18_pos_annotations = pos_annotations[pos_annotations['chromatography'] == 'C18'].sort_values('rt_peak')
     c18_neg_annotations = neg_annotations[neg_annotations['chromatography'] == 'C18'].sort_values('rt_peak')
-
     hilic_pos_annotations = pos_annotations[pos_annotations['chromatography'] == 'HILICZ'].sort_values('rt_peak')
     hilic_neg_annotations = neg_annotations[neg_annotations['chromatography'] == 'HILICZ'].sort_values('rt_peak')
 
-    return c18_pos_annotations, c18_neg_annotations, hilic_pos_annotations, hilic_neg_annotations
+    rt_peaks_formatted = pd.concat([c18_pos_annotations, c18_neg_annotations, hilic_pos_annotations, hilic_neg_annotations], ignore_index=True)
+    
+    return rt_peaks_formatted
 
 
-def find_atlas_matches(atlases, new_entries, cutoff=0.8):
+def search_for_matches_in_metatlas_db(all_molecules):
+    matches_dict = {}
+    nonmatches_dict = {}
+
+    for _, molecule in tqdm(all_molecules.iterrows(), total=len(all_molecules), desc="Searching for matches in MSMS refs"):
+        
+        molecule_subset = molecule[['compound_name', 'label', 'inchi', 'inchi_key']]
+        if pd.notna(molecule_subset['inchi_key']) is False:
+            pass
+        
+        inchi_key_parts = molecule_subset.inchi_key.split('-')
+        inchi_key_parts[1] = '%'
+        flat_inchi_key = '-'.join(inchi_key_parts)
+        #print(f"\nSearching metatlas db for {molecule_subset.label} ({molecule.inchi_key})...")
+        
+        db_entry = metob.retrieve('compound', inchi_key=molecule_subset.inchi_key)
+        
+        if db_entry == []:
+            #print(f"\t{molecule_subset.label} ({molecule_subset.inchi_key}) not found in metalas db.")
+            #print(f"Searching metatlas db with flat inchi key ({flat_inchi_key})...")
+            flat_entry = metob.retrieve('compound', inchi_key=flat_inchi_key)
+            if flat_entry == []:
+                #print(f"\t{molecule_subset.label} ({molecule_subset.inchi_key}) not found in metatlas db.")
+                nonmatches_dict[molecule_subset.label] = molecule
+            else:
+                #print(f"\tFound {len(flat_entry)} entries in metatlas db with flat inchi search.")
+                matches_dict[molecule_subset.label] = ["flat_inchi_key", flat_entry[0].inchi_key]
+        else:
+            #print(f"\tFound {len(db_entry)} entries in metatlas db.")
+            matches_dict[molecule_subset.label] = ["inchi_key", molecule_subset.inchi_key]
+
+    # Convert matches dictionary to DataFrame
+    matches_df = pd.DataFrame(
+        [(key, value[0], value[1]) for key, value in matches_dict.items()],
+        columns=['compound', 'matching_criterion', 'db_entry']
+    )
+    nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
+    attributes_to_save = ['label', 'inchi', 'inchi_key', 'neutralized_inchi', 'neutralized_inchi_key', 'permanent_charge', 'formula', 'monoisotopic_mass']
+    nonmatches_df = nonmatches_df[attributes_to_save].drop_duplicates()
+    nonmatches_df.rename(columns={'label': 'compound_name'}, inplace=True)
+    nonmatches_df.drop_duplicates(inplace=True)
+
+    if not matches_df.empty:
+        print("\nSummary of compounds already in the metatlas database:\n")
+        display(matches_df)
+    if not nonmatches_df.empty:
+        print("\nThese compounds are not yet in the metatlas database:\n")
+        display(nonmatches_df)
+
+    nonmatches_df = format_for_atlas_store(nonmatches_df)
+
+    return matches_df, nonmatches_df
+
+
+def search_for_matches_in_msms_refs(all_molecules, msms_refs):
+    matches_dict = {}
+    nonmatches_dict = {}
+
+    for _, molecule in tqdm(all_molecules.iterrows(), total=len(all_molecules), desc="Searching for matches in MSMS refs"):
+        
+        molecule_subset = molecule[['compound_name', 'label', 'adduct', 'inchi', 'inchi_key']]
+        if pd.notna(molecule_subset['inchi_key']) is False:
+            pass
+        
+        inchi_key_parts = molecule_subset.inchi_key.split('-')
+        inchi_key_parts[1] = '%'
+        flat_inchi_key = '-'.join(inchi_key_parts)
+        #print(f"\nSearching MSMS refs for {molecule_subset.label} ({molecule_subset.inchi_key})...")
+
+        matching_refs = msms_refs.loc[(msms_refs['inchi_key'] == molecule_subset.inchi_key) &
+                                      (msms_refs['adduct'] == molecule_subset.adduct)]
+        
+        if matching_refs.empty:
+            #print(f"\t{molecule_subset.label} ({molecule_subset.inchi_key}) not found in MSMS refs.")
+            #print(f"Searching MSMS refs with flat inchi key ({flat_inchi_key})...")
+            flat_matching_refs = msms_refs.loc[(msms_refs['inchi_key'] == flat_inchi_key) &
+                                              (msms_refs['adduct'] == molecule_subset.adduct)]
+            if flat_matching_refs.empty:
+                #print(f"\t{molecule_subset.label} ({molecule_subset.inchi_key}) not found in MSMS refs.")
+                nonmatches_dict[molecule_subset.label] = molecule
+            else:
+                #print(f"\tFound {len(flat_matching_refs)} entries in MSMS refs with flat inchi search.")
+                matches_dict[molecule_subset.label] = ["flat_inchi_key", molecule_subset.adduct, flat_matching_refs.iloc[0].inchi_key]
+        else:
+            #print(f"\tFound {len(matching_refs)} molecules in MSMS refs.")
+            matches_dict[molecule_subset.label] = ["inchi_key", molecule_subset.adduct, molecule_subset.inchi_key]
+
+    # Convert matches dictionary to DataFrame
+    matches_df = pd.DataFrame(
+        [(key, value[0], value[1], value[2]) for key, value in matches_dict.items()],
+        columns=['compound', 'matching_criterion', 'adduct', 'msms_entry']
+    )
+    nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
+    nonmatches_df.drop_duplicates(inplace=True)
+
+    if not matches_df.empty:
+        print("\nSummary of compounds+adducts already in MSMS refs:\n")
+        display(matches_df)
+    if not nonmatches_df.empty:
+        print("\nThese compounds+adducts are not yet in MSMS refs:\n")
+        display(nonmatches_df)
+
+    return matches_df, nonmatches_df
+
+
+def search_for_matches_in_atlases(query_entries, atlases, cutoff=0.8):
     """
-    Compare columns between atlases and new_entries to find matches.
+    Compare columns between atlases and query_entries to find matches.
     Matches are checked in the order of inchi, inchi_key, compound_name, and label.
     If a match is found, it is added to a dictionary with the matching value and source_file(s).
 
     Parameters:
         atlases (pd.DataFrame): DataFrame containing atlas data.
-        new_entries (pd.DataFrame): DataFrame containing new entries to compare.
+        query_entries (pd.DataFrame): DataFrame containing new entries to compare.
         cutoff (float): Similarity cutoff for fuzzy matching (default: 0.8).
     """
+
     atlases['compound_name'] = atlases['compound_name'].astype(str)
     atlases['label'] = atlases['label'].astype(str)
     matches_dict = {}
     nonmatches_dict = {}
 
-    for _, new_row in new_entries.iterrows():
-        new_label = str(new_row['label'])
-        new_compound_name = str(new_row['compound_name'])
-        new_inchikey = str(new_row['inchi_key'])
-        new_inchi = str(new_row['inchi'])
+    for _, query_row in tqdm(query_entries.iterrows(), total=query_entries.shape[0], desc="Searching for matches in existing atlases"):
+        query_label = str(query_row['label']) # In case compound_name and label are different values
+        query_compound_name = str(query_row['compound_name'])
+        query_inchikey = str(query_row['inchi_key'])
+        query_inchi = str(query_row['inchi'])
+        query_adduct = str(query_row['adduct'])
+        query_unique_id = f"{query_label} ; {query_adduct}"
+        #print(f"\nSearching for {query_label}...")
 
         # Check for exact matches in inchi
-        if new_inchi in atlases['inchi'].values:
-            matching_rows = atlases[atlases['inchi'] == new_inchi]
+        matching_rows = atlases[(atlases['inchi'] == query_inchi) & (atlases['adduct'] == query_adduct)]
+        if not matching_rows.empty:            
             source_files = matching_rows['source_file'].tolist()
-            matches_dict[new_label] = [new_inchi, source_files]
-            print(f"Exact match found for {new_label} in inchi: {new_inchi}")
+            atlas_entry = matching_rows['inchi'].tolist()
+            matches_dict[query_unique_id] = [query_inchi, atlas_entry, source_files]
+            #print(f"\tExact match found with inchi string: {query_inchi}")
             continue
 
         # Check for exact matches in inchi_key
-        if new_inchikey in atlases['inchi_key'].values:
-            matching_rows = atlases[atlases['inchi_key'] == new_inchikey]
+        matching_rows = atlases[(atlases['inchi_key'] == query_inchikey) & (atlases['adduct'] == query_adduct)]
+        if not matching_rows.empty:
             source_files = matching_rows['source_file'].tolist()
-            matches_dict[new_label] = [new_inchikey, source_files]
-            print(f"Exact match found for {new_label} in inchi_key: {new_inchikey}")
+            atlas_entry = matching_rows['inchi_key'].tolist()
+            matches_dict[query_unique_id] = [query_inchi, atlas_entry, source_files]
+            #print(f"\tExact match found with inchi key: {query_inchikey}")
             continue
 
         # Check for fuzzy matches in compound_name
-        compound_name_matches = get_close_matches(new_compound_name, atlases['compound_name'].tolist(), n=1, cutoff=cutoff)
+        compound_name_matches = get_close_matches(query_compound_name, atlases['compound_name'].tolist(), n=1, cutoff=cutoff)
         if compound_name_matches:
-            matching_rows = atlases[atlases['compound_name'] == compound_name_matches[0]]
-            source_files = matching_rows['source_file'].tolist()
-            matches_dict[new_label] = [compound_name_matches[0], source_files]
-            print(f"Fuzzy match found for {new_label} in compound_name: {compound_name_matches[0]}")
-            continue
+            matching_rows = atlases[(atlases['compound_name'] == compound_name_matches[0]) & (atlases['adduct'] == query_adduct)]
+            if not matching_rows.empty:
+                source_files = matching_rows['source_file'].tolist()
+                atlas_entry = matching_rows['compound_name'].tolist()
+                matches_dict[query_unique_id] = [compound_name_matches[0], atlas_entry, source_files]
+                #print(f"\tFuzzy match found with compound name: {compound_name_matches[0]}")
+                continue
 
         # Check for fuzzy matches in label
-        label_matches = get_close_matches(new_label, atlases['label'].tolist(), n=1, cutoff=cutoff)
+        label_matches = get_close_matches(query_label, atlases['label'].tolist(), n=1, cutoff=cutoff)
         if label_matches:
-            matching_rows = atlases[atlases['label'] == label_matches[0]]
-            source_files = matching_rows['source_file'].tolist()
-            matches_dict[new_label] = [label_matches[0], source_files]
-            print(f"Fuzzy match found for {new_label} in label: {label_matches[0]}")
-            continue
+            matching_rows = atlases[(atlases['label'] == label_matches[0]) & (atlases['adduct'] == query_adduct)]
+            if not matching_rows.empty:
+                source_files = matching_rows['source_file'].tolist()
+                atlas_entry = matching_rows['label'].tolist()
+                matches_dict[query_unique_id] = [label_matches[0], atlas_entry, source_files]
+                #print(f"\tFuzzy match found with label: {label_matches[0]}")
+                continue
 
         ## Fingerprint similarity?
 
         # If no match is found, add to nonmatches_dict
-        nonmatches_dict[new_label] = [[new_inchikey, new_inchi, new_label, new_compound_name], ""]
-        print(f"No match found for {new_label} in any atlas field.")
+        nonmatches_dict[query_unique_id] = query_row
+        #print(f"\tNo match found for {query_label} in any atlas field.")
 
     # Convert matches dictionary to DataFrame
     matches_df = pd.DataFrame(
-        [(key, value[0], value[1]) for key, value in matches_dict.items()],
-        columns=['new_label', 'matching_value', 'atlas_source_files']
+        [(key, value[0], value[1], value[2]) for key, value in matches_dict.items()],
+        columns=['query_compound', 'query_match', 'atlas_matches', 'atlas_source_files']
     )
-    nonmatches_df = pd.DataFrame(
-        [(key, value[0], value[1]) for key, value in nonmatches_dict.items()],
-        columns=['new_label', 'attempted_matching_values', 'atlas_source_files']
-    )
+    nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
+    nonmatches_df.drop(columns=['peak_index', 'standard_lcmsrun'], inplace=True)
+
+    if not matches_df.empty:
+        print("\nSummary of compounds+adducts already in the atlases:\n")
+        display(matches_df)
+    if not nonmatches_df.empty:
+        print("\nThese compounds+adducts are not yet in any atlases:\n")
+        display(nonmatches_df)
 
     return matches_df, nonmatches_df
 
 
-def search_for_matches_in_metatlas_db(all_molecules):
-    in_db = {}
-    notin_db = {}
-    flat_in_db = {}
-    for _, molecule in tqdm(all_molecules.iterrows()):
-        inchi_key_parts = molecule.inchi_key.split('-')
-        inchi_key_parts[1] = '%'
-        flat_inchi_key = '-'.join(inchi_key_parts)
-        print(f"\nSearching metatlas db for {molecule.label} ({molecule.inchi_key})")
-        
-        db_entry = metob.retrieve('compound', inchi_key=molecule.inchi_key)
-        
-        if db_entry == []:
-            print(f"{molecule.label} ({molecule.inchi_key}) not found in metalas db. Trying flat inchi key ({flat_inchi_key})")
-            flat_entry = metob.retrieve('compound', inchi_key=flat_inchi_key)
-            if flat_entry == []:
-                print(f"{molecule.label} ({molecule.inchi_key}) not found in metatlas db.")
-                notin_db[molecule.label] = molecule.inchi_key
-            else:
-                print(f"Found {len(flat_entry)} entries in metatlas db with flat inchi search.")
-                flat_in_db[molecule.label] = flat_entry[0].inchi_key
-        else:
-            print(f"Found {len(db_entry)} entries in metatlas db.")
-            in_db[molecule.label] = molecule.inchi_key
+def get_existing_atlases(existing_atlases_path):
+    all_atlases_paths = glob.glob(existing_atlases_path)
+    atlas_dfs = []
+    for df_path in all_atlases_paths:
+        df = pd.read_csv(df_path, sep='\t')
+        df['source_file'] = os.path.basename(df_path)  # Add the file name as a new column
+        atlas_dfs.append(df)
 
-    return in_db, notin_db, flat_in_db
+    atlases = pd.concat(atlas_dfs)
+
+    return atlases
 
 
-def search_for_matches_in_msms_refs(all_molecules, msms_refs):
-    in_msms_refs = {}
-    notin_msms_refs = {}
-    flatin_msms_refs = {}
-    for _, molecule in tqdm(all_molecules.iterrows()):
-        inchi_key_parts = molecule.inchi_key.split('-')
-        inchi_key_parts[1] = '%'
-        flat_inchi_key = '-'.join(inchi_key_parts)
-        print(f"Searching MSMS refs for {molecule.label} ({molecule.inchi_key})")
+def get_msms_refs(msms_refs_path):
+    msms_refs = pd.read_csv(msms_refs_path, sep='\t', index_col=0, low_memory=False)
+    msms_refs_compounds = msms_refs[['name', 'adduct', 'inchi', 'inchi_key']].drop_duplicates()
+    return msms_refs_compounds
 
-        matching_refs = msms_refs.loc[msms_refs['inchi_key'] == molecule.inchi_key]
-        
-        if matching_refs.empty:
-            print(f"{molecule.label} ({molecule.inchi_key}) not found in MSMS refs. Trying flat inchi key ({flat_inchi_key})")
-            flat_matching_refs = msms_refs.loc[msms_refs['inchi_key'] == flat_inchi_key]
-            if flat_matching_refs.empty:
-                print(f"{molecule.label} ({molecule.inchi_key}) not found in MSMS refs.")
-                notin_msms_refs[molecule.label] = molecule.inchi_key
-            else:
-                print(f"Found {len(flat_matching_refs)} molecules in MSMS refs with flat inchi search.")
-                flatin_msms_refs[molecule.label] = flat_matching_refs.iloc[0].inchi_key
-        else:
-            print(f"Found {len(matching_refs)} molecules in MSMS refs.")
-            in_msms_refs[molecule.label] = molecule.inchi_key
+def format_for_msms_refs(input_df, msms_refs):
+    # Add all required columns for MSMS refs
+    output_df = input_df.copy()
+    output_df['ce_type'] = 'ramped'
+    output_df['ce'] = output_df['standard_lcmsrun'].apply(get_collision_energy)
+    output_df['file'] = output_df['standard_lcmsrun'].apply(os.path.basename)
+    output_df.rename(columns={'mz_theoretical': 'mz'}, inplace=True)
+    output_df = enrich_metadata(output_df)
+    output_df['spectrum'] = output_df['spectrum'].apply(make_text_spectrum)
+    output_df = output_df[msms_refs.columns.intersection(output_df.columns)]
 
-    return in_msms_refs, notin_msms_refs, flatin_msms_refs
-
+    return output_df
 
 def format_for_atlas_store(input_compounds):
+
+    # Second check for non-neutralized inchi key
+    any_diff_inchikeys = input_compounds[input_compounds['inchi_key'] != input_compounds['neutralized_inchi_key']]
+    if not any_diff_inchikeys.empty:
+        print("Warning! The InChIKey and neutralized InChIKey do not match for the following compounds:")
+        print(any_diff_inchikeys[['compound_name', 'inchi_key', 'neutralized_inchi_key']])
 
     input_compounds.reset_index(drop=True, inplace=True)
 
@@ -866,12 +1078,25 @@ def make_text_spectrum(spectrum):
     return exms.make_text_spectrum(spectrum)
 
 
-def select_compounds_from_gui(unfiltered_df, selected_compounds_table):
+def select_compounds_from_gui(full_dataset, selected_compounds_table):
     """
     Updated version to handle multiple peaks per adduct
     """
-    result = pd.DataFrame()
+    select_dataset = pd.DataFrame()
     
+    if 'smiles' in full_dataset.columns:
+        full_dataset['inchi'] = full_dataset['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
+        full_dataset['inchi_key'] = full_dataset['inchi'].apply(inchi_to_inchikey)
+        full_dataset['neutralized_inchi'] = full_dataset['inchi'].apply(neutralize_inchi)
+        full_dataset['neutralized_inchi_key'] = full_dataset['neutralized_inchi'].apply(inchi_to_inchikey)
+        full_dataset['permanent_charge'] = full_dataset['neutralized_inchi'].apply(charge_from_inchi)
+        full_dataset['formula'] = full_dataset['neutralized_inchi'].apply(formula_from_inchi)
+        full_dataset['monoisotopic_mass'] = full_dataset['neutralized_inchi'].apply(monoisotopic_mass_from_inchi)
+        full_dataset['collision_energy'] = full_dataset['standard_lcmsrun'].apply(get_collision_energy)
+        if not full_dataset[full_dataset['inchi_key'] != full_dataset['neutralized_inchi_key']].empty:
+            print(f"Warning! The InChIKey and neutralized InChIKey do not match for the following selected compounds:")
+            print(full_dataset[full_dataset['inchi_key'] != full_dataset['neutralized_inchi_key']][['compound_name', 'inchi_key', 'neutralized_inchi_key']])
+
     for _, row in selected_compounds_table.iterrows():
         compound_name = row['compound_name']
         standard_lcmsrun = row['standard_lcmsrun']
@@ -879,21 +1104,21 @@ def select_compounds_from_gui(unfiltered_df, selected_compounds_table):
         selected_peak_indices = row['selected_peak_indices']
         
         # Filter by compound name and standard_lcmsrun
-        mask = (unfiltered_df['compound_name'] == compound_name) & (unfiltered_df['standard_lcmsrun'] == standard_lcmsrun)
+        mask = (full_dataset['compound_name'] == compound_name) & (full_dataset['standard_lcmsrun'] == standard_lcmsrun)
         
         # Further filter by adduct and peak_index if they exist in the dataframe
-        if 'adduct' in unfiltered_df.columns and len(selected_adducts) > 0:
-            adduct_mask = unfiltered_df['adduct'].isin(selected_adducts)
+        if 'adduct' in full_dataset.columns and len(selected_adducts) > 0:
+            adduct_mask = full_dataset['adduct'].isin(selected_adducts)
             mask = mask & adduct_mask
             
-        if 'peak_index' in unfiltered_df.columns and len(selected_peak_indices) > 0:
-            peak_mask = unfiltered_df['peak_index'].isin(selected_peak_indices)
+        if 'peak_index' in full_dataset.columns and len(selected_peak_indices) > 0:
+            peak_mask = full_dataset['peak_index'].isin(selected_peak_indices)
             mask = mask & peak_mask
         
-        subset = unfiltered_df[mask].copy()
-        result = pd.concat([result, subset], ignore_index=True)
+        selected_compounds = full_dataset[mask].copy()
+        select_dataset = pd.concat([select_dataset, selected_compounds], ignore_index=True)
     
-    return result
+    return select_dataset
 
 
 # def select_compounds_from_gui(full_table, select_table):
@@ -1026,3 +1251,728 @@ def generate_gridded_molecular_images(lcmsruns_table):
             runnum_to_structure_image_grid[runnum] = img_base64
 
     return runnum_to_structure_image_grid
+
+
+def process_data_for_plotting(eics_list, top_spectra_list, group_name_list, rt_peak_list, include_adducts=None):
+    processed_data = []
+    adduct_color = generate_adduct_colors(include_adducts)
+    obj_lengths = [len(eics_list), len(top_spectra_list), len(group_name_list), len(rt_peak_list)]
+
+    if len(set(obj_lengths)) != 1:
+        print(f"Warning: Lists have inconsistent lengths: {obj_lengths}")
+    number_of_groups = obj_lengths[0]
+
+    for i in range(number_of_groups):
+        eics = eics_list[i]
+        top_spectra = top_spectra_list[i]
+        group_name = group_name_list[i]
+        rt_peaks = rt_peak_list[i]
+
+        # Extract group-specific information
+        compound_name = group_name[0]
+        group_file = group_name[1]
+        compound_smiles = group_name[2]
+        group_run_number = get_run_num(group_file)
+        group_chrom = get_chromatography(group_file)
+        group_pol = get_file_polarity(group_file)
+        group_params = get_lcmsrun_params(group_file)
+
+        # Unique identifier for the group
+        group_id = f"{compound_name}_{group_chrom}_{group_pol}_{group_params}_{group_run_number}"
+        unique_id = f"{compound_name};;{group_file}"
+
+        # Append processed data for further use
+        processed_data.append({
+            "group_id": group_id,
+            "eics": eics,
+            "top_spectra": top_spectra,
+            "rt_peaks": rt_peaks,
+            "compound_name": compound_name,
+            "compound_smiles": compound_smiles,
+            "group_file": group_file,
+            "unique_id": unique_id,
+            "group_run_number": group_run_number,
+            "group_chrom": group_chrom,
+            "group_pol": group_pol,
+            "group_params": group_params,
+            "adduct_color": adduct_color
+        })
+
+    processed_data.sort(key=lambda x: x['group_run_number'])
+
+    return processed_data 
+
+
+def extract_selected_compounds(selected_dict):
+    if len(selected_dict) == 0:
+        print("No good adducts selected.")
+        selected_compounds_table = pd.DataFrame()
+    else:
+        selected_compounds_table = pd.DataFrame({
+            'index': selected_dict.keys(),
+            'selected_adduct_peaks': selected_dict.values()
+        }).reset_index(drop=True)
+
+        selected_compounds_table[['compound_name', 'standard_lcmsrun']] = selected_compounds_table['index'].str.split(';;', expand=True)
+
+        selected_compounds_table['selected_adducts'] = selected_compounds_table['selected_adduct_peaks'].apply(
+            lambda x: [item.split('||')[0] for item in x]
+        )
+        selected_compounds_table['selected_peak_indices'] = selected_compounds_table['selected_adduct_peaks'].apply(
+            lambda x: [item.split('||')[1] for item in x]
+        )
+
+        selected_compounds_table = selected_compounds_table.drop(columns=['index', 'selected_adduct_peaks'])
+    
+    return selected_compounds_table
+
+
+def extract_ambiguous_compounds(ambiguous_dict):
+    if len(ambiguous_dict) == 0:
+        print("No ambiguous adducts selected.")
+        ambiguous_adducts_table = pd.DataFrame()
+    else:
+        ambiguous_adducts_table = pd.DataFrame({
+            'unique_id': ambiguous_dict.keys(),
+            'combined': ambiguous_dict.values()
+        }).reset_index(drop=True)
+
+        ambiguous_adducts_table[['compound_name', 'standard_lcmsrun']] = ambiguous_adducts_table['unique_id'].str.split(';;', expand=True)
+
+        ambiguous_adducts_table = ambiguous_adducts_table.drop(columns=['unique_id', 'combined'])
+
+    return ambiguous_adducts_table
+
+def create_interactive_plots(processed_data, runnum_to_structure_image_grid, save_location=None, \
+                             selected_good_adducts=None, ambiguous_adducts=None,
+                             selected_good_adducts_progress=None, ambiguous_adducts_progress=None):
+    if selected_good_adducts_progress != None:
+        try:
+            with open(f"{save_location}/{selected_good_adducts_progress}", 'rb') as f:
+                selected_good_adducts = pickle.load(f)
+        except Exception as e:
+            print(f"Error loading selected good adducts dictionary: {e}")
+    if ambiguous_adducts_progress != None:
+        try:
+            with open(f"{save_location}/{ambiguous_adducts_progress}", 'rb') as f:
+                ambiguous_adducts = pickle.load(f)
+        except Exception as e:
+            print(f"Error loading ambiguous adducts dictionary: {e}")
+
+    # Widget Creation
+    image_toggle = widgets.ToggleButton(
+        value=False,  # Default to hidden
+        description='Show Structures',
+        tooltip='Toggle to show/hide the compound structure image',
+        layout=widgets.Layout(width='150px', margin='30px 0 0 0')
+    )
+    yaxis_toggle = widgets.ToggleButton(
+        value=False,  # Default to unique y-axis
+        description='Shared Y-Axis',  # Description when toggled to shared y-axis
+        tooltip='Toggle between unique and shared y-axes for non-log EIC plots',
+        layout=widgets.Layout(width='150px', margin='30px 0 0 0')
+    )
+    next_button = widgets.Button(
+        description="Next Group"
+        )
+    previous_button = widgets.Button(
+        description="Previous Group"
+        )
+    progress_label = widgets.Label(
+        value=f"1/{len(processed_data)} Groups Completed"
+        )
+    navigate_textbox = widgets.Text(
+        placeholder='Index...',
+        description='Go to:',
+        layout=widgets.Layout(width='50px')
+    )
+    navigate_button = widgets.Button(
+        description="Go",
+        layout=widgets.Layout(width='50px')
+    )
+    compound_image_widget = widgets.Image(
+        format='png',
+        layout=widgets.Layout(
+            width='400px',
+            height='400px',
+            margin='0 0 0 50px',
+        )
+    )
+    output_container = widgets.Output()
+
+    # Event Handlers
+    def on_image_toggle_change(change):
+        if image_toggle.value:
+            image_toggle.description = 'Hide Structures'
+            compound_image_widget.layout.display = 'block'
+        else:
+            image_toggle.description = 'Show Structures'
+            compound_image_widget.layout.display = 'none'
+
+    def update_progress_text():
+        progress_label.value = f"{current_index + 1}/{len(processed_data)} Groups Completed"
+
+    def on_toggle_change(change):
+        yaxis_toggle.description = 'Shared Y-Axis' if not yaxis_toggle.value else 'Unique Y-Axis'
+        update_plot(current_index)
+
+    def navigate_to_group(b):
+        nonlocal current_index
+        try:
+            target_index = int(navigate_textbox.value) - 1
+            if 0 <= target_index < len(processed_data):
+                current_index = target_index
+                update_plot(current_index)
+            else:
+                output_container.clear_output(wait=True)
+                with output_container:
+                    print(f"Invalid index. Please enter a number between 1 and {len(processed_data)}.")
+        except ValueError:
+            output_container.clear_output(wait=True)
+            with output_container:
+                print("Invalid input. Please enter a valid integer.")
+
+    def previous_group(b):
+        nonlocal current_index
+        if current_index > 0:
+            current_index -= 1
+            update_plot(current_index)
+            # Reset the image toggle state
+            image_toggle.value = False
+            image_toggle.description = 'Show Structures'
+        else:
+            output_container.clear_output(wait=True)
+
+    def next_group(b):
+        nonlocal current_index
+        if current_index < len(processed_data) - 1:
+            current_index += 1
+            update_plot(current_index)
+            # Reset the image toggle state
+            image_toggle.value = False
+            image_toggle.description = 'Show Structures'
+        else:
+            output_container.clear_output(wait=True)
+            with output_container:
+                print("Analysis completed!")
+
+    # Attach Event Handlers
+    image_toggle.observe(on_image_toggle_change, names='value')
+    yaxis_toggle.observe(on_toggle_change, names='value')
+    next_button.on_click(next_group)
+    previous_button.on_click(previous_group)
+    navigate_button.on_click(navigate_to_group)
+
+    # Layout Definitions
+    def create_layout(checkboxes):
+        checkbox_layout = widgets.VBox(
+            checkboxes,
+            layout=widgets.Layout(
+                border='1px solid black',
+                padding='5px',
+                margin='5px',
+                width='325px',
+                align_items='flex-start'
+            )
+        )
+        # Layout of the "Go To:" widget
+        go_to_label = widgets.Label(value="Go To:")
+        go_to_layout = widgets.HBox(
+            [go_to_label, navigate_textbox, navigate_button],
+            layout=widgets.Layout(
+                justify_content='flex-start',  # Align to the far left
+                spacing='5px',
+                margin='30px 0 0 0'  # Add space above the widget
+            )
+        )
+        # Update the size of the search box
+        navigate_textbox.description = ""
+        navigate_textbox.layout = widgets.Layout(width='150px')  # Decrease the size of the search box
+
+        compound_image_widget.layout.display = 'none'
+        image_toggle.layout.margin = '0 0 0 50px'
+
+        navigation_buttons_layout = widgets.HBox(
+            [
+                widgets.VBox([next_button, previous_button]),  # Stack Previous and Next buttons vertically
+                image_toggle  # Place the Image Toggle button to the right
+            ],
+            layout=widgets.Layout(
+                justify_content='flex-start',  # Align items to the left
+                spacing='10px',  # Add spacing between elements
+                margin='0 0 0 0'  # No margin for the navigation buttons
+            )
+        )
+        button_layout = widgets.VBox(
+            [navigation_buttons_layout, progress_label, go_to_layout, yaxis_toggle],
+            layout=widgets.Layout(
+                align_items='flex-start',
+                spacing='5px'
+            )
+        )
+        top_layout = widgets.HBox(
+            [checkbox_layout, button_layout, compound_image_widget],
+            layout=widgets.Layout(
+                align_items='flex-start',
+                justify_content='flex-start',
+                spacing='10px'
+            )
+        )
+        return top_layout
+
+    # Plot Update Logic
+    def update_plot(index):
+        nonlocal current_index
+        data = processed_data[index]
+    
+        eics = data['eics']
+        top_spectra = data['top_spectra']
+        rt_peaks = data['rt_peaks']
+        adduct_color = data['adduct_color']
+        group_id = data['group_id']
+        unique_id = data['unique_id']
+        group_run_number = data['group_run_number']
+
+        # Extract adduct-peak combinations from rt_peaks and top_spectra
+        adduct_peak_combinations = []
+        if isinstance(rt_peaks, pd.DataFrame) and not rt_peaks.empty:
+            # Create a mapping from adducts to peak indices and intensities
+            adduct_to_peaks = {}
+            for _, peak_row in rt_peaks.iterrows():
+                adduct = peak_row['adduct'] if 'adduct' in peak_row else None
+                if adduct:
+                    if adduct not in adduct_to_peaks:
+                        adduct_to_peaks[adduct] = []
+                    adduct_to_peaks[adduct].append({
+                        'peak_index': peak_row['peak_index'],
+                        'intensity': peak_row['intensity']
+                    })
+
+        # Create unique identifiers for each adduct-peak combination
+        for adduct, peaks in adduct_to_peaks.items():
+            max_intensity = max(peak['intensity'] for peak in peaks)
+            for peak in peaks:
+                # Check if there is an MS2 spectrum for this adduct+peak_index
+                has_ms2 = not top_spectra[
+                    (top_spectra['adduct'] == adduct) & 
+                    (top_spectra['peak_index'] == peak['peak_index'])
+                ].empty
+
+                # Add a star to the description if MS2 spectrum exists
+                description = f"{adduct} ({peak['peak_index']}){' *' if has_ms2 else ''}"
+                adduct_peak_combinations.append({
+                    'adduct': adduct,
+                    'peak_index': peak['peak_index'],
+                    'description': description,
+                    'max_intensity': max_intensity
+                })
+
+        # Sort adduct_peak_combinations by max_intensity in descending order
+        adduct_peak_combinations.sort(key=lambda x: x['max_intensity'], reverse=True)
+
+        # Create the summary EIC plot data
+        group_run_eics = [
+            eic for pdata in processed_data if pdata['group_run_number'] == group_run_number
+            for eic in pdata['eics'].values()
+        ]
+        summary_traces = []
+        summary_xmin_list = []
+        summary_xmax_list = []
+        for eic in group_run_eics:
+            # Loop through each row in the eic DataFrame
+            for _, eic_row in eic.iterrows():
+                # Filter data where intensity is above 1e5
+                valid_indices = eic_row['i'] > 1e5
+                filtered_rt = eic_row['rt'][valid_indices]
+                filtered_i = eic_row['i'][valid_indices]
+
+                if len(filtered_rt) > 0:  # Ensure there are valid points
+                    # Sort retention times
+                    rt_sort = np.argsort(filtered_rt)
+                    adduct = get_adduct(eic_row['label'])  # Extract adduct from the label
+                    color = adduct_color.get(adduct, 'gray')  # Default to gray if adduct color is missing
+                    label = eic_row['label']
+
+                    # Update x_min and x_max based on filtered data
+                    summary_xmin_list.append(filtered_rt.min())
+                    summary_xmax_list.append(filtered_rt.max())
+
+                    # Add a trace for the current adduct
+                    summary_traces.append(
+                        go.Scatter(
+                            x=filtered_rt[rt_sort],
+                            y=filtered_i[rt_sort],
+                            mode='lines',
+                            name=f"{label}",
+                            line=dict(color=color),
+                            showlegend=False
+                        )
+                    )
+        x_min = min(summary_xmin_list) if summary_xmin_list else None
+        x_max = max(summary_xmax_list) if summary_xmax_list else None
+
+        eic_adducts = set()
+        for eic in eics.values():
+            eic['adduct'] = eic.label.apply(lambda x: x.split('_')[-1])
+            eic_adducts.update(eic.adduct.tolist())
+
+        num_spectra = len(top_spectra)
+        num_columns = 4  # Increase columns to 3 to accommodate the summary plot
+        num_spectra_rows = math.ceil(num_spectra / num_columns)
+
+        # Create the figure with subplots
+        fig = make_subplots(
+            rows=2 + num_spectra_rows,  # Adjust rows dynamically
+            cols=4,  # Number of columns
+            shared_xaxes=False,
+            shared_yaxes=yaxis_toggle.value,
+            vertical_spacing=0.3 / (2 + num_spectra_rows),
+            horizontal_spacing=0.1,
+            subplot_titles=[
+                "Sample",  # Row 1, Col 1
+                "Blank",  # Row 1, Col 2
+                "EIC Summary",  # Row 1-2, Col 3-4
+                "Sample (Log)",  # Row 2, Col 1
+                "Blank (Log)",  # Row 2, Col 2
+                *(f"{row['adduct']} @ {round(row['rt'], 2)} mins" for _, row in top_spectra.iterrows())  # Spectra titles
+            ],
+            specs=[
+                [{"type": "scatter"}, {"type": "scatter"}, {"type": "scatter", "rowspan": 2, "colspan": 2}, None],  # Row 1
+                [{"type": "scatter"}, {"type": "scatter"}, None, None],  # Row 2
+                *[[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows)]  # Spectra rows
+            ]
+        )
+        fig.update_xaxes(range=[x_min, x_max], row=1, col=3)  # Set x-axis bounds for the summary graph
+
+        # Add the summary traces to the spanning subplot
+        for trace in summary_traces:
+            fig.add_trace(trace, row=1, col=3)  # Add to row 1, col 3
+
+        # Add EIC traces for each adduct/peak
+        for idx, (lcmsrun_path, eic) in enumerate(eics.items()):
+            for i, eic_row in eic.iterrows():
+                rt_sort = np.argsort(eic_row['rt'])
+                adduct = get_adduct(eic_row['label'])
+                color = adduct_color[adduct]
+                
+                # Determine row and column for the current trace
+                row = 1 if idx < 2 else 2
+                col = (idx % 2) + 1
+                
+                # Dynamic facet_name determination 
+                if row == 1 and col == 1:
+                    facet_name = "Sample"
+                elif row == 1 and col == 2:
+                    facet_name = "Blank"
+                elif row == 2 and col == 1:
+                    facet_name = "Sample (Log)"
+                elif row == 2 and col == 2:
+                    facet_name = "Blank (Log)"
+
+                # Add line traces for raw intensity
+                trace_index = len(fig.data)
+                fig.add_trace(
+                    go.Scatter(
+                        x=eic_row['rt'][rt_sort],
+                        y=eic_row['i'][rt_sort],
+                        mode='lines',
+                        name=f"{adduct} {facet_name}",  # Include facet_name in legend
+                        line=dict(color=color),
+                        showlegend=True
+                    ),
+                    row=row,
+                    col=col
+                )
+
+                # Recalculate facet_name for log-transformed traces
+                if row + 1 == 2 and col == 1:
+                    facet_name = "Sample (Log)"
+                elif row + 1 == 2 and col == 2:
+                    facet_name = "Blank (Log)"
+
+                # Add line traces for log-transformed intensity
+                trace_index = len(fig.data)
+                fig.add_trace(
+                    go.Scatter(
+                        x=eic_row['rt'][rt_sort],
+                        y=np.log10(eic_row['i'][rt_sort].astype(float)),
+                        mode='lines',
+                        name=f"{adduct} {facet_name}",  # Include updated facet_name in legend
+                        line=dict(color=color),
+                        showlegend=True
+                    ),
+                    row=row + 1,  # Log traces go to the next row
+                    col=col
+                )
+
+                # Add peak markers for each peak associated with this adduct
+                if not rt_peaks.empty:
+                    if facet_name == "Sample" or facet_name == "Sample (Log)":
+                        adduct_peaks = rt_peaks[rt_peaks['adduct'] == adduct]
+                        for _, peak_info in adduct_peaks.iterrows():
+                            peak_rt = peak_info['rt_peak']
+                            peak_index = peak_info['peak_index']
+                            peak_intensity = peak_info['intensity']
+
+                            # Add marker for raw intensity
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[peak_rt],
+                                    y=[peak_intensity],
+                                    mode='markers',
+                                    marker=dict(color=color, size=10),
+                                    name=f"{adduct} RT {peak_index}",
+                                    showlegend=False
+                                ),
+                                row=row,
+                                col=col
+                            )
+
+                            # Add marker for log-transformed intensity
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[peak_rt],
+                                    y=[np.log10(peak_intensity)],
+                                    mode='markers',
+                                    marker=dict(color=color, size=10),
+                                    name=f"{adduct} RT {peak_index}",
+                                    showlegend=False
+                                ),
+                                row=row + 1,  # Log traces go to the next row
+                                col=col
+                            )
+
+                # Add MS2 spectra markers
+                if not top_spectra.empty:
+                    if facet_name == "Sample" or facet_name == "Sample (Log)":
+                        adduct_spectra = top_spectra[top_spectra['adduct'] == adduct]
+                        # Remove adduct filtering to show all MS2 spectra
+                        for _, spectrum_row in adduct_spectra.iterrows():
+                            spectrum_adduct = spectrum_row['adduct']
+                            spectrum_peak_index = spectrum_row['peak_index']
+                            rounded_rt = round(spectrum_row['rt'], 2)
+                            marker_color = adduct_color.get(spectrum_adduct, 'gray')
+
+                            # Find closest point in the current EIC
+                            sorted_rt = eic_row['rt'][rt_sort]
+                            sorted_intensity = eic_row['i'][rt_sort]
+                            
+                            # Skip if no intensity data available
+                            if len(sorted_rt) == 0 or len(sorted_intensity) == 0:
+                                continue
+                                
+                            # Find the closest RT point in the EIC
+                            closest_idx = np.argmin(np.abs(sorted_rt - spectrum_row['rt']))
+                            
+                            if closest_idx >= len(sorted_rt):
+                                # If the index is out of bounds, skip this spectrum
+                                print(f"Warning: RT {spectrum_row['rt']} is out of bounds for EIC RT range.")
+                                continue
+                            
+                            raw_intensity = sorted_intensity[closest_idx]
+                            log_intensity = np.log10(raw_intensity)
+                            
+                            # Display marker for all spectra on the raw intensity plot
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[spectrum_row['rt']],
+                                    y=[raw_intensity],
+                                    mode='markers',
+                                    marker=dict(color=marker_color, symbol='x', size=10),
+                                    name=f"MS2: {spectrum_adduct} ({spectrum_peak_index}) @ {rounded_rt}",
+                                    showlegend=False
+                                ),
+                                row=row,
+                                col=col
+                            )
+                            
+                            # Display marker for all spectra on the log-transformed plot
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[spectrum_row['rt']],
+                                    y=[log_intensity],
+                                    mode='markers',
+                                    marker=dict(color=marker_color, symbol='x', size=10),
+                                    name=f"MS2: {spectrum_adduct} ({spectrum_peak_index}) @ {rounded_rt}",
+                                    showlegend=False
+                                ),
+                                row=row + 1,
+                                col=col
+                            )
+
+        # Add traces for Spectra plots
+        top_spectra_sorted = top_spectra.sort_values(['adduct', 'peak_index'])
+
+        mz_list = [lst[0] for lst in top_spectra_sorted['spectrum'] if isinstance(lst, (list, np.ndarray)) and len(lst) > 0]
+        mz_list_flattened = np.concatenate([np.ravel(arr) if isinstance(arr, np.ndarray) else np.array([arr]) for arr in mz_list])
+        lowest_mz = np.min(mz_list_flattened)*0.9
+        highest_mz = np.max(mz_list_flattened)*1.1
+
+        for i, spectrum_row in enumerate(top_spectra_sorted.iterrows()):
+            mz_values = spectrum_row[1]['spectrum'][0]
+            i_values = spectrum_row[1]['spectrum'][1]
+            adduct = spectrum_row[1]['adduct']
+            color = adduct_color[adduct]
+            precursor_mz = spectrum_row[1]['precursor_mz']
+            peak_index = spectrum_row[1]['peak_index']
+            spectrum_title = f"{adduct} ({peak_index}) @ {round(spectrum_row[1]['rt'], 2)} mins"
+
+            # Determine the row and column for this spectrum
+            spectrum_row_idx = 3 + (i // num_columns)  # Start after EIC rows
+            spectrum_col = (i % num_columns) + 1
+
+            # Update the x-axis range for the current subplot
+            fig.update_xaxes(
+                range=[lowest_mz, highest_mz],  # Set x-axis limits
+                row=spectrum_row_idx,
+                col=spectrum_col
+            )
+
+            # Add vertical lines for each point
+            for mz, intensity in zip(mz_values, i_values):
+                fig.add_trace(
+                    go.Scatter(
+                        x=[mz, mz],
+                        y=[0, intensity],
+                        mode='lines',
+                        line=dict(color=color),
+                        showlegend=False
+                    ),
+                    row=spectrum_row_idx,
+                    col=spectrum_col
+                )
+
+            # Add markers for each point
+            fig.add_trace(
+                go.Scatter(
+                    x=mz_values,
+                    y=i_values,
+                    mode='markers',
+                    marker=dict(color=color, size=6),
+                    name=f"Spectrum {i+1}: {adduct}",
+                    showlegend=False
+                ),
+                row=spectrum_row_idx,
+                col=spectrum_col
+            )
+
+            # Add a black circle at precursor_mz (y=0)
+            fig.add_trace(
+                go.Scatter(
+                    x=[precursor_mz],
+                    y=[0],
+                    mode='markers',
+                    marker=dict(color='black', symbol='circle', size=20),
+                    name=f"Precursor MZ: {precursor_mz}",
+                    showlegend=False
+                ),
+                row=spectrum_row_idx,
+                col=spectrum_col
+            )
+            
+            fig.layout.annotations[5 + i].text = spectrum_title
+
+        # Update layout
+        fig_title = (group_id.replace('_', '  |  '))
+        fig.update_layout(
+            hoverlabel=dict(
+                font_size=11,  # Increase font size for better readability
+                namelength=-1  # Show the full name without truncation
+            ),
+            title=dict(text=fig_title, font=dict(size=14), x=0.5, xanchor="center"),
+            height=700 + 300 * num_spectra_rows,  # Adjust height to fit all plots
+            width=1500,  # Increase width to fit the new column
+            plot_bgcolor="white",  # Set the plotting area background to white
+            paper_bgcolor="white",  # Set the figure background to white
+            legend=dict(
+                    orientation="h",  # Horizontal legend
+                    xanchor="center",
+                    yanchor="top",
+                    x=0.5,  # Center the legend horizontally
+                    y=-0.2,  # Position the legend below the EIC Summary
+            )
+        )
+
+        # Add black borders and keep gridlines
+        fig.update_xaxes(
+            showline=True,  # Show axis line
+            linewidth=1,  # Set line width
+            linecolor="black",  # Set line color to black
+            showgrid=True,  # Keep gridlines
+            gridcolor="lightgray"  # Set gridline color
+        )
+        fig.update_yaxes(
+            showline=True,  # Show axis line
+            linewidth=1,  # Set line width
+            linecolor="black",  # Set line color to black
+            showgrid=True,  # Keep gridlines
+            gridcolor="lightgray"  # Set gridline color
+        )
+
+        # Update the compound image based on group_run_number
+        if group_run_number in runnum_to_structure_image_grid:
+            compound_image_widget.value = base64.b64decode(runnum_to_structure_image_grid[group_run_number])
+        else:
+            compound_image_widget.value = b''  # Clear the image if not found
+
+        # Create checkboxes for selecting good adducts with peak indices
+        checkboxes = [
+            widgets.Checkbox(
+                value=False,
+                description=combo['description'],
+                disabled=False
+            )
+            for combo in adduct_peak_combinations
+        ]
+        ambiguous_checkbox = widgets.Checkbox(
+            value=False,
+            description="Ambiguous",
+            disabled=False
+        )
+        checkboxes.append(ambiguous_checkbox)
+        checkbox_dict = {checkbox.description: checkbox for checkbox in checkboxes}
+
+        def on_checkbox_change(change):
+            if ambiguous_checkbox.value:
+                ambiguous_adducts[unique_id] = unique_id
+                selected_good_adducts.pop(unique_id, None)
+            else:
+                selected_good_adducts[unique_id] = [
+                    combo['adduct'] + "||" + str(combo['peak_index'])
+                    for combo in adduct_peak_combinations 
+                    if checkbox_dict[combo['description']].value
+                ]
+                ambiguous_adducts.pop(unique_id, None)
+
+        for checkbox in checkboxes:
+            checkbox.observe(on_checkbox_change, names='value')
+
+        # Set previously selected values
+        if unique_id in selected_good_adducts:
+            for selected_combo in selected_good_adducts[unique_id]:
+                adduct, peak_index = selected_combo.split("||")
+                for combo in adduct_peak_combinations:
+                    if combo['adduct'] == adduct and str(combo['peak_index']) == peak_index:
+                        combo_description = combo['description']
+                        if combo_description in checkbox_dict:
+                            checkbox_dict[combo_description].value = True
+        elif unique_id in ambiguous_adducts:
+            ambiguous_checkbox.value = True
+
+        # Create the layout with checkboxes
+        top_layout = create_layout(checkboxes)
+        plot_and_checkboxes = widgets.VBox(
+            [top_layout, widgets.Output()],
+            layout=widgets.Layout(align_items='flex-start')
+        )
+
+        clear_output(wait=True)
+        update_progress_text()
+        display(plot_and_checkboxes)
+        with plot_and_checkboxes.children[1]:
+            display(fig)
+        display(output_container)
+
+    # Initialize
+    current_index = 0
+    update_plot(current_index)
