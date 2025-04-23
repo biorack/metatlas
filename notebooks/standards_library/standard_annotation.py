@@ -11,7 +11,6 @@ import pubchempy as pcp
 import base64
 from io import BytesIO
 import pickle
-from datetime import datetime
 
 import ipywidgets as widgets
 from IPython.display import display, clear_output
@@ -26,6 +25,7 @@ from metatlas.tools.cheminfo import inchi_or_smiles_to_molecule, get_precursor_m
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.tools import cheminfo
 from metatlas.tools import extract_msms as exms
+from metatlas.datastructures.utils import get_atlas
 
 from matchms.filtering.filter_utils.load_known_adducts import load_known_adducts
 
@@ -82,7 +82,6 @@ def build_standard_lcmsrun_table(csv_standard_info_path, include_polarities=['PO
     standard_lcmsruns_table = standard_info.explode('standard_lcmsruns').reset_index(drop=True).rename(columns={'standard_lcmsruns': 'standard_lcmsrun'})
     
     return standard_lcmsruns_table
-
 
 ##########################
 # Calculate Adduct Table #
@@ -184,14 +183,16 @@ def monoisotopic_mass_from_inchi(inchi):
 # Extract data and plot #
 #########################
 
-def save_full_data(eics, top_spectra, group_names, rt_peaks, image_grid, \
-               standards_info_path):
+def store_in_metatlas_db(cid_not_in_db):
+    metob.store(cid_not_in_db)
 
-    current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-    standards_data_filename = standards_info_path.replace(".csv", f"_{current_time}_ref_stds_data_full.pkl")
+def save_full_data(eics, top_spectra, group_names, rt_peaks, atlases, image_grid, \
+               standards_info_path, timestamp):
+
+    standards_data_filename = standards_info_path.replace(".csv", f"_{timestamp}_ref_stds_data_full.pkl")
     print(f"Saving data to: {standards_data_filename}")
     with open(standards_data_filename, 'wb') as f:
-        pickle.dump((eics, top_spectra, group_names, rt_peaks, image_grid), f)
+        pickle.dump((eics, top_spectra, group_names, rt_peaks, atlases, image_grid), f)
         return
     
 def load_full_data(standards_info_path):
@@ -200,35 +201,67 @@ def load_full_data(standards_info_path):
     try:
         most_recent_pkl = max(pkl_files, key=os.path.getmtime)
     except:
-        print(f"No pkl files found with prefix {standards_info_path}.")
+        print(f"No pkl files found in {pkl_files}.")
         return
     print(f"Loading most recent pkl file: {most_recent_pkl}")
     with open(most_recent_pkl, 'rb') as f:
         return pickle.load(f)
     
 
-def save_selected_data(eics_selected, top_spectra_selected, rt_peaks_selected, \
-               standards_info_path):
+def save_filtered_data(eics_filtered, top_spectra_filtered, rt_peaks_filtered, \
+               standards_info_path, timestamp):
 
-    current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-    standards_data_filename = standards_info_path.replace(".csv", f"_{current_time}_ref_stds_data_selected.pkl")
+    standards_data_filename = standards_info_path.replace(".csv", f"_{timestamp}_ref_stds_data_filtered.pkl")
     print(f"Saving data to: {standards_data_filename}")
     with open(standards_data_filename, 'wb') as f:
-        pickle.dump((eics_selected, top_spectra_selected, rt_peaks_selected), f)
+        pickle.dump((eics_filtered, top_spectra_filtered, rt_peaks_filtered), f)
         return
     
+def load_filtered_data(standards_info_path):
+    
+    pkl_files = glob.glob(standards_info_path.replace(".csv", f"*_ref_stds_data_filtered.pkl"))
+    try:
+        most_recent_pkl = max(pkl_files, key=os.path.getmtime)
+    except:
+        print(f"No pkl files found in {pkl_files}.")
+        return
+    print(f"Loading most recent pkl file: {most_recent_pkl}")
+    with open(most_recent_pkl, 'rb') as f:
+        return pickle.load(f)
+
+def save_selected_data(good_selections, ambiguous_selections, standards_info_path, timestamp):
+
+    standards_data_filename = standards_info_path.replace(".csv", f"_{timestamp}_ref_stds_data_selected.pkl")
+    print(f"Saving data to: {standards_data_filename}")
+    with open(standards_data_filename, 'wb') as f:
+        pickle.dump((good_selections, ambiguous_selections), f)
+        return
+
 def load_selected_data(standards_info_path):
     
     pkl_files = glob.glob(standards_info_path.replace(".csv", f"*_ref_stds_data_selected.pkl"))
     try:
         most_recent_pkl = max(pkl_files, key=os.path.getmtime)
     except:
-        print(f"No pkl files found with prefix {standards_info_path}.")
+        print(f"No pkl files found in {pkl_files}.")
         return
     print(f"Loading most recent pkl file: {most_recent_pkl}")
     with open(most_recent_pkl, 'rb') as f:
         return pickle.load(f)
 
+def filter_by_selected(eics_full, rt_peaks_full, top_spectra_full, selected_compounds_table):
+    eics_selected = pd.concat([df.assign(key=key) for d in eics_full for key, df in d.items()],ignore_index=True).rename(columns={'key': 'standard_lcmsrun'})
+    eics_selected['compound_name'] = eics_selected['label'].apply(lambda x: x.split('_')[0])
+    eics_selected = select_compounds_from_gui(eics_selected, selected_compounds_table)
+        
+    rt_peaks_selected = pd.concat(rt_peaks_full).rename(columns={'lcmsrun': 'standard_lcmsrun'})
+    rt_peaks_selected = select_compounds_from_gui(rt_peaks_selected, selected_compounds_table)
+
+    top_spectra_selected = pd.concat(top_spectra_full, ignore_index=True).rename(columns={'lcmsrun': 'standard_lcmsrun'})
+    top_spectra_selected['compound_name'] = top_spectra_selected['label'].apply(lambda x: x.split('_')[0])
+    top_spectra_selected = select_compounds_from_gui(top_spectra_selected, selected_compounds_table)
+
+    return eics_selected, rt_peaks_selected, top_spectra_selected
 
 def extract_adducts(eics):
     eic_adducts = []
@@ -281,7 +314,22 @@ def get_closest_injbl(lcmsrun_path, injbl_pattern='-InjBL-'):
     closest_run_num = max((run_num for run_num in injbl_run_nums if run_num <= lcmsrun_num), default=None)
         
     return injbl_run_nums[closest_run_num]
+    
+def get_all_qc_files(standard_lcmsruns_table, raw_data_dir='/global/cfs/cdirs/metatlas/raw_data/*/', \
+                     include_chromatographies=['C18', 'HILIC']):
+    
+    qc_files = {}
+    for chrom in include_chromatographies:
+        projects = standard_lcmsruns_table[f'{chrom.lower()}_experiment'].unique().tolist()
+        for project in projects:
+            all_qc_files = glob.glob(os.path.join(raw_data_dir, project, f'*{chrom}*QC*.h5'))
+            matching_qc_files = [path for path in all_qc_files if is_matching_polarity(path, ['FPS'])]
+            project_files[project] = matching_qc_files
+            print(f"Found {len(matching_qc_files)} QC files in {project} for {chrom} chromatography.")
 
+        qc_files[chrom] = project_files
+
+    return qc_files
 
 def get_rt_range(lcmsrun_path, polarity):
     lcmsrun_data = ft.df_container_from_metatlas_file(lcmsrun_path, desired_key='ms1_{}'.format(polarity.lower()))
@@ -292,10 +340,13 @@ def get_rt_range(lcmsrun_path, polarity):
     return rt_min, rt_max
 
 
-def create_compound_atlas(group, ppm_tolerance, rt_min, rt_max, polarity):
+def create_compound_atlas(group, ppm_tolerance, rt_min, rt_max, polarity, extra_time=0.0):
     atlas = group.rename(columns={'precursor_mz': 'mz'})
     atlas['label'] = group.apply(lambda row: '{}_{}'.format(row.compound_name, row.adduct), axis=1)
-    atlas_cols = ['label', 'mz', 'rt_min', 'rt_max', 'rt_peak', 'smiles', 'adduct']
+    atlas['polarity'] = polarity
+    atlas['ppm_tolerance'] = ppm_tolerance
+    atlas['extra_time'] = extra_time
+    atlas_cols = ['label', 'mz', 'rt_min', 'rt_max', 'rt_peak', 'smiles', 'adduct', 'ppm_tolerance', 'polarity', 'extra_time']
     
     atlas['rt_min'] = rt_min
     atlas['rt_max'] = rt_max
@@ -303,18 +354,57 @@ def create_compound_atlas(group, ppm_tolerance, rt_min, rt_max, polarity):
     
     return atlas[atlas_cols]
     
+def collect_qc_eics(qc_atlases, project_qc_files):
+    
+    # Get experimental input for QC mols
+    qc_rts = {}
+    qc_atlases_data = get_qc_atlas_data(qc_atlases)
+    print(qc_atlases_data.keys())
+    current_qc_atlas = [key for key in qc_atlases_data if lcmsrun_chrom.lower() in key.lower()]
+    print(current_qc_atlas)
+    if current_qc_atlas != []:
+        current_qc_atlas = [key for key in current_qc_atlas if lcmsrun_polarity.lower() in key.lower()]
+        print(current_qc_atlas)
+        if len(current_qc_atlas) > 1:
+            print(f"Warning! More than one QC atlas found for the chromatography: {current_qc_atlas}")
+        baseline_atlas = qc_atlases_data[current_qc_atlas[0]]
+        print(baseline_atlas)
+        baseline_atlas_df = baseline_atlas.rename(columns={'label': 'compound_name'})
+        baseline_atlas_df['smiles'] = baseline_atlas_df.apply(lambda row: smiles_from_inchi_key(row['inchi_key']), axis=1)
+        baseline_atlas_compounds = create_compound_atlas(baseline_atlas_df, ppm_tolerance, rt_min, rt_max, lcmsrun_polarity, extra_time=0.0)
+        baseline_atlas_correction = ft.setup_file_slicing_parameters(baseline_atlas_compounds, [qc_file], base_dir=os.getcwd(), ppm_tolerance=ppm_tolerance, extra_time=0.0, polarity=lcmsrun_polarity.lower())
+
+        for file_input in baseline_atlas_correction:
+            measured_qc_atlas = ft.get_data(file_input, save_file=False, return_data=True, ms1_feature_filter=False)
+            measured_qc_eics = ft.group_duplicates(measured_qc_atlas['ms1_data'],'label', make_string=False)
+
+            measured_qc_rts = []
+            for _, qc_compound in measured_qc_eics.iterrows():
+                rt_sort = np.argsort(qc_compound['rt'])
+                peak = np.argmax(qc_compound['i'][rt_sort])
+                rt_peak = round(qc_compound['rt'][rt_sort][peak], 4)
+                measured_qc_rts.append({'label': qc_compound['label'],
+                                        'rt_peak': rt_peak,
+                                        'rt_min': rt_peak - 0.5,
+                                        'rt_max': rt_peak + 0.5})
+
+
+            qc_rts[qc_file] = pd.DataFrame(measured_qc_rts)
+    else:
+        qc_rts[qc_file] = pd.DataFrame()
 
 def collect_eics_and_ms2(group, ppm_tolerance):
     first_row = group.iloc[0]
-    
+
     lcmsrun_polarity = first_row.polarity
     lcmsrun_params = get_lcmsrun_params(first_row.standard_lcmsrun)
     lcmsrun_chrom = get_chromatography(first_row.standard_lcmsrun)
     lcmsrun_metadata = "{}_{}_{}".format(lcmsrun_chrom, lcmsrun_polarity, lcmsrun_params)
     
     rt_min, rt_max = get_rt_range(first_row.standard_lcmsrun, lcmsrun_polarity)
-    atlas = create_compound_atlas(group, ppm_tolerance, rt_min, rt_max, lcmsrun_polarity)
+    atlas = create_compound_atlas(group, ppm_tolerance, rt_min, rt_max, lcmsrun_polarity, extra_time=0.0)
     
+    # Get experimental input for ref stds
     files = group.standard_lcmsrun.tolist() + [first_row.closest_injbl]
     experiment_input = ft.setup_file_slicing_parameters(atlas, files, base_dir=os.getcwd(), ppm_tolerance=ppm_tolerance, extra_time=0.0, polarity=lcmsrun_polarity.lower())
 
@@ -331,7 +421,7 @@ def collect_eics_and_ms2(group, ppm_tolerance):
         if not ms2_summary.empty:
             ms2_data[file_input['lcmsrun']] = ms2_summary
     
-    return eics, ms2_data
+    return eics, ms2_data, atlas
 
 
 def get_all_ms1_and_ms2(eics, ms2_data, standard_lcmsrun, theoretical_mzs, compound_smiles, adduct_to_polarity, prominence_percentage=0.25, \
@@ -362,7 +452,6 @@ def get_all_ms1_and_ms2(eics, ms2_data, standard_lcmsrun, theoretical_mzs, compo
                 width=width_threshold, 
                 distance=distance_threshold
             )
-
             # If no peaks are found, fall back to using intensity method
             if peaks.size == 0:
                 peaks = [np.argmax(eic_row['i'][rt_sort])]
@@ -377,6 +466,9 @@ def get_all_ms1_and_ms2(eics, ms2_data, standard_lcmsrun, theoretical_mzs, compo
                     if sorted_intensity[peak_index] > sorted_intensity[filtered_peaks[-1]]:
                         filtered_peaks[-1] = peak_index
             
+            # Sort filtered peaks by intensity in descending order and keep only the top 5
+            filtered_peaks = sorted(filtered_peaks, key=lambda idx: sorted_intensity[idx], reverse=True)[:5]
+
             # Create a DataFrame for the filtered peaks
             peak_data = []
             for i, peak_index in enumerate(filtered_peaks):
@@ -517,6 +609,7 @@ def display_smiles(smiles):
         print("Invalid SMILES string.")
         return None
 
+
 def extract_data(lcmsruns_table, method="intensity", ppm_tolerance=5):
     lcmsruns_table['closest_injbl'] = lcmsruns_table['standard_lcmsrun'].apply(get_closest_injbl)
     grouped_lcmsruns_table = lcmsruns_table.groupby(['compound_name', 'standard_lcmsrun'])
@@ -525,6 +618,7 @@ def extract_data(lcmsruns_table, method="intensity", ppm_tolerance=5):
     top_spectra_list = []
     group_name_list = []
     rt_peak_list = []
+    atlas_list = []
 
     for group_name, group in tqdm(grouped_lcmsruns_table, total=len(grouped_lcmsruns_table),  unit='Compound Group'):
         theoretical_mzs = dict(group['adduct_data'].tolist())
@@ -532,7 +626,7 @@ def extract_data(lcmsruns_table, method="intensity", ppm_tolerance=5):
         adduct_to_polarity = dict(zip(group['adduct'].tolist(), group['polarity'].tolist()))
         group_name = (group_name[0], group_name[1], compound_smiles)
 
-        eics, ms2_data = collect_eics_and_ms2(group, ppm_tolerance)
+        eics, ms2_data, atlas = collect_eics_and_ms2(group, ppm_tolerance)
 
         if method == "intensity":
             rt_peaks, top_spectra = get_top_ms1_and_ms2(eics, ms2_data, group_name[1], theoretical_mzs, compound_smiles, adduct_to_polarity)
@@ -545,8 +639,9 @@ def extract_data(lcmsruns_table, method="intensity", ppm_tolerance=5):
         top_spectra_list.append(top_spectra)
         group_name_list.append(group_name)
         rt_peak_list += rt_peaks
+        atlas_list.append(atlas)
 
-    return eics_list, top_spectra_list, group_name_list, rt_peak_list
+    return eics_list, top_spectra_list, group_name_list, rt_peak_list, atlas_list
 
 
 def extract_and_plot(standard_lcmsruns_table, ppm_tolerance=5, plot_output_dir='./annotation_plots', data_output_dir='./annotation_data', generate_plots=True):
@@ -750,7 +845,7 @@ def filter_top_compounds(rt_peaks):
 
     # Group by monoisotopic_mass and identify isomers if present
     top_adducts_per_pol_allpeaks_isomer_grouping = top_adducts_per_pol_allpeaks.groupby(['monoisotopic_mass','polarity','chromatography'])
-    grouped_compounds = top_adducts_per_pol_allpeaks_isomer_grouping['label'].nunique()
+    grouped_compounds = top_adducts_per_pol_allpeaks_isomer_grouping['compound_name'].nunique()
     multiple_compounds_per_mim = grouped_compounds[grouped_compounds > 1]
 
     if not multiple_compounds_per_mim.empty:
@@ -766,19 +861,24 @@ def filter_top_compounds(rt_peaks):
             unique_adducts = isomer_data['adduct'].unique()
             if len(unique_adducts) == 1:
                 # All adducts are the same, do nothing
-                print(f"Found isomers in {isomer_mim[2]} {isomer_mim[1]} mode at {isomer_mim[0]} ({list(isomer_data['label'])}) but they had matching selected adducts {unique_adducts[0]}.")
+                print(f"Note: Found isomers in {isomer_mim[2]} {isomer_mim[1]} mode at {isomer_mim[0]} ({list(isomer_data['label'])}) but they had matching selected adducts {unique_adducts[0]}.")
                 continue
             else: # Adducts for isomers do not agree
-                print(f"Adducts for isomers do not agree! See data for monoisotopic mass {isomer_mim}:\n")
+                print(f"Warning! Adducts for isomers do not agree. See data for monoisotopic mass {isomer_mim[0]}:\n")
                 display(isomer_data[['label', 'adduct', 'inchi', 'monoisotopic_mass']])
                 print("\nPlease return to the GUI to select a matching adduct for isomers.")
+                return
     
+    print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {top_adducts_per_pol_allpeaks.shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
+    display(top_adducts_per_pol_allpeaks[['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label','adduct']))
+
     return top_adducts_per_pol_allpeaks
 
 
 def convert_rt_peaks_to_atlas_format(rt_peaks):
 
     rt_peaks_unformatted = rt_peaks.copy()
+    rt_peaks_unformatted['compound_name'] = rt_peaks_unformatted['label']
 
     # enrich for atlas related metadata
     rt_peaks_unformatted['rt_min'] = rt_peaks_unformatted['rt_peak'] - 0.5
@@ -805,46 +905,42 @@ def convert_rt_peaks_to_atlas_format(rt_peaks):
     return rt_peaks_formatted
 
 
-def search_for_matches_in_metatlas_db(all_molecules):
+def search_for_matches_in_metatlas_db(all_molecules, check_by_flat=True):
     matches_dict = {}
     nonmatches_dict = {}
 
     for _, molecule in tqdm(all_molecules.iterrows(), total=len(all_molecules), desc="Searching for matches in MSMS refs"):
         
-        molecule_subset = molecule[['compound_name', 'label', 'inchi', 'inchi_key']]
+        molecule_subset = molecule[['label', 'inchi', 'inchi_key']]
         if pd.notna(molecule_subset['inchi_key']) is False:
             pass
         
         inchi_key_parts = molecule_subset.inchi_key.split('-')
         inchi_key_parts[1] = '%'
         flat_inchi_key = '-'.join(inchi_key_parts)
-        #print(f"\nSearching metatlas db for {molecule_subset.label} ({molecule.inchi_key})...")
         
         db_entry = metob.retrieve('compound', inchi_key=molecule_subset.inchi_key)
         
         if db_entry == []:
-            #print(f"\t{molecule_subset.label} ({molecule_subset.inchi_key}) not found in metalas db.")
-            #print(f"Searching metatlas db with flat inchi key ({flat_inchi_key})...")
-            flat_entry = metob.retrieve('compound', inchi_key=flat_inchi_key)
-            if flat_entry == []:
-                #print(f"\t{molecule_subset.label} ({molecule_subset.inchi_key}) not found in metatlas db.")
-                nonmatches_dict[molecule_subset.label] = molecule
+            if check_by_flat is True:
+                flat_entry = metob.retrieve('compound', inchi_key=flat_inchi_key)
+                if flat_entry == []:
+                    nonmatches_dict[molecule_subset.label] = molecule
+                else:
+                    matches_dict[molecule_subset.label] = ["flat_inchi_key", flat_inchi_key, list({entry.inchi_key for entry in flat_entry})]
             else:
-                #print(f"\tFound {len(flat_entry)} entries in metatlas db with flat inchi search.")
-                matches_dict[molecule_subset.label] = ["flat_inchi_key", flat_entry[0].inchi_key]
+                nonmatches_dict[molecule_subset.label] = molecule
         else:
-            #print(f"\tFound {len(db_entry)} entries in metatlas db.")
-            matches_dict[molecule_subset.label] = ["inchi_key", molecule_subset.inchi_key]
+            matches_dict[molecule_subset.label] = ["inchi_key", molecule_subset.inchi_key, list({entry.inchi_key for entry in db_entry})]
 
     # Convert matches dictionary to DataFrame
     matches_df = pd.DataFrame(
-        [(key, value[0], value[1]) for key, value in matches_dict.items()],
-        columns=['compound', 'matching_criterion', 'db_entry']
+        [(key, value[0], value[1], value[2]) for key, value in matches_dict.items()],
+        columns=['query_label', 'query_matching_criterion', 'query_to_db', 'db_match']
     )
     nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
     attributes_to_save = ['label', 'inchi', 'inchi_key', 'neutralized_inchi', 'neutralized_inchi_key', 'permanent_charge', 'formula', 'monoisotopic_mass']
     nonmatches_df = nonmatches_df[attributes_to_save].drop_duplicates()
-    nonmatches_df.rename(columns={'label': 'compound_name'}, inplace=True)
     nonmatches_df.drop_duplicates(inplace=True)
 
     if not matches_df.empty:
@@ -854,12 +950,12 @@ def search_for_matches_in_metatlas_db(all_molecules):
         print("\nThese compounds are not yet in the metatlas database:\n")
         display(nonmatches_df)
 
-    nonmatches_df = format_for_atlas_store(nonmatches_df)
+    nonmatches_list = format_for_atlas_store(nonmatches_df)
 
-    return matches_df, nonmatches_df
+    return matches_df, nonmatches_list
 
 
-def search_for_matches_in_msms_refs(all_molecules, msms_refs):
+def search_for_matches_in_msms_refs(all_molecules, msms_refs, check_by_flat=True):
     matches_dict = {}
     nonmatches_dict = {}
 
@@ -872,30 +968,27 @@ def search_for_matches_in_msms_refs(all_molecules, msms_refs):
         inchi_key_parts = molecule_subset.inchi_key.split('-')
         inchi_key_parts[1] = '%'
         flat_inchi_key = '-'.join(inchi_key_parts)
-        #print(f"\nSearching MSMS refs for {molecule_subset.label} ({molecule_subset.inchi_key})...")
 
         matching_refs = msms_refs.loc[(msms_refs['inchi_key'] == molecule_subset.inchi_key) &
                                       (msms_refs['adduct'] == molecule_subset.adduct)]
         
         if matching_refs.empty:
-            #print(f"\t{molecule_subset.label} ({molecule_subset.inchi_key}) not found in MSMS refs.")
-            #print(f"Searching MSMS refs with flat inchi key ({flat_inchi_key})...")
-            flat_matching_refs = msms_refs.loc[(msms_refs['inchi_key'] == flat_inchi_key) &
-                                              (msms_refs['adduct'] == molecule_subset.adduct)]
-            if flat_matching_refs.empty:
-                #print(f"\t{molecule_subset.label} ({molecule_subset.inchi_key}) not found in MSMS refs.")
-                nonmatches_dict[molecule_subset.label] = molecule
+            if check_by_flat is True:
+                flat_matching_refs = msms_refs.loc[(msms_refs['inchi_key'] == flat_inchi_key) &
+                                                (msms_refs['adduct'] == molecule_subset.adduct)]
+                if flat_matching_refs.empty:
+                    nonmatches_dict[molecule_subset.label] = molecule
+                else:
+                    matches_dict[molecule_subset.label] = [molecule_subset.adduct, "flat_inchi_key", flat_inchi_key, flat_matching_refs.iloc[0].inchi_key]
             else:
-                #print(f"\tFound {len(flat_matching_refs)} entries in MSMS refs with flat inchi search.")
-                matches_dict[molecule_subset.label] = ["flat_inchi_key", molecule_subset.adduct, flat_matching_refs.iloc[0].inchi_key]
+                nonmatches_dict[molecule_subset.label] = molecule
         else:
-            #print(f"\tFound {len(matching_refs)} molecules in MSMS refs.")
-            matches_dict[molecule_subset.label] = ["inchi_key", molecule_subset.adduct, molecule_subset.inchi_key]
+            matches_dict[molecule_subset.label] = [molecule_subset.adduct, "inchi_key", molecule_subset.inchi_key, matching_refs.iloc[0].inchi_key]
 
     # Convert matches dictionary to DataFrame
     matches_df = pd.DataFrame(
-        [(key, value[0], value[1], value[2]) for key, value in matches_dict.items()],
-        columns=['compound', 'matching_criterion', 'adduct', 'msms_entry']
+        [(key, value[0], value[1], value[2], value[3]) for key, value in matches_dict.items()],
+        columns=['query_label', 'query_adduct', 'query_matching_criterion', 'query_to_refs', 'msms_match']
     )
     nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
     nonmatches_df.drop_duplicates(inplace=True)
@@ -928,13 +1021,12 @@ def search_for_matches_in_atlases(query_entries, atlases, cutoff=0.8):
     nonmatches_dict = {}
 
     for _, query_row in tqdm(query_entries.iterrows(), total=query_entries.shape[0], desc="Searching for matches in existing atlases"):
-        query_label = str(query_row['label']) # In case compound_name and label are different values
+        query_label = str(query_row['label'])
         query_compound_name = str(query_row['compound_name'])
         query_inchikey = str(query_row['inchi_key'])
         query_inchi = str(query_row['inchi'])
         query_adduct = str(query_row['adduct'])
-        query_unique_id = f"{query_label} ; {query_adduct}"
-        #print(f"\nSearching for {query_label}...")
+        query_unique_id = f"{query_label} ({query_adduct})"
 
         # Check for exact matches in inchi
         matching_rows = atlases[(atlases['inchi'] == query_inchi) & (atlases['adduct'] == query_adduct)]
@@ -942,7 +1034,6 @@ def search_for_matches_in_atlases(query_entries, atlases, cutoff=0.8):
             source_files = matching_rows['source_file'].tolist()
             atlas_entry = matching_rows['inchi'].tolist()
             matches_dict[query_unique_id] = [query_inchi, atlas_entry, source_files]
-            #print(f"\tExact match found with inchi string: {query_inchi}")
             continue
 
         # Check for exact matches in inchi_key
@@ -951,7 +1042,6 @@ def search_for_matches_in_atlases(query_entries, atlases, cutoff=0.8):
             source_files = matching_rows['source_file'].tolist()
             atlas_entry = matching_rows['inchi_key'].tolist()
             matches_dict[query_unique_id] = [query_inchi, atlas_entry, source_files]
-            #print(f"\tExact match found with inchi key: {query_inchikey}")
             continue
 
         # Check for fuzzy matches in compound_name
@@ -962,7 +1052,6 @@ def search_for_matches_in_atlases(query_entries, atlases, cutoff=0.8):
                 source_files = matching_rows['source_file'].tolist()
                 atlas_entry = matching_rows['compound_name'].tolist()
                 matches_dict[query_unique_id] = [compound_name_matches[0], atlas_entry, source_files]
-                #print(f"\tFuzzy match found with compound name: {compound_name_matches[0]}")
                 continue
 
         # Check for fuzzy matches in label
@@ -973,22 +1062,19 @@ def search_for_matches_in_atlases(query_entries, atlases, cutoff=0.8):
                 source_files = matching_rows['source_file'].tolist()
                 atlas_entry = matching_rows['label'].tolist()
                 matches_dict[query_unique_id] = [label_matches[0], atlas_entry, source_files]
-                #print(f"\tFuzzy match found with label: {label_matches[0]}")
                 continue
 
         ## Fingerprint similarity?
 
         # If no match is found, add to nonmatches_dict
         nonmatches_dict[query_unique_id] = query_row
-        #print(f"\tNo match found for {query_label} in any atlas field.")
 
     # Convert matches dictionary to DataFrame
     matches_df = pd.DataFrame(
         [(key, value[0], value[1], value[2]) for key, value in matches_dict.items()],
-        columns=['query_compound', 'query_match', 'atlas_matches', 'atlas_source_files']
+        columns=['query_label_adduct', 'query_to_atlas', 'atlas_matches', 'atlas_source_files']
     )
     nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
-    nonmatches_df.drop(columns=['peak_index', 'standard_lcmsrun'], inplace=True)
 
     if not matches_df.empty:
         print("\nSummary of compounds+adducts already in the atlases:\n")
@@ -1012,13 +1098,28 @@ def get_existing_atlases(existing_atlases_path):
 
     return atlases
 
+def get_qc_atlas_data(qc_atlases):
+
+    qc_atlas_data = {}
+    for atlas_source in qc_atlases['source_file'].unique():
+        qc_atlas = qc_atlases[qc_atlases['source_file'] == atlas_source]
+        qc_atlas_data[atlas_source] = qc_atlas
+
+    return qc_atlas_data
 
 def get_msms_refs(msms_refs_path):
     msms_refs = pd.read_csv(msms_refs_path, sep='\t', index_col=0, low_memory=False)
-    msms_refs_compounds = msms_refs[['name', 'adduct', 'inchi', 'inchi_key']].drop_duplicates()
-    return msms_refs_compounds
+    return msms_refs
 
 def format_for_msms_refs(input_df, msms_refs):
+
+    # Remove rows with NaN in the 'spectrum' column and print a warning
+    rows_with_nan = input_df[input_df['spectrum'].isna()]
+    if not rows_with_nan.empty:
+        print("Warning: The following rows were removed due to NaN in the 'spectrum' column:")
+        display(rows_with_nan)
+        input_df = input_df.dropna(subset=['spectrum'])
+
     # Add all required columns for MSMS refs
     output_df = input_df.copy()
     output_df['ce_type'] = 'ramped'
@@ -1028,6 +1129,11 @@ def format_for_msms_refs(input_df, msms_refs):
     output_df = enrich_metadata(output_df)
     output_df['spectrum'] = output_df['spectrum'].apply(make_text_spectrum)
     output_df = output_df[msms_refs.columns.intersection(output_df.columns)]
+    output_df = output_df.reset_index(drop=True)
+    output_df.index = range(
+        msms_refs.index.max() + 1, 
+        msms_refs.index.max() + 1 + len(output_df)
+    )
 
     return output_df
 
@@ -1037,9 +1143,10 @@ def format_for_atlas_store(input_compounds):
     any_diff_inchikeys = input_compounds[input_compounds['inchi_key'] != input_compounds['neutralized_inchi_key']]
     if not any_diff_inchikeys.empty:
         print("Warning! The InChIKey and neutralized InChIKey do not match for the following compounds:")
-        print(any_diff_inchikeys[['compound_name', 'inchi_key', 'neutralized_inchi_key']])
+        print(any_diff_inchikeys[['label', 'inchi_key', 'neutralized_inchi_key']])
 
     input_compounds.reset_index(drop=True, inplace=True)
+    input_compounds.rename(columns={'label': 'compound_name'}, inplace=True)
 
     metatlas_compounds = []
     for idx, row in input_compounds.iterrows():
@@ -1121,19 +1228,78 @@ def select_compounds_from_gui(full_dataset, selected_compounds_table):
     return select_dataset
 
 
-# def select_compounds_from_gui(full_table, select_table):
-#     subset_table = full_table[
-#         full_table.apply(
-#             lambda row: any(
-#                 (row['standard_lcmsrun'] == compound_row['standard_lcmsrun']) and
-#                 (row['compound_name'] == compound_row['compound_name']) and
-#                 (row['adduct'] in compound_row['selected_adducts'])
-#                 for _, compound_row in select_table.iterrows()
-#             ),
-#             axis=1
-#         )
-#     ]
-#     return subset_table
+
+def atlas_id_to_df(atlas_unique_id: str) -> pd.DataFrame:
+    """Retrieve atlas from database using unique id and create DataFrame from compound identification data."""
+    
+    atlas = get_atlas(atlas_unique_id)
+    
+    atlas_df = []
+    for cid in atlas.compound_identifications:
+        row = {}
+        
+        row['label'] = cid.name
+        row['adduct'] = cid.mz_references[0].adduct
+        row['mz'] = cid.mz_references[0].mz
+        row['rt_peak'] = cid.rt_references[0].rt_peak
+        row['rt_min'] = cid.rt_references[0].rt_min
+        row['rt_max'] = cid.rt_references[0].rt_max
+        row['inchi'] = cid.compound[0].inchi
+        row['inchi_key'] = cid.compound[0].inchi_key
+        row['mz_tolerance'] = cid.mz_references[0].mz_tolerance
+        row['polarity'] = cid.mz_references[0].detected_polarity
+        
+        atlas_df.append(row)
+        
+    atlas_df = pd.DataFrame(atlas_df)
+    
+    return atlas_df
+
+
+def get_qc_files(files_path: str, chromatography: str) -> list[str, ...]:
+    """Get all qc files from raw data path."""
+    
+    all_files = glob.glob(os.path.join(files_path, f"*.h5"))
+
+    polarity = "fps"
+    if chromatography == 'C18':
+        chromatography = 'C18'
+    if chromatography == 'HILIC':
+        chromatography = 'HILICZ'
+
+    qc_files = [file for file in all_files if os.path.basename(file).split('_')[9].lower() == polarity and 
+                                              os.path.basename(file).split('_')[7].lower() == chromatography.lower() and
+                                              'QC_' in file or 'ISTD_']
+
+    return qc_files
+
+
+def collect_qc_ms1_data(qc_atlas: pd.DataFrame, qc_files: list[str, ...], polarity: str) -> pd.DataFrame:
+    experiment_input = ft.setup_file_slicing_parameters(qc_atlas, qc_files, base_dir=os.getcwd(), ppm_tolerance=10, polarity=polarity)
+
+    ms1_data = []
+    for file_input in tqdm(experiment_input, unit='file'):
+        data = ft.get_data(file_input, save_file=False, return_data=True)
+        data['ms1_summary']['lcmsrun_observed'] = file_input['lcmsrun']
+
+        ms1_data.append(data['ms1_summary'])
+
+    ms1_data = pd.concat(ms1_data)
+    return ms1_data
+
+
+def merge_selected_peaks_with_top_spectra(selected_peaks, selected_spectra):
+    selected_peaks_compounded = selected_peaks.copy()
+    selected_peaks_compounded['compound_name'] = selected_peaks_compounded['label'].str.replace(r" \(peak\d+\)", "", regex=True)
+    merge_on = ['compound_name', 'adduct', 'standard_lcmsrun', 'peak_index']
+    merge_on_with_spectrum = merge_on + ['spectrum']  # Create a new list with 'spectrum' added
+    merged_peaks_spectra = pd.merge(
+        selected_peaks_compounded,
+        selected_spectra[merge_on_with_spectrum],  # Subset columns correctly
+        on=merge_on,
+        how='left'
+    )
+    return merged_peaks_spectra
 
 def generate_molecular_images(lcmsruns_table):
     """
@@ -1305,7 +1471,6 @@ def process_data_for_plotting(eics_list, top_spectra_list, group_name_list, rt_p
 
 def extract_selected_compounds(selected_dict):
     if len(selected_dict) == 0:
-        print("No good adducts selected.")
         selected_compounds_table = pd.DataFrame()
     else:
         selected_compounds_table = pd.DataFrame({
@@ -1329,7 +1494,6 @@ def extract_selected_compounds(selected_dict):
 
 def extract_ambiguous_compounds(ambiguous_dict):
     if len(ambiguous_dict) == 0:
-        print("No ambiguous adducts selected.")
         ambiguous_adducts_table = pd.DataFrame()
     else:
         ambiguous_adducts_table = pd.DataFrame({
@@ -1343,21 +1507,8 @@ def extract_ambiguous_compounds(ambiguous_dict):
 
     return ambiguous_adducts_table
 
-def create_interactive_plots(processed_data, runnum_to_structure_image_grid, save_location=None, \
-                             selected_good_adducts=None, ambiguous_adducts=None,
-                             selected_good_adducts_progress=None, ambiguous_adducts_progress=None):
-    if selected_good_adducts_progress != None:
-        try:
-            with open(f"{save_location}/{selected_good_adducts_progress}", 'rb') as f:
-                selected_good_adducts = pickle.load(f)
-        except Exception as e:
-            print(f"Error loading selected good adducts dictionary: {e}")
-    if ambiguous_adducts_progress != None:
-        try:
-            with open(f"{save_location}/{ambiguous_adducts_progress}", 'rb') as f:
-                ambiguous_adducts = pickle.load(f)
-        except Exception as e:
-            print(f"Error loading ambiguous adducts dictionary: {e}")
+def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
+                             selected_good_adducts, ambiguous_adducts):
 
     # Widget Creation
     image_toggle = widgets.ToggleButton(
@@ -1432,21 +1583,11 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, sav
             with output_container:
                 print("Invalid input. Please enter a valid integer.")
 
-    def previous_group(b):
-        nonlocal current_index
-        if current_index > 0:
-            current_index -= 1
-            update_plot(current_index)
-            # Reset the image toggle state
-            image_toggle.value = False
-            image_toggle.description = 'Show Structures'
-        else:
-            output_container.clear_output(wait=True)
-
     def next_group(b):
         nonlocal current_index
         if current_index < len(processed_data) - 1:
             current_index += 1
+            print(f"Navigating to index {current_index}")  # Debug statement
             update_plot(current_index)
             # Reset the image toggle state
             image_toggle.value = False
@@ -1455,6 +1596,20 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, sav
             output_container.clear_output(wait=True)
             with output_container:
                 print("Analysis completed!")
+
+    def previous_group(b):
+        nonlocal current_index
+        if current_index > 0:
+            current_index -= 1
+            print(f"Navigating to index {current_index}")  # Debug statement
+            update_plot(current_index)
+            # Reset the image toggle state
+            image_toggle.value = False
+            image_toggle.description = 'Show Structures'
+        else:
+            output_container.clear_output(wait=True)
+            with output_container:
+                print("Already at the first group.")
 
     # Attach Event Handlers
     image_toggle.observe(on_image_toggle_change, names='value')
@@ -1524,7 +1679,7 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, sav
     def update_plot(index):
         nonlocal current_index
         data = processed_data[index]
-    
+
         eics = data['eics']
         top_spectra = data['top_spectra']
         rt_peaks = data['rt_peaks']
@@ -1553,10 +1708,13 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, sav
             max_intensity = max(peak['intensity'] for peak in peaks)
             for peak in peaks:
                 # Check if there is an MS2 spectrum for this adduct+peak_index
-                has_ms2 = not top_spectra[
-                    (top_spectra['adduct'] == adduct) & 
-                    (top_spectra['peak_index'] == peak['peak_index'])
-                ].empty
+                if top_spectra.empty:
+                    has_ms2 = False
+                else:
+                    has_ms2 = not top_spectra[
+                        (top_spectra['adduct'] == adduct) & 
+                        (top_spectra['peak_index'] == peak['peak_index'])
+                    ].empty
 
                 # Add a star to the description if MS2 spectrum exists
                 description = f"{adduct} ({peak['peak_index']}){' *' if has_ms2 else ''}"
@@ -1611,40 +1769,62 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, sav
         x_min = min(summary_xmin_list) if summary_xmin_list else None
         x_max = max(summary_xmax_list) if summary_xmax_list else None
 
-        eic_adducts = set()
-        for eic in eics.values():
-            eic['adduct'] = eic.label.apply(lambda x: x.split('_')[-1])
-            eic_adducts.update(eic.adduct.tolist())
-
+        # Create the figure with subplots
         num_spectra = len(top_spectra)
-        num_columns = 4  # Increase columns to 3 to accommodate the summary plot
+        if num_spectra == 0:
+            num_spectra = 1  # Ensure at least one row for empty top_spectra
+        num_columns = 4
         num_spectra_rows = math.ceil(num_spectra / num_columns)
 
-        # Create the figure with subplots
+        # Adjust subplot titles and specifications
+        subplot_titles = [
+            "Sample",
+            "Blank",
+            "EIC Summary",
+            "Sample (Log)",
+            "Blank (Log)",
+            *(f"" if top_spectra.empty else f"{row['adduct']} @ {round(row['rt'], 2)} mins" for _, row in top_spectra.iterrows())
+        ]
+
+        specs = [
+            [{"type": "scatter"}, {"type": "scatter"}, {"type": "scatter", "rowspan": 2, "colspan": 2}, None],
+            [{"type": "scatter"}, {"type": "scatter"}, None, None],
+            *[[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows)]
+        ]
+
+        # Ensure there is at least one row for empty top_spectra
+        if top_spectra.empty:
+            subplot_titles.extend([""] * (num_spectra_rows * num_columns - len(subplot_titles) + 5))
+            specs.extend([[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows - 1)])
+
         fig = make_subplots(
-            rows=2 + num_spectra_rows,  # Adjust rows dynamically
-            cols=4,  # Number of columns
+            rows=2 + num_spectra_rows,
+            cols=4,
             shared_xaxes=False,
             shared_yaxes=yaxis_toggle.value,
             vertical_spacing=0.3 / (2 + num_spectra_rows),
             horizontal_spacing=0.1,
-            subplot_titles=[
-                "Sample",  # Row 1, Col 1
-                "Blank",  # Row 1, Col 2
-                "EIC Summary",  # Row 1-2, Col 3-4
-                "Sample (Log)",  # Row 2, Col 1
-                "Blank (Log)",  # Row 2, Col 2
-                *(f"{row['adduct']} @ {round(row['rt'], 2)} mins" for _, row in top_spectra.iterrows())  # Spectra titles
-            ],
-            specs=[
-                [{"type": "scatter"}, {"type": "scatter"}, {"type": "scatter", "rowspan": 2, "colspan": 2}, None],  # Row 1
-                [{"type": "scatter"}, {"type": "scatter"}, None, None],  # Row 2
-                *[[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows)]  # Spectra rows
-            ]
+            subplot_titles=subplot_titles,
+            specs=specs
         )
-        fig.update_xaxes(range=[x_min, x_max], row=1, col=3)  # Set x-axis bounds for the summary graph
+
+        # Add fallback traces if top_spectra is empty
+        if top_spectra.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=[],
+                    y=[],
+                    mode='lines',
+                    name="No Spectra Available",
+                    line=dict(color='gray'),
+                    showlegend=False
+                ),
+                row=3,
+                col=1
+            )
 
         # Add the summary traces to the spanning subplot
+        fig.update_xaxes(range=[x_min, x_max], row=1, col=3)  # Set x-axis bounds for the summary graph
         for trace in summary_traces:
             fig.add_trace(trace, row=1, col=3)  # Add to row 1, col 3
 
@@ -1768,7 +1948,7 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, sav
                                 # If the index is out of bounds, skip this spectrum
                                 print(f"Warning: RT {spectrum_row['rt']} is out of bounds for EIC RT range.")
                                 continue
-                            
+                                
                             raw_intensity = sorted_intensity[closest_idx]
                             log_intensity = np.log10(raw_intensity)
                             
@@ -1801,76 +1981,77 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, sav
                             )
 
         # Add traces for Spectra plots
-        top_spectra_sorted = top_spectra.sort_values(['adduct', 'peak_index'])
+        if not top_spectra.empty:
+            top_spectra_sorted = top_spectra.sort_values(['adduct', 'peak_index'])
 
-        mz_list = [lst[0] for lst in top_spectra_sorted['spectrum'] if isinstance(lst, (list, np.ndarray)) and len(lst) > 0]
-        mz_list_flattened = np.concatenate([np.ravel(arr) if isinstance(arr, np.ndarray) else np.array([arr]) for arr in mz_list])
-        lowest_mz = np.min(mz_list_flattened)*0.9
-        highest_mz = np.max(mz_list_flattened)*1.1
+            mz_list = [lst[0] for lst in top_spectra_sorted['spectrum'] if isinstance(lst, (list, np.ndarray)) and len(lst) > 0]
+            mz_list_flattened = np.concatenate([np.ravel(arr) if isinstance(arr, np.ndarray) else np.array([arr]) for arr in mz_list])
+            lowest_mz = np.min(mz_list_flattened)*0.9
+            highest_mz = np.max(mz_list_flattened)*1.1
 
-        for i, spectrum_row in enumerate(top_spectra_sorted.iterrows()):
-            mz_values = spectrum_row[1]['spectrum'][0]
-            i_values = spectrum_row[1]['spectrum'][1]
-            adduct = spectrum_row[1]['adduct']
-            color = adduct_color[adduct]
-            precursor_mz = spectrum_row[1]['precursor_mz']
-            peak_index = spectrum_row[1]['peak_index']
-            spectrum_title = f"{adduct} ({peak_index}) @ {round(spectrum_row[1]['rt'], 2)} mins"
+            for i, spectrum_row in enumerate(top_spectra_sorted.iterrows()):
+                mz_values = spectrum_row[1]['spectrum'][0]
+                i_values = spectrum_row[1]['spectrum'][1]
+                adduct = spectrum_row[1]['adduct']
+                color = adduct_color[adduct]
+                precursor_mz = spectrum_row[1]['precursor_mz']
+                peak_index = spectrum_row[1]['peak_index']
+                spectrum_title = f"{adduct} ({peak_index}) @ {round(spectrum_row[1]['rt'], 2)} mins"
 
-            # Determine the row and column for this spectrum
-            spectrum_row_idx = 3 + (i // num_columns)  # Start after EIC rows
-            spectrum_col = (i % num_columns) + 1
+                # Determine the row and column for this spectrum
+                spectrum_row_idx = 3 + (i // num_columns)  # Start after EIC rows
+                spectrum_col = (i % num_columns) + 1
 
-            # Update the x-axis range for the current subplot
-            fig.update_xaxes(
-                range=[lowest_mz, highest_mz],  # Set x-axis limits
-                row=spectrum_row_idx,
-                col=spectrum_col
-            )
+                # Update the x-axis range for the current subplot
+                fig.update_xaxes(
+                    range=[lowest_mz, highest_mz],  # Set x-axis limits
+                    row=spectrum_row_idx,
+                    col=spectrum_col
+                )
 
-            # Add vertical lines for each point
-            for mz, intensity in zip(mz_values, i_values):
+                # Add vertical lines for each point
+                for mz, intensity in zip(mz_values, i_values):
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[mz, mz],
+                            y=[0, intensity],
+                            mode='lines',
+                            line=dict(color=color),
+                            showlegend=False
+                        ),
+                        row=spectrum_row_idx,
+                        col=spectrum_col
+                    )
+
+                # Add markers for each point
                 fig.add_trace(
                     go.Scatter(
-                        x=[mz, mz],
-                        y=[0, intensity],
-                        mode='lines',
-                        line=dict(color=color),
+                        x=mz_values,
+                        y=i_values,
+                        mode='markers',
+                        marker=dict(color=color, size=6),
+                        name=f"Spectrum {i+1}: {adduct}",
                         showlegend=False
                     ),
                     row=spectrum_row_idx,
                     col=spectrum_col
                 )
 
-            # Add markers for each point
-            fig.add_trace(
-                go.Scatter(
-                    x=mz_values,
-                    y=i_values,
-                    mode='markers',
-                    marker=dict(color=color, size=6),
-                    name=f"Spectrum {i+1}: {adduct}",
-                    showlegend=False
-                ),
-                row=spectrum_row_idx,
-                col=spectrum_col
-            )
-
-            # Add a black circle at precursor_mz (y=0)
-            fig.add_trace(
-                go.Scatter(
-                    x=[precursor_mz],
-                    y=[0],
-                    mode='markers',
-                    marker=dict(color='black', symbol='circle', size=20),
-                    name=f"Precursor MZ: {precursor_mz}",
-                    showlegend=False
-                ),
-                row=spectrum_row_idx,
-                col=spectrum_col
-            )
-            
-            fig.layout.annotations[5 + i].text = spectrum_title
+                # Add a black circle at precursor_mz (y=0)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[precursor_mz],
+                        y=[0],
+                        mode='markers',
+                        marker=dict(color='black', symbol='circle', size=20),
+                        name=f"Precursor MZ: {precursor_mz}",
+                        showlegend=False
+                    ),
+                    row=spectrum_row_idx,
+                    col=spectrum_col
+                )
+                
+                fig.layout.annotations[5 + i].text = spectrum_title
 
         # Update layout
         fig_title = (group_id.replace('_', '  |  '))
@@ -1880,16 +2061,16 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, sav
                 namelength=-1  # Show the full name without truncation
             ),
             title=dict(text=fig_title, font=dict(size=14), x=0.5, xanchor="center"),
-            height=700 + 300 * num_spectra_rows,  # Adjust height to fit all plots
-            width=1500,  # Increase width to fit the new column
-            plot_bgcolor="white",  # Set the plotting area background to white
-            paper_bgcolor="white",  # Set the figure background to white
+            height=700 + 300 * num_spectra_rows,
+            width=1500,
+            plot_bgcolor="white",
+            paper_bgcolor="white",
             legend=dict(
-                    orientation="h",  # Horizontal legend
-                    xanchor="center",
-                    yanchor="top",
-                    x=0.5,  # Center the legend horizontally
-                    y=-0.2,  # Position the legend below the EIC Summary
+                orientation="h",
+                xanchor="center",
+                yanchor="top",
+                x=0.5,
+                y=-0.2
             )
         )
 
@@ -1968,9 +2149,9 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, sav
 
         clear_output(wait=True)
         update_progress_text()
-        display(plot_and_checkboxes)
         with plot_and_checkboxes.children[1]:
             display(fig)
+        display(plot_and_checkboxes)
         display(output_container)
 
     # Initialize
