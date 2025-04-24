@@ -201,7 +201,7 @@ def load_full_data(standards_info_path):
     try:
         most_recent_pkl = max(pkl_files, key=os.path.getmtime)
     except:
-        print(f"No pkl files found in {pkl_files}.")
+        print(f"No pkl files found in {standards_info_path}.")
         return
     print(f"Loading most recent pkl file: {most_recent_pkl}")
     with open(most_recent_pkl, 'rb') as f:
@@ -223,7 +223,27 @@ def load_filtered_data(standards_info_path):
     try:
         most_recent_pkl = max(pkl_files, key=os.path.getmtime)
     except:
-        print(f"No pkl files found in {pkl_files}.")
+        print(f"No pkl files found in {standards_info_path}.")
+        return
+    print(f"Loading most recent pkl file: {most_recent_pkl}")
+    with open(most_recent_pkl, 'rb') as f:
+        return pickle.load(f)
+
+def save_rt_correction_data(combined_qc, standards_info_path, timestamp):
+
+    standards_data_filename = standards_info_path.replace(".csv", f"_{timestamp}_rt_correction_data.pkl")
+    print(f"Saving data to: {standards_data_filename}")
+    with open(standards_data_filename, 'wb') as f:
+        pickle.dump((combined_qc), f)
+        return
+    
+def load_rt_correction_data(standards_info_path):
+    
+    pkl_files = glob.glob(standards_info_path.replace(".csv", f"*_rt_correction_data.pkl"))
+    try:
+        most_recent_pkl = max(pkl_files, key=os.path.getmtime)
+    except:
+        print(f"No pkl files found in {standards_info_path}.")
         return
     print(f"Loading most recent pkl file: {most_recent_pkl}")
     with open(most_recent_pkl, 'rb') as f:
@@ -314,22 +334,7 @@ def get_closest_injbl(lcmsrun_path, injbl_pattern='-InjBL-'):
     closest_run_num = max((run_num for run_num in injbl_run_nums if run_num <= lcmsrun_num), default=None)
         
     return injbl_run_nums[closest_run_num]
-    
-def get_all_qc_files(standard_lcmsruns_table, raw_data_dir='/global/cfs/cdirs/metatlas/raw_data/*/', \
-                     include_chromatographies=['C18', 'HILIC']):
-    
-    qc_files = {}
-    for chrom in include_chromatographies:
-        projects = standard_lcmsruns_table[f'{chrom.lower()}_experiment'].unique().tolist()
-        for project in projects:
-            all_qc_files = glob.glob(os.path.join(raw_data_dir, project, f'*{chrom}*QC*.h5'))
-            matching_qc_files = [path for path in all_qc_files if is_matching_polarity(path, ['FPS'])]
-            project_files[project] = matching_qc_files
-            print(f"Found {len(matching_qc_files)} QC files in {project} for {chrom} chromatography.")
 
-        qc_files[chrom] = project_files
-
-    return qc_files
 
 def get_rt_range(lcmsrun_path, polarity):
     lcmsrun_data = ft.df_container_from_metatlas_file(lcmsrun_path, desired_key='ms1_{}'.format(polarity.lower()))
@@ -353,45 +358,7 @@ def create_compound_atlas(group, ppm_tolerance, rt_min, rt_max, polarity, extra_
     atlas['rt_peak'] = rt_max / 2 # dummy value
     
     return atlas[atlas_cols]
-    
-def collect_qc_eics(qc_atlases, project_qc_files):
-    
-    # Get experimental input for QC mols
-    qc_rts = {}
-    qc_atlases_data = get_qc_atlas_data(qc_atlases)
-    print(qc_atlases_data.keys())
-    current_qc_atlas = [key for key in qc_atlases_data if lcmsrun_chrom.lower() in key.lower()]
-    print(current_qc_atlas)
-    if current_qc_atlas != []:
-        current_qc_atlas = [key for key in current_qc_atlas if lcmsrun_polarity.lower() in key.lower()]
-        print(current_qc_atlas)
-        if len(current_qc_atlas) > 1:
-            print(f"Warning! More than one QC atlas found for the chromatography: {current_qc_atlas}")
-        baseline_atlas = qc_atlases_data[current_qc_atlas[0]]
-        print(baseline_atlas)
-        baseline_atlas_df = baseline_atlas.rename(columns={'label': 'compound_name'})
-        baseline_atlas_df['smiles'] = baseline_atlas_df.apply(lambda row: smiles_from_inchi_key(row['inchi_key']), axis=1)
-        baseline_atlas_compounds = create_compound_atlas(baseline_atlas_df, ppm_tolerance, rt_min, rt_max, lcmsrun_polarity, extra_time=0.0)
-        baseline_atlas_correction = ft.setup_file_slicing_parameters(baseline_atlas_compounds, [qc_file], base_dir=os.getcwd(), ppm_tolerance=ppm_tolerance, extra_time=0.0, polarity=lcmsrun_polarity.lower())
 
-        for file_input in baseline_atlas_correction:
-            measured_qc_atlas = ft.get_data(file_input, save_file=False, return_data=True, ms1_feature_filter=False)
-            measured_qc_eics = ft.group_duplicates(measured_qc_atlas['ms1_data'],'label', make_string=False)
-
-            measured_qc_rts = []
-            for _, qc_compound in measured_qc_eics.iterrows():
-                rt_sort = np.argsort(qc_compound['rt'])
-                peak = np.argmax(qc_compound['i'][rt_sort])
-                rt_peak = round(qc_compound['rt'][rt_sort][peak], 4)
-                measured_qc_rts.append({'label': qc_compound['label'],
-                                        'rt_peak': rt_peak,
-                                        'rt_min': rt_peak - 0.5,
-                                        'rt_max': rt_peak + 0.5})
-
-
-            qc_rts[qc_file] = pd.DataFrame(measured_qc_rts)
-    else:
-        qc_rts[qc_file] = pd.DataFrame()
 
 def collect_eics_and_ms2(group, ppm_tolerance):
     first_row = group.iloc[0]
@@ -884,11 +851,13 @@ def convert_rt_peaks_to_atlas_format(rt_peaks):
     rt_peaks_unformatted['rt_min'] = rt_peaks_unformatted['rt_peak'] - 0.5
     rt_peaks_unformatted['rt_max'] = rt_peaks_unformatted['rt_peak'] + 0.5
     rt_peaks_unformatted['mz_tolerance'] = 5
+    rt_peaks_unformatted['mz_tolerance_units'] = "ppm"
     rt_peaks_unformatted['inchi'] = rt_peaks_unformatted['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
     rt_peaks_unformatted['inchi_key'] = rt_peaks_unformatted['inchi'].apply(inchi_to_inchikey)
+    rt_peaks_unformatted['in_metatlas'] = "True"
 
     # rename and drop columns to match metatlas atlas convention
-    rt_peaks_unformatted.rename({'mz_theoretical': 'mz'})
+    rt_peaks_unformatted.rename(columns={'mz_theoretical': 'mz', 'monoisotopic_mass': 'mono_isotopic_molecular_weight'}, inplace=True)
     rt_peaks_unformatted['polarity'] = rt_peaks_unformatted['polarity'].apply(lambda pol: 'positive' if pol == 'POS' else 'negative')
     rt_peaks_unformatted.drop(columns=['intensity', 'mz_observed', 'ppm_error'], inplace=True)
 
@@ -1002,6 +971,19 @@ def search_for_matches_in_msms_refs(all_molecules, msms_refs, check_by_flat=True
 
     return matches_df, nonmatches_df
 
+
+def get_ema_atlas_data(existing_atlases_path):
+    atlas_dfs = []
+    for chrom_type, polarities in existing_atlases_path.items():
+        for polarity, file_path in polarities.items():
+            if os.path.exists(file_path):  # Ensure the file exists
+                df = pd.read_csv(file_path, sep='\t')
+                df['source_file'] = os.path.basename(file_path)  # Add the file name as a new column
+                atlas_dfs.append(df)
+
+    atlases = pd.concat(atlas_dfs, ignore_index=True)
+
+    return atlases
 
 def search_for_matches_in_atlases(query_entries, atlases, cutoff=0.8):
     """
@@ -1256,7 +1238,7 @@ def atlas_id_to_df(atlas_unique_id: str) -> pd.DataFrame:
     return atlas_df
 
 
-def get_qc_files(files_path: str, chromatography: str) -> list[str, ...]:
+def get_qc_files(files_path: str, chromatography: str, include_istds=False) -> list[str, ...]:
     """Get all qc files from raw data path."""
     
     all_files = glob.glob(os.path.join(files_path, f"*.h5"))
@@ -1267,9 +1249,14 @@ def get_qc_files(files_path: str, chromatography: str) -> list[str, ...]:
     if chromatography == 'HILIC':
         chromatography = 'HILICZ'
 
-    qc_files = [file for file in all_files if os.path.basename(file).split('_')[9].lower() == polarity and 
-                                              os.path.basename(file).split('_')[7].lower() == chromatography.lower() and
-                                              'QC_' in file or 'ISTD_']
+    if include_istds is True:
+        qc_files = [file for file in all_files if os.path.basename(file).split('_')[9].lower() == polarity and 
+                                                os.path.basename(file).split('_')[7].lower() == chromatography.lower() and
+                                                'QC_' in file or 'ISTD_' in file]
+    else:
+        qc_files = [file for file in all_files if os.path.basename(file).split('_')[9].lower() == polarity and 
+                                                os.path.basename(file).split('_')[7].lower() == chromatography.lower() and
+                                                'QC_' in file]
 
     return qc_files
 
@@ -1287,6 +1274,251 @@ def collect_qc_ms1_data(qc_atlas: pd.DataFrame, qc_files: list[str, ...], polari
     ms1_data = pd.concat(ms1_data)
     return ms1_data
 
+def get_atlas_dataframe(atlas_identifier):
+    """
+    Retrieve the atlas as a DataFrame. If the identifier ends with '.tsv', read it as a file.
+    Otherwise, use the atlas_id_to_df function to retrieve it from the database.
+
+    Args:
+        atlas_identifier (str): The atlas identifier, either a file path or an atlas ID.
+
+    Returns:
+        pd.DataFrame: The atlas as a DataFrame.
+    """
+    if atlas_identifier.endswith('.tsv'):
+        # Read the file as a DataFrame
+        return pd.read_csv(atlas_identifier, sep='\t')
+    else:
+        # Use the atlas_id_to_df function to retrieve the atlas
+        return atlas_id_to_df(atlas_identifier)
+    
+def get_qc_experimental_atlas(nonmatches_to_atlases, current_atlases, include_istds=False):
+    chromatographies = nonmatches_to_atlases['chromatography'].unique()
+
+    experimental_qc = {}
+    baseline_qc = {}
+    combined_qc = {}
+
+    for chrom in chromatographies:
+        projects = nonmatches_to_atlases['standard_lcmsrun'].apply(os.path.dirname).unique()
+        project = [p for p in projects if chrom.lower() in os.path.basename(p).split('_')[7].lower()]
+        if len(project) == 1:
+            project = project[0]
+        elif len(project) == 0:
+            print(f"Warning: no project found for {chrom}")
+            continue
+        elif len(project) > 1:
+            print(f"Warning: more than one project found for {chrom}: {project}")
+            continue
+        print(f"Getting raw QC files for {project}...\n")
+        qc_files = get_qc_files(project, chrom, include_istds)
+        
+        print(f"Retrieving baseline {chrom} QC atlas...\n")
+        baseline_atlas_df = get_atlas_dataframe(current_atlases[chrom.lower()])
+        baseline_qc[chrom] = baseline_atlas_df
+
+        print(f"Collecting QC MS1 data for {chrom}...\n")
+        ms1_summary = collect_qc_ms1_data(baseline_atlas_df, qc_files=qc_files, polarity="pos")
+        ms1_summary_median = ms1_summary.groupby('label', as_index=False).agg({'rt_peak': 'median'})
+        ms1_summary_median['rt_min'] = ms1_summary_median['rt_peak'] - 0.5
+        ms1_summary_median['rt_max'] = ms1_summary_median['rt_peak'] + 0.5
+        experimental_qc[chrom] = ms1_summary_median
+
+        formatted = ms1_summary_median.copy()
+        formatted.rename(columns={'rt_peak': 'rt_peak_experimental', 'rt_min': 'rt_min_experimental', 'rt_max': 'rt_max_experimental'}, inplace=True)
+        formatted = pd.merge(formatted, baseline_atlas_df[['label', 'rt_peak', 'rt_min', 'rt_max']], on='label', how='left')
+        formatted.rename(columns={'rt_peak': 'rt_peak_baseline', 'rt_min': 'rt_min_baseline', 'rt_max': 'rt_max_baseline'}, inplace=True)
+        formatted['polarity'] = 'QC'
+        combined_qc[chrom] = formatted
+
+    return combined_qc
+
+def create_baseline_correction_input(compounds_to_correct, baseline_to_experimental_qc):
+    uncorrected_atlas = compounds_to_correct[['label', 'polarity', 'chromatography', 'rt_peak', 'rt_min', 'rt_max']]
+
+    baseline_correction_inputs = {}
+    for chrom in baseline_to_experimental_qc.keys():
+        uncorrected_atlas_chrom = uncorrected_atlas[uncorrected_atlas['chromatography'] == chrom]
+        uncorrected_atlas_chrom = uncorrected_atlas_chrom.drop(columns=['chromatography'])
+        uncorrected_atlas_chrom = uncorrected_atlas_chrom.rename(columns={'rt_peak': 'rt_peak_experimental', 'rt_min': 'rt_min_experimental', 'rt_max': 'rt_max_experimental'})
+        uncorrected_atlas_chrom.loc[:,'rt_peak_baseline'] = np.nan
+        uncorrected_atlas_chrom.loc[:,'rt_min_baseline'] = np.nan
+        uncorrected_atlas_chrom.loc[:,'rt_max_baseline'] = np.nan
+
+        qc_atlas_chrom = baseline_to_experimental_qc[chrom]
+
+        baseline_correction_input = pd.concat([uncorrected_atlas_chrom, qc_atlas_chrom], axis=0, ignore_index=True)
+        baseline_correction_inputs[chrom] = baseline_correction_input
+
+    return baseline_correction_inputs
+
+
+def rt_correction_from_baseline(baseline_correction_dfs):
+    """
+    Perform RT correction for each chromatography in the given dictionary of DataFrames.
+
+    Args:
+        baseline_correction_dfs (dict): A dictionary where keys are chromatography types (e.g., 'C18', 'HILIC')
+                                        and values are DataFrames containing RT experimental and baseline data.
+
+    Returns:
+        dict: A dictionary where keys are chromatography types and values are corrected DataFrames.
+    """
+    corrected_dfs = {}
+
+    for chromatography, df in baseline_correction_dfs.items():
+        # Step 1: Filter rows with both rt_peak_baseline and rt_peak_experimental
+        fit_data = df.dropna(subset=["rt_peak_baseline", "rt_peak_experimental"])
+        fit_data = fit_data[fit_data["polarity"] == "QC"]
+        
+        # Ensure numeric data types
+        fit_data["rt_peak_experimental"] = pd.to_numeric(fit_data["rt_peak_experimental"], errors="coerce")
+        fit_data["rt_peak_baseline"] = pd.to_numeric(fit_data["rt_peak_baseline"], errors="coerce")
+        
+        # Step 2: Generate 2nd order polynomial from valid rows
+        coefficients = np.polyfit(fit_data["rt_peak_experimental"], fit_data["rt_peak_baseline"], 2)
+        polynomial = np.poly1d(coefficients)
+
+        # Step 3: Apply the polynomial to all rows where rt_experimental is available
+        df["rt_peak_baseline_corrected"] = df["rt_peak_experimental"].apply(
+            lambda x: polynomial(x) if not np.isnan(x) else np.nan
+        )
+
+        # Step 4: Compute rt_min_baseline_corrected
+        df["rt_min_baseline_corrected"] = df.apply(
+            lambda row: row["rt_peak_baseline_corrected"] - row["rt_peak_experimental"] + row["rt_min_experimental"]
+            if not np.isnan(row["rt_peak_baseline_corrected"])
+            else np.nan,
+            axis=1
+        )
+
+        # Step 5: Compute rt_max_baseline_corrected
+        df["rt_max_baseline_corrected"] = df.apply(
+            lambda row: row["rt_peak_baseline_corrected"] + row["rt_max_experimental"] - row["rt_peak_experimental"]
+            if not np.isnan(row["rt_peak_baseline_corrected"])
+            else np.nan,
+            axis=1
+        )
+
+        # Step 6: Check difference between rt_peak_experimental and rt_peak_baseline_corrected
+        df['rt_diff'] = df["rt_peak_experimental"] - df["rt_peak_baseline_corrected"]
+        large_diff_rows = df[df['rt_diff'].abs() > 0.5]
+        if not large_diff_rows.empty:
+            print(f"Warning: Large differences in some experimental vs predicted RTs for {chromatography} chromatography:\n")
+            print(large_diff_rows[['label', 'polarity', 'rt_peak_experimental', 'rt_peak_baseline_corrected', 'rt_diff']])
+
+        # Store the corrected DataFrame in the result dictionary
+        corrected_dfs[chromatography] = df[
+            ['label', 'polarity', 'rt_peak_baseline', 'rt_peak_experimental', 
+             'rt_peak_baseline_corrected', 'rt_min_baseline_corrected', 'rt_max_baseline_corrected', 'rt_diff']
+        ]
+
+    return corrected_dfs
+
+
+def substitute_corrected_rt_values(nonmatches_to_atlases, baseline_correction_outputs):
+    """
+    Substitutes rt_peak, rt_min, and rt_max values in nonmatches_to_atlases
+    with corrected values from baseline_correction_outputs for all chromatography keys.
+
+    Parameters:
+        nonmatches_to_atlases (pd.DataFrame): DataFrame containing the original RT values.
+        baseline_correction_outputs (dict): Dictionary containing corrected RT values for each chromatography.
+
+    Returns:
+        pd.DataFrame: Updated nonmatches_to_atlases DataFrame with substituted RT values.
+    """
+    updated_atlas = nonmatches_to_atlases.copy()
+
+    for chromatography, df in baseline_correction_outputs.items():
+
+        # Merge the two DataFrames on 'label' and 'polarity' to align rows
+        df = df.copy()
+        df.loc[:,'chromatography'] = str(chromatography)
+        merged_df = updated_atlas.merge(
+            df[['label', 'polarity', 'chromatography', 'rt_peak_baseline_corrected', 'rt_min_baseline_corrected', 'rt_max_baseline_corrected']],
+            on=['label', 'chromatography', 'polarity'],
+            how='left'
+        )
+
+        # Substitute the RT values with the corrected ones
+        merged_df.loc[:,'rt_peak'] = merged_df.loc[:,'rt_peak_baseline_corrected'].combine_first(merged_df.loc[:,'rt_peak'])
+        merged_df.loc[:,'rt_min'] = merged_df.loc[:,'rt_min_baseline_corrected'].combine_first(merged_df.loc[:,'rt_min'])
+        merged_df.loc[:,'rt_max'] = merged_df.loc[:,'rt_max_baseline_corrected'].combine_first(merged_df.loc[:,'rt_max'])
+
+        # Drop the corrected columns to clean up
+        merged_df.drop(columns=['rt_peak_baseline_corrected', 'rt_min_baseline_corrected', 'rt_max_baseline_corrected'], inplace=True)
+
+        updated_atlas = merged_df
+    
+    return updated_atlas
+
+def update_and_save_atlases(ema_atlases, nonmatches_to_atlases_rt_corrected, current_time, atlas_save_path, save_atlas = False):
+    
+    # Add source file information to nonmatches_to_atlases_rt_corrected
+    atlas_names = ema_atlases['source_file'].unique()
+    nonmatches_to_atlases_rt_corrected_sourced = nonmatches_to_atlases_rt_corrected.copy()
+    for atlas_name in atlas_names:
+        for index, row in nonmatches_to_atlases_rt_corrected_sourced.iterrows():
+            pol = row['polarity'].lower()
+            chrom = row['chromatography'].lower().replace('hilicz', 'hilic')
+            if pol in atlas_name.lower() and chrom in atlas_name.lower():
+                nonmatches_to_atlases_rt_corrected_sourced.at[index, 'source_file'] = atlas_name
+
+    # Format the columns of missing compounds to match the atlas format
+    missing_columns = ema_atlases.columns.difference(nonmatches_to_atlases_rt_corrected_sourced.columns)
+    for col in missing_columns:
+        nonmatches_to_atlases_rt_corrected_sourced[col] = np.nan
+    common_columns = nonmatches_to_atlases_rt_corrected_sourced.columns.intersection(ema_atlases.columns)
+    nonmatches_to_atlases_rt_corrected_sourced_formatted = nonmatches_to_atlases_rt_corrected_sourced[common_columns]
+
+    # Check if source_file is missing from any compound lines before merging and splitting
+    missed_source_files = nonmatches_to_atlases_rt_corrected_sourced_formatted[
+        ~nonmatches_to_atlases_rt_corrected_sourced_formatted['source_file'].isin(atlas_names)
+    ]
+    if not missed_source_files.empty:
+        print("Warning: Some rows have a source_file that does not match any atlas_name.")
+        print(missed_source_files)
+        sys.exit(1)
+
+    # Merge the nonmatches_to_atlases_rt_corrected_sourced_formatted with the ema_atlases
+    new_ema_atlases = pd.concat([ema_atlases, nonmatches_to_atlases_rt_corrected_sourced_formatted], ignore_index=False).sort_values('rt_peak')
+
+    # Split EMA atlases back to original files based on source_file
+    old_ema_atlases_split = {}
+    new_ema_atlases_split = {}
+    for atlas_name in atlas_names:
+        new_atlas_name = atlas_name.replace(".tsv",f"_{current_time}.tsv")
+        old_ema_atlases_split[atlas_name] = ema_atlases[ema_atlases.loc[:,'source_file'] == atlas_name].drop(columns=['source_file'])
+        new_ema_atlases_split[atlas_name] = new_ema_atlases[new_ema_atlases.loc[:,'source_file'] == atlas_name].drop(columns=['source_file'])
+
+        print(f"For {atlas_name}, new atlas has {new_ema_atlases_split[atlas_name].shape[0]} rows and old atlas has {old_ema_atlases_split[atlas_name].shape[0]} rows.")
+
+        # Save the new EMA atlases to the original files
+        if save_atlas is True:
+            if not os.path.exists(f'{atlas_save_path}/updated_EMA_atlases'):
+                os.makedirs(f'{atlas_save_path}/updated_EMA_atlases')
+            new_ema_atlases_split[atlas_name].to_csv(f'{atlas_save_path}/updated_EMA_atlases/{new_atlas_name}', sep='\t', index=False)
+
+def update_and_save_msms_refs(msms_refs, rt_peaks_filtered_with_top_spectra_formatted, msms_refs_save_path, timestamp, save_refs=False):
+
+    # Combine existing and new MSMS refs
+    new_msms_refs = pd.concat([msms_refs, rt_peaks_filtered_with_top_spectra_formatted])
+    print(f"Existing MSMS refs: {msms_refs.shape}")
+    print(f"New MSMS refs: {new_msms_refs.shape}")
+    if new_msms_refs.shape[0] != msms_refs.shape[0] + rt_peaks_filtered_with_top_spectra_formatted.shape[0]:
+        print("Warning! Some new MSMS refs may not have been added correctly.")
+    if new_msms_refs.shape[1] != msms_refs.shape[1]:
+        print("Warning! Column numbers don't match between existing and new MSMS refs.")
+
+    if save_refs is True:
+        new_msms_refs_name = f"msms_refs_{timestamp}.tab"
+        if not os.path.exists(f'{msms_refs_save_path}/updated_EMA_atlases'):
+            os.makedirs(f'{msms_refs_save_path}/updated_EMA_atlases')
+        if os.path.exists(f'{msms_refs_save_path}/updated_EMA_atlases/{new_msms_refs_name}'):
+            print(f"Warning! {new_msms_refs_name} already exists! Not overwriting.")
+        else:
+            new_msms_refs.to_csv(f'{msms_refs_save_path}/updated_MSMS_refs/{new_msms_refs_name}', sep='\t', index=False)
 
 def merge_selected_peaks_with_top_spectra(selected_peaks, selected_spectra):
     selected_peaks_compounded = selected_peaks.copy()
@@ -1320,12 +1552,12 @@ def generate_molecular_images(lcmsruns_table):
             if mol:
                 # Generate the image
                 img = Draw.MolToImage(mol, size=(200, 200))
-                
+
                 # Convert the image to base64
                 buffered = BytesIO()
                 img.save(buffered, format="PNG")
                 img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                
+
                 # Store the base64 string in the dictionary
                 smiles_to_image[smiles] = img_base64
         except Exception as e:
