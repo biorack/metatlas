@@ -9,11 +9,11 @@ import re
 import math
 import pubchempy as pcp
 import base64
-from io import BytesIO
+import io
 import pickle
 
 import ipywidgets as widgets
-from IPython.display import display, clear_output
+from IPython.display import display, clear_output, HTML
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -34,10 +34,14 @@ from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
+from rdkit import Chem
 from rdkit.Chem import AllChem, Draw, MolFromSmiles
 from rdkit.Chem import rdMolDescriptors as Descriptors
 from rdkit.Chem.Descriptors import ExactMolWt
-
+from rdkit.Chem.Draw import IPythonConsole
+from rdkit.Chem import rdDepictor
+from rdkit.Chem.Draw import rdMolDraw2D
+from IPython.display import SVG
 
 ################################
 # Get all matching LCMS runs ###
@@ -776,7 +780,8 @@ def plot_top_spectra(top_spectra, adduct_color, fig_title):
     plt.tight_layout()
 
 
-def filter_top_compounds(rt_peaks):
+
+def filter_by_top_adduct(rt_peaks):
     
     unfiltered_rt_peaks = rt_peaks.copy()
 
@@ -1533,37 +1538,32 @@ def merge_selected_peaks_with_top_spectra(selected_peaks, selected_spectra):
     )
     return merged_peaks_spectra
 
-def generate_molecular_images(lcmsruns_table):
+def generate_molecular_image(smiles_string):
+    mol = MolFromSmiles(smiles_string)
+    if mol:
+        svg = moltosvg(mol, molSize=(500, 500), kekulize=True)  # Higher resolution
+        return svg
+    return None
+
+def moltosvg(mol, molSize=(300, 300), kekulize=True):
     """
-    Generate molecular structure images for unique SMILES strings in the given DataFrame.
-
-    Args:
-        lcmsruns_table (pd.DataFrame): DataFrame containing a 'smiles' column.
-
-    Returns:
-        dict: A dictionary where keys are SMILES strings and values are base64-encoded molecular structure images.
+    From here: https://stackoverflow.com/questions/61659643/rdkit-how-to-draw-high-resolution-chemical-structure
     """
-    smiles_to_image = {}
-    unique_smiles = lcmsruns_table['smiles'].dropna().unique()
-
-    for smiles in unique_smiles:
+    mc = Chem.Mol(mol.ToBinary())
+    if kekulize:
         try:
-            mol = MolFromSmiles(smiles)
-            if mol:
-                # Generate the image
-                img = Draw.MolToImage(mol, size=(200, 200))
+            Chem.Kekulize(mc)
+        except:
+            mc = Chem.Mol(mol.ToBinary())
+    if not mc.GetNumConformers():
+        rdDepictor.Compute2DCoords(mc)
+    drawer = rdMolDraw2D.MolDraw2DSVG(molSize[0], molSize[1])
+    drawer.DrawMolecule(mc)
+    drawer.FinishDrawing()
+    svg = drawer.GetDrawingText()
 
-                # Convert the image to base64
-                buffered = BytesIO()
-                img.save(buffered, format="PNG")
-                img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    return svg.replace('svg:', '')
 
-                # Store the base64 string in the dictionary
-                smiles_to_image[smiles] = img_base64
-        except Exception as e:
-            print(f"Error generating image for SMILES: {smiles}, Error: {e}")
-
-    return smiles_to_image
 
 def generate_gridded_molecular_images(lcmsruns_table):
     """
@@ -1641,7 +1641,7 @@ def generate_gridded_molecular_images(lcmsruns_table):
                 grid_img.paste(img, (x_offset, y_offset))
 
             # Convert the grid image to base64
-            buffered = BytesIO()
+            buffered = io.BytesIO()
             grid_img.save(buffered, format="PNG")
             img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
@@ -1739,8 +1739,521 @@ def extract_ambiguous_compounds(ambiguous_dict):
 
     return ambiguous_adducts_table
 
+
+def generate_static_summary_plots(processed_data, selected_good_adducts, export_dir):
+    for i in range(len(processed_data)):
+        data = processed_data[i]
+        eics = data['eics']
+        rt_peaks = data['rt_peaks']
+        top_spectra = data['top_spectra']
+        adduct_color = data['adduct_color']
+        group_id = data['group_id']
+        unique_id = data['unique_id']
+        group_file = data['group_file']
+        compound_name = data['compound_name']
+
+        rt_peaks['inchi'] = rt_peaks['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
+        rt_peaks['inchi_key'] = rt_peaks['inchi'].apply(inchi_to_inchikey)
+        rt_peaks['neutralized_inchi'] = rt_peaks['inchi'].apply(neutralize_inchi)
+        rt_peaks['neutralized_inchi_key'] = rt_peaks['neutralized_inchi'].apply(inchi_to_inchikey)
+        rt_peaks['permanent_charge'] = rt_peaks['neutralized_inchi'].apply(charge_from_inchi)
+        rt_peaks['formula'] = rt_peaks['neutralized_inchi'].apply(formula_from_inchi)
+        rt_peaks['monoisotopic_mass'] = rt_peaks['neutralized_inchi'].apply(monoisotopic_mass_from_inchi)
+
+        # Subset top_spectra by just the selected adducts and peak indices
+        if unique_id in selected_good_adducts:
+            selected_peaks = selected_good_adducts[unique_id]
+            selected_adduct_peak_pairs = [
+                (selected_peak.split("||")[0], selected_peak.split("||")[1])
+                for selected_peak in selected_peaks
+            ]
+            top_spectra_subset = top_spectra[
+                top_spectra.apply(
+                    lambda row: (row['adduct'], row['peak_index']) in selected_adduct_peak_pairs,
+                    axis=1
+                )
+            ]
+        else:
+            top_spectra_subset = pd.DataFrame()  # Empty DataFrame if no adducts are selected
+
+        # Subset rt_peaks by just the selected adducts and peak indices
+        if unique_id in selected_good_adducts:
+            selected_peaks = selected_good_adducts[unique_id]
+            selected_adduct_peak_pairs = [
+                (selected_peak.split("||")[0], selected_peak.split("||")[1])
+                for selected_peak in selected_peaks
+            ]
+            rt_peaks_subset = rt_peaks[
+                rt_peaks.apply(
+                    lambda row: (row['adduct'], row['peak_index']) in selected_adduct_peak_pairs,
+                    axis=1
+                )
+            ]
+
+        num_columns = 3
+        num_spectra = len(top_spectra_subset)
+        num_spectra_rows = math.ceil(num_spectra / 2)  # Two spectra per row
+        if num_spectra_rows == 0:
+            num_spectra_rows = 1
+
+        # Generate updated subplot titles
+        eic_titles = ["EIC (Sample)", "EIC (Log Scale)", "Adduct Details"]
+        zoomed_eic_titles = ["Zoomed EIC (Sample)", "Zoomed EIC (Log Scale)"]
+        spectra_titles = [
+            f"Spectrum: {row['adduct']} @ {round(row['rt'], 2)} min" for _, row in top_spectra_subset.iterrows()
+        ]
+        spectra_titles += [""] * (6 - len(spectra_titles))  # Pad to ensure 6 spectra slots
+
+        # Add molecular structure title to the third row
+        molecular_image_title = compound_name
+        subplot_titles = eic_titles + zoomed_eic_titles + spectra_titles[:2] + [molecular_image_title] + spectra_titles[2:]
+
+        # Create specs for subplots
+        specs = [
+            [{"type": "scatter"}, {"type": "scatter"}, {"type": "table", "rowspan": 2}],  # Row 1
+            [{"type": "scatter"}, {"type": "scatter"}, None],  # Row 2 (merged with row 1 in column 3)
+            [{"type": "scatter"}, {"type": "scatter"}, {"type": "image"}],  # Row 3 (Molecular Image with spectra)
+        ]
+        for _ in range(num_spectra_rows - 1):  # Add rows for additional spectra
+            specs.append([{"type": "scatter"}, {"type": "scatter"}, None])
+
+        # Ensure specs dimensions match the number of rows and columns
+        while len(specs) < 3 + num_spectra_rows:
+            specs.append([{"type": "scatter"}] * num_columns)
+
+        fig = make_subplots(
+            rows=3 + num_spectra_rows,
+            cols=num_columns,
+            shared_xaxes=False,
+            vertical_spacing=0.3 / (3 + num_spectra_rows),
+            horizontal_spacing=0.1,
+            subplot_titles=subplot_titles,
+            specs=specs
+        )
+
+        # Add EIC traces for "Sample" and "Sample (Log)"
+        max_rt = max(rt_peaks_subset['rt_peak']) + 0.5
+        min_rt = min(rt_peaks_subset['rt_peak']) - 0.5       
+        for lcmsrun_path, eic in eics.items():
+            if unique_id.split(";;")[0].lower() in lcmsrun_path.lower(): # This removes blank
+                for _, eic_row in eic.iterrows():
+                    rt_sort = np.argsort(eic_row['rt'])
+                    adduct = get_adduct(eic_row['label'])
+                    color = adduct_color.get(adduct, 'gray')
+
+                    # Add "Sample" trace
+                    fig.add_trace(
+                        go.Scatter(
+                            x=eic_row['rt'][rt_sort],
+                            y=eic_row['i'][rt_sort],
+                            mode='lines',
+                            name=f"{adduct} Sample",
+                            line=dict(color=color)
+                        ),
+                        row=1,
+                        col=1
+                    )
+
+                    # Add ZOOMED "Sample" trace
+                    fig.add_trace(
+                        go.Scatter(
+                            x=eic_row['rt'][rt_sort],
+                            y=eic_row['i'][rt_sort],
+                            mode='lines',
+                            name=f"{adduct} Sample",
+                            line=dict(color=color)
+                        ),
+                        row=2,
+                        col=1
+                    )
+
+                    # Add "Sample (Log)" trace
+                    fig.add_trace(
+                        go.Scatter(
+                            x=eic_row['rt'][rt_sort],
+                            y=np.log10(eic_row['i'][rt_sort].astype(float)),
+                            mode='lines',
+                            name=f"{adduct} Sample (Log)",
+                            line=dict(color=color)
+                        ),
+                        row=1,
+                        col=2
+                    )
+
+                    # Add ZOOMED "Sample (Log)" trace
+                    fig.add_trace(
+                        go.Scatter(
+                            x=eic_row['rt'][rt_sort],
+                            y=np.log10(eic_row['i'][rt_sort].astype(float)),
+                            mode='lines',
+                            name=f"{adduct} Sample (Log)",
+                            line=dict(color=color)
+                        ),
+                        row=2,
+                        col=2
+                    )
+
+                    # Add rt_peak markers
+                    if not rt_peaks.empty:
+                        adduct_peaks = rt_peaks[rt_peaks['adduct'] == adduct]
+                        for _, peak_info in adduct_peaks.iterrows():
+                            peak_rt = peak_info['rt_peak']
+                            peak_intensity = peak_info['intensity']
+
+                            # Add peak marker for "Sample"
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[peak_rt],
+                                    y=[peak_intensity],
+                                    mode='markers',
+                                    marker=dict(color=color, size=8),
+                                    name=f"{adduct} RT Peak",
+                                    showlegend=False
+                                ),
+                                row=1,
+                                col=1
+                            )
+
+                            # Add ZOOMED peak marker for "Sample"
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[peak_rt],
+                                    y=[peak_intensity],
+                                    mode='markers',
+                                    marker=dict(color=color, size=8),
+                                    name=f"{adduct} RT Peak",
+                                    showlegend=False
+                                ),
+                                row=2,
+                                col=1
+                            )
+
+                            # Add peak marker for "Sample (Log)"
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[peak_rt],
+                                    y=[np.log10(peak_intensity)],
+                                    mode='markers',
+                                    marker=dict(color=color, size=8),
+                                    name=f"{adduct} RT Peak",
+                                    showlegend=False
+                                ),
+                                row=1,
+                                col=2
+                            )
+
+                            # Add ZOOMED peak marker for "Sample (Log)"
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[peak_rt],
+                                    y=[np.log10(peak_intensity)],
+                                    mode='markers',
+                                    marker=dict(color=color, size=8),
+                                    name=f"{adduct} RT Peak",
+                                    showlegend=False
+                                ),
+                                row=2,
+                                col=2
+                            )
+
+                            if unique_id in selected_good_adducts:
+                                selected_peaks = selected_good_adducts[unique_id]
+                                for selected_peak in selected_peaks:
+                                    selected_adduct, peak_index = selected_peak.split("||")
+                                    if adduct == selected_adduct and peak_index == peak_info['peak_index']:
+                                        # Add star-shaped marker for "Sample"
+                                        fig.add_trace(
+                                            go.Scatter(
+                                                x=[peak_rt],
+                                                y=[peak_intensity],
+                                                mode='markers',
+                                                marker=dict(color=color, size=14, symbol='star'),
+                                                name=f"{adduct} Selected RT Peak",
+                                                showlegend=False
+                                            ),
+                                            row=1,
+                                            col=1
+                                        )
+
+                                        # Add ZOOMED star-shaped marker for "Sample"
+                                        fig.add_trace(
+                                            go.Scatter(
+                                                x=[peak_rt],
+                                                y=[peak_intensity],
+                                                mode='markers',
+                                                marker=dict(color=color, size=14, symbol='star'),
+                                                name=f"{adduct} Selected RT Peak",
+                                                showlegend=False
+                                            ),
+                                            row=2,
+                                            col=1
+                                        )
+
+                                        # Add star-shaped marker for "Sample (Log)"
+                                        fig.add_trace(
+                                            go.Scatter(
+                                                x=[peak_rt],
+                                                y=[np.log10(peak_intensity)],
+                                                mode='markers',
+                                                marker=dict(color=color, size=14, symbol='star'),
+                                                name=f"{adduct} Selected RT Peak (Log)",
+                                                showlegend=False
+                                            ),
+                                            row=1,
+                                            col=2
+                                        )
+
+                                        # Add ZOOMED star-shaped marker for "Sample (Log)"
+                                        fig.add_trace(
+                                            go.Scatter(
+                                                x=[peak_rt],
+                                                y=[np.log10(peak_intensity)],
+                                                mode='markers',
+                                                marker=dict(color=color, size=14, symbol='star'),
+                                                name=f"{adduct} Selected RT Peak (Log)",
+                                                showlegend=False
+                                            ),
+                                            row=2,
+                                            col=2
+                                        )
+
+                    # Add top_spectra markers with "X"
+                    if not top_spectra_subset.empty:
+                        adduct_spectra = top_spectra_subset[top_spectra_subset['adduct'] == adduct]
+                        for _, spectrum_row in adduct_spectra.iterrows():
+                            spectrum_rt = spectrum_row['rt']
+                            spectrum_adduct = spectrum_row['adduct']
+                            marker_color = adduct_color.get(spectrum_adduct, 'gray')
+
+                            # Find closest point in the current EIC
+                            sorted_rt = eic_row['rt'][rt_sort]
+                            sorted_intensity = eic_row['i'][rt_sort]
+                            
+                            # Skip if no intensity data available
+                            if len(sorted_rt) == 0 or len(sorted_intensity) == 0:
+                                continue
+                                
+                            # Find the closest RT point in the EIC
+                            closest_idx = np.argmin(np.abs(sorted_rt - spectrum_rt))
+                            
+                            if closest_idx >= len(sorted_rt):
+                                # If the index is out of bounds, skip this spectrum
+                                print(f"Warning: RT {spectrum_row['rt']} is out of bounds for EIC RT range.")
+                                continue
+                                
+                            raw_intensity = sorted_intensity[closest_idx]
+
+                            # Add "X" marker for "Sample"
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[spectrum_rt],
+                                    y=[raw_intensity],
+                                    mode='markers',
+                                    marker=dict(color=marker_color, size=15, symbol='x'),
+                                    name=f"{adduct} Top Spectra",
+                                    showlegend=False
+                                ),
+                                row=1,
+                                col=1
+                            )
+
+                            # Add ZOOMED "X" marker for "Sample"
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[spectrum_rt],
+                                    y=[raw_intensity],
+                                    mode='markers',
+                                    marker=dict(color=marker_color, size=15, symbol='x'),
+                                    name=f"{adduct} Top Spectra",
+                                    showlegend=False
+                                ),
+                                row=2,
+                                col=1
+                            )
+
+                            # Add "X" marker for "Sample (Log)"
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[spectrum_rt],
+                                    y=[np.log10(raw_intensity)],
+                                    mode='markers',
+                                    marker=dict(color=marker_color, size=15, symbol='x'),
+                                    name=f"{adduct} Top Spectra (Log)",
+                                    showlegend=False
+                                ),
+                                row=1,
+                                col=2
+                            )
+
+                            # Add ZOOMED "X" marker for "Sample (Log)"
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[spectrum_rt],
+                                    y=[np.log10(raw_intensity)],
+                                    mode='markers',
+                                    marker=dict(color=marker_color, size=15, symbol='x'),
+                                    name=f"{adduct} Top Spectra (Log)",
+                                    showlegend=False
+                                ),
+                                row=2,
+                                col=2
+                            )
+
+        # Constrain the x-axis for the two ZOOMED subplots
+        fig.update_xaxes(range=[min_rt, max_rt], row=2, col=1)
+        fig.update_xaxes(range=[min_rt, max_rt], row=2, col=2)
+        
+
+        # Add spectra plots for selected adducts and peak indices
+        for i, (_, spectrum_row) in enumerate(top_spectra_subset.iterrows()):
+            mz_values = spectrum_row['spectrum'][0]
+            i_values = spectrum_row['spectrum'][1]
+            adduct = spectrum_row['adduct']
+            color = adduct_color.get(adduct, 'gray')
+
+            spectrum_row_idx = 3 + (i // 2)  # Start from row 2
+            spectrum_col = (i % 2) + 1  # Alternate between columns 1 and 2
+
+            for mz, intensity in zip(mz_values, i_values):
+                fig.add_trace(
+                    go.Scatter(
+                        x=[mz, mz],
+                        y=[0, intensity],
+                        mode='lines',
+                        line=dict(color=color),
+                        showlegend=False
+                    ),
+                    row=spectrum_row_idx,
+                    col=spectrum_col
+                )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=mz_values,
+                    y=i_values,
+                    mode='markers',
+                    marker=dict(color=color, size=6),
+                    name=f"Spectrum {i+1}: {adduct}",
+                    showlegend=False
+                ),
+                row=spectrum_row_idx,
+                col=spectrum_col
+            )
+
+        # Add table with adduct information
+        if not rt_peaks_subset.empty and unique_id in selected_good_adducts:
+
+            # Create a dictionary to hold data for each peak
+            peak_data = {}
+            for idx, peak in rt_peaks_subset.iterrows():
+                peak_id = f"{peak['adduct']} (Peak {idx + 1})"
+                peak_data[peak_id] = {
+                    "RT Peak": round(peak['rt_peak'], 4),
+                    "Peak Index": peak['peak_index'],
+                    "Polarity": peak['polarity'],
+                    "MZ Observed": round(peak['mz_observed'], 4),
+                    "MZ Theoretical": round(peak['mz_theoretical'], 4),
+                    "MI Mass": round(peak['monoisotopic_mass'], 4),
+                    "Chrom.": peak['chromatography'] if 'chromatography' in peak else "N/A",
+                    "Formula": peak['formula'],
+                    "Inchi": peak['inchi'],
+                }
+
+            # Prepare table data with properties as rows and peaks as columns
+            properties = ["RT Peak", "Peak Index", "Polarity", "MZ Observed", "MZ Theoretical", "MI Mass", "Chrom.", "Formula", "Inchi"]
+            table_data = {
+                "Property": properties,
+                **{peak_id: [peak_data[peak_id][prop] for prop in properties] for peak_id in peak_data.keys()}
+            }
+
+            fig.add_trace(
+                go.Table(
+                    columnwidth=[1.9] + [2.5] * len(peak_data.keys()),  # Adjust column widths (1 for "Property", 3 for others)
+                    header=dict(
+                        values=["Property"] + [key.split(" (Peak")[0] for key in peak_data.keys()],
+                        fill_color='white',
+                        align='left',
+                        font=dict(size=13, color='black', weight='bold'),  # Make header text bold
+                        line=dict(color='black', width=1)  # Add black outlines to header
+                    ),
+                    cells=dict(
+                        values=[table_data["Property"]] + [table_data[peak_id] for peak_id in peak_data.keys()],
+                        fill_color='white',
+                        align='left',
+                        height=25,
+                        font=dict(
+                            size=[12] + [16] * len(peak_data.keys()),  # Larger font size for the first column
+                            color=['black'] + ['black'] * len(peak_data.keys()),
+                            weight=['bold'] + ['normal'] * len(peak_data.keys())  # Bold for the first column
+                        ),
+                        line=dict(color='black', width=1)  # Add black outlines to cells
+                    )
+                ),
+                row=1,
+                col=3
+            )
+
+        # Add molecular image
+        smiles = rt_peaks_subset['smiles'].unique()[0] if not rt_peaks_subset.empty and len(rt_peaks_subset['smiles'].unique()) == 1 else ""
+        if smiles:
+            # Generate the high-resolution SVG molecular image
+            svg_image = generate_molecular_image(smiles)
+            
+            if svg_image:
+                # Convert the SVG content to base64
+                encoded_svg = base64.b64encode(svg_image.encode('utf-8')).decode('utf-8')
+                
+                # Add the molecular image to the figure
+                fig.add_layout_image(
+                    dict(
+                        source=f"data:image/svg+xml;base64,{encoded_svg}",
+                        xref="x domain",  # Reference the x domain of the subplot in row 2, col 3
+                        yref="y domain",  # Reference the y domain of the subplot in row 2, col 3
+                        x=3.25,  # Adjust x position for column 3
+                        y=-2.3,  # Adjust y position for row 2
+                        sizex=2,  # Adjust size as necessary
+                        sizey=2,  # Adjust size as necessary
+                        xanchor="center",
+                        yanchor="middle"
+                    )
+                )
+                # Hide x and y axes for the image subplot
+                fig.update_xaxes(visible=False, row=3, col=3)
+                fig.update_yaxes(visible=False, row=3, col=3)
+
+        # Update layout
+        fig.update_layout(
+            title=dict(
+                text=f"{os.path.dirname(group_file)}<br>{os.path.basename(group_file)}<br>{group_id.replace('_', '  |  ')}",
+                font=dict(size=14),
+                y=0.98,
+            ),
+            height=1600 + 300 * num_spectra_rows,  # Adjust base height and per-row increment
+            width=1300,
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            legend=dict(
+                orientation="h",  # Horizontal legend
+                yanchor="bottom",  # Align to the bottom
+                y=0,  # Position below the plot
+                xanchor="center",  # Center the legend
+                x=0.5  # Center horizontally
+            )
+        )
+        # Export the figure if export_dir is provided
+        if export_dir:
+            os.makedirs(export_dir, exist_ok=True)
+            fig.write_image(
+                f"{export_dir}/{group_id}_combined_plot.png",
+                engine="kaleido",
+                width=1500,
+                height=1000,
+                scale=2
+            )
+
+
 def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
-                             selected_good_adducts, ambiguous_adducts):
+                             selected_good_adducts, ambiguous_adducts, top_adducts, export_dir=None):
 
     # Widget Creation
     image_toggle = widgets.ToggleButton(
@@ -1817,11 +2330,9 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
 
     def next_group(b):
         nonlocal current_index
-        if current_index < len(processed_data) - 1:
+        if current_index < len(processed_data) - 1:            
             current_index += 1
-            print(f"Navigating to index {current_index}")  # Debug statement
             update_plot(current_index)
-            # Reset the image toggle state
             image_toggle.value = False
             image_toggle.description = 'Show Structures'
         else:
@@ -1851,15 +2362,31 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
     navigate_button.on_click(navigate_to_group)
 
     # Layout Definitions
-    def create_layout(checkboxes):
+    def create_layout(checkboxes, radiobuttons):
         checkbox_layout = widgets.VBox(
-            checkboxes,
+            children=[
+                widgets.Label(value="Select all good adducts:"),
+                *checkboxes
+            ],
             layout=widgets.Layout(
                 border='1px solid black',
-                padding='5px',
-                margin='5px',
-                width='325px',
-                align_items='flex-start'
+                padding='10px',
+                margin='10px',
+                width='275px',
+                align_items='flex-start'  # Align items to the start (left)
+            )
+        )
+        radiobutton_layout = widgets.VBox(
+            children=[
+                widgets.Label(value="Select best adduct (default: intensity):"),
+                radiobuttons
+            ],
+            layout=widgets.Layout(
+                border='1px solid black',
+                padding='10px',
+                margin='10px',
+                width='275px',
+                align_items='flex-start'  # Align items to the start (left)
             )
         )
         # Layout of the "Go To:" widget
@@ -1898,7 +2425,7 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
             )
         )
         top_layout = widgets.HBox(
-            [checkbox_layout, button_layout, compound_image_widget],
+            [checkbox_layout, radiobutton_layout, button_layout, compound_image_widget],
             layout=widgets.Layout(
                 align_items='flex-start',
                 justify_content='flex-start',
@@ -1908,7 +2435,7 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
         return top_layout
 
     # Plot Update Logic
-    def update_plot(index):
+    def update_plot(index, export_dir=export_dir):
         nonlocal current_index
         data = processed_data[index]
 
@@ -2333,22 +2860,37 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
             widgets.Checkbox(
                 value=False,
                 description=combo['description'],
-                disabled=False
+                disabled=False,
+                 layout=widgets.Layout(width='275px', margin='0 0 0 -75px')
             )
             for combo in adduct_peak_combinations
         ]
         ambiguous_checkbox = widgets.Checkbox(
             value=False,
             description="Ambiguous",
-            disabled=False
+            disabled=False,
+             layout=widgets.Layout(width='275px', margin='0 0 0 -75px')
         )
         checkboxes.append(ambiguous_checkbox)
         checkbox_dict = {checkbox.description: checkbox for checkbox in checkboxes}
 
+        # Initialize top_adducts with the default radiobutton value if not already set
+        if unique_id not in top_adducts and adduct_peak_combinations:
+            top_adducts[unique_id] = adduct_peak_combinations[0]['adduct']
+
+        # Create radiobuttons for adduct selection
+        radiobuttons = widgets.RadioButtons(
+            options=list(dict.fromkeys(combo['adduct'] for combo in adduct_peak_combinations)),
+            value=top_adducts[unique_id],  # Use the value from top_adducts
+            description='',
+            layout=widgets.Layout(width='275px')
+        )
+        
         def on_checkbox_change(change):
             if ambiguous_checkbox.value:
                 ambiguous_adducts[unique_id] = unique_id
                 selected_good_adducts.pop(unique_id, None)
+                top_adducts.pop(unique_id, None)
             else:
                 selected_good_adducts[unique_id] = [
                     combo['adduct'] + "||" + str(combo['peak_index'])
@@ -2357,8 +2899,12 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
                 ]
                 ambiguous_adducts.pop(unique_id, None)
 
+        def on_radiobutton_change(change):
+            top_adducts[unique_id] = radiobuttons.value
+
         for checkbox in checkboxes:
             checkbox.observe(on_checkbox_change, names='value')
+        radiobuttons.observe(on_radiobutton_change, names='value')
 
         # Set previously selected values
         if unique_id in selected_good_adducts:
@@ -2372,8 +2918,12 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
         elif unique_id in ambiguous_adducts:
             ambiguous_checkbox.value = True
 
-        # Create the layout with checkboxes
-        top_layout = create_layout(checkboxes)
+        # Set previously selected value for radiobuttons
+        if unique_id in top_adducts:
+            radiobuttons.value = top_adducts[unique_id]
+    
+        # Create the layout with checkboxes and radiobuttons
+        top_layout = create_layout(checkboxes, radiobuttons)
         plot_and_checkboxes = widgets.VBox(
             [top_layout, widgets.Output()],
             layout=widgets.Layout(align_items='flex-start')
@@ -2389,3 +2939,122 @@ def create_interactive_plots(processed_data, runnum_to_structure_image_grid, \
     # Initialize
     current_index = 0
     update_plot(current_index)
+
+
+
+# def filter_by_top_adduct(rt_peaks, top_adducts_per_pol_allpeaks=None, method="manual"):
+#     import pandas as pd
+#     from IPython.display import display, clear_output
+#     import ipywidgets as widgets
+
+#     unfiltered_rt_peaks = rt_peaks.copy()
+#     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
+#     all_peaks = []
+
+#     # Get unique groups
+#     unique_groups = unfiltered_rt_peaks[['label', 'polarity', 'chromatography']].drop_duplicates()
+#     total_groups = len(unique_groups)
+#     current_index = 0
+
+#     # Widgets
+#     progress_label = widgets.Label(value=f"Group {current_index + 1} of {total_groups}")
+#     next_button = widgets.Button(description="Next Group")
+#     output_container = widgets.Output()
+#     table_container = widgets.Output()
+
+#     selected_row = None  # Store the selected row index
+#     def update_progress():
+#         progress_label.value = f"Group {current_index + 1} of {total_groups}"
+
+#     def process_group(index):
+#         nonlocal current_index, selected_row
+#         selected_row = None  # Reset the selected row for the new group
+#         group = unique_groups.iloc[index]
+#         label, polarity, chromatography = group['label'], group['polarity'], group['chromatography']
+
+#         # Subset unfiltered_rt_peaks for the current group
+#         group_peaks = unfiltered_rt_peaks[
+#             (unfiltered_rt_peaks['label'] == label) &
+#             (unfiltered_rt_peaks['polarity'] == polarity) &
+#             (unfiltered_rt_peaks['chromatography'] == chromatography)
+#         ]
+
+#         if group_peaks.empty:
+#             print("No peaks found for this group.")
+#             return
+
+#         if method == "intensity":
+#             # Automatically select the row with the highest intensity
+#             idx_max_intensity = group_peaks['intensity'].idxmax()
+#             highest_intensity_row = group_peaks.loc[[idx_max_intensity]]
+#             all_peaks.append(highest_intensity_row)
+#         elif method == "manual":
+#             # Manual selection
+#             group_peaks = group_peaks.sort_values(by='intensity', ascending=False)
+#             with table_container:
+#                 clear_output(wait=True)
+#                 print(f"\nManual selection for group: {label}, {polarity}, {chromatography}")
+#                 display(group_peaks.style.set_table_attributes("style='display:inline'").set_table_styles(
+#                     [{'selector': 'table', 'props': [('overflow-x', 'auto'), ('display', 'block')]}]
+#                 ))
+
+#             dropdown = widgets.Dropdown(
+#                 options=group_peaks.index.tolist(),
+#                 description='Select Row:',
+#                 style={'description_width': 'initial'}
+#             )
+#             confirm_button = widgets.Button(description="Confirm Selection")
+
+#             def on_confirm(b):
+#                 nonlocal selected_row
+#                 selected_row = dropdown.value
+#                 with table_container:
+#                     clear_output(wait=True)
+#                     print(f"Selected row index: {selected_row}")
+#                     display(group_peaks.loc[[selected_row]])
+
+#                 # Add the selected row to all_peaks
+#                 highest_intensity_row = group_peaks.loc[[selected_row]]
+#                 all_peaks.append(highest_intensity_row)
+
+#                 # Debug: Print all_peaks after appending
+#                 print("Updated all_peaks:")
+#                 print(pd.concat(all_peaks, ignore_index=True))
+
+#             confirm_button.on_click(on_confirm)
+#             with table_container:
+#                 display(dropdown, confirm_button)
+
+#     def on_next(b):
+#         nonlocal current_index
+#         if selected_row is not None or method == "intensity":  # Ensure a selection is made before proceeding
+#             if current_index < total_groups - 1:
+#                 current_index += 1
+#                 update_progress()
+#                 process_group(current_index)
+#             else:
+#                 with output_container:
+#                     clear_output(wait=True)
+#                     print("All groups processed!")
+#                     # Combine all processed peaks
+#                     if all_peaks:
+#                         top_adducts_per_pol_allpeaks[0] = pd.concat(all_peaks, ignore_index=True)
+#                     else:
+#                         top_adducts_per_pol_allpeaks[0] = pd.DataFrame()  # Return an empty DataFrame if no peaks are selected
+
+#                     # Display final results
+#                     with output_container:
+#                         clear_output(wait=True)
+#                         if top_adducts_per_pol_allpeaks[0].empty:
+#                             print("\nNo peaks were retained. Please check your input data or selection process.")
+#                         else:
+#                             print("Analysis complete!")
+#                             #print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {top_adducts_per_pol_allpeaks[0].shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
+#                             #display(top_adducts_per_pol_allpeaks[0][['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label', 'adduct']))
+
+#     # Attach event handler
+#     next_button.on_click(on_next)
+
+#     # Initial display
+#     display(progress_label, next_button, output_container, table_container)
+#     process_group(current_index)
