@@ -15,9 +15,8 @@
         "[M]-",
         "[M-2H]2-"
     ],
-    "msms_refs_prefix": "schellermetasci",
-    "path_to_standards_file": "/global/homes/b/bkieft/metabolomics_standards_annotation/standard_library_annotation",
-    "standards_file": "scheller_test.csv",
+    "standards_output_path": "/global/homes/b/bkieft/metabolomics_standards_annotation/standard_library_annotation/schellermetasci",
+    "standards_input_file": "/global/homes/b/bkieft/metabolomics_standards_annotation/standard_library_annotation/schellermetasci/scheller_test.csv",
     "current_ema_atlases": {
         "hilicz": {
             "pos": "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_EMA-standards_positive.tsv",
@@ -33,8 +32,15 @@
         "c18": "/global/homes/b/bkieft/metatlas-data/C18/C18_QCv7_positive.tsv"
     },
     "current_msms_refs_path": "/global/cfs/cdirs/metatlas/projects/spectral_libraries/20240430_istdv7-addition_msms_refs.tab",
-    "new_full_data": true,
-    "new_selected_data": true,
+    "new_full_data": false,
+    "new_selected_data": false,
     "new_filtered_data": true,
-    "new_rt_correction_data": true
+    "new_rt_correction_data": true,
+    "msms_refs_metadata": {
+        "ce_type": "ramp",
+        "msms_refs_prefix": "schellermetasci",
+        "frag_method": "HCD",
+        "instrument_type": "Orbitrap",
+        "decimal": 4.0
+    }
 }
