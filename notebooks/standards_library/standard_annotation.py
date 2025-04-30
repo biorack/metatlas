@@ -35,6 +35,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 from rdkit import Chem
+from rdkit.Chem.rdchem import Mol
 from rdkit.Chem import AllChem, Draw, MolFromSmiles
 from rdkit.Chem import rdMolDescriptors as Descriptors
 from rdkit.Chem.Descriptors import ExactMolWt
@@ -43,11 +44,78 @@ from rdkit.Chem import rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
 from IPython.display import SVG
 
-from typing import Dict, List, Tuple, Union, Any, Optional
+from typing import Dict, List, Tuple, Union, Any, Optional, Set
 
-##################################
-### Get all matching LCMS runs ###
-##################################
+#####################
+### LCMSrun tools ###
+#####################
+
+def get_lcmsrun_params(lcmsrun_path: str) -> str:
+    """
+    Extracts the polarity from the LCMS run file name.
+
+    Args:
+        lcmsrun_path (str): Path to the LCMS run file.
+
+    Returns:
+        str: Polarity extracted from the file name.
+    """
+    lcmsrun_basename = os.path.basename(lcmsrun_path)
+    lcmsrun_polarity = lcmsrun_basename.split('_')[-2]
+    return lcmsrun_polarity
+
+def get_run_num(lcmsrun_path: str) -> int:
+    """
+    Extracts the run number from the LCMS run file name.
+
+    Args:
+        lcmsrun_path (str): Path to the LCMS run file.
+
+    Returns:
+        int: Run number extracted from the file name.
+    """
+    lcmsrun_basename = os.path.basename(lcmsrun_path)
+    lcmsrun_run = lcmsrun_basename.split('_')[-1][:-3]
+    run_num = int(re.sub(r'\D', '', lcmsrun_run))
+    return run_num
+
+def get_closest_injbl(lcmsrun_path: str, injbl_pattern: str = '-InjBL-') -> Optional[str]:
+    """
+    Retrieve the closest injection blank file before the standard was injected.
+
+    Args:
+        lcmsrun_path (str): Path to the LCMS run file.
+        injbl_pattern (str, optional): Pattern to identify injection blank files. Defaults to '-InjBL-'.
+
+    Returns:
+        Optional[str]: Path to the closest injection blank file, or None if no match is found.
+    """
+    raw_data_dir = os.path.dirname(lcmsrun_path)
+    lcmsrun_num = get_run_num(lcmsrun_path)
+    
+    all_injbl_files = glob.glob(os.path.join(raw_data_dir, f'*{injbl_pattern}*.h5'))
+    injbl_run_nums = {get_run_num(injbl_path): injbl_path for injbl_path in all_injbl_files}
+    
+    closest_run_num = max((run_num for run_num in injbl_run_nums if run_num <= lcmsrun_num), default=None)
+    return injbl_run_nums.get(closest_run_num)
+
+
+def get_rt_range(lcmsrun_path: str, polarity: str) -> Tuple[float, float]:
+    """
+    Get the retention time range for a given LCMS run and polarity.
+
+    Args:
+        lcmsrun_path (str): Path to the LCMS run file.
+        polarity (str): Polarity of the LCMS run (e.g., 'POS' or 'NEG').
+
+    Returns:
+        Tuple[float, float]: Minimum and maximum retention times.
+    """
+    lcmsrun_data = ft.df_container_from_metatlas_file(lcmsrun_path, desired_key=f'ms1_{polarity.lower()}')
+    
+    rt_min = 0.0
+    rt_max = round(lcmsrun_data.rt.max(), 2)
+    return rt_min, rt_max
 
 def is_matching_group(lcmsrun_path: str, group: str) -> bool:
     """
@@ -151,9 +219,9 @@ def build_standard_lcmsrun_table(
 
     return standard_lcmsruns_table_with_adducts
 
-##############################
-### Calculate Adduct Table ###
-##############################
+###########################
+### Tools for chemistry ###
+###########################
 
 def inchi_or_smiles_to_mass(molecule_id: str) -> float:
     """
@@ -259,11 +327,6 @@ def build_adduct_annotated_table(
     standard_lcmsruns_table[['adduct', 'precursor_mz']] = pd.DataFrame(standard_lcmsruns_table['adduct_data'].tolist(), index=standard_lcmsruns_table.index)
     return standard_lcmsruns_table
 
-
-###########################
-### Tools for chemistry ###
-###########################
-
 def inchi_to_inchikey(inchi: str) -> str:
     """
     Convert an InChI string to an InChIKey.
@@ -345,6 +408,21 @@ def get_adduct(compound_name: str) -> str:
     """
     return compound_name.split('_')[1]
 
+def extract_adducts(eics: Dict[str, pd.DataFrame]) -> Set[str]:
+    """
+    Extracts unique adducts from EIC data.
+
+    Args:
+        eics (Dict[str, pd.DataFrame]): Dictionary of EIC data.
+
+    Returns:
+        Set[str]: Set of unique adducts.
+    """
+    eic_adducts = []
+    for eic in eics.values():
+        eic['adduct'] = eic.label.apply(lambda x: x.split('_')[-1])
+        eic_adducts += eic.adduct.tolist()
+    return set(eic_adducts)
 
 def get_compound_name(compound_name: str) -> str:
     """
@@ -434,9 +512,24 @@ def make_text_spectrum(spectrum: Any) -> str:
     """
     return exms.make_text_spectrum(spectrum)
 
-#############################
-### Extract data and plot ###
-#############################
+def get_chromatography(lcmsrun_path: str) -> str:
+    """
+    Extracts the chromatography type from the LCMS run file name.
+
+    Args:
+        lcmsrun_path (str): Path to the LCMS run file.
+
+    Returns:
+        str: Chromatography type extracted from the file name.
+    """
+    lcmsrun_basename = os.path.basename(lcmsrun_path)
+    lcmsrun_chrom = lcmsrun_basename.split('_')[7]
+    return lcmsrun_chrom
+
+
+#########################
+### Metatlas DB tools ###
+#########################
 
 def store_in_metatlas_db(cid_not_in_db: Any) -> None:
     """
@@ -459,6 +552,11 @@ def test_metatlas_db_insertion(inchi_key: str, table: str) -> list:
         list: A list of matching entries from the database.
     """
     return metob.retrieve(table, inchi_key=inchi_key)
+
+
+#######################
+### Save/load tools ###
+#######################
 
 def handle_data(
     mode: str, 
@@ -503,170 +601,9 @@ def handle_data(
     else:
         raise ValueError("Invalid mode. Use 'save' or 'load'.")
     
-def filter_by_selected(
-    eics_full: List[Dict[str, pd.DataFrame]],
-    rt_peaks_full: List[pd.DataFrame],
-    top_spectra_full: List[pd.DataFrame],
-    selected_adducts_dict: Dict[str, List[str]],
-    top_adducts_dict: Dict[str, List[str]]
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Filters EICs, RT peaks, and MS2 spectra based on selected adducts and compounds.
-
-    Args:
-        eics_full (List[Dict[str, pd.DataFrame]]): List of dictionaries containing EIC data.
-        rt_peaks_full (List[pd.DataFrame]): List of DataFrames containing RT peak data.
-        top_spectra_full (List[pd.DataFrame]): List of DataFrames containing MS2 spectra data.
-        selected_adducts_dict (Dict[str, List[str]]): Dictionary of selected adducts for each compound.
-        top_adducts_dict (Dict[str, List[str]]): Dictionary of top adducts for each compound.
-
-    Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Filtered EICs, RT peaks, and MS2 spectra DataFrames.
-    """
-    selected_compounds_table = extract_selected_compounds(selected_adducts_dict, top_adducts_dict)
-
-    eics_selected = pd.concat(
-        [df.assign(key=key) for d in eics_full for key, df in d.items()],
-        ignore_index=True
-    ).rename(columns={'key': 'standard_lcmsrun'})
-    eics_selected['compound_name'] = eics_selected['label'].apply(lambda x: x.split('_')[0])
-    eics_selected = select_compounds_from_gui(eics_selected, selected_compounds_table)
-        
-    rt_peaks_selected = pd.concat(rt_peaks_full).rename(columns={'lcmsrun': 'standard_lcmsrun'})
-    rt_peaks_selected = select_compounds_from_gui(rt_peaks_selected, selected_compounds_table)
-
-    top_spectra_selected = pd.concat(top_spectra_full, ignore_index=True).rename(columns={'lcmsrun': 'standard_lcmsrun'})
-    top_spectra_selected['compound_name'] = top_spectra_selected['label'].apply(lambda x: x.split('_')[0])
-    top_spectra_selected = select_compounds_from_gui(top_spectra_selected, selected_compounds_table)
-
-    print(f"\nTotal unique compounds retained: {eics_selected['compound_name'].nunique()}")
-    print(f"Total unique compound+adduct entries retained: {eics_selected['label'].nunique()}\n")
-    print(f"Total EICs selected: {eics_selected.shape[0]}")
-    print(f"Total RT peaks selected: {rt_peaks_selected.shape[0]}")
-    print(f"Total MS2 spectra selected: {top_spectra_selected.shape[0]}")
-
-    return eics_selected, rt_peaks_selected, top_spectra_selected
-
-
-def extract_adducts(eics: Dict[str, pd.DataFrame]) -> Set[str]:
-    """
-    Extracts unique adducts from EIC data.
-
-    Args:
-        eics (Dict[str, pd.DataFrame]): Dictionary of EIC data.
-
-    Returns:
-        Set[str]: Set of unique adducts.
-    """
-    eic_adducts = []
-    for eic in eics.values():
-        eic['adduct'] = eic.label.apply(lambda x: x.split('_')[-1])
-        eic_adducts += eic.adduct.tolist()
-    return set(eic_adducts)
-
-def generate_adduct_colors(include_adducts: List[str]) -> Dict[str, str]:
-    """
-    Generates a dictionary mapping adducts to unique colors.
-
-    Args:
-        include_adducts (List[str]): List of adducts to include.
-
-    Returns:
-        Dict[str, str]: Dictionary mapping adducts to hex color codes.
-    """
-    adduct_color = {}
-    colors = cm.rainbow(np.linspace(0, 1, len(include_adducts)))  # Generate evenly spaced colors
-    for i, adduct in enumerate(include_adducts):
-        # Convert RGBA array to hex string
-        rgba = colors[i]
-        hex_color = mcolors.to_hex(rgba)
-        adduct_color[adduct] = hex_color
-    return adduct_color
-
-
-def get_lcmsrun_params(lcmsrun_path: str) -> str:
-    """
-    Extracts the polarity from the LCMS run file name.
-
-    Args:
-        lcmsrun_path (str): Path to the LCMS run file.
-
-    Returns:
-        str: Polarity extracted from the file name.
-    """
-    lcmsrun_basename = os.path.basename(lcmsrun_path)
-    lcmsrun_polarity = lcmsrun_basename.split('_')[-2]
-    return lcmsrun_polarity
-
-
-def get_chromatography(lcmsrun_path: str) -> str:
-    """
-    Extracts the chromatography type from the LCMS run file name.
-
-    Args:
-        lcmsrun_path (str): Path to the LCMS run file.
-
-    Returns:
-        str: Chromatography type extracted from the file name.
-    """
-    lcmsrun_basename = os.path.basename(lcmsrun_path)
-    lcmsrun_chrom = lcmsrun_basename.split('_')[7]
-    return lcmsrun_chrom
-
-
-def get_run_num(lcmsrun_path: str) -> int:
-    """
-    Extracts the run number from the LCMS run file name.
-
-    Args:
-        lcmsrun_path (str): Path to the LCMS run file.
-
-    Returns:
-        int: Run number extracted from the file name.
-    """
-    lcmsrun_basename = os.path.basename(lcmsrun_path)
-    lcmsrun_run = lcmsrun_basename.split('_')[-1][:-3]
-    run_num = int(re.sub(r'\D', '', lcmsrun_run))
-    return run_num
-
-def get_closest_injbl(lcmsrun_path: str, injbl_pattern: str = '-InjBL-') -> Optional[str]:
-    """
-    Retrieve the closest injection blank file before the standard was injected.
-
-    Args:
-        lcmsrun_path (str): Path to the LCMS run file.
-        injbl_pattern (str, optional): Pattern to identify injection blank files. Defaults to '-InjBL-'.
-
-    Returns:
-        Optional[str]: Path to the closest injection blank file, or None if no match is found.
-    """
-    raw_data_dir = os.path.dirname(lcmsrun_path)
-    lcmsrun_num = get_run_num(lcmsrun_path)
-    
-    all_injbl_files = glob.glob(os.path.join(raw_data_dir, f'*{injbl_pattern}*.h5'))
-    injbl_run_nums = {get_run_num(injbl_path): injbl_path for injbl_path in all_injbl_files}
-    
-    closest_run_num = max((run_num for run_num in injbl_run_nums if run_num <= lcmsrun_num), default=None)
-    return injbl_run_nums.get(closest_run_num)
-
-
-def get_rt_range(lcmsrun_path: str, polarity: str) -> Tuple[float, float]:
-    """
-    Get the retention time range for a given LCMS run and polarity.
-
-    Args:
-        lcmsrun_path (str): Path to the LCMS run file.
-        polarity (str): Polarity of the LCMS run (e.g., 'POS' or 'NEG').
-
-    Returns:
-        Tuple[float, float]: Minimum and maximum retention times.
-    """
-    lcmsrun_data = ft.df_container_from_metatlas_file(lcmsrun_path, desired_key=f'ms1_{polarity.lower()}')
-    
-    rt_min = 0.0
-    rt_max = round(lcmsrun_data.rt.max(), 2)
-    return rt_min, rt_max
-
+#############################
+### Data extraction tools ###
+#############################
 
 def create_compound_atlas(
     group: pd.DataFrame,
@@ -990,7 +927,7 @@ def extract_data(
     rt_peak_list = []
     atlas_list = []
 
-    for group_name, group in tqdm(grouped_lcmsruns_table, total=len(grouped_lcmsruns_table), desc=" Extracting data from lcmsruns", unit=' compound group'):
+    for group_name, group in tqdm(grouped_lcmsruns_table, total=len(grouped_lcmsruns_table), desc=" Extracting data from lcmsruns", unit='compound group'):
         theoretical_mzs = dict(group['adduct_data'].tolist())
         compound_smiles = group['smiles'].iloc[0]
         adduct_to_polarity = dict(zip(group['adduct'].tolist(), group['polarity'].tolist()))
@@ -1013,493 +950,9 @@ def extract_data(
 
     return eics_list, top_spectra_list, group_name_list, rt_peak_list, atlas_list, molecular_grid_image
 
-
-# def extract_and_plot(standard_lcmsruns_table, ppm_tolerance=5, plot_output_dir='./annotation_plots', data_output_dir='./annotation_data', generate_plots=True):
-#     standard_lcmsruns_table['closest_injbl'] = standard_lcmsruns_table['standard_lcmsrun'].apply(get_closest_injbl)
-#     grouped_lcmsruns_table = standard_lcmsruns_table.groupby(['compound_name', 'standard_lcmsrun'])
-    
-#     if not os.path.isdir(plot_output_dir):
-#         os.mkdir(plot_output_dir)
-        
-#     if not os.path.isdir(data_output_dir):
-#         os.mkdir(data_output_dir)
-    
-#     all_top_spectra = []
-#     all_rt_peaks = []
-
-#     for group_name, group in tqdm(grouped_lcmsruns_table, unit=' Compound LCMSRun Group'):
-#         theoretical_mzs = dict(group['adduct_data'].tolist())
-#         compound_smiles = group['smiles'].iloc[0]
-#         adduct_to_polarity = dict(zip(group['adduct'].tolist(), group['polarity'].tolist()))
-        
-#         eics, ms2_data = collect_eics_and_ms2(group, ppm_tolerance)
-#         rt_peaks, top_spectra = get_top_ms1_and_ms2(eics, ms2_data, group_name[1], theoretical_mzs, compound_smiles, adduct_to_polarity)
-        
-#         if generate_plots:
-#             save_annotation_fig(eics, top_spectra, group_name, plot_output_dir)
-        
-#         all_top_spectra.append(top_spectra)
-#         all_rt_peaks += rt_peaks
-    
-#     if all_rt_peaks:
-#         print("Writing RT peak data")
-#         all_rt_peaks = pd.DataFrame(all_rt_peaks)
-#         all_rt_peaks.to_csv(os.path.join(data_output_dir, 'rt_peak_annotations.csv'), index=False)
-#     if all_top_spectra:
-#         print("Writing top spectra data")
-#         all_top_spectra = pd.concat(all_top_spectra).reset_index(drop=True)
-#         all_top_spectra.to_json(os.path.join(data_output_dir, 'top_intensity_spectra.json'))
-
-#     return all_rt_peaks, all_top_spectra
-
-# def save_annotation_fig(eics, top_spectra, group_name, output_dir):
-#     group_chrom = get_chromatography(group_name[1])
-#     group_pol = get_file_polarity(group_name[1])
-#     group_params = get_lcmsrun_params(group_name[1])
-    
-#     fig_title = f"{group_name[0]} {group_chrom} {group_pol} {group_params}".replace('/', 'or')
-    
-#     eic_adducts = []
-#     for eic in eics.values():
-#         eic['adduct'] = eic.label.apply(lambda x: x.split('_')[-1])
-#         eic_adducts += eic.adduct.tolist()
-
-#     eic_adducts = set(eic_adducts)
-
-#     adduct_color = dict()
-#     color = iter(cm.rainbow(np.linspace(0, 1, len(eic_adducts))))
-#     for adduct in eic_adducts:
-#         adduct_color[adduct] = next(color)
-        
-#     # Pass top_spectra to plot_adduct_eics to add the "X" marker
-#     plot_adduct_eics(eics, adduct_color, fig_title, top_spectra)
-#     plt.savefig(os.path.join(output_dir, f"{fig_title}_eics.pdf"))
-#     plt.close()
-        
-#     plot_top_spectra(top_spectra, adduct_color, fig_title)
-#     plt.savefig(os.path.join(output_dir, f"{fig_title}_top_spectra.pdf"))
-#     plt.close()
-
-
-# def plot_adduct_eics(eics, adduct_color, fig_title, top_spectra):
-#     fig, axs = plt.subplots(2, 2, figsize=(20, 9), sharex=True, sharey=False)
-
-#     for idx, (lcmsrun_path, eic) in enumerate(eics.items()):
-#         total_eics = eic.shape[0]
-#         for eic_idx, eic_row in eic.iterrows():
-
-#             rt_sort = np.argsort(eic_row['rt'])
-#             adduct = get_adduct(eic_row['label'])
-
-#             # Plot on the left column for the first lcmsrun, right column for the second
-#             ax_raw = axs[0, idx]  # Top row for raw values
-#             ax_log = axs[1, idx]  # Bottom row for log-scale values
-
-#             # Plot raw values in the top row
-#             line_raw, = ax_raw.plot(eic_row['rt'][rt_sort], eic_row['i'][rt_sort], alpha=0.8, label=adduct, color=adduct_color[adduct])
-#             line_log, = ax_log.plot(eic_row['rt'][rt_sort], np.log10(eic_row['i'][rt_sort].astype(float)), alpha=0.8, label=adduct, color=adduct_color[adduct])
-
-#             peak = np.argmax(eic_row['i'][rt_sort])
-#             ax_raw.scatter(eic_row['rt'][rt_sort][peak], eic_row['i'][rt_sort][peak], color=adduct_color[adduct])
-#             ax_log.scatter(eic_row['rt'][rt_sort][peak], np.log10(eic_row['i'][rt_sort].astype(float))[peak], color=adduct_color[adduct])
-
-#             # Add "X" marker for the retention time in top_spectra
-#             if not top_spectra.empty:
-#                 for _, spectrum_row in top_spectra.iterrows():
-#                     if spectrum_row['adduct'] == adduct:
-#                         rounded_rt = round(spectrum_row['rt'], 2)  # Round RT to 2 decimal places
-
-#                         # Get the y-axis intensity value at the given RT
-#                         raw_intensity = eic_row['i'][rt_sort][np.searchsorted(eic_row['rt'][rt_sort], spectrum_row['rt'])]
-#                         log_intensity = np.log10(raw_intensity)
-
-#                         # Plot the "X" marker at the intensity value
-#                         x_marker = ax_raw.scatter(spectrum_row['rt'], raw_intensity, color=adduct_color[adduct], marker='x', s=100, label=f"Spectra RT: {rounded_rt}")
-#                         ax_log.scatter(spectrum_row['rt'], log_intensity, color=adduct_color[adduct], marker='x', s=100)
-
-#             lcms_params = get_lcmsrun_params(lcmsrun_path)
-#             run_num = get_run_num(lcmsrun_path)
-
-#             # Set subplot titles to the filenames
-#             ax_raw.set_title(f"{lcms_params}_{run_num}")
-
-#     # Set shared X axis labels for both rows
-#     for ax in axs[1, :]:  # Bottom row
-#         ax.set_xlabel('Retention Time (RT)')
-#         ax.grid()
-
-#     for ax in axs[0, :]:
-#         ax.grid()
-
-#     # Set Y axis labels for both rows
-#     axs[0, 0].set_ylabel('Intensity (i)')  # Left, top row
-#     axs[1, 0].set_ylabel('Log10 Intensity')  # Left, bottom row
-
-#     axs[1, 0].sharey(axs[1, 1])  
-#     axs[0, 1].sharey(axs[0, 0])  
-
-#     # Collect legend handles and labels
-#     handles_left, labels_left = axs[0, 0].get_legend_handles_labels()
-#     handles_right, labels_right = axs[0, 1].get_legend_handles_labels()
-
-#     # Ensure there are handles and labels before creating legends
-#     if handles_left and labels_left:
-#         leg1 = axs[0, 0].legend(handles=handles_left, labels=labels_left, loc='upper left', bbox_to_anchor=(-0.4, 1), fontsize=13, markerscale=0.2, handletextpad=0.5)
-#         for legobj in leg1.legend_handles:
-#             legobj.set_linewidth(8.0)
-
-#     if handles_right and labels_right:
-#         leg2 = axs[0, 1].legend(handles=handles_right, labels=labels_right, loc='upper right', bbox_to_anchor=(1.4, 1), fontsize=13, markerscale=0.2, handletextpad=0.5)
-#         for legobj in leg2.legend_handles:
-#             legobj.set_linewidth(8.0)
-
-#     fig.suptitle(fig_title)
-#     plt.tight_layout()
-
-
-# def plot_top_spectra(top_spectra, adduct_color, fig_title):
-#     if top_spectra.empty:
-#         plt.figure()  
-#         return
-    
-#     num_columns = 3
-#     num_rows = math.ceil(len(top_spectra) / num_columns)
-    
-#     fig, axes = plt.subplots(nrows=num_rows, ncols=num_columns, figsize=(19.845, 4.5 * num_rows))
-#     axes = axes.flatten()
-
-#     for i, row in top_spectra.iterrows():
-#         mz_values = row['spectrum'][0]
-#         i_values = row['spectrum'][1]
-
-#         markerline, stemlines, baseline = axes[i].stem(mz_values, i_values, basefmt=" ", markerfmt=" ")
-#         plt.setp(stemlines, 'color', adduct_color[row.adduct])
-#         axes[i].set_title(f"{row['adduct']} RT: {round(row['rt'], 2)}")
-
-#     plt.tight_layout()
-
-# def filter_by_selected_top_adduct(rt_peaks, top_adducts, rt_check_cutoff=0.05):
-#     """
-#     rt_peaks_filtered_top_adduct = sta.filter_by_selected_top_adduct(rt_peaks_filtered, top_adducts_dict)
-#     """
-#     unfiltered_rt_peaks = rt_peaks.copy()
-#     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
-
-#     selected_top_adducts = []
-#     # Find the row that matches the top_adducts dict keys
-#     for key, value in top_adducts.items():
-#         label = key.split(';;')[0]
-#         standard_lcmsrun = key.split(';;')[1]
-        
-#         # Filter rows matching the current key and adducts
-#         selected_adduct = unfiltered_rt_peaks[
-#             (unfiltered_rt_peaks['standard_lcmsrun'] == standard_lcmsrun) &
-#             (unfiltered_rt_peaks['label'] == label) &
-#             (unfiltered_rt_peaks['adduct'].isin(value))
-#         ].copy()
-        
-#         # Handle multiple peaks per top adduct
-#         if selected_adduct.shape[0] > 1:
-#             for adduct in selected_adduct['adduct'].unique():
-#                 adduct_subset = selected_adduct[selected_adduct['adduct'] == adduct].copy()
-#                 if adduct_subset.shape[0] > 1:
-#                     display(adduct_subset)
-#                     adduct_subset['label'] = adduct_subset.apply(
-#                         lambda row: f"{row['label']} ({row['peak_index']})", axis=1
-#                     )
-#                 selected_top_adducts.append(adduct_subset)
-#         else:
-#             selected_top_adducts.append(selected_adduct)
-
-#     if selected_top_adducts:
-#         selected_top_adducts_df = pd.concat(selected_top_adducts, ignore_index=True)
-#     else:
-#         selected_top_adducts_df = pd.DataFrame()  # Return an empty DataFrame if no matches are found
-
-#     # Check that polarities and CEs for a given compound+adduct have the same RTs
-#     selected_top_adducts_df_grouped = selected_top_adducts_df.groupby(['chromatography', 'label'])
-#     for group_name, group in selected_top_adducts_df_grouped:
-#         rt_values = group['rt_peak']
-#         cutoff = rt_check_cutoff
-#         ces = group['collision_energy'].unique()
-#         pols = group['polarity'].unique()
-#         if rt_values.max() - rt_values.min() <= cutoff:
-#             print(f"Group {group_name}: All RT values for {ces} and {pols} are within {cutoff} mins of each other ({round(rt_values.max() - rt_values.min(), 4)}).\n")
-#         else:
-#             print(f"Group {group_name}: RT values for {ces} and {pols} are NOT within {cutoff} mins of each other ({round(rt_values.max() - rt_values.min(), 4)}).\n")
-
-#     # Group by monoisotopic_mass and identify isomers if present, then check they have the same adduct
-#     selected_top_adducts_grouped = selected_top_adducts_df.groupby(['monoisotopic_mass','polarity','chromatography'])
-#     grouped_compounds = selected_top_adducts_grouped['compound_name'].nunique()
-#     multiple_compounds_per_mim = grouped_compounds[grouped_compounds > 1]
-#     if not multiple_compounds_per_mim.empty:
-#         # Iterate over each monoisotopic mass with multiple compounds
-#         for isomer_mim in multiple_compounds_per_mim.index:
-#             isomer_data = selected_top_adducts_df[
-#                 (selected_top_adducts_df['monoisotopic_mass'] == isomer_mim[0]) &
-#                 (selected_top_adducts_df['polarity'] == isomer_mim[1]) &
-#                 (selected_top_adducts_df['chromatography'] == isomer_mim[2])
-#             ]
-#             # Check if all adducts are the same
-#             unique_adducts = isomer_data['adduct'].unique()
-#             if len(unique_adducts) == 1:
-#                 # All adducts are the same, do nothing
-#                 print(f"Note: Found isomers in {isomer_mim[2]} {isomer_mim[1]} mode at {isomer_mim[0]} ({list(isomer_data['label'])}) but they had matching selected adducts {unique_adducts[0]}.")
-#                 continue
-#             else: # Adducts for isomers do not agree
-#                 print(f"\tWarning! Adducts for isomers do not agree. Exiting. See data for monoisotopic mass {isomer_mim[0]}:\n")
-#                 display(isomer_data[['label', 'adduct', 'inchi', 'monoisotopic_mass']])
-#                 print("\nPlease return to the GUI to select a matching adduct for isomers.")
-#                 return
-#     else:
-#         print("No isomers found in selected top adducts.")
-    
-#     # Select best collision energy row by intensity for each compound+adduct in selected_top_adducts_df
-#     selected_top_adducts_df_grouped = selected_top_adducts_df.groupby(['chromatography', 'polarity', 'label', 'adduct'])
-#     selected_top_adducts_df_grouped_best_ces = []
-#     for group_name, group in selected_top_adducts_df_grouped:
-#         ces = group.sort_values(by='intensity', ascending=False)
-#         if len(ces) == 2:
-#             selected_top_adducts_df_grouped_best_ces.append(ces.iloc[0])
-#         elif len(ces) == 1:
-#             selected_top_adducts_df_grouped_best_ces.append(ces.iloc[0])
-#         else:
-#             print("Unexpected number of collision energies found.")
-#     selected_top_adducts_df_best_ces = pd.DataFrame(selected_top_adducts_df_grouped_best_ces)
-
-#     print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {selected_top_adducts_df_best_ces.shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
-#     display(selected_top_adducts_df_best_ces[['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass', 'collision_energy']].sort_values(by=['label','adduct']))
-
-#     return selected_top_adducts_df_best_ces
-
-# def filter_by_top_adduct(rt_peaks):
-    
-#     unfiltered_rt_peaks = rt_peaks.copy()
-
-#     # Find the row with the highest intensity for each group
-#     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
-#     group_list = ['chromatography', 'polarity', 'label']
-#     idx_max_intensity = unfiltered_rt_peaks.groupby(group_list)['intensity'].idxmax()
-#     highest_intensity_row = unfiltered_rt_peaks.loc[idx_max_intensity]
-
-#     # # Filter rows to keep only those with the same adduct as the highest intensity row
-#     group_list.extend(['adduct', 'collision_energy'])
-#     top_adducts_per_pol = unfiltered_rt_peaks.merge(
-#         highest_intensity_row[group_list],
-#         on=group_list,
-#         how='inner'
-#     )
-
-#     # Find all other peaks for the selected adduct
-#     top_adducts_per_pol_grouped = top_adducts_per_pol.groupby(group_list)
-#     unfiltered_rt_peaks_grouped = unfiltered_rt_peaks.groupby(group_list)
-#     all_peaks = []
-
-#     for group_key, _ in top_adducts_per_pol_grouped:
-#         # Check if the group_key exists in rt_peaks_grouped
-#         if group_key in unfiltered_rt_peaks_grouped.groups:
-#             # Retrieve all rows for the matching group
-#             matching_rows = unfiltered_rt_peaks_grouped.get_group(group_key)
-#             if matching_rows.shape[0] > 1: # Are there multiple peaks per chrom+polarity+compound+adduct+collision_energy?
-#                 matching_rows.loc[:,'label'] = matching_rows.apply(lambda row: f"{row['label']} ({row['peak_index']})", axis=1)
-#             all_peaks.append(matching_rows)
-
-#     top_adducts_per_pol_allpeaks = pd.concat(all_peaks, ignore_index=True) if all_peaks else pd.DataFrame()
-
-#     # Group by monoisotopic_mass and identify isomers if present
-#     top_adducts_per_pol_allpeaks_isomer_grouping = top_adducts_per_pol_allpeaks.groupby(['monoisotopic_mass','polarity','chromatography'])
-#     grouped_compounds = top_adducts_per_pol_allpeaks_isomer_grouping['compound_name'].nunique()
-#     multiple_compounds_per_mim = grouped_compounds[grouped_compounds > 1]
-
-#     if not multiple_compounds_per_mim.empty:
-#         # Iterate over each monoisotopic mass with multiple compounds
-#         for isomer_mim in multiple_compounds_per_mim.index:
-#             isomer_data = top_adducts_per_pol_allpeaks[
-#                 (top_adducts_per_pol_allpeaks['monoisotopic_mass'] == isomer_mim[0]) &
-#                 (top_adducts_per_pol_allpeaks['polarity'] == isomer_mim[1]) &
-#                 (top_adducts_per_pol_allpeaks['chromatography'] == isomer_mim[2])
-#             ]
-            
-#             # Check if all adducts are the same
-#             unique_adducts = isomer_data['adduct'].unique()
-#             if len(unique_adducts) == 1:
-#                 # All adducts are the same, do nothing
-#                 print(f"Note: Found isomers in {isomer_mim[2]} {isomer_mim[1]} mode at {isomer_mim[0]} ({list(isomer_data['label'])}) but they had matching selected adducts {unique_adducts[0]}.")
-#                 continue
-#             else: # Adducts for isomers do not agree
-#                 print(f"Warning! Adducts for isomers do not agree. See data for monoisotopic mass {isomer_mim[0]}:\n")
-#                 display(isomer_data[['label', 'adduct', 'inchi', 'monoisotopic_mass']])
-#                 print("\nPlease return to the GUI to select a matching adduct for isomers.")
-#                 return
-    
-#     print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {top_adducts_per_pol_allpeaks.shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
-#     display(top_adducts_per_pol_allpeaks[['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label','adduct']))
-
-#     return top_adducts_per_pol_allpeaks
-
-
-# def filter_by_top_adduct(rt_peaks, top_adducts_per_pol_allpeaks=None, method="manual"):
-#     import pandas as pd
-#     from IPython.display import display, clear_output
-#     import ipywidgets as widgets
-
-#     unfiltered_rt_peaks = rt_peaks.copy()
-#     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
-#     all_peaks = []
-
-#     # Get unique groups
-#     unique_groups = unfiltered_rt_peaks[['label', 'polarity', 'chromatography']].drop_duplicates()
-#     total_groups = len(unique_groups)
-#     current_index = 0
-
-#     # Widgets
-#     progress_label = widgets.Label(value=f"Group {current_index + 1} of {total_groups}")
-#     next_button = widgets.Button(description="Next Group")
-#     output_container = widgets.Output()
-#     table_container = widgets.Output()
-
-#     selected_row = None  # Store the selected row index
-#     def update_progress():
-#         progress_label.value = f"Group {current_index + 1} of {total_groups}"
-
-#     def process_group(index):
-#         nonlocal current_index, selected_row
-#         selected_row = None  # Reset the selected row for the new group
-#         group = unique_groups.iloc[index]
-#         label, polarity, chromatography = group['label'], group['polarity'], group['chromatography']
-
-#         # Subset unfiltered_rt_peaks for the current group
-#         group_peaks = unfiltered_rt_peaks[
-#             (unfiltered_rt_peaks['label'] == label) &
-#             (unfiltered_rt_peaks['polarity'] == polarity) &
-#             (unfiltered_rt_peaks['chromatography'] == chromatography)
-#         ]
-
-#         if group_peaks.empty:
-#             print("No peaks found for this group.")
-#             return
-
-#         if method == "intensity":
-#             # Automatically select the row with the highest intensity
-#             idx_max_intensity = group_peaks['intensity'].idxmax()
-#             highest_intensity_row = group_peaks.loc[[idx_max_intensity]]
-#             all_peaks.append(highest_intensity_row)
-#         elif method == "manual":
-#             # Manual selection
-#             group_peaks = group_peaks.sort_values(by='intensity', ascending=False)
-#             with table_container:
-#                 clear_output(wait=True)
-#                 print(f"\nManual selection for group: {label}, {polarity}, {chromatography}")
-#                 display(group_peaks.style.set_table_attributes("style='display:inline'").set_table_styles(
-#                     [{'selector': 'table', 'props': [('overflow-x', 'auto'), ('display', 'block')]}]
-#                 ))
-
-#             dropdown = widgets.Dropdown(
-#                 options=group_peaks.index.tolist(),
-#                 description='Select Row:',
-#                 style={'description_width': 'initial'}
-#             )
-#             confirm_button = widgets.Button(description="Confirm Selection")
-
-#             def on_confirm(b):
-#                 nonlocal selected_row
-#                 selected_row = dropdown.value
-#                 with table_container:
-#                     clear_output(wait=True)
-#                     print(f"Selected row index: {selected_row}")
-#                     display(group_peaks.loc[[selected_row]])
-
-#                 # Add the selected row to all_peaks
-#                 highest_intensity_row = group_peaks.loc[[selected_row]]
-#                 all_peaks.append(highest_intensity_row)
-
-#                 # Debug: Print all_peaks after appending
-#                 print("Updated all_peaks:")
-#                 print(pd.concat(all_peaks, ignore_index=True))
-
-#             confirm_button.on_click(on_confirm)
-#             with table_container:
-#                 display(dropdown, confirm_button)
-
-#     def on_next(b):
-#         nonlocal current_index
-#         if selected_row is not None or method == "intensity":  # Ensure a selection is made before proceeding
-#             if current_index < total_groups - 1:
-#                 current_index += 1
-#                 update_progress()
-#                 process_group(current_index)
-#             else:
-#                 with output_container:
-#                     clear_output(wait=True)
-#                     print("All groups processed!")
-#                     # Combine all processed peaks
-#                     if all_peaks:
-#                         top_adducts_per_pol_allpeaks[0] = pd.concat(all_peaks, ignore_index=True)
-#                     else:
-#                         top_adducts_per_pol_allpeaks[0] = pd.DataFrame()  # Return an empty DataFrame if no peaks are selected
-
-#                     # Display final results
-#                     with output_container:
-#                         clear_output(wait=True)
-#                         if top_adducts_per_pol_allpeaks[0].empty:
-#                             print("\nNo peaks were retained. Please check your input data or selection process.")
-#                         else:
-#                             print("Analysis complete!")
-#                             #print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {top_adducts_per_pol_allpeaks[0].shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
-#                             #display(top_adducts_per_pol_allpeaks[0][['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label', 'adduct']))
-
-#     # Attach event handler
-#     next_button.on_click(on_next)
-
-#     # Initial display
-#     display(progress_label, next_button, output_container, table_container)
-#     process_group(current_index)
-
-
-def convert_rt_peaks_to_atlas_format(rt_peaks: pd.DataFrame) -> pd.DataFrame:
-    """
-    Converts a DataFrame of retention time (RT) peaks into a format compatible with the MetAtlas atlas convention.
-
-    Args:
-        rt_peaks (pd.DataFrame): A DataFrame containing RT peak data with columns such as 'label', 'rt_peak', 
-                                 'smiles', 'mz_theoretical', 'monoisotopic_mass', 'polarity', and 'chromatography'.
-
-    Returns:
-        pd.DataFrame: A formatted DataFrame with enriched metadata and columns renamed/dropped to match 
-                      the MetAtlas atlas convention. The output is sorted by chromatography and polarity.
-    """
-    rt_peaks_unformatted = rt_peaks.copy()
-    rt_peaks_unformatted['compound_name'] = rt_peaks_unformatted['label']
-
-    # Enrich for atlas-related metadata
-    rt_peaks_unformatted['rt_min'] = rt_peaks_unformatted['rt_peak'] - 0.5
-    rt_peaks_unformatted['rt_max'] = rt_peaks_unformatted['rt_peak'] + 0.5
-    rt_peaks_unformatted['mz_tolerance'] = 5
-    rt_peaks_unformatted['mz_tolerance_units'] = "ppm"
-    rt_peaks_unformatted['inchi'] = rt_peaks_unformatted['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
-    rt_peaks_unformatted['inchi_key'] = rt_peaks_unformatted['inchi'].apply(inchi_to_inchikey)
-    rt_peaks_unformatted['in_metatlas'] = "True"
-
-    # Rename and drop columns to match MetAtlas atlas convention
-    rt_peaks_unformatted.rename(columns={'mz_theoretical': 'mz', 'monoisotopic_mass': 'mono_isotopic_molecular_weight'}, inplace=True)
-    rt_peaks_unformatted['polarity'] = rt_peaks_unformatted['polarity'].apply(lambda pol: 'positive' if pol == 'POS' else 'negative')
-    rt_peaks_unformatted.drop(columns=['intensity', 'mz_observed', 'ppm_error'], inplace=True)
-
-    # Export chromatographic and polarity-specific atlases
-    pos_annotations = rt_peaks_unformatted[rt_peaks_unformatted['polarity'] == 'positive']
-    neg_annotations = rt_peaks_unformatted[rt_peaks_unformatted['polarity'] == 'negative']
-    c18_pos_annotations = pos_annotations[pos_annotations['chromatography'] == 'C18'].sort_values('rt_peak')
-    c18_neg_annotations = neg_annotations[neg_annotations['chromatography'] == 'C18'].sort_values('rt_peak')
-    hilic_pos_annotations = pos_annotations[pos_annotations['chromatography'] == 'HILICZ'].sort_values('rt_peak')
-    hilic_neg_annotations = neg_annotations[neg_annotations['chromatography'] == 'HILICZ'].sort_values('rt_peak')
-
-    rt_peaks_formatted = pd.concat([c18_pos_annotations, c18_neg_annotations, hilic_pos_annotations, hilic_neg_annotations], ignore_index=True)
-    
-    return rt_peaks_formatted
-
-##############################
-### Existing data searches ###
-##############################
+##################################
+### Existing data search tools ###
+##################################
 
 def search_for_matches_in_metatlas_db(
     all_molecules: pd.DataFrame, 
@@ -1648,12 +1101,11 @@ def search_for_matches_in_msms_refs(
     nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
     nonmatches_df.drop_duplicates(inplace=True)
 
-    if not matches_df.empty:
-        print("\nSummary of compounds+adducts already in MSMS refs:\n")
-        display(matches_df)
+    # if not matches_df.empty:
+    #     print("\nSummary of compounds+adducts already in MSMS refs:\n")
+    #     display(matches_df)
     if not nonmatches_df.empty:
-        print("\nThese compounds+adducts are not yet in MSMS refs:\n")
-        display(nonmatches_df)
+        print(f"\n{nonmatches_df.shape[0]} compounds+adducts are not yet in MSMS refs. Check notin_msms_refs to view.\n")
 
     return matches_df, nonmatches_df
 
@@ -1745,7 +1197,7 @@ def search_for_matches_in_atlases(
         matches_df = pd.DataFrame()
     if len(nonmatches_dict) != 0:
         nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
-        print("\nThese compounds+adducts are not yet in any atlases:\n")
+        print(f"\nThese {len(nonmatches_df)} compounds+adducts are not yet in any atlases:\n")
         display(nonmatches_df)
     else:
         print("\nAll compounds+adducts are already in the atlases.\n")
@@ -1753,167 +1205,53 @@ def search_for_matches_in_atlases(
 
     return matches_df, nonmatches_df
 
-############################
-### Atlas/refs retrieval ###
-############################
+#####################
+### General tools ###
+#####################
 
-def get_ema_atlas_data(existing_atlases_path: Dict[str, Dict[str, str]]) -> pd.DataFrame:
+def filter_by_selected(
+    eics_full: List[Dict[str, pd.DataFrame]],
+    rt_peaks_full: List[pd.DataFrame],
+    top_spectra_full: List[pd.DataFrame],
+    selected_adducts_dict: Dict[str, List[str]],
+    top_adducts_dict: Dict[str, List[str]]
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Load and combine atlas data from multiple files into a single DataFrame.
+    Filters EICs, RT peaks, and MS2 spectra based on selected adducts and compounds.
 
     Args:
-        existing_atlases_path (Dict[str, Dict[str, str]]): A dictionary where keys are chromatography types,
-            and values are dictionaries mapping polarities to file paths.
+        eics_full (List[Dict[str, pd.DataFrame]]): List of dictionaries containing EIC data.
+        rt_peaks_full (List[pd.DataFrame]): List of DataFrames containing RT peak data.
+        top_spectra_full (List[pd.DataFrame]): List of DataFrames containing MS2 spectra data.
+        selected_adducts_dict (Dict[str, List[str]]): Dictionary of selected adducts for each compound.
+        top_adducts_dict (Dict[str, List[str]]): Dictionary of top adducts for each compound.
 
     Returns:
-        pd.DataFrame: A combined DataFrame containing all atlas data, with an additional 'source_file' column
-            indicating the source file for each row.
+        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Filtered EICs, RT peaks, and MS2 spectra DataFrames.
     """
-    atlas_dfs = []
-    for chrom_type, polarities in existing_atlases_path.items():
-        for polarity, file_path in polarities.items():
-            if os.path.exists(file_path):  # Ensure the file exists
-                df = pd.read_csv(file_path, sep='\t')
-                df['source_file'] = os.path.basename(file_path)  # Add the file name as a new column
-                atlas_dfs.append(df)
+    selected_compounds_table = extract_selected_compounds(selected_adducts_dict, top_adducts_dict)
 
-    atlases = pd.concat(atlas_dfs, ignore_index=True)
-    return atlases
+    eics_selected = pd.concat(
+        [df.assign(key=key) for d in eics_full for key, df in d.items()],
+        ignore_index=True
+    ).rename(columns={'key': 'standard_lcmsrun'})
+    eics_selected['compound_name'] = eics_selected['label'].apply(lambda x: x.split('_')[0])
+    eics_selected = select_compounds_from_gui(eics_selected, selected_compounds_table)
+        
+    rt_peaks_selected = pd.concat(rt_peaks_full).rename(columns={'lcmsrun': 'standard_lcmsrun'})
+    rt_peaks_selected = select_compounds_from_gui(rt_peaks_selected, selected_compounds_table)
 
-# def get_existing_atlases(existing_atlases_path: str) -> pd.DataFrame:
-#     """
-#     Load and combine all atlas files matching a given path pattern into a single DataFrame.
-#
-#     Args:
-#         existing_atlases_path (str): A glob pattern to locate atlas files.
-#
-#     Returns:
-#         pd.DataFrame: A combined DataFrame containing all atlas data, with an additional 'source_file' column
-#             indicating the source file for each row.
-#     """
-#     all_atlases_paths = glob.glob(existing_atlases_path)
-#     atlas_dfs = []
-#     for df_path in all_atlases_paths:
-#         df = pd.read_csv(df_path, sep='\t')
-#         df['source_file'] = os.path.basename(df_path)  # Add the file name as a new column
-#         atlas_dfs.append(df)
-#
-#     atlases = pd.concat(atlas_dfs)
-#     return atlases
+    top_spectra_selected = pd.concat(top_spectra_full, ignore_index=True).rename(columns={'lcmsrun': 'standard_lcmsrun'})
+    top_spectra_selected['compound_name'] = top_spectra_selected['label'].apply(lambda x: x.split('_')[0])
+    top_spectra_selected = select_compounds_from_gui(top_spectra_selected, selected_compounds_table)
 
-def get_qc_atlas_data(qc_atlases: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-    """
-    Organize QC atlas data by source file.
+    print(f"\nTotal unique compounds retained: {eics_selected['compound_name'].nunique()}")
+    print(f"Total unique compound+adduct entries retained: {eics_selected['label'].nunique()}\n")
+    print(f"Total EICs selected: {eics_selected.shape[0]}")
+    print(f"Total RT peaks selected: {rt_peaks_selected.shape[0]}")
+    print(f"Total MS2 spectra selected: {top_spectra_selected.shape[0]}")
 
-    Args:
-        qc_atlases (pd.DataFrame): A DataFrame containing QC atlas data, with a 'source_file' column
-            indicating the source file for each row.
-
-    Returns:
-        Dict[str, pd.DataFrame]: A dictionary where keys are source file names and values are DataFrames
-            containing the corresponding QC atlas data.
-    """
-    qc_atlas_data = {}
-    for atlas_source in qc_atlases['source_file'].unique():
-        qc_atlas = qc_atlases[qc_atlases['source_file'] == atlas_source]
-        qc_atlas_data[atlas_source] = qc_atlas
-
-    return qc_atlas_data
-
-def get_msms_refs(msms_refs_path: str) -> pd.DataFrame:
-    """
-    Load MS/MS reference data from a file.
-
-    Args:
-        msms_refs_path (str): Path to the MS/MS reference file.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing the MS/MS reference data.
-    """
-    msms_refs = pd.read_csv(msms_refs_path, sep='\t', index_col=0, low_memory=False)
-    return msms_refs
-
-##################
-### Formatters ###
-##################
-
-def format_for_msms_refs(
-    input_df: pd.DataFrame, 
-    msms_refs: pd.DataFrame, 
-    msms_refs_metadata: Dict[str, Any]
-) -> pd.DataFrame:
-    """
-    Format a DataFrame for MS/MS reference data by enriching metadata and ensuring required columns.
-
-    Args:
-        input_df (pd.DataFrame): Input DataFrame containing compound data, including a 'spectrum' column.
-        msms_refs (pd.DataFrame): Existing MS/MS reference DataFrame to align columns with.
-        msms_refs_metadata (Dict[str, Any]): Metadata dictionary containing fields such as 'ce_type', 
-                                             'frag_method', 'instrument_type', 'decimal', and 'msms_refs_prefix'.
-
-    Returns:
-        pd.DataFrame: A formatted DataFrame ready for MS/MS reference storage.
-    """
-    # Remove rows with NaN in the 'spectrum' column and print a warning
-    rows_with_nan = input_df[input_df['spectrum'].isna()]
-    if not rows_with_nan.empty:
-        print("Warning: The following rows were removed due to NaN in the 'spectrum' column:")
-        display(rows_with_nan)
-        input_df = input_df.dropna(subset=['spectrum'])
-
-    # Add all required columns for MS/MS refs
-    output_df = input_df.copy()
-    output_df['ce_type'] = msms_refs_metadata['ce_type']
-    output_df['ce'] = output_df['standard_lcmsrun'].apply(get_collision_energy)
-    output_df['file'] = output_df['standard_lcmsrun'].apply(os.path.basename)
-    output_df.rename(columns={'mz_theoretical': 'mz'}, inplace=True)
-    output_df = enrich_metadata(output_df, msms_refs_metadata)
-    output_df['spectrum'] = output_df['spectrum'].apply(make_text_spectrum)
-    output_df = output_df[msms_refs.columns.intersection(output_df.columns)]
-    output_df = output_df.reset_index(drop=True)
-    output_df.index = range(
-        msms_refs.index.max() + 1,
-        msms_refs.index.max() + 1 + len(output_df)
-    )
-
-    return output_df
-
-def format_for_atlas_store(input_compounds: pd.DataFrame) -> List[Any]:
-    """
-    Format a DataFrame of compounds for storage in the MetAtlas database.
-
-    Args:
-        input_compounds (pd.DataFrame): DataFrame containing compound information, including columns such as 
-                                        'label', 'inchi', 'inchi_key', 'neutralized_inchi', 'neutralized_inchi_key', 
-                                        'formula', 'monoisotopic_mass', and 'permanent_charge'.
-
-    Returns:
-        List[Any]: A list of MetAtlas Compound objects ready for database storage.
-    """
-    # Second check for non-neutralized InChI key
-    any_diff_inchikeys = input_compounds[input_compounds['inchi_key'] != input_compounds['neutralized_inchi_key']]
-    if not any_diff_inchikeys.empty:
-        print("Warning! The InChIKey and neutralized InChIKey do not match for the following compounds:")
-        print(any_diff_inchikeys[['label', 'inchi_key', 'neutralized_inchi_key']])
-
-    input_compounds.reset_index(drop=True, inplace=True)
-    input_compounds.rename(columns={'label': 'compound_name'}, inplace=True)
-
-    metatlas_compounds = []
-    for _, row in input_compounds.iterrows():
-        cpd = metob.Compound()
-        cpd.name = row.compound_name
-        cpd.inchi = row.inchi
-        cpd.inchi_key = row.inchi_key
-        cpd.neutralized_inchi = row.neutralized_inchi
-        cpd.neutralized_inchi_key = row.neutralized_inchi_key
-        cpd.formula = row.formula
-        cpd.mono_isotopic_molecular_weight = row.monoisotopic_mass
-        cpd.permanent_charge = row.permanent_charge
-        cpd.description = ''
-        metatlas_compounds.append(cpd)
-
-    return metatlas_compounds
+    return eics_selected, rt_peaks_selected, top_spectra_selected
 
 def format_and_select_top_adducts(
     rt_peaks: pd.DataFrame, 
@@ -2024,7 +1362,7 @@ def format_and_select_top_adducts(
                     print("\n\t\tPlease return to the GUI to select a matching adduct for isomers.\n")
                     return None, None
         else:
-            print("\t\tNo isomers found in unfiltered data.\n")
+            print(f"\t\tNo isomers found in {dataset_name} data.\n")
 
         if dataset_name == 'top':
             print("\tSelecting best collision energy row by intensity for the top adduct(s) per compound...\n")
@@ -2045,61 +1383,219 @@ def format_and_select_top_adducts(
     return unfiltered_rt_peaks, selected_top_adducts_df_best_ces
 
 
-############################
-### Graphical interfaces ###
-############################
 
-from typing import List, Dict, Any
-import pandas as pd
+#######################
+### MSMS refs tools ###
+#######################
 
-def select_compounds_from_gui(full_dataset: pd.DataFrame, selected_compounds_table: pd.DataFrame) -> pd.DataFrame:
+def get_msms_refs(msms_refs_path: str) -> pd.DataFrame:
     """
-    Select compounds from a dataset based on user-specified criteria, including compound name, LCMS run, adducts, and peak indices.
+    Load MS/MS reference data from a file.
 
     Args:
-        full_dataset (pd.DataFrame): The full dataset containing compound information.
-        selected_compounds_table (pd.DataFrame): A table specifying the compounds, adducts, and peak indices to select.
+        msms_refs_path (str): Path to the MS/MS reference file.
 
     Returns:
-        pd.DataFrame: A filtered dataset containing only the selected compounds.
+        pd.DataFrame: A DataFrame containing the MS/MS reference data.
     """
-    select_dataset = pd.DataFrame()
-    
-    if 'smiles' in full_dataset.columns:
-        full_dataset['inchi'] = full_dataset['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
-        full_dataset['inchi_key'] = full_dataset['inchi'].apply(inchi_to_inchikey)
-        full_dataset['neutralized_inchi'] = full_dataset['inchi'].apply(neutralize_inchi)
-        full_dataset['neutralized_inchi_key'] = full_dataset['neutralized_inchi'].apply(inchi_to_inchikey)
-        full_dataset['permanent_charge'] = full_dataset['neutralized_inchi'].apply(charge_from_inchi)
-        full_dataset['formula'] = full_dataset['neutralized_inchi'].apply(formula_from_inchi)
-        full_dataset['monoisotopic_mass'] = full_dataset['neutralized_inchi'].apply(monoisotopic_mass_from_inchi)
-        full_dataset['collision_energy'] = full_dataset['standard_lcmsrun'].apply(get_collision_energy)
-        if not full_dataset[full_dataset['inchi_key'] != full_dataset['neutralized_inchi_key']].empty:
-            print(f"Warning! The InChIKey and neutralized InChIKey do not match for the following selected compounds:")
-            print(full_dataset[full_dataset['inchi_key'] != full_dataset['neutralized_inchi_key']][['compound_name', 'inchi_key', 'neutralized_inchi_key']])
+    msms_refs = pd.read_csv(msms_refs_path, sep='\t', index_col=0, low_memory=False)
+    print(f"Loaded MSMS refs with {msms_refs.shape[0]} rows and {msms_refs.shape[1]} columns.")
+    return msms_refs
 
-    for _, row in selected_compounds_table.iterrows():
-        compound_name = row['compound_name']
-        standard_lcmsrun = row['standard_lcmsrun']
-        selected_adducts = row['selected_adducts']
-        selected_peak_indices = row['selected_peak_indices']
-        
-        # Filter by compound name and standard_lcmsrun
-        mask = (full_dataset['compound_name'] == compound_name) & (full_dataset['standard_lcmsrun'] == standard_lcmsrun)
-        
-        # Further filter by adduct and peak_index if they exist in the dataframe
-        if 'adduct' in full_dataset.columns and len(selected_adducts) > 0:
-            adduct_mask = full_dataset['adduct'].isin(selected_adducts)
-            mask = mask & adduct_mask
-            
-        if 'peak_index' in full_dataset.columns and len(selected_peak_indices) > 0:
-            peak_mask = full_dataset['peak_index'].isin(selected_peak_indices)
-            mask = mask & peak_mask
-        
-        selected_compounds = full_dataset[mask].copy()
-        select_dataset = pd.concat([select_dataset, selected_compounds], ignore_index=True)
+def merge_selected_peaks_with_top_spectra(
+    selected_peaks: pd.DataFrame, 
+    selected_spectra: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Merge selected peaks with their corresponding top spectra based on shared columns.
+
+    Args:
+        selected_peaks (pd.DataFrame): DataFrame containing peak information, including columns like 'label', 'adduct', 'standard_lcmsrun', and 'peak_index'.
+        selected_spectra (pd.DataFrame): DataFrame containing spectra information, including columns like 'compound_name', 'adduct', 'standard_lcmsrun', 'peak_index', and 'spectrum'.
+
+    Returns:
+        pd.DataFrame: A merged DataFrame containing information from both peaks and spectra.
+    """
+    selected_peaks_compounded = selected_peaks.copy()
+    selected_peaks_compounded['compound_name'] = selected_peaks_compounded['label'].str.replace(r" \(peak\d+\)", "", regex=True)
+    merge_on = ['compound_name', 'adduct', 'standard_lcmsrun', 'peak_index']
+    merge_on_with_spectrum = merge_on + ['spectrum']  # Create a new list with 'spectrum' added
+    merged_peaks_spectra = pd.merge(
+        selected_peaks_compounded,
+        selected_spectra[merge_on_with_spectrum],  # Subset columns correctly
+        on=merge_on,
+        how='left'
+    )
+    return merged_peaks_spectra
+
+def format_for_msms_refs(
+    input_df: pd.DataFrame, 
+    spectra_df: pd.DataFrame,
+    msms_refs: pd.DataFrame, 
+    msms_refs_metadata: Dict[str, Any]
+) -> pd.DataFrame:
+    """
+    Format a DataFrame for MS/MS reference data by enriching metadata and ensuring required columns.
+
+    Args:
+        input_df (pd.DataFrame): Input DataFrame containing compound data, including a 'spectrum' column.
+        msms_refs (pd.DataFrame): Existing MS/MS reference DataFrame to align columns with.
+        msms_refs_metadata (Dict[str, Any]): Metadata dictionary containing fields such as 'ce_type', 
+                                             'frag_method', 'instrument_type', 'decimal', and 'msms_refs_prefix'.
+
+    Returns:
+        pd.DataFrame: A formatted DataFrame ready for MS/MS reference storage.
+    """
+    # Add spectra from top spectra to the rt peaks data
+    input_df_with_spectra = merge_selected_peaks_with_top_spectra(input_df, spectra_df)
+
+    # Remove rows with NaN in the 'spectrum' column and print a warning
+    rows_with_nan = input_df_with_spectra[input_df_with_spectra['spectrum'].isna()]
+    if not rows_with_nan.empty:
+        print("Warning: The following rows were removed due to NaN in the 'spectrum' column:")
+        display(rows_with_nan)
+        input_df_with_spectra = input_df_with_spectra.dropna(subset=['spectrum'])
+
+    # Add all required columns for MS/MS refs
+    output_df = input_df_with_spectra.copy()
+    output_df['ce_type'] = msms_refs_metadata['ce_type']
+    output_df['ce'] = output_df['standard_lcmsrun'].apply(get_collision_energy)
+    output_df['file'] = output_df['standard_lcmsrun'].apply(os.path.basename)
+    output_df.rename(columns={'mz_theoretical': 'mz'}, inplace=True)
+    output_df = enrich_metadata(output_df, msms_refs_metadata)
+    output_df['spectrum'] = output_df['spectrum'].apply(make_text_spectrum)
+    output_df = output_df[msms_refs.columns.intersection(output_df.columns)]
+    output_df = output_df.reset_index(drop=True)
+    output_df.index = range(
+        msms_refs.index.max() + 1,
+        msms_refs.index.max() + 1 + len(output_df)
+    )
+
+    return output_df
+
+###################
+### Atlas Tools ###
+###################
+
+def convert_rt_peaks_to_atlas_format(rt_peaks: pd.DataFrame) -> pd.DataFrame:
+    """
+    Converts a DataFrame of retention time (RT) peaks into a format compatible with the MetAtlas atlas convention.
+
+    Args:
+        rt_peaks (pd.DataFrame): A DataFrame containing RT peak data with columns such as 'label', 'rt_peak', 
+                                 'smiles', 'mz_theoretical', 'monoisotopic_mass', 'polarity', and 'chromatography'.
+
+    Returns:
+        pd.DataFrame: A formatted DataFrame with enriched metadata and columns renamed/dropped to match 
+                      the MetAtlas atlas convention. The output is sorted by chromatography and polarity.
+    """
+    rt_peaks_unformatted = rt_peaks.copy()
+    rt_peaks_unformatted['compound_name'] = rt_peaks_unformatted['label']
+
+    # Enrich for atlas-related metadata
+    rt_peaks_unformatted['rt_min'] = rt_peaks_unformatted['rt_peak'] - 0.5
+    rt_peaks_unformatted['rt_max'] = rt_peaks_unformatted['rt_peak'] + 0.5
+    rt_peaks_unformatted['mz_tolerance'] = 5
+    rt_peaks_unformatted['mz_tolerance_units'] = "ppm"
+    rt_peaks_unformatted['inchi'] = rt_peaks_unformatted['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
+    rt_peaks_unformatted['inchi_key'] = rt_peaks_unformatted['inchi'].apply(inchi_to_inchikey)
+    rt_peaks_unformatted['in_metatlas'] = "True"
+
+    # Rename and drop columns to match MetAtlas atlas convention
+    rt_peaks_unformatted.rename(columns={'mz_theoretical': 'mz', 'monoisotopic_mass': 'mono_isotopic_molecular_weight'}, inplace=True)
+    rt_peaks_unformatted['polarity'] = rt_peaks_unformatted['polarity'].apply(lambda pol: 'positive' if pol == 'POS' else 'negative')
+    rt_peaks_unformatted.drop(columns=['intensity', 'mz_observed', 'ppm_error'], inplace=True)
+
+    # Export chromatographic and polarity-specific atlases
+    pos_annotations = rt_peaks_unformatted[rt_peaks_unformatted['polarity'] == 'positive']
+    neg_annotations = rt_peaks_unformatted[rt_peaks_unformatted['polarity'] == 'negative']
+    c18_pos_annotations = pos_annotations[pos_annotations['chromatography'] == 'C18'].sort_values('rt_peak')
+    c18_neg_annotations = neg_annotations[neg_annotations['chromatography'] == 'C18'].sort_values('rt_peak')
+    hilic_pos_annotations = pos_annotations[pos_annotations['chromatography'] == 'HILICZ'].sort_values('rt_peak')
+    hilic_neg_annotations = neg_annotations[neg_annotations['chromatography'] == 'HILICZ'].sort_values('rt_peak')
+
+    rt_peaks_formatted = pd.concat([c18_pos_annotations, c18_neg_annotations, hilic_pos_annotations, hilic_neg_annotations], ignore_index=True)
     
-    return select_dataset
+    return rt_peaks_formatted
+
+def get_ema_atlas_data(existing_atlases_path: Dict[str, Dict[str, str]]) -> pd.DataFrame:
+    """
+    Load and combine atlas data from multiple files into a single DataFrame.
+
+    Args:
+        existing_atlases_path (Dict[str, Dict[str, str]]): A dictionary where keys are chromatography types,
+            and values are dictionaries mapping polarities to file paths.
+
+    Returns:
+        pd.DataFrame: A combined DataFrame containing all atlas data, with an additional 'source_file' column
+            indicating the source file for each row.
+    """
+    atlas_dfs = []
+    for chrom_type, polarities in existing_atlases_path.items():
+        for polarity, file_path in polarities.items():
+            if os.path.exists(file_path):  # Ensure the file exists
+                df = pd.read_csv(file_path, sep='\t')
+                df['source_file'] = os.path.basename(file_path)  # Add the file name as a new column
+                atlas_dfs.append(df)
+
+    atlases = pd.concat(atlas_dfs, ignore_index=True)
+    return atlases
+
+def get_qc_atlas_data(qc_atlases: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+    """
+    Organize QC atlas data by source file.
+
+    Args:
+        qc_atlases (pd.DataFrame): A DataFrame containing QC atlas data, with a 'source_file' column
+            indicating the source file for each row.
+
+    Returns:
+        Dict[str, pd.DataFrame]: A dictionary where keys are source file names and values are DataFrames
+            containing the corresponding QC atlas data.
+    """
+    qc_atlas_data = {}
+    for atlas_source in qc_atlases['source_file'].unique():
+        qc_atlas = qc_atlases[qc_atlases['source_file'] == atlas_source]
+        qc_atlas_data[atlas_source] = qc_atlas
+
+    return qc_atlas_data
+
+def format_for_atlas_store(input_compounds: pd.DataFrame) -> List[Any]:
+    """
+    Format a DataFrame of compounds for storage in the MetAtlas database.
+
+    Args:
+        input_compounds (pd.DataFrame): DataFrame containing compound information, including columns such as 
+                                        'label', 'inchi', 'inchi_key', 'neutralized_inchi', 'neutralized_inchi_key', 
+                                        'formula', 'monoisotopic_mass', and 'permanent_charge'.
+
+    Returns:
+        List[Any]: A list of MetAtlas Compound objects ready for database storage.
+    """
+    # Second check for non-neutralized InChI key
+    any_diff_inchikeys = input_compounds[input_compounds['inchi_key'] != input_compounds['neutralized_inchi_key']]
+    if not any_diff_inchikeys.empty:
+        print("Warning! The InChIKey and neutralized InChIKey do not match for the following compounds:")
+        print(any_diff_inchikeys[['label', 'inchi_key', 'neutralized_inchi_key']])
+
+    input_compounds.reset_index(drop=True, inplace=True)
+    input_compounds.rename(columns={'label': 'compound_name'}, inplace=True)
+
+    metatlas_compounds = []
+    for _, row in input_compounds.iterrows():
+        cpd = metob.Compound()
+        cpd.name = row.compound_name
+        cpd.inchi = row.inchi
+        cpd.inchi_key = row.inchi_key
+        cpd.neutralized_inchi = row.neutralized_inchi
+        cpd.neutralized_inchi_key = row.neutralized_inchi_key
+        cpd.formula = row.formula
+        cpd.mono_isotopic_molecular_weight = row.monoisotopic_mass
+        cpd.permanent_charge = row.permanent_charge
+        cpd.description = ''
+        metatlas_compounds.append(cpd)
+
+    return metatlas_compounds
 
 
 def atlas_id_to_df(atlas_unique_id: str) -> pd.DataFrame:
@@ -2191,22 +1687,27 @@ def collect_qc_ms1_data(qc_atlas: pd.DataFrame, qc_files: List[str], polarity: s
 
     return pd.concat(ms1_data)
 
-def get_atlas_dataframe(atlas_identifier):
+def get_atlas_dataframe(atlas_identifier: str) -> pd.DataFrame:
     """
-    Retrieve the atlas as a DataFrame. If the identifier ends with '.tsv', read it as a file.
-    Otherwise, use the atlas_id_to_df function to retrieve it from the database.
+    Retrieve the atlas as a DataFrame. If the identifier ends with '.tsv' or '.csv', 
+    read it as a file. Otherwise, use the atlas_id_to_df function to retrieve it 
+    from the database.
 
     Args:
-        atlas_identifier (str): The atlas identifier, either a file path or an atlas ID.
+        atlas_identifier (str): The atlas identifier, either a file path (ending in '.tsv' or '.csv') 
+                                or an atlas ID.
 
     Returns:
         pd.DataFrame: The atlas as a DataFrame.
     """
     if atlas_identifier.endswith('.tsv'):
-        # Read the file as a DataFrame
+        # Read the file as a tab-separated DataFrame
         return pd.read_csv(atlas_identifier, sep='\t')
+    elif atlas_identifier.endswith('.csv'):
+        # Read the file as a comma-separated DataFrame
+        return pd.read_csv(atlas_identifier)
     else:
-        # Use the atlas_id_to_df function to retrieve the atlas
+        # Use the atlas_id_to_df function to retrieve the atlas from the database
         return atlas_id_to_df(atlas_identifier)
     
 def get_qc_experimental_atlas(
@@ -2467,12 +1968,15 @@ def update_and_save_atlases(
     old_ema_atlases_split = {}
     new_ema_atlases_split = {}
     for atlas_name in atlas_names:
+        if not atlas_name.endswith('.tsv'):
+            print(f"Warning: {atlas_name} does not end with .tsv. Check formatting.")
+            continue
         new_atlas_name = atlas_name.replace(".tsv", f"_{current_time}.tsv")
         old_ema_atlases_split[atlas_name] = ema_atlases[ema_atlases.loc[:, 'source_file'] == atlas_name].drop(columns=['source_file'])
         new_ema_atlases_split[atlas_name] = new_ema_atlases[new_ema_atlases.loc[:, 'source_file'] == atlas_name].drop(columns=['source_file'])
-
-        print(f"\nOld atlas: {atlas_name}. Shape {old_ema_atlases_split[atlas_name].shape}.")
-        print(f"New atlas: {new_atlas_name}. Shape {new_ema_atlases_split[atlas_name].shape}.")
+        if old_ema_atlases_split[atlas_name].shape[1] != new_ema_atlases_split[atlas_name].shape[1]:
+            print(f"Warning: Column numbers don't match between existing and new EMA atlases for {atlas_name}. Check formatting.")
+            return
 
         # Save the new EMA atlases to the original files
         if save_atlas:
@@ -2480,8 +1984,12 @@ def update_and_save_atlases(
             if not os.path.exists(updated_atlas_dir):
                 os.makedirs(updated_atlas_dir)
             fname = f'{updated_atlas_dir}/{new_atlas_name}'
-            print(f"\tSaving new EMA atlas to disk at {fname}")
+            print(f"Existing atlas {atlas_name} went from {old_ema_atlases_split[atlas_name].shape[0]} compounds to {new_ema_atlases_split[atlas_name].shape[0]} compounds.")
+            print(f"\tSaving new EMA atlas to disk at {fname}\n")
             new_ema_atlases_split[atlas_name].to_csv(fname, sep='\t', index=False)
+        else:
+            print(f"New EMA atlas not saved to disk. Here is what would be added with the save_atlas=True option:")
+            print(new_ema_atlases_split[atlas_name].tail(new_ema_atlases_split[atlas_name].shape[0]-old_ema_atlases_split[atlas_name].shape[0]))
 
 
 def update_and_save_msms_refs(
@@ -2531,31 +2039,79 @@ def update_and_save_msms_refs(
         print("\nNew MSMS refs not saved to disk. Here is what would be added with the save_refs=True option:")
         print(rt_peaks_with_spectra)
 
-def merge_selected_peaks_with_top_spectra(
-    selected_peaks: pd.DataFrame, 
-    selected_spectra: pd.DataFrame
-) -> pd.DataFrame:
+
+###########################
+### Visualization tools ###
+###########################
+
+def generate_adduct_colors(include_adducts: List[str]) -> Dict[str, str]:
     """
-    Merge selected peaks with their corresponding top spectra based on shared columns.
+    Generates a dictionary mapping adducts to unique colors.
 
     Args:
-        selected_peaks (pd.DataFrame): DataFrame containing peak information, including columns like 'label', 'adduct', 'standard_lcmsrun', and 'peak_index'.
-        selected_spectra (pd.DataFrame): DataFrame containing spectra information, including columns like 'compound_name', 'adduct', 'standard_lcmsrun', 'peak_index', and 'spectrum'.
+        include_adducts (List[str]): List of adducts to include.
 
     Returns:
-        pd.DataFrame: A merged DataFrame containing information from both peaks and spectra.
+        Dict[str, str]: Dictionary mapping adducts to hex color codes.
     """
-    selected_peaks_compounded = selected_peaks.copy()
-    selected_peaks_compounded['compound_name'] = selected_peaks_compounded['label'].str.replace(r" \(peak\d+\)", "", regex=True)
-    merge_on = ['compound_name', 'adduct', 'standard_lcmsrun', 'peak_index']
-    merge_on_with_spectrum = merge_on + ['spectrum']  # Create a new list with 'spectrum' added
-    merged_peaks_spectra = pd.merge(
-        selected_peaks_compounded,
-        selected_spectra[merge_on_with_spectrum],  # Subset columns correctly
-        on=merge_on,
-        how='left'
-    )
-    return merged_peaks_spectra
+    adduct_color = {}
+    colors = cm.rainbow(np.linspace(0, 1, len(include_adducts)))  # Generate evenly spaced colors
+    for i, adduct in enumerate(include_adducts):
+        # Convert RGBA array to hex string
+        rgba = colors[i]
+        hex_color = mcolors.to_hex(rgba)
+        adduct_color[adduct] = hex_color
+    return adduct_color
+
+def select_compounds_from_gui(full_dataset: pd.DataFrame, selected_compounds_table: pd.DataFrame) -> pd.DataFrame:
+    """
+    Select compounds from a dataset based on user-specified criteria, including compound name, LCMS run, adducts, and peak indices.
+
+    Args:
+        full_dataset (pd.DataFrame): The full dataset containing compound information.
+        selected_compounds_table (pd.DataFrame): A table specifying the compounds, adducts, and peak indices to select.
+
+    Returns:
+        pd.DataFrame: A filtered dataset containing only the selected compounds.
+    """
+    select_dataset = pd.DataFrame()
+    
+    if 'smiles' in full_dataset.columns:
+        full_dataset['inchi'] = full_dataset['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
+        full_dataset['inchi_key'] = full_dataset['inchi'].apply(inchi_to_inchikey)
+        full_dataset['neutralized_inchi'] = full_dataset['inchi'].apply(neutralize_inchi)
+        full_dataset['neutralized_inchi_key'] = full_dataset['neutralized_inchi'].apply(inchi_to_inchikey)
+        full_dataset['permanent_charge'] = full_dataset['neutralized_inchi'].apply(charge_from_inchi)
+        full_dataset['formula'] = full_dataset['neutralized_inchi'].apply(formula_from_inchi)
+        full_dataset['monoisotopic_mass'] = full_dataset['neutralized_inchi'].apply(monoisotopic_mass_from_inchi)
+        full_dataset['collision_energy'] = full_dataset['standard_lcmsrun'].apply(get_collision_energy)
+        if not full_dataset[full_dataset['inchi_key'] != full_dataset['neutralized_inchi_key']].empty:
+            print(f"Warning! The InChIKey and neutralized InChIKey do not match for the following selected compounds:")
+            print(full_dataset[full_dataset['inchi_key'] != full_dataset['neutralized_inchi_key']][['compound_name', 'inchi_key', 'neutralized_inchi_key']])
+
+    for _, row in selected_compounds_table.iterrows():
+        compound_name = row['compound_name']
+        standard_lcmsrun = row['standard_lcmsrun']
+        selected_adducts = row['selected_adducts']
+        selected_peak_indices = row['selected_peak_indices']
+        
+        # Filter by compound name and standard_lcmsrun
+        mask = (full_dataset['compound_name'] == compound_name) & (full_dataset['standard_lcmsrun'] == standard_lcmsrun)
+        
+        # Further filter by adduct and peak_index if they exist in the dataframe
+        if 'adduct' in full_dataset.columns and len(selected_adducts) > 0:
+            adduct_mask = full_dataset['adduct'].isin(selected_adducts)
+            mask = mask & adduct_mask
+            
+        if 'peak_index' in full_dataset.columns and len(selected_peak_indices) > 0:
+            peak_mask = full_dataset['peak_index'].isin(selected_peak_indices)
+            mask = mask & peak_mask
+        
+        selected_compounds = full_dataset[mask].copy()
+        select_dataset = pd.concat([select_dataset, selected_compounds], ignore_index=True)
+    
+    return select_dataset
+
 
 def generate_molecular_image(
     smiles_string: str, 
@@ -4181,3 +3737,471 @@ def create_interactive_plots(
     # Initialize
     current_index = 0
     update_plot(current_index)
+
+
+
+
+
+
+
+# def get_existing_atlases(existing_atlases_path: str) -> pd.DataFrame:
+#     """
+#     Load and combine all atlas files matching a given path pattern into a single DataFrame.
+#
+#     Args:
+#         existing_atlases_path (str): A glob pattern to locate atlas files.
+#
+#     Returns:
+#         pd.DataFrame: A combined DataFrame containing all atlas data, with an additional 'source_file' column
+#             indicating the source file for each row.
+#     """
+#     all_atlases_paths = glob.glob(existing_atlases_path)
+#     atlas_dfs = []
+#     for df_path in all_atlases_paths:
+#         df = pd.read_csv(df_path, sep='\t')
+#         df['source_file'] = os.path.basename(df_path)  # Add the file name as a new column
+#         atlas_dfs.append(df)
+#
+#     atlases = pd.concat(atlas_dfs)
+#     return atlases
+
+# def extract_and_plot(standard_lcmsruns_table, ppm_tolerance=5, plot_output_dir='./annotation_plots', data_output_dir='./annotation_data', generate_plots=True):
+#     standard_lcmsruns_table['closest_injbl'] = standard_lcmsruns_table['standard_lcmsrun'].apply(get_closest_injbl)
+#     grouped_lcmsruns_table = standard_lcmsruns_table.groupby(['compound_name', 'standard_lcmsrun'])
+    
+#     if not os.path.isdir(plot_output_dir):
+#         os.mkdir(plot_output_dir)
+        
+#     if not os.path.isdir(data_output_dir):
+#         os.mkdir(data_output_dir)
+    
+#     all_top_spectra = []
+#     all_rt_peaks = []
+
+#     for group_name, group in tqdm(grouped_lcmsruns_table, unit='Compound LCMSRun Group'):
+#         theoretical_mzs = dict(group['adduct_data'].tolist())
+#         compound_smiles = group['smiles'].iloc[0]
+#         adduct_to_polarity = dict(zip(group['adduct'].tolist(), group['polarity'].tolist()))
+        
+#         eics, ms2_data = collect_eics_and_ms2(group, ppm_tolerance)
+#         rt_peaks, top_spectra = get_top_ms1_and_ms2(eics, ms2_data, group_name[1], theoretical_mzs, compound_smiles, adduct_to_polarity)
+        
+#         if generate_plots:
+#             save_annotation_fig(eics, top_spectra, group_name, plot_output_dir)
+        
+#         all_top_spectra.append(top_spectra)
+#         all_rt_peaks += rt_peaks
+    
+#     if all_rt_peaks:
+#         print("Writing RT peak data")
+#         all_rt_peaks = pd.DataFrame(all_rt_peaks)
+#         all_rt_peaks.to_csv(os.path.join(data_output_dir, 'rt_peak_annotations.csv'), index=False)
+#     if all_top_spectra:
+#         print("Writing top spectra data")
+#         all_top_spectra = pd.concat(all_top_spectra).reset_index(drop=True)
+#         all_top_spectra.to_json(os.path.join(data_output_dir, 'top_intensity_spectra.json'))
+
+#     return all_rt_peaks, all_top_spectra
+
+# def save_annotation_fig(eics, top_spectra, group_name, output_dir):
+#     group_chrom = get_chromatography(group_name[1])
+#     group_pol = get_file_polarity(group_name[1])
+#     group_params = get_lcmsrun_params(group_name[1])
+    
+#     fig_title = f"{group_name[0]} {group_chrom} {group_pol} {group_params}".replace('/', 'or')
+    
+#     eic_adducts = []
+#     for eic in eics.values():
+#         eic['adduct'] = eic.label.apply(lambda x: x.split('_')[-1])
+#         eic_adducts += eic.adduct.tolist()
+
+#     eic_adducts = set(eic_adducts)
+
+#     adduct_color = dict()
+#     color = iter(cm.rainbow(np.linspace(0, 1, len(eic_adducts))))
+#     for adduct in eic_adducts:
+#         adduct_color[adduct] = next(color)
+        
+#     # Pass top_spectra to plot_adduct_eics to add the "X" marker
+#     plot_adduct_eics(eics, adduct_color, fig_title, top_spectra)
+#     plt.savefig(os.path.join(output_dir, f"{fig_title}_eics.pdf"))
+#     plt.close()
+        
+#     plot_top_spectra(top_spectra, adduct_color, fig_title)
+#     plt.savefig(os.path.join(output_dir, f"{fig_title}_top_spectra.pdf"))
+#     plt.close()
+
+
+# def plot_adduct_eics(eics, adduct_color, fig_title, top_spectra):
+#     fig, axs = plt.subplots(2, 2, figsize=(20, 9), sharex=True, sharey=False)
+
+#     for idx, (lcmsrun_path, eic) in enumerate(eics.items()):
+#         total_eics = eic.shape[0]
+#         for eic_idx, eic_row in eic.iterrows():
+
+#             rt_sort = np.argsort(eic_row['rt'])
+#             adduct = get_adduct(eic_row['label'])
+
+#             # Plot on the left column for the first lcmsrun, right column for the second
+#             ax_raw = axs[0, idx]  # Top row for raw values
+#             ax_log = axs[1, idx]  # Bottom row for log-scale values
+
+#             # Plot raw values in the top row
+#             line_raw, = ax_raw.plot(eic_row['rt'][rt_sort], eic_row['i'][rt_sort], alpha=0.8, label=adduct, color=adduct_color[adduct])
+#             line_log, = ax_log.plot(eic_row['rt'][rt_sort], np.log10(eic_row['i'][rt_sort].astype(float)), alpha=0.8, label=adduct, color=adduct_color[adduct])
+
+#             peak = np.argmax(eic_row['i'][rt_sort])
+#             ax_raw.scatter(eic_row['rt'][rt_sort][peak], eic_row['i'][rt_sort][peak], color=adduct_color[adduct])
+#             ax_log.scatter(eic_row['rt'][rt_sort][peak], np.log10(eic_row['i'][rt_sort].astype(float))[peak], color=adduct_color[adduct])
+
+#             # Add "X" marker for the retention time in top_spectra
+#             if not top_spectra.empty:
+#                 for _, spectrum_row in top_spectra.iterrows():
+#                     if spectrum_row['adduct'] == adduct:
+#                         rounded_rt = round(spectrum_row['rt'], 2)  # Round RT to 2 decimal places
+
+#                         # Get the y-axis intensity value at the given RT
+#                         raw_intensity = eic_row['i'][rt_sort][np.searchsorted(eic_row['rt'][rt_sort], spectrum_row['rt'])]
+#                         log_intensity = np.log10(raw_intensity)
+
+#                         # Plot the "X" marker at the intensity value
+#                         x_marker = ax_raw.scatter(spectrum_row['rt'], raw_intensity, color=adduct_color[adduct], marker='x', s=100, label=f"Spectra RT: {rounded_rt}")
+#                         ax_log.scatter(spectrum_row['rt'], log_intensity, color=adduct_color[adduct], marker='x', s=100)
+
+#             lcms_params = get_lcmsrun_params(lcmsrun_path)
+#             run_num = get_run_num(lcmsrun_path)
+
+#             # Set subplot titles to the filenames
+#             ax_raw.set_title(f"{lcms_params}_{run_num}")
+
+#     # Set shared X axis labels for both rows
+#     for ax in axs[1, :]:  # Bottom row
+#         ax.set_xlabel('Retention Time (RT)')
+#         ax.grid()
+
+#     for ax in axs[0, :]:
+#         ax.grid()
+
+#     # Set Y axis labels for both rows
+#     axs[0, 0].set_ylabel('Intensity (i)')  # Left, top row
+#     axs[1, 0].set_ylabel('Log10 Intensity')  # Left, bottom row
+
+#     axs[1, 0].sharey(axs[1, 1])  
+#     axs[0, 1].sharey(axs[0, 0])  
+
+#     # Collect legend handles and labels
+#     handles_left, labels_left = axs[0, 0].get_legend_handles_labels()
+#     handles_right, labels_right = axs[0, 1].get_legend_handles_labels()
+
+#     # Ensure there are handles and labels before creating legends
+#     if handles_left and labels_left:
+#         leg1 = axs[0, 0].legend(handles=handles_left, labels=labels_left, loc='upper left', bbox_to_anchor=(-0.4, 1), fontsize=13, markerscale=0.2, handletextpad=0.5)
+#         for legobj in leg1.legend_handles:
+#             legobj.set_linewidth(8.0)
+
+#     if handles_right and labels_right:
+#         leg2 = axs[0, 1].legend(handles=handles_right, labels=labels_right, loc='upper right', bbox_to_anchor=(1.4, 1), fontsize=13, markerscale=0.2, handletextpad=0.5)
+#         for legobj in leg2.legend_handles:
+#             legobj.set_linewidth(8.0)
+
+#     fig.suptitle(fig_title)
+#     plt.tight_layout()
+
+
+# def plot_top_spectra(top_spectra, adduct_color, fig_title):
+#     if top_spectra.empty:
+#         plt.figure()  
+#         return
+    
+#     num_columns = 3
+#     num_rows = math.ceil(len(top_spectra) / num_columns)
+    
+#     fig, axes = plt.subplots(nrows=num_rows, ncols=num_columns, figsize=(19.845, 4.5 * num_rows))
+#     axes = axes.flatten()
+
+#     for i, row in top_spectra.iterrows():
+#         mz_values = row['spectrum'][0]
+#         i_values = row['spectrum'][1]
+
+#         markerline, stemlines, baseline = axes[i].stem(mz_values, i_values, basefmt=" ", markerfmt=" ")
+#         plt.setp(stemlines, 'color', adduct_color[row.adduct])
+#         axes[i].set_title(f"{row['adduct']} RT: {round(row['rt'], 2)}")
+
+#     plt.tight_layout()
+
+# def filter_by_selected_top_adduct(rt_peaks, top_adducts, rt_check_cutoff=0.05):
+#     """
+#     rt_peaks_filtered_top_adduct = sta.filter_by_selected_top_adduct(rt_peaks_filtered, top_adducts_dict)
+#     """
+#     unfiltered_rt_peaks = rt_peaks.copy()
+#     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
+
+#     selected_top_adducts = []
+#     # Find the row that matches the top_adducts dict keys
+#     for key, value in top_adducts.items():
+#         label = key.split(';;')[0]
+#         standard_lcmsrun = key.split(';;')[1]
+        
+#         # Filter rows matching the current key and adducts
+#         selected_adduct = unfiltered_rt_peaks[
+#             (unfiltered_rt_peaks['standard_lcmsrun'] == standard_lcmsrun) &
+#             (unfiltered_rt_peaks['label'] == label) &
+#             (unfiltered_rt_peaks['adduct'].isin(value))
+#         ].copy()
+        
+#         # Handle multiple peaks per top adduct
+#         if selected_adduct.shape[0] > 1:
+#             for adduct in selected_adduct['adduct'].unique():
+#                 adduct_subset = selected_adduct[selected_adduct['adduct'] == adduct].copy()
+#                 if adduct_subset.shape[0] > 1:
+#                     display(adduct_subset)
+#                     adduct_subset['label'] = adduct_subset.apply(
+#                         lambda row: f"{row['label']} ({row['peak_index']})", axis=1
+#                     )
+#                 selected_top_adducts.append(adduct_subset)
+#         else:
+#             selected_top_adducts.append(selected_adduct)
+
+#     if selected_top_adducts:
+#         selected_top_adducts_df = pd.concat(selected_top_adducts, ignore_index=True)
+#     else:
+#         selected_top_adducts_df = pd.DataFrame()  # Return an empty DataFrame if no matches are found
+
+#     # Check that polarities and CEs for a given compound+adduct have the same RTs
+#     selected_top_adducts_df_grouped = selected_top_adducts_df.groupby(['chromatography', 'label'])
+#     for group_name, group in selected_top_adducts_df_grouped:
+#         rt_values = group['rt_peak']
+#         cutoff = rt_check_cutoff
+#         ces = group['collision_energy'].unique()
+#         pols = group['polarity'].unique()
+#         if rt_values.max() - rt_values.min() <= cutoff:
+#             print(f"Group {group_name}: All RT values for {ces} and {pols} are within {cutoff} mins of each other ({round(rt_values.max() - rt_values.min(), 4)}).\n")
+#         else:
+#             print(f"Group {group_name}: RT values for {ces} and {pols} are NOT within {cutoff} mins of each other ({round(rt_values.max() - rt_values.min(), 4)}).\n")
+
+#     # Group by monoisotopic_mass and identify isomers if present, then check they have the same adduct
+#     selected_top_adducts_grouped = selected_top_adducts_df.groupby(['monoisotopic_mass','polarity','chromatography'])
+#     grouped_compounds = selected_top_adducts_grouped['compound_name'].nunique()
+#     multiple_compounds_per_mim = grouped_compounds[grouped_compounds > 1]
+#     if not multiple_compounds_per_mim.empty:
+#         # Iterate over each monoisotopic mass with multiple compounds
+#         for isomer_mim in multiple_compounds_per_mim.index:
+#             isomer_data = selected_top_adducts_df[
+#                 (selected_top_adducts_df['monoisotopic_mass'] == isomer_mim[0]) &
+#                 (selected_top_adducts_df['polarity'] == isomer_mim[1]) &
+#                 (selected_top_adducts_df['chromatography'] == isomer_mim[2])
+#             ]
+#             # Check if all adducts are the same
+#             unique_adducts = isomer_data['adduct'].unique()
+#             if len(unique_adducts) == 1:
+#                 # All adducts are the same, do nothing
+#                 print(f"Note: Found isomers in {isomer_mim[2]} {isomer_mim[1]} mode at {isomer_mim[0]} ({list(isomer_data['label'])}) but they had matching selected adducts {unique_adducts[0]}.")
+#                 continue
+#             else: # Adducts for isomers do not agree
+#                 print(f"\tWarning! Adducts for isomers do not agree. Exiting. See data for monoisotopic mass {isomer_mim[0]}:\n")
+#                 display(isomer_data[['label', 'adduct', 'inchi', 'monoisotopic_mass']])
+#                 print("\nPlease return to the GUI to select a matching adduct for isomers.")
+#                 return
+#     else:
+#         print("No isomers found in selected top adducts.")
+    
+#     # Select best collision energy row by intensity for each compound+adduct in selected_top_adducts_df
+#     selected_top_adducts_df_grouped = selected_top_adducts_df.groupby(['chromatography', 'polarity', 'label', 'adduct'])
+#     selected_top_adducts_df_grouped_best_ces = []
+#     for group_name, group in selected_top_adducts_df_grouped:
+#         ces = group.sort_values(by='intensity', ascending=False)
+#         if len(ces) == 2:
+#             selected_top_adducts_df_grouped_best_ces.append(ces.iloc[0])
+#         elif len(ces) == 1:
+#             selected_top_adducts_df_grouped_best_ces.append(ces.iloc[0])
+#         else:
+#             print("Unexpected number of collision energies found.")
+#     selected_top_adducts_df_best_ces = pd.DataFrame(selected_top_adducts_df_grouped_best_ces)
+
+#     print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {selected_top_adducts_df_best_ces.shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
+#     display(selected_top_adducts_df_best_ces[['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass', 'collision_energy']].sort_values(by=['label','adduct']))
+
+#     return selected_top_adducts_df_best_ces
+
+# def filter_by_top_adduct(rt_peaks):
+    
+#     unfiltered_rt_peaks = rt_peaks.copy()
+
+#     # Find the row with the highest intensity for each group
+#     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
+#     group_list = ['chromatography', 'polarity', 'label']
+#     idx_max_intensity = unfiltered_rt_peaks.groupby(group_list)['intensity'].idxmax()
+#     highest_intensity_row = unfiltered_rt_peaks.loc[idx_max_intensity]
+
+#     # # Filter rows to keep only those with the same adduct as the highest intensity row
+#     group_list.extend(['adduct', 'collision_energy'])
+#     top_adducts_per_pol = unfiltered_rt_peaks.merge(
+#         highest_intensity_row[group_list],
+#         on=group_list,
+#         how='inner'
+#     )
+
+#     # Find all other peaks for the selected adduct
+#     top_adducts_per_pol_grouped = top_adducts_per_pol.groupby(group_list)
+#     unfiltered_rt_peaks_grouped = unfiltered_rt_peaks.groupby(group_list)
+#     all_peaks = []
+
+#     for group_key, _ in top_adducts_per_pol_grouped:
+#         # Check if the group_key exists in rt_peaks_grouped
+#         if group_key in unfiltered_rt_peaks_grouped.groups:
+#             # Retrieve all rows for the matching group
+#             matching_rows = unfiltered_rt_peaks_grouped.get_group(group_key)
+#             if matching_rows.shape[0] > 1: # Are there multiple peaks per chrom+polarity+compound+adduct+collision_energy?
+#                 matching_rows.loc[:,'label'] = matching_rows.apply(lambda row: f"{row['label']} ({row['peak_index']})", axis=1)
+#             all_peaks.append(matching_rows)
+
+#     top_adducts_per_pol_allpeaks = pd.concat(all_peaks, ignore_index=True) if all_peaks else pd.DataFrame()
+
+#     # Group by monoisotopic_mass and identify isomers if present
+#     top_adducts_per_pol_allpeaks_isomer_grouping = top_adducts_per_pol_allpeaks.groupby(['monoisotopic_mass','polarity','chromatography'])
+#     grouped_compounds = top_adducts_per_pol_allpeaks_isomer_grouping['compound_name'].nunique()
+#     multiple_compounds_per_mim = grouped_compounds[grouped_compounds > 1]
+
+#     if not multiple_compounds_per_mim.empty:
+#         # Iterate over each monoisotopic mass with multiple compounds
+#         for isomer_mim in multiple_compounds_per_mim.index:
+#             isomer_data = top_adducts_per_pol_allpeaks[
+#                 (top_adducts_per_pol_allpeaks['monoisotopic_mass'] == isomer_mim[0]) &
+#                 (top_adducts_per_pol_allpeaks['polarity'] == isomer_mim[1]) &
+#                 (top_adducts_per_pol_allpeaks['chromatography'] == isomer_mim[2])
+#             ]
+            
+#             # Check if all adducts are the same
+#             unique_adducts = isomer_data['adduct'].unique()
+#             if len(unique_adducts) == 1:
+#                 # All adducts are the same, do nothing
+#                 print(f"Note: Found isomers in {isomer_mim[2]} {isomer_mim[1]} mode at {isomer_mim[0]} ({list(isomer_data['label'])}) but they had matching selected adducts {unique_adducts[0]}.")
+#                 continue
+#             else: # Adducts for isomers do not agree
+#                 print(f"Warning! Adducts for isomers do not agree. See data for monoisotopic mass {isomer_mim[0]}:\n")
+#                 display(isomer_data[['label', 'adduct', 'inchi', 'monoisotopic_mass']])
+#                 print("\nPlease return to the GUI to select a matching adduct for isomers.")
+#                 return
+    
+#     print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {top_adducts_per_pol_allpeaks.shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
+#     display(top_adducts_per_pol_allpeaks[['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label','adduct']))
+
+#     return top_adducts_per_pol_allpeaks
+
+
+# def filter_by_top_adduct(rt_peaks, top_adducts_per_pol_allpeaks=None, method="manual"):
+#     import pandas as pd
+#     from IPython.display import display, clear_output
+#     import ipywidgets as widgets
+
+#     unfiltered_rt_peaks = rt_peaks.copy()
+#     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
+#     all_peaks = []
+
+#     # Get unique groups
+#     unique_groups = unfiltered_rt_peaks[['label', 'polarity', 'chromatography']].drop_duplicates()
+#     total_groups = len(unique_groups)
+#     current_index = 0
+
+#     # Widgets
+#     progress_label = widgets.Label(value=f"Group {current_index + 1} of {total_groups}")
+#     next_button = widgets.Button(description="Next Group")
+#     output_container = widgets.Output()
+#     table_container = widgets.Output()
+
+#     selected_row = None  # Store the selected row index
+#     def update_progress():
+#         progress_label.value = f"Group {current_index + 1} of {total_groups}"
+
+#     def process_group(index):
+#         nonlocal current_index, selected_row
+#         selected_row = None  # Reset the selected row for the new group
+#         group = unique_groups.iloc[index]
+#         label, polarity, chromatography = group['label'], group['polarity'], group['chromatography']
+
+#         # Subset unfiltered_rt_peaks for the current group
+#         group_peaks = unfiltered_rt_peaks[
+#             (unfiltered_rt_peaks['label'] == label) &
+#             (unfiltered_rt_peaks['polarity'] == polarity) &
+#             (unfiltered_rt_peaks['chromatography'] == chromatography)
+#         ]
+
+#         if group_peaks.empty:
+#             print("No peaks found for this group.")
+#             return
+
+#         if method == "intensity":
+#             # Automatically select the row with the highest intensity
+#             idx_max_intensity = group_peaks['intensity'].idxmax()
+#             highest_intensity_row = group_peaks.loc[[idx_max_intensity]]
+#             all_peaks.append(highest_intensity_row)
+#         elif method == "manual":
+#             # Manual selection
+#             group_peaks = group_peaks.sort_values(by='intensity', ascending=False)
+#             with table_container:
+#                 clear_output(wait=True)
+#                 print(f"\nManual selection for group: {label}, {polarity}, {chromatography}")
+#                 display(group_peaks.style.set_table_attributes("style='display:inline'").set_table_styles(
+#                     [{'selector': 'table', 'props': [('overflow-x', 'auto'), ('display', 'block')]}]
+#                 ))
+
+#             dropdown = widgets.Dropdown(
+#                 options=group_peaks.index.tolist(),
+#                 description='Select Row:',
+#                 style={'description_width': 'initial'}
+#             )
+#             confirm_button = widgets.Button(description="Confirm Selection")
+
+#             def on_confirm(b):
+#                 nonlocal selected_row
+#                 selected_row = dropdown.value
+#                 with table_container:
+#                     clear_output(wait=True)
+#                     print(f"Selected row index: {selected_row}")
+#                     display(group_peaks.loc[[selected_row]])
+
+#                 # Add the selected row to all_peaks
+#                 highest_intensity_row = group_peaks.loc[[selected_row]]
+#                 all_peaks.append(highest_intensity_row)
+
+#                 # Debug: Print all_peaks after appending
+#                 print("Updated all_peaks:")
+#                 print(pd.concat(all_peaks, ignore_index=True))
+
+#             confirm_button.on_click(on_confirm)
+#             with table_container:
+#                 display(dropdown, confirm_button)
+
+#     def on_next(b):
+#         nonlocal current_index
+#         if selected_row is not None or method == "intensity":  # Ensure a selection is made before proceeding
+#             if current_index < total_groups - 1:
+#                 current_index += 1
+#                 update_progress()
+#                 process_group(current_index)
+#             else:
+#                 with output_container:
+#                     clear_output(wait=True)
+#                     print("All groups processed!")
+#                     # Combine all processed peaks
+#                     if all_peaks:
+#                         top_adducts_per_pol_allpeaks[0] = pd.concat(all_peaks, ignore_index=True)
+#                     else:
+#                         top_adducts_per_pol_allpeaks[0] = pd.DataFrame()  # Return an empty DataFrame if no peaks are selected
+
+#                     # Display final results
+#                     with output_container:
+#                         clear_output(wait=True)
+#                         if top_adducts_per_pol_allpeaks[0].empty:
+#                             print("\nNo peaks were retained. Please check your input data or selection process.")
+#                         else:
+#                             print("Analysis complete!")
+#                             #print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {top_adducts_per_pol_allpeaks[0].shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
+#                             #display(top_adducts_per_pol_allpeaks[0][['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label', 'adduct']))
+
+#     # Attach event handler
+#     next_button.on_click(on_next)
+
+#     # Initial display
+#     display(progress_label, next_button, output_container, table_container)
+#     process_group(current_index)
