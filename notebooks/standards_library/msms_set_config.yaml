@@ -20,23 +20,27 @@ ppm_tolerance: 5
 standards_output_path: "/global/homes/b/bkieft/metabolomics_standards_annotation/standard_library_annotation/schellermetasci"
 standards_input_file: "/global/homes/b/bkieft/metabolomics_standards_annotation/standard_library_annotation/schellermetasci/scheller_test.csv"
 current_ema_atlases:
-  hilicz:
-    pos: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_EMA-standards_positive.tsv"
-    neg: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_EMA-standards_negative.tsv"
-  c18:
-    pos: "/global/homes/b/bkieft/metatlas-data/C18/C18_EMA-standards_positive.tsv"
-    neg: "/global/homes/b/bkieft/metatlas-data/C18/C18_EMA-standards_negative.tsv"
+  HILICZ:
+    positive: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_EMA-standards_positive.tsv"
+    negative: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_EMA-standards_negative.tsv"
+  C18:
+    positive: "/global/homes/b/bkieft/metatlas-data/C18/C18_EMA-standards_positive.tsv"
+    negative: "/global/homes/b/bkieft/metatlas-data/C18/C18_EMA-standards_negative.tsv"
 current_qc_atlases:
-  hilicz: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_QCv7_positive.tsv"
-  c18: "/global/homes/b/bkieft/metatlas-data/C18/C18_QCv7_positive.tsv"
+  HILICZ: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_QCv7_positive.tsv"
+  C18: "/global/homes/b/bkieft/metatlas-data/C18/C18_QCv7_positive.tsv"
+direct_deposit_new_emas: false
+direct_store_to_compounds_table: false
 current_msms_refs_path: "/global/cfs/cdirs/metatlas/projects/spectral_libraries/20240430_istdv7-addition_msms_refs.tab"
-new_full_data: false
-new_selected_data: false
-new_filtered_data: false
-new_rt_correction_data: false
 msms_refs_metadata:
   ce_type: "ramp"
   msms_refs_prefix: "schellermetasci"
   frag_method: "HCD"
   instrument_type: "Orbitrap"
   decimal: 4.0
+raw_data_from_cache: true
+selected_data_from_cache: true
+filtered_data_from_cache: true
+ema_atlas_data_from_cache: false
+rt_correction_data_from_cache: false
+msms_refs_data_from_cache: false
