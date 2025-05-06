@@ -93,7 +93,7 @@ msms_refs_metadata:
 
 # Set any of these to true to use cached data for the specified data types. This can speed up the analysis process.
 # Check the cache directory to see the latest timestamp to determine if these should be true or false.
-full_data_from_cache: false
+full_data_from_cache: true
 selected_data_from_cache: false
 filtered_data_from_cache: false
 metatlas_db_data_from_cache: false

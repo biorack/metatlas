@@ -2031,6 +2031,11 @@ def update_and_save_ema_atlases(
                 (nonmatches_to_atlases_rt_corrected['polarity'] == polarity)
             ]
 
+            # Check if there are any compounds to add
+            if compounds_to_add_to_atlas.empty:
+                print(f"No compounds to add to the {chrom} {polarity} atlas. Skipping.")
+                continue
+
             # Add some columns to atlases depending on chrom (they have different formats) to get as much info as possible
             if chrom == "HILICZ":
                 compounds_to_add_to_atlas = compounds_to_add_to_atlas.copy()
@@ -3151,7 +3156,7 @@ def generate_static_summary_plots(
                 scale=2
             )
 
-def create_interactive_plots(
+def create_interactive_plots_vscode(
     processed_data: List[Dict[str, Any]],
     runnum_to_structure_image_grid: Dict[int, str],
     selected_good_adducts: Dict[str, List[str]],
@@ -3893,7 +3898,804 @@ def create_interactive_plots(
 
 
 
+def create_interactive_plots_jupyterlab(
+    processed_data: List[Dict[str, Any]],
+    runnum_to_structure_image_grid: Dict[int, str],
+    selected_good_adducts: Dict[str, List[str]],
+    ambiguous_adducts: Dict[str, str],
+    top_adducts: Dict[str, List[str]]
+) -> None:
+    """
+    Create interactive plots for visualizing and annotating processed data.
 
+    Args:
+        processed_data (List[Dict[str, Any]]): A list of dictionaries containing processed data for each compound group.
+            Each dictionary should include keys such as 'eics', 'rt_peaks', 'top_spectra', 'adduct_color', 'group_id',
+            'unique_id', 'group_file', and 'compound_name'.
+        runnum_to_structure_image_grid (Dict[int, str]): A dictionary mapping run numbers to base64-encoded molecular structure images.
+        selected_good_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of selected
+            adduct-peak combinations in the format "adduct||peak_index".
+        ambiguous_adducts (Dict[str, str]): A dictionary mapping unique compound IDs to ambiguous annotations.
+        top_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of top adducts.
+
+    Returns:
+        None
+    """
+    
+    # Create a state object to track current values
+    class PlotState:
+        def __init__(self):
+            self.current_index = 0
+            self.current_unique_id = processed_data[0]['unique_id'] if processed_data else None
+            # Add debug counters
+            self.update_count = 0
+    
+    state = PlotState()
+    
+    # Create persistent widgets (those that don't need to be recreated)
+    image_toggle = widgets.ToggleButton(
+        value=False,
+        description='Show Structures',
+        tooltip='Toggle to show/hide the compound structure image',
+        layout=widgets.Layout(width='150px', margin='5px 0 0 0')
+    )
+    yaxis_toggle = widgets.ToggleButton(
+        value=False,
+        description='Shared Y-Axis',
+        tooltip='Toggle between unique and shared y-axes for non-log EIC plots',
+        layout=widgets.Layout(width='150px', margin='30px 0 0 0')
+    )
+    next_button = widgets.Button(description="Next Group")
+    previous_button = widgets.Button(description="Previous Group")
+    progress_label = widgets.Label(value=f"1/{len(processed_data)} Groups Completed")
+    navigate_textbox = widgets.Text(
+        placeholder='Index...',
+        description='Go to:',
+        layout=widgets.Layout(width='50px')
+    )
+    navigate_button = widgets.Button(
+        description="Go",
+        layout=widgets.Layout(width='50px')
+    )
+    compound_image_widget = widgets.Image(
+        format='png',
+        layout=widgets.Layout(
+            width='400px',
+            height='400px',
+            margin='0 0 0 50px',
+            display='none'  # Initially hidden
+        )
+    )
+    compound_image_label = widgets.Label(
+        value="Compound Structures",
+        layout=widgets.Layout(margin='0 0 10px 0')
+    )
+    completion_label = widgets.Label(value="", layout=widgets.Layout(margin="0 0 0 0"))
+    output_container = widgets.Output()
+    
+    # Main output area that will be refreshed
+    main_output = widgets.Output()
+    
+    # Define event handlers for persistent widgets
+    def on_image_toggle_change(change):
+        if image_toggle.value:
+            image_toggle.description = 'Hide Structures'
+            compound_image_widget.layout.display = 'block'
+        else:
+            image_toggle.description = 'Show Structures'
+            compound_image_widget.layout.display = 'none'
+    
+    def update_progress_text():
+        progress_label.value = f"{state.current_index + 1}/{len(processed_data)} Groups Completed"
+    
+    def on_toggle_change(change):
+        yaxis_toggle.description = 'Shared Y-Axis' if not yaxis_toggle.value else 'Unique Y-Axis'
+        update_display()
+    
+    def next_group(b):
+        if state.current_index < len(processed_data) - 1:
+            state.current_index += 1
+            state.current_unique_id = processed_data[state.current_index]['unique_id']
+            image_toggle.value = False
+            update_display()
+            completion_label.value = ""
+        else:
+            completion_label.value = "Analysis completed!"
+    
+    def previous_group(b):
+        if state.current_index > 0:
+            state.current_index -= 1
+            state.current_unique_id = processed_data[state.current_index]['unique_id']
+            image_toggle.value = False
+            update_display()
+            completion_label.value = ""
+        else:
+            output_container.clear_output(wait=True)
+            with output_container:
+                print("Already at the first group.")
+    
+    def navigate_to_group(b):
+        try:
+            target_index = int(navigate_textbox.value) - 1
+            if 0 <= target_index < len(processed_data):
+                state.current_index = target_index
+                state.current_unique_id = processed_data[state.current_index]['unique_id']
+                update_display()
+            else:
+                output_container.clear_output(wait=True)
+                with output_container:
+                    print(f"Invalid index. Please enter a number between 1 and {len(processed_data)}.")
+        except ValueError:
+            output_container.clear_output(wait=True)
+            with output_container:
+                print("Invalid input. Please enter a valid integer.")
+    
+    # Bind event handlers
+    image_toggle.observe(on_image_toggle_change, names='value')
+    yaxis_toggle.observe(on_toggle_change, names='value')
+    next_button.on_click(next_group)
+    previous_button.on_click(previous_group)
+    navigate_button.on_click(navigate_to_group)
+    
+    # Helper function to directly update dictionaries when checkboxes change
+    def create_checkbox_handlers(unique_id, all_adducts_checkboxes, adduct_peak_combinations, ambiguous_checkbox, top_adducts_checkboxes):
+        """Creates handlers that explicitly use the provided unique_id"""
+        
+        def on_all_adducts_change(change):
+            
+            if ambiguous_checkbox.value:
+                # Mark as ambiguous
+                ambiguous_adducts[unique_id] = unique_id
+                # Remove from other dictionaries
+                if unique_id in selected_good_adducts:
+                    del selected_good_adducts[unique_id]
+                if unique_id in top_adducts:
+                    del top_adducts[unique_id]
+                
+            else:
+                # Get all selected adduct combinations
+                selected_combos = []
+                checkbox_dict = {c.description: c for c in all_adducts_checkboxes[:-1]}  # Exclude ambiguous checkbox
+                
+                for combo in adduct_peak_combinations:
+                    if combo['description'] in checkbox_dict and checkbox_dict[combo['description']].value:
+                        selected_combos.append(f"{combo['adduct']}||{combo['peak_index']}")
+                
+                # Update dictionary only if selections were made
+                if selected_combos:
+                    selected_good_adducts[unique_id] = selected_combos
+                elif unique_id in selected_good_adducts:
+                    del selected_good_adducts[unique_id]
+                
+                # Remove from ambiguous
+                if unique_id in ambiguous_adducts:
+                    del ambiguous_adducts[unique_id]
+        
+        def on_top_adducts_change(change):
+            selected = []
+            for checkbox in top_adducts_checkboxes.children:
+                if checkbox.value:
+                    selected.append(checkbox.description)
+            
+            if selected:
+                top_adducts[unique_id] = selected
+            elif unique_id in top_adducts:
+                del top_adducts[unique_id]
+        
+        return on_all_adducts_change, on_top_adducts_change
+
+    # Layout Definitions
+    def create_layout(all_adducts_checkboxes, top_adducts_checkboxes):
+        checkbox_layout = widgets.VBox(
+            children=[
+                widgets.Label(value="Select all good adducts:"),
+                *all_adducts_checkboxes
+            ],
+            layout=widgets.Layout(
+                border='1px solid black',
+                padding='10px',
+                margin='10px',
+                width='300px',
+                align_items='flex-start'  # Align items to the start (left)
+            )
+        )
+        top_adducts_checkboxes_layout = widgets.VBox(
+            children=[
+                widgets.Label(value="Select best adduct(s) - default intensity:"),
+                top_adducts_checkboxes
+            ],
+            layout=widgets.Layout(
+                border='1px solid black',
+                padding='10px',
+                margin='10px',
+                width='300px',
+                align_items='flex-start'
+            )
+        )
+        go_to_label = widgets.Label(value="Go To:")
+        go_to_layout = widgets.HBox(
+            [go_to_label, navigate_textbox, navigate_button],
+            layout=widgets.Layout(
+                justify_content='flex-start',  # Align to the far left
+                spacing='5px',
+                margin='30px 0 0 0'  # Add space above the widget
+            )
+        )
+        navigate_textbox.description = ""
+        navigate_textbox.layout = widgets.Layout(width='150px')  # Decrease the size of the search box
+    
+        compound_image_widget.layout.display = 'none'
+        image_toggle.layout.margin = '0 0 0 50px'
+    
+        navigation_buttons_layout = widgets.HBox(
+            [
+                widgets.VBox([next_button, previous_button]),  # Stack Previous and Next buttons vertically
+                image_toggle  # Place the Image Toggle button to the right
+            ],
+            layout=widgets.Layout(
+                justify_content='flex-start',  # Align items to the left
+                spacing='10px',  # Add spacing between elements
+                margin='0 0 0 0'  # No margin for the navigation buttons
+            )
+        )
+        button_layout = widgets.VBox(
+            [navigation_buttons_layout, progress_label, go_to_layout, yaxis_toggle],
+            layout=widgets.Layout(
+                align_items='flex-start',
+                spacing='5px'
+            )
+        )
+        compound_image_container = widgets.VBox(
+            [compound_image_label, compound_image_widget],
+            layout=widgets.Layout(
+                align_items='center',  # Center-align the content
+                padding='10px',  # Add padding around the container
+                border='1px solid lightgray',  # Optional: Add a border for better visibility
+                width='500px'  # Ensure the container is slightly wider than the image
+            )
+        )
+        top_layout = widgets.HBox(
+            [checkbox_layout, top_adducts_checkboxes_layout, button_layout, compound_image_container],
+            layout=widgets.Layout(
+                align_items='flex-start',
+                justify_content='flex-start',
+                spacing='10px'
+            )
+        )
+        final_layout = widgets.VBox(
+            [completion_label, top_layout],
+            layout=widgets.Layout(
+                align_items='flex-start',  # Center-align the content
+                padding='0px',  # Add padding around the container
+            )
+        )
+        return final_layout
+    
+    # Main display update function that recreates the plots and widgets
+    def update_display():
+        state.update_count += 1
+        main_output.clear_output(wait=True)
+        
+        # Get current data
+        data = processed_data[state.current_index]
+        unique_id = data['unique_id']
+        state.current_unique_id = unique_id
+
+        # Get data from current group
+        eics = data['eics']
+        top_spectra = data['top_spectra']
+        rt_peaks = data['rt_peaks']
+        adduct_color = data['adduct_color']
+        group_id = data['group_id']
+        unique_id = data['unique_id']
+        group_run_number = data['group_run_number']
+
+        # Extract adduct-peak combinations from rt_peaks and top_spectra
+        adduct_peak_combinations = []
+        if isinstance(rt_peaks, pd.DataFrame) and not rt_peaks.empty:
+            # Create a mapping from adducts to peak indices and intensities
+            adduct_to_peaks = {}
+            for _, peak_row in rt_peaks.iterrows():
+                adduct = peak_row['adduct'] if 'adduct' in peak_row else None
+                if adduct:
+                    if adduct not in adduct_to_peaks:
+                        adduct_to_peaks[adduct] = []
+                    adduct_to_peaks[adduct].append({
+                        'peak_index': peak_row['peak_index'],
+                        'intensity': peak_row['intensity']
+                    })
+
+        # Create unique identifiers for each adduct-peak combination
+        for adduct, peaks in adduct_to_peaks.items():
+            max_intensity = max(peak['intensity'] for peak in peaks)
+            for peak in peaks:
+                # Check if there is an MS2 spectrum for this adduct+peak_index
+                if top_spectra.empty:
+                    has_ms2 = False
+                else:
+                    has_ms2 = not top_spectra[
+                        (top_spectra['adduct'] == adduct) & 
+                        (top_spectra['peak_index'] == peak['peak_index'])
+                    ].empty
+
+                # Add a star to the description if MS2 spectrum exists
+                description = f"{adduct} ({peak['peak_index']}){' *' if has_ms2 else ''}"
+                adduct_peak_combinations.append({
+                    'adduct': adduct,
+                    'peak_index': peak['peak_index'],
+                    'description': description,
+                    'max_intensity': max_intensity
+                })
+
+        # Sort adduct_peak_combinations by max_intensity in descending order
+        adduct_peak_combinations.sort(key=lambda x: x['max_intensity'], reverse=True)
+
+        # Create the summary EIC plot data
+        group_run_eics = [
+            eic for pdata in processed_data if pdata['group_run_number'] == group_run_number
+            for eic in pdata['eics'].values()
+        ]
+        summary_traces = []
+        summary_xmin_list = []
+        summary_xmax_list = []
+        for eic in group_run_eics:
+            # Loop through each row in the eic DataFrame
+            for _, eic_row in eic.iterrows():
+                # Filter data where intensity is above 1e5
+                valid_indices = eic_row['i'] > 1e5
+                filtered_rt = eic_row['rt'][valid_indices]
+                filtered_i = eic_row['i'][valid_indices]
+
+                if len(filtered_rt) > 0:  # Ensure there are valid points
+                    # Sort retention times
+                    rt_sort = np.argsort(filtered_rt)
+                    adduct = sta.get_adduct(eic_row['label'])  # Extract adduct from the label
+                    color = adduct_color.get(adduct, 'gray')  # Default to gray if adduct color is missing
+                    label = eic_row['label']
+
+                    # Update x_min and x_max based on filtered data
+                    summary_xmin_list.append(filtered_rt.min())
+                    summary_xmax_list.append(filtered_rt.max())
+
+                    # Add a trace for the current adduct
+                    summary_traces.append(
+                        go.Scatter(
+                            x=filtered_rt[rt_sort],
+                            y=filtered_i[rt_sort],
+                            mode='lines',
+                            name=f"{label}",
+                            line=dict(color=color),
+                            showlegend=False
+                        )
+                    )
+        x_min = min(summary_xmin_list) if summary_xmin_list else None
+        x_max = max(summary_xmax_list) if summary_xmax_list else None
+
+        # Create the figure with subplots
+        num_spectra = len(top_spectra)
+        if num_spectra == 0:
+            num_spectra = 1  # Ensure at least one row for empty top_spectra
+        num_columns = 4
+        num_spectra_rows = math.ceil(num_spectra / num_columns)
+
+        # Adjust subplot titles and specifications
+        subplot_titles = [
+            "Sample",
+            "Blank",
+            "EIC Summary",
+            "Sample (Log)",
+            "Blank (Log)",
+            *(f"" if top_spectra.empty else f"{row['adduct']} @ {round(row['rt'], 2)} mins" for _, row in top_spectra.iterrows())
+        ]
+
+        specs = [
+            [{"type": "scatter"}, {"type": "scatter"}, {"type": "scatter", "rowspan": 2, "colspan": 2}, None],
+            [{"type": "scatter"}, {"type": "scatter"}, None, None],
+            *[[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows)]
+        ]
+
+        # Ensure there is at least one row for empty top_spectra
+        if top_spectra.empty:
+            subplot_titles.extend([""] * (num_spectra_rows * num_columns - len(subplot_titles) + 5))
+            specs.extend([[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows - 1)])
+
+        fig = make_subplots(
+            rows=2 + num_spectra_rows,
+            cols=4,
+            shared_xaxes=False,
+            shared_yaxes=yaxis_toggle.value,
+            vertical_spacing=0.3 / (2 + num_spectra_rows),
+            horizontal_spacing=0.1,
+            subplot_titles=subplot_titles,
+            specs=specs
+        )
+
+        # Add fallback traces if top_spectra is empty
+        if top_spectra.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=[],
+                    y=[],
+                    mode='lines',
+                    name="No Spectra Available",
+                    line=dict(color='gray'),
+                    showlegend=False
+                ),
+                row=3,
+                col=1
+            )
+
+        # Add the summary traces to the spanning subplot
+        fig.update_xaxes(range=[x_min, x_max], row=1, col=3)  # Set x-axis bounds for the summary graph
+        for trace in summary_traces:
+            fig.add_trace(trace, row=1, col=3)  # Add to row 1, col 3
+
+        # Add EIC traces for each adduct/peak
+        for idx, (lcmsrun_path, eic) in enumerate(eics.items()):
+            for i, eic_row in eic.iterrows():
+                rt_sort = np.argsort(eic_row['rt'])
+                adduct = sta.get_adduct(eic_row['label'])
+                color = adduct_color[adduct]
+                
+                # Determine row and column for the current trace
+                row = 1 if idx < 2 else 2
+                col = (idx % 2) + 1
+                
+                # Dynamic facet_name determination 
+                if row == 1 and col == 1:
+                    facet_name = "Sample"
+                elif row == 1 and col == 2:
+                    facet_name = "Blank"
+                elif row == 2 and col == 1:
+                    facet_name = "Sample (Log)"
+                elif row == 2 and col == 2:
+                    facet_name = "Blank (Log)"
+
+                # Add line traces for raw intensity
+                trace_index = len(fig.data)
+                fig.add_trace(
+                    go.Scatter(
+                        x=eic_row['rt'][rt_sort],
+                        y=eic_row['i'][rt_sort],
+                        mode='lines',
+                        name=f"{adduct} {facet_name}",  # Include facet_name in legend
+                        line=dict(color=color),
+                        showlegend=True
+                    ),
+                    row=row,
+                    col=col
+                )
+
+                # Recalculate facet_name for log-transformed traces
+                if row + 1 == 2 and col == 1:
+                    facet_name = "Sample (Log)"
+                elif row + 1 == 2 and col == 2:
+                    facet_name = "Blank (Log)"
+
+                # Add line traces for log-transformed intensity
+                trace_index = len(fig.data)
+                fig.add_trace(
+                    go.Scatter(
+                        x=eic_row['rt'][rt_sort],
+                        y=np.log10(eic_row['i'][rt_sort].astype(float)),
+                        mode='lines',
+                        name=f"{adduct} {facet_name}",  # Include updated facet_name in legend
+                        line=dict(color=color),
+                        showlegend=True
+                    ),
+                    row=row + 1,  # Log traces go to the next row
+                    col=col
+                )
+
+                # Add peak markers for each peak associated with this adduct
+                if not rt_peaks.empty:
+                    if facet_name == "Sample" or facet_name == "Sample (Log)":
+                        adduct_peaks = rt_peaks[rt_peaks['adduct'] == adduct]
+                        for _, peak_info in adduct_peaks.iterrows():
+                            peak_rt = peak_info['rt_peak']
+                            peak_index = peak_info['peak_index']
+                            peak_intensity = peak_info['intensity']
+
+                            # Add marker for raw intensity
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[peak_rt],
+                                    y=[peak_intensity],
+                                    mode='markers',
+                                    marker=dict(color=color, size=10),
+                                    name=f"{adduct} RT {peak_index}",
+                                    showlegend=False
+                                ),
+                                row=row,
+                                col=col
+                            )
+
+                            # Add marker for log-transformed intensity
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[peak_rt],
+                                    y=[np.log10(peak_intensity)],
+                                    mode='markers',
+                                    marker=dict(color=color, size=10),
+                                    name=f"{adduct} RT {peak_index}",
+                                    showlegend=False
+                                ),
+                                row=row + 1,  # Log traces go to the next row
+                                col=col
+                            )
+
+                # Add MS2 spectra markers
+                if not top_spectra.empty:
+                    if facet_name == "Sample" or facet_name == "Sample (Log)":
+                        adduct_spectra = top_spectra[top_spectra['adduct'] == adduct]
+                        # Remove adduct filtering to show all MS2 spectra
+                        for _, spectrum_row in adduct_spectra.iterrows():
+                            spectrum_adduct = spectrum_row['adduct']
+                            spectrum_peak_index = spectrum_row['peak_index']
+                            rounded_rt = round(spectrum_row['rt'], 2)
+                            marker_color = adduct_color.get(spectrum_adduct, 'gray')
+
+                            # Find closest point in the current EIC
+                            sorted_rt = eic_row['rt'][rt_sort]
+                            sorted_intensity = eic_row['i'][rt_sort]
+                            
+                            # Skip if no intensity data available
+                            if len(sorted_rt) == 0 or len(sorted_intensity) == 0:
+                                continue
+                                
+                            # Find the closest RT point in the EIC
+                            closest_idx = np.argmin(np.abs(sorted_rt - spectrum_row['rt']))
+                            
+                            if closest_idx >= len(sorted_rt):
+                                # If the index is out of bounds, skip this spectrum
+                                print(f"Warning: RT {spectrum_row['rt']} is out of bounds for EIC RT range.")
+                                continue
+                                
+                            raw_intensity = sorted_intensity[closest_idx]
+                            log_intensity = np.log10(raw_intensity)
+                            
+                            # Display marker for all spectra on the raw intensity plot
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[spectrum_row['rt']],
+                                    y=[raw_intensity],
+                                    mode='markers',
+                                    marker=dict(color=marker_color, symbol='x', size=10),
+                                    name=f"MS2: {spectrum_adduct} ({spectrum_peak_index}) @ {rounded_rt}",
+                                    showlegend=False
+                                ),
+                                row=row,
+                                col=col
+                            )
+                            
+                            # Display marker for all spectra on the log-transformed plot
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[spectrum_row['rt']],
+                                    y=[log_intensity],
+                                    mode='markers',
+                                    marker=dict(color=marker_color, symbol='x', size=10),
+                                    name=f"MS2: {spectrum_adduct} ({spectrum_peak_index}) @ {rounded_rt}",
+                                    showlegend=False
+                                ),
+                                row=row + 1,  # Log traces go to the next row
+                                col=col
+                            )
+
+        # Add traces for Spectra plots
+        if not top_spectra.empty:
+            top_spectra_sorted = top_spectra.sort_values(['adduct', 'peak_index'])
+
+            mz_list = [lst[0] for lst in top_spectra_sorted['spectrum'] if isinstance(lst, (list, np.ndarray)) and len(lst) > 0]
+            mz_list_flattened = np.concatenate([np.ravel(arr) if isinstance(arr, np.ndarray) else np.array([arr]) for arr in mz_list])
+            lowest_mz = np.min(mz_list_flattened)*0.9
+            highest_mz = np.max(mz_list_flattened)*1.1
+
+            for i, spectrum_row in enumerate(top_spectra_sorted.iterrows()):
+                mz_values = spectrum_row[1]['spectrum'][0]
+                i_values = spectrum_row[1]['spectrum'][1]
+                adduct = spectrum_row[1]['adduct']
+                color = adduct_color[adduct]
+                precursor_mz = spectrum_row[1]['precursor_mz']
+                peak_index = spectrum_row[1]['peak_index']
+                spectrum_title = f"{adduct} ({peak_index}) @ {round(spectrum_row[1]['rt'], 2)} mins"
+
+                # Determine the row and column for this spectrum
+                spectrum_row_idx = 3 + (i // num_columns)  # Start after EIC rows
+                spectrum_col = (i % num_columns) + 1
+
+                # Update the x-axis range for the current subplot
+                fig.update_xaxes(
+                    range=[lowest_mz, highest_mz],  # Set x-axis limits
+                    row=spectrum_row_idx,
+                    col=spectrum_col
+                )
+
+                # Add vertical lines for each point
+                for mz, intensity in zip(mz_values, i_values):
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[mz, mz],
+                            y=[0, intensity],
+                            mode='lines',
+                            line=dict(color=color),
+                            showlegend=False
+                        ),
+                        row=spectrum_row_idx,
+                        col=spectrum_col
+                    )
+
+                # Add markers for each point
+                fig.add_trace(
+                    go.Scatter(
+                        x=mz_values,
+                        y=i_values,
+                        mode='markers',
+                        marker=dict(color=color, size=6),
+                        name=f"Spectrum {i+1}: {adduct}",
+                        showlegend=False
+                    ),
+                    row=spectrum_row_idx,
+                    col=spectrum_col
+                )
+
+                # Add a black circle at precursor_mz (y=0)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[precursor_mz],
+                        y=[0],
+                        mode='markers',
+                        marker=dict(color='black', symbol='circle', size=20),
+                        name=f"Precursor MZ: {precursor_mz}",
+                        showlegend=False
+                    ),
+                    row=spectrum_row_idx,
+                    col=spectrum_col
+                )
+                
+                fig.layout.annotations[5 + i].text = spectrum_title
+
+        # Update layout
+        fig_title = (group_id.replace('_', '  |  '))
+        fig.update_layout(
+            hoverlabel=dict(
+                font_size=11,  # Increase font size for better readability
+                namelength=-1  # Show the full name without truncation
+            ),
+            title=dict(text=fig_title, font=dict(size=14), x=0.5, xanchor="center"),
+            height=700 + 300 * num_spectra_rows,
+            width=1500,
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            legend=dict(
+                orientation="h",
+                xanchor="center",
+                yanchor="top",
+                x=0.5,
+                y=-0.2
+            )
+        )
+
+        # Add black borders and keep gridlines
+        fig.update_xaxes(
+            showline=True,  # Show axis line
+            linewidth=1,  # Set line width
+            linecolor="black",  # Set line color to black
+            showgrid=True,  # Keep gridlines
+            gridcolor="lightgray"  # Set gridline color
+        )
+        fig.update_yaxes(
+            showline=True,  # Show axis line
+            linewidth=1,  # Set line width
+            linecolor="black",  # Set line color to black
+            showgrid=True,  # Keep gridlines
+            gridcolor="lightgray"  # Set gridline color
+        )
+
+        # Update the compound image based on group_run_number
+        if group_run_number in runnum_to_structure_image_grid:
+            compound_image_widget.value = base64.b64decode(runnum_to_structure_image_grid[group_run_number])
+            compound_image_label.value = f"Structures in Run{group_run_number}"  # Update the label text
+        else:
+            compound_image_widget.value = b''  # Clear the image if not found
+            compound_image_label.value = "No Structures Found"  # Update the label text
+        
+        # Create new checkboxes for this unique_id
+        all_adducts_checkboxes = []
+        for combo in adduct_peak_combinations:
+            # Check if this combo is selected
+            is_selected = False
+            if unique_id in selected_good_adducts:
+                combo_id = f"{combo['adduct']}||{combo['peak_index']}"
+                is_selected = combo_id in selected_good_adducts[unique_id]
+            
+            checkbox = widgets.Checkbox(
+                value=is_selected,
+                description=combo['description'],
+                disabled=False,
+                layout=widgets.Layout(width='300px', margin='0 0 0 -75px')
+            )
+            all_adducts_checkboxes.append(checkbox)
+        
+        # Create ambiguous checkbox
+        ambiguous_checkbox = widgets.Checkbox(
+            value=(unique_id in ambiguous_adducts),
+            description="Ambiguous",
+            disabled=False,
+            layout=widgets.Layout(width='300px', margin='0 0 0 -75px')
+        )
+        all_adducts_checkboxes.append(ambiguous_checkbox)
+        
+        # Create top_adducts checkboxes
+        top_adducts_options = list(dict.fromkeys(combo['adduct'] for combo in adduct_peak_combinations))
+        top_adducts_children = []
+        
+        # Pre-select first adduct if this is a new unique_id
+        default_to_first = unique_id not in top_adducts and len(top_adducts_options) > 0
+        
+        for idx, adduct in enumerate(top_adducts_options):
+            # Check if this adduct should be selected
+            is_selected = False
+            
+            if unique_id in top_adducts:
+                # Use existing selection
+                is_selected = adduct in top_adducts[unique_id]
+            elif idx == 0 and default_to_first:
+                # This is the first checkbox for a new unique_id - select it by default
+                is_selected = True
+                # Also update the dictionary
+                top_adducts[unique_id] = [adduct]
+                
+            checkbox = widgets.Checkbox(
+                value=is_selected,
+                description=adduct,
+                layout=widgets.Layout(width='275px', margin='0 0 0 -75px')
+            )
+            top_adducts_children.append(checkbox)
+        
+        top_adducts_checkboxes = widgets.VBox(children=top_adducts_children)
+        
+        # Create and attach handlers that explicitly use the current unique_id
+        on_all_adducts_change, on_top_adducts_change = create_checkbox_handlers(
+            unique_id, all_adducts_checkboxes, adduct_peak_combinations, ambiguous_checkbox, top_adducts_checkboxes
+        )
+        
+        for checkbox in all_adducts_checkboxes:
+            checkbox.observe(on_all_adducts_change, names='value')
+        
+        for checkbox in top_adducts_checkboxes.children:
+            checkbox.observe(on_top_adducts_change, names='value')
+        
+        # Create layout with current widgets
+        layout = create_layout(all_adducts_checkboxes, top_adducts_checkboxes)
+        
+        # Update image
+        group_run_number = data['group_run_number']
+        if group_run_number in runnum_to_structure_image_grid:
+            compound_image_widget.value = base64.b64decode(runnum_to_structure_image_grid[group_run_number])
+            compound_image_label.value = f"Structures in Run{group_run_number}"
+        else:
+            compound_image_widget.value = b''
+            compound_image_label.value = "No Structures Found"
+        
+        # Display everything in the main output
+        with main_output:
+            display(layout)
+            display(fig)  # Display the plotly figure
+        
+        update_progress_text()
+    
+    # Initial display
+    update_display()
+    
+    # Build the main UI
+    ui = widgets.VBox([
+        main_output,
+        output_container
+    ])
+    
+    # Show the UI
+    display(ui)
 
 
 
