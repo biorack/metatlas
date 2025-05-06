@@ -1,5 +1,6 @@
 alembic
 banal
+pybase64
 black
 colorama
 dataset
@@ -19,6 +20,8 @@ numpy==1.24.4
 oauth2client
 pandas==2.2.3
 papermill
+plotly
+pillow
 pubchempy
 pydantic
 pymysql

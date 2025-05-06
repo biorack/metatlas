@@ -46,7 +46,6 @@ from rdkit.Chem import rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
 
 from typing import Dict, List, Tuple, Union, Any, Optional, Set
-from collections import defaultdict
 
 #####################
 ### LCMSrun tools ###
