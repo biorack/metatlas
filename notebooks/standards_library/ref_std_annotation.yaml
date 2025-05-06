@@ -40,8 +40,8 @@ standards_output_path: "/global/homes/b/bkieft/metatlas_junkdrawer/example_data/
 # Path to the input file containing standards information.
 standards_input_file: "/global/homes/b/bkieft/metatlas_junkdrawer/example_data/schellermetasci/scheller_test.csv"
 
-# EMA atlases can be direct paths to files or metatlas atlas UIDs. This is for appending new standards to existing atlases.
-# If you want to create a new atlas from ref stds from scratch, set the standalone_atlas flag to true below.
+# EMA atlases can be direct paths to files or metatlas atlas UIDs. This is for appending new standards to existing
+# atlases; if you want to create a new atlas of just ref stds from scratch, set the standalone_atlas flag to true below.
 current_ema_atlases:
   HILICZ:
     positive: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_EMA-standards_positive.tsv"
