@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import os
 import glob
-import matplotlib.colors as mcolors
 from difflib import get_close_matches
 from tqdm.notebook import tqdm
 import re
@@ -36,6 +35,7 @@ from scipy.signal import find_peaks
 
 import matplotlib.pyplot as plt
 from matplotlib import cm
+import matplotlib.colors as mcolors
 
 from rdkit import Chem
 from rdkit.Chem.rdchem import Mol
@@ -46,6 +46,7 @@ from rdkit.Chem import rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
 
 from typing import Dict, List, Tuple, Union, Any, Optional, Set
+from collections import defaultdict
 
 #####################
 ### LCMSrun tools ###
@@ -187,35 +188,29 @@ def get_matching_lcmsruns(row: pd.Series, include_polarities: List[str], include
 
 
 def build_standard_lcmsrun_table(
-    csv_standard_info_path: str,
-    include_polarities: List[str] = ['POS', 'NEG'],
-    include_chromatographies: List[str] = ['C18', 'HILIC'],
-    include_adducts: Optional[List[str]] = None,
+    config: Dict[str, Any],
     raw_data_dir: str = '/global/cfs/cdirs/metatlas/raw_data/*/'
 ) -> pd.DataFrame:
     """
     Build a table of LCMS run files that match the specified polarities, chromatographies, and adducts.
 
     Args:
-        csv_standard_info_path (str): Path to the CSV file containing standard information.
-        include_polarities (List[str], optional): List of polarities to include (e.g., ['POS', 'NEG']). Defaults to ['POS', 'NEG'].
-        include_chromatographies (List[str], optional): List of chromatographies to include (e.g., ['C18', 'HILIC']). Defaults to ['C18', 'HILIC'].
-        include_adducts (Optional[List[str]], optional): List of adducts to include. Defaults to None.
+        config (Dict[str, Any]): Configuration dictionary containing metadata for ref std project
         raw_data_dir (str, optional): Path to the directory containing raw LCMS data. Defaults to '/global/cfs/cdirs/metatlas/raw_data/*/'.
 
     Returns:
         pd.DataFrame: A DataFrame containing the LCMS run files with annotated adducts.
     """
-    standard_info = pd.read_csv(csv_standard_info_path)
+    standard_info = pd.read_csv(config['standards_input_file'])
     standard_info['standard_lcmsruns'] = standard_info.apply(
-        lambda row: get_matching_lcmsruns(row, include_polarities, include_chromatographies, raw_data_dir), axis=1
+        lambda row: get_matching_lcmsruns(row, config['include_polarities'], config['include_chromatographies'], raw_data_dir), axis=1
     )
     standard_lcmsruns_table = standard_info.explode('standard_lcmsruns').reset_index(drop=True).rename(
         columns={'standard_lcmsruns': 'standard_lcmsrun'}
     )
     
     standard_lcmsruns_table_with_adducts = build_adduct_annotated_table(
-        standard_lcmsruns_table, include_adducts=include_adducts
+        standard_lcmsruns_table, include_adducts=config['include_adducts']
     )
 
     return standard_lcmsruns_table_with_adducts
@@ -609,7 +604,7 @@ def check_db_deposit(new_entries_df: pd.DataFrame) -> None:
         print("Some compounds still missing from database:")
         display(pd.DataFrame.from_dict(missing, orient='index', columns=['label']))
     else:
-        print("All new entries found in the database.")
+        print("All new entries found in the database.\n")
 
 def test_metatlas_db_insertion(inchi_key: str, table: str) -> list:
     """
@@ -631,7 +626,7 @@ def test_metatlas_db_insertion(inchi_key: str, table: str) -> list:
 
 def handle_data(
     mode: str, 
-    save_path: str, 
+    config: Dict[str, Any], 
     timestamp: Optional[str] = None, 
     data: Optional[Tuple[Any, ...]] = None, 
     file_suffix: str = "data"
@@ -641,7 +636,7 @@ def handle_data(
 
     Args:
         mode (str): Operation mode, either "save" to save data or "load" to load data.
-        save_path (str): Directory path to save or load the data.
+        config (Dict[str, Any]): Configuration dictionary containing the save path.
         timestamp (Optional[str], optional): Timestamp for saving the file. Required for "save" mode. Defaults to None.
         data (Optional[Tuple[Any, ...]], optional): Data to save. Required for "save" mode. Defaults to None.
         file_suffix (str): Suffix for the file name (e.g., "filtered", "rt_correction", "selected"). Defaults to "data".
@@ -649,7 +644,7 @@ def handle_data(
     Returns:
         Optional[Union[Tuple[Any, ...], None]]: Loaded data as a tuple if mode is "load", or None if mode is "save".
     """
-    write_path = os.path.join(save_path, "cache")
+    write_path = os.path.join(config['standards_output_path'], "cache")
     if mode == "save":
         if not os.path.isdir(write_path):
             os.mkdir(write_path)
@@ -957,8 +952,8 @@ def get_top_ms1_and_ms2(
 
 def extract_data(
     lcmsruns_table: pd.DataFrame, 
-    method: str = "intensity", 
-    ppm_tolerance: int = 5
+    config: Dict[str, Any],
+    method: str = "intensity"
 ) -> Tuple[
     List[Dict[str, pd.DataFrame]], 
     List[pd.DataFrame], 
@@ -975,7 +970,7 @@ def extract_data(
                                        'standard_lcmsrun', 'adduct_data', 'smiles', 'adduct', and 'polarity'.
         method (str, optional): The method to use for peak extraction. Options are "intensity" or "find_peaks". 
                                 Defaults to "intensity".
-        ppm_tolerance (int, optional): The mass accuracy tolerance in parts per million (ppm). Defaults to 5.
+        config (Dict[str, Any]): Configuration dictionary containing parameters for data extraction.
 
     Returns:
         Tuple[
@@ -1004,7 +999,7 @@ def extract_data(
         adduct_to_polarity = dict(zip(group['adduct'].tolist(), group['polarity'].tolist()))
         group_name = (group_name[0], group_name[1], compound_smiles)
 
-        eics, ms2_data, atlas = collect_eics_and_ms2(group, ppm_tolerance)
+        eics, ms2_data, atlas = collect_eics_and_ms2(group, config['ppm_tolerance'])
 
         if method == "intensity":
             rt_peaks, top_spectra = get_top_ms1_and_ms2(eics, ms2_data, group_name[1], theoretical_mzs, compound_smiles, adduct_to_polarity)
@@ -1277,12 +1272,12 @@ def search_for_matches_in_atlases(
         print("\nSummary of compounds+adducts already in the atlases:\n")
         display(matches_df)
     else:
-        print("\nNone of these compounds+adducts were found in the atlases.\n")
+        print("\nNone of the compounds+adducts searched were found in the atlases.")
         matches_df = pd.DataFrame()
     if len(nonmatches_dict) != 0:
         nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
-        print(f"\nThese {len(nonmatches_df)} compounds+adducts are not yet in any atlases:\n")
-        display(nonmatches_df)
+        print(f"\nThere are {len(nonmatches_df)} compounds+adducts are not yet in any atlases. View with 'nonmatches_to_atlases'.\n")
+        #display(nonmatches_df)
     else:
         print("\nAll compounds+adducts are already in the atlases.\n")
         nonmatches_df = pd.DataFrame()
@@ -1329,8 +1324,8 @@ def filter_by_selected(
     top_spectra_selected['compound_name'] = top_spectra_selected['label'].apply(lambda x: x.split('_')[0])
     top_spectra_selected = select_compounds_from_gui(top_spectra_selected, selected_compounds_table)
 
-    print(f"\nTotal unique compounds retained: {eics_selected['compound_name'].nunique()}")
-    print(f"Total unique compound+adduct entries retained: {eics_selected['label'].nunique()}\n")
+    print(f"\nTotal unique compounds selected: {eics_selected['compound_name'].nunique()}")
+    print(f"Total unique compound+adduct entries selected: {eics_selected['label'].nunique()}\n")
     print(f"Total EICs selected: {eics_selected.shape[0]}")
     print(f"Total RT peaks selected: {rt_peaks_selected.shape[0]}")
     print(f"Total MS2 spectra selected: {top_spectra_selected.shape[0]}")
@@ -1413,7 +1408,7 @@ def format_and_select_top_adducts(
     datasets_dict = {'top': selected_top_adducts_df, 'all': unfiltered_adducts_df}
     
     for dataset_name, dataset in datasets_dict.items():
-        print(f"Working on dataset: {dataset_name}")
+        print(f"\nWorking on dataset: {dataset_name}")
         print("\tChecking for differing RTs between CEs and polarities, which are unexpected...")
         dataset_grouped = dataset.groupby(['chromatography', 'label'])
         for group_name, group in dataset_grouped:
@@ -1449,19 +1444,20 @@ def format_and_select_top_adducts(
             print(f"\t\tNo isomers found in {dataset_name} data.\n")
 
         if dataset_name == 'top':
-            print("\tSelecting best collision energy row by intensity for the top adduct(s) per compound...\n")
+            print("\tSelecting best collision energy row by intensity for the top adduct(s) per compound...")
             selected_top_adducts_df_grouped = selected_top_adducts_df.groupby(['chromatography', 'polarity', 'label', 'adduct'])
             selected_top_adducts_df_grouped_best_ces = []
             for group_name, group in selected_top_adducts_df_grouped:
                 ces = group.sort_values(by='intensity', ascending=False)
                 if len(ces) >= 1:
                     selected_top_adducts_df_grouped_best_ces.append(ces.iloc[0])
+                    print(f"\t\tSelected 1 row and removed {ces.shape[0] - 1} row(s) for {group_name}.")
                 else:
                     print(f"\t\tWarning! No collision energy found for {group_name}.")
             selected_top_adducts_df_best_ces = pd.DataFrame(selected_top_adducts_df_grouped_best_ces)
 
-    print(f"All dataset for MSMS refs: {unfiltered_rt_peaks.shape[0]} total compound peaks.")
-    print(f"Top dataset for EMA atlases: {selected_top_adducts_df_best_ces.shape[0]} best compound peaks.")
+    print(f"'All' peaks dataset (for MSMS refs): {unfiltered_rt_peaks.shape[0]} total compound peaks.")
+    print(f"'Top' peaks dataset (for EMA atlases): {selected_top_adducts_df_best_ces.shape[0]} best compound peaks.\n")
 
     # Return both the unfiltered dataframe and the subsetted dataframe
     return unfiltered_rt_peaks, selected_top_adducts_df_best_ces
@@ -1518,7 +1514,7 @@ def format_for_msms_refs(
     input_df: pd.DataFrame, 
     spectra_df: pd.DataFrame,
     msms_refs: pd.DataFrame, 
-    msms_refs_metadata: Dict[str, Any]
+    config: Dict[str, Any],
 ) -> pd.DataFrame:
     """
     Format a DataFrame for MS/MS reference data by enriching metadata and ensuring required columns.
@@ -1526,7 +1522,8 @@ def format_for_msms_refs(
     Args:
         input_df (pd.DataFrame): Input DataFrame containing compound data, including a 'spectrum' column.
         msms_refs (pd.DataFrame): Existing MS/MS reference DataFrame to align columns with.
-        msms_refs_metadata (Dict[str, Any]): Metadata dictionary containing fields such as 'ce_type', 
+        config (Dict[str, Any]): Configuration dictionary containing metadata for MS/MS references.
+                                 This contains a metadata dictionary with fields such as 'ce_type', 
                                              'frag_method', 'instrument_type', 'decimal', and 'msms_refs_prefix'.
 
     Returns:
@@ -1544,11 +1541,11 @@ def format_for_msms_refs(
 
     # Add all required columns for MS/MS refs
     output_df = input_df_with_spectra.copy()
-    output_df['ce_type'] = msms_refs_metadata['ce_type']
+    output_df['ce_type'] = config['msms_refs_metadata']['ce_type']
     output_df['ce'] = output_df['standard_lcmsrun'].apply(get_collision_energy)
     output_df['file'] = output_df['standard_lcmsrun'].apply(os.path.basename)
     output_df.rename(columns={'mz_theoretical': 'mz'}, inplace=True)
-    output_df = enrich_metadata(output_df, msms_refs_metadata)
+    output_df = enrich_metadata(output_df, config['msms_refs_metadata'])
     output_df['spectrum'] = output_df['spectrum'].apply(make_text_spectrum)
     output_df = output_df[msms_refs.columns.intersection(output_df.columns)]
     output_df = output_df.reset_index(drop=True)
@@ -1814,14 +1811,14 @@ def get_qc_experimental_atlas(
         elif len(project) > 1:
             print(f"Warning: more than one project found for {chrom}: {project}")
             continue
-        print(f"Getting raw QC files for {project}\n")
+        print(f"\tGetting all QC files for project {project}\n")
         qc_files = get_qc_files(project, chrom, include_istds)
         
-        print(f"Retrieving baseline {chrom} QC atlas: {current_atlases[chrom.lower()]}\n")
-        baseline_atlas_df = get_qc_atlas_dataframe(current_atlases[chrom.lower()])
+        print(f"\tRetrieving baseline {chrom} QC atlas: {current_atlases[chrom]}\n")
+        baseline_atlas_df = get_qc_atlas_dataframe(current_atlases[chrom])
         baseline_qc[chrom] = baseline_atlas_df
 
-        print(f"Collecting QC MS1 data for {chrom}...\n")
+        print(f"\tCollecting QC MS1 data for {chrom}...\n")
         ms1_summary = collect_qc_ms1_data(baseline_atlas_df, qc_files=qc_files, polarity="pos")
         ms1_summary_median = ms1_summary.groupby('label', as_index=False).agg({'rt_peak': 'median'})
         ms1_summary_median['rt_min'] = ms1_summary_median['rt_peak'] - 0.5
@@ -1875,7 +1872,7 @@ def create_baseline_correction_input(
 
 def rt_correction_from_baseline(
     baseline_correction_dfs: Dict[str, pd.DataFrame], 
-    include_chromatographies: List[str]
+    config: Dict[str, Any],
 ) -> Dict[str, pd.DataFrame]:
     """
     Perform RT correction for each chromatography in the given dictionary of DataFrames.
@@ -1883,14 +1880,15 @@ def rt_correction_from_baseline(
     Args:
         baseline_correction_dfs (Dict[str, pd.DataFrame]): A dictionary where keys are chromatography types 
             (e.g., 'C18', 'HILIC') and values are DataFrames containing RT experimental and baseline data.
-        include_chromatographies (List[str]): List of chromatography types to include in the correction process.
+        config (Dict[str, Any]): Configuration dictionary containing parameters for RT correction.
 
     Returns:
         Dict[str, pd.DataFrame]: A dictionary where keys are chromatography types and values are corrected DataFrames.
     """
     corrected_dfs: Dict[str, pd.DataFrame] = {}
 
-    for chromatography, df in baseline_correction_dfs.items():
+    print("\tPerforming RT correction...\n")
+    for chromatography, df in tqdm(baseline_correction_dfs.items(), desc="Calculating RT correction model", unit=' chromatography'):
         # Step 1: Filter rows with both rt_peak_baseline and rt_peak_experimental
         fit_data = df.dropna(subset=["rt_peak_baseline", "rt_peak_experimental"])
         fit_data = fit_data[fit_data["polarity"] == "QC"]
@@ -1933,14 +1931,13 @@ def rt_correction_from_baseline(
 
         # Store the corrected DataFrame in the result dictionary
         corrected_dfs[chromatography] = df[
-            ['label', 'polarity', 'rt_peak_baseline', 'rt_peak_experimental', 
+            ['label', 'adduct', 'polarity', 'rt_peak_baseline', 'rt_peak_experimental', 
              'rt_peak_corrected', 'rt_min_corrected', 'rt_max_corrected', 'rt_diff_experimental_vs_corrected']
         ]
 
-    for chrom in include_chromatographies:
-        chrom = chrom if 'HILIC' not in chrom else 'HILICZ'
-        print(f"Backward RT correction data for {chrom}:")
-        display(corrected_dfs[chrom])
+        # Print results for preview
+        print(f"\t{chromatography} RT correction results:")
+        display(corrected_dfs[chromatography])
 
     return corrected_dfs
 
@@ -1961,18 +1958,18 @@ def substitute_corrected_rt_values(
         pd.DataFrame: Updated nonmatches_to_atlases DataFrame with substituted RT values.
     """
 
+    # Make rt_peak_experimental a merge key to ensure all rows are uniquely aligned
+    updated_atlas = nonmatches_to_atlases.copy()
+    updated_atlas.rename(columns={'rt_peak': 'rt_peak_experimental'}, inplace=True)
+    
     for chromatography, df in baseline_correction_outputs.items():
-
-        # Make rt_peak_experimental a merge key to ensure all rows are uniquely aligned
-        updated_atlas = nonmatches_to_atlases.copy()
-        updated_atlas.rename(columns={'rt_peak': 'rt_peak_experimental'}, inplace=True)
 
         # Merge the two DataFrames on 'label' and 'polarity' to align rows
         baseline_df = df.copy()
         baseline_df.loc[:, 'chromatography'] = str(chromatography)
         merged_df = updated_atlas.merge(
-            baseline_df[['label', 'polarity', 'chromatography', 'rt_peak_experimental','rt_peak_corrected', 'rt_min_corrected', 'rt_max_corrected']],
-            on=['label', 'chromatography', 'polarity', 'rt_peak_experimental'],
+            baseline_df[['label', 'adduct', 'polarity', 'chromatography', 'rt_peak_experimental','rt_peak_corrected', 'rt_min_corrected', 'rt_max_corrected']],
+            on=['label', 'adduct', 'chromatography', 'polarity', 'rt_peak_experimental'],
             how='left'
         )
 
@@ -1980,39 +1977,50 @@ def substitute_corrected_rt_values(
         merged_df.loc[:, 'rt_peak_experimental'] = merged_df.loc[:, 'rt_peak_corrected'].combine_first(merged_df.loc[:, 'rt_peak_experimental'])
         merged_df.loc[:, 'rt_min'] = merged_df.loc[:, 'rt_min_corrected'].combine_first(merged_df.loc[:, 'rt_min'])
         merged_df.loc[:, 'rt_max'] = merged_df.loc[:, 'rt_max_corrected'].combine_first(merged_df.loc[:, 'rt_max'])
-        merged_df.rename(columns={'rt_peak_experimental': 'rt_peak'}, inplace=True)
 
         # Drop the corrected columns to clean up
         merged_df.drop(columns=['rt_peak_corrected', 'rt_min_corrected', 'rt_max_corrected'], inplace=True)
 
-        updated_atlas_df = merged_df
-        print(f"Formatted {updated_atlas_df.shape[0]} RT-corrected compounds for insertion into {chromatography} atlases.")
+        # Update the main DataFrame for the next iteration
+        updated_atlas = merged_df
+        print(f"Formatted {updated_atlas.shape[0]} RT-corrected compounds for insertion into {chromatography} atlases.")
 
-    return updated_atlas_df
+    # Rename the columns back to their original names
+    updated_atlas.rename(columns={'rt_peak_experimental': 'rt_peak'}, inplace=True)
+
+    return updated_atlas
 
 def update_and_save_ema_atlases(
     nonmatches_to_atlases_rt_corrected: pd.DataFrame,
     ema_atlases: Dict[str, Dict[str, Union[str, pd.DataFrame]]],
-    config: dict,
+    config: Dict[str, Any],
     current_time: str,
-) -> None:
+) -> Tuple[Dict[str, Dict[str, Optional[str]]], Dict[str, Dict[str, Optional[str]]]]:
     """
     Update and save EMA atlases by merging new compounds and splitting them back into their original files.
 
     Args:
-        nonmatches_to_atlases_rt_corrected (pd.DataFrame): New compounds to be added to the atlases.
-        ema_atlases (Dict[str, Dict[str, Union[str, pd.DataFrame]]]): Nested dictionary with chromatography and polarity keys, 
-            containing atlas DataFrames.
-        config (dict): Configuration dictionary containing metadata for ref std project (used for setting write path and project name).
+        nonmatches_to_atlases_rt_corrected (pd.DataFrame): DataFrame containing new compounds to be added to the atlases.
+            Must include columns such as 'chromatography', 'polarity', 'inchi_key', and 'rt_peak'.
+        ema_atlases (Dict[str, Dict[str, Union[str, pd.DataFrame]]]): Nested dictionary with chromatography and polarity keys,
+            containing atlas DataFrames or file paths.
+        config (Dict[str, Any]): Configuration dictionary containing metadata for the reference standard project.
+            Includes keys like 'standards_output_path', 'standalone_atlas', and 'msms_refs_metadata'.
         current_time (str): Timestamp to append to the updated atlas filenames.
 
     Returns:
-        None
+        Tuple[Dict[str, Dict[str, Optional[str]]], Dict[str, Dict[str, Optional[str]]]]:
+            - A dictionary of new atlas IDs for each chromatography and polarity.
+            - A dictionary of new atlas names or file paths for each chromatography and polarity.
     """
     new_atlas_ids = {}
     new_atlas_names = {}
     for chrom, polarities in ema_atlases.items():
+        new_atlas_ids[chrom] = {}
+        new_atlas_names[chrom] = {}
         for polarity, atlas_data in polarities.items():
+            new_atlas_ids[chrom][polarity] = ""
+            new_atlas_names[chrom][polarity] = ""
             if not isinstance(atlas_data, pd.DataFrame):
                 print(f"Warning: Atlas data for {chrom} {polarity} is not a DataFrame. Skipping.")
                 continue
@@ -2040,6 +2048,7 @@ def update_and_save_ema_atlases(
                 atlas_data['file_type'] = ""
                 compounds_to_add_to_atlas['file_name'] = compounds_to_add_to_atlas['standard_lcmsrun']
                 compounds_to_add_to_atlas['file_type'] = "lcms_file"
+                compounds_to_add_to_atlas['source_atlas'] = config['msms_refs_metadata']['msms_refs_prefix']
             if chrom == "C18":
                 compounds_to_add_to_atlas = compounds_to_add_to_atlas.copy()
                 compounds_to_add_to_atlas['file_name'] = compounds_to_add_to_atlas['standard_lcmsrun']
@@ -2053,12 +2062,10 @@ def update_and_save_ema_atlases(
                 compounds_to_add_to_atlas['identification_notes'] = ""
                 compounds_to_add_to_atlas['ms1_notes'] = ""
                 compounds_to_add_to_atlas['ms2_notes'] = ""                
+                compounds_to_add_to_atlas['source_atlas'] = config['msms_refs_metadata']['msms_refs_prefix']
 
             # Format the columns of compounds to be added to match the atlas format so no columns are missing
             missing_columns = atlas_data.columns.difference(compounds_to_add_to_atlas.columns)
-            #print(f"Atlas columns: {atlas_data.columns}")
-            #print(f"Data columns: {compounds_to_add_to_atlas.columns}")
-            #print(f"Atlas cols missing from data: {missing_columns}")
             for col in missing_columns:
                 compounds_to_add_to_atlas = compounds_to_add_to_atlas.copy()
                 compounds_to_add_to_atlas.loc[:, col] = np.nan
@@ -2074,7 +2081,10 @@ def update_and_save_ema_atlases(
 
             # Merge the compounds_to_add_to_atlas_formatted with the current atlas
             column_order = atlas_data.columns
-            new_atlas_data = pd.concat([atlas_data, compounds_to_add_to_atlas_formatted], ignore_index=False)
+            if config['standalone_atlas'] is True:
+                new_atlas_data = compounds_to_add_to_atlas_formatted
+            elif config['standalone_atlas'] is False:
+                new_atlas_data = pd.concat([atlas_data, compounds_to_add_to_atlas_formatted], ignore_index=False)
             new_atlas_data.drop(columns=['source_atlas'], inplace=True)
             new_atlas_data = new_atlas_data.reindex(columns=[col for col in column_order if col in new_atlas_data.columns])
 
@@ -2085,12 +2095,13 @@ def update_and_save_ema_atlases(
             updated_atlas_dir = f"{config['standards_output_path']}/updated_EMA_atlases"
             if not os.path.exists(updated_atlas_dir):
                 os.makedirs(updated_atlas_dir)
+            standalone_tag = "_standalone" if config['standalone_atlas'] else ""
             if atlas_name.endswith('.tsv'): # If atlas input from yaml is a file and in tsv format
-                new_atlas_name = atlas_name.replace(".tsv", f"_{current_time}.tsv")
+                new_atlas_name = atlas_name.replace(".tsv", f"_{current_time}{standalone_tag}.tsv")
             elif atlas_name.endswith('.csv'): # If atlas input from yaml is a file and in csv format
-                new_atlas_name = atlas_name.replace(".csv", f"_{current_time}.tsv")
+                new_atlas_name = atlas_name.replace(".csv", f"_{current_time}{standalone_tag}.tsv")
             else: # If atlas input from yaml is a metatlas UID
-                new_atlas_name = f"{atlas_name}_{current_time}.csv"
+                new_atlas_name = f"{atlas_name}_{current_time}{standalone_tag}.csv"
             fname = f"{updated_atlas_dir}/{new_atlas_name}"
             
             # Save the new atlas to the original file
@@ -2098,24 +2109,35 @@ def update_and_save_ema_atlases(
                 new_atlas_data.to_csv(fname, sep='\t', index=False)
             elif fname.endswith('.csv'):
                 new_atlas_data.to_csv(fname, index=False)
-            print(f"Current {chrom} {polarity} EMA atlas: {atlas_name}")
-            print(f"{len(atlas_data)} current compounds updated with {len(compounds_to_add_to_atlas_formatted)} new compounds for a total of {len(new_atlas_data)} compounds.")
-            print(f"Updated {chrom} {polarity} EMA atlas saved to: {fname}\n")
+            
+            # Print summary of the update
+            if config['standalone_atlas'] is True:
+                print(f"\nStandalone atlas (not appended to existing data) generated for {chrom} {polarity} EMA atlas.")
+                print(f"New atlas has {len(new_atlas_data)} compounds.")
+                print(f"Saved to: {fname}\n")
+            elif config['standalone_atlas'] is False:
+                print(f"\nCurrent {chrom} {polarity} EMA atlas: {atlas_name}")
+                print(f"{len(atlas_data)} current compounds updated with {len(compounds_to_add_to_atlas_formatted)} new compounds for a total of {len(new_atlas_data)} compounds.")
+                print(f"Updated {chrom} {polarity} EMA atlas saved to: {fname}\n")
 
             # Deposit atlas directly to metatlas db and retrieve the new atlas ID
             if config['direct_deposit_new_emas']:
-                if fname.endswith('.tsv'):
+                if fname.endswith('.tsv'): # Must convert to csv for atlas deposit
                     input_atlas_file_name = fname.replace('.tsv', '.csv')
-                    new_atlas_data.to_csv(input_atlas_file_name, index=False)                   
-                atlas_deposited = make_atlas_from_spreadsheet(input_atlas_file_name, atlas_name, filetype="csv", polarity=polarity, store=True, mz_tolerance=config['ppm_tolerance'])
+                    new_atlas_data.to_csv(input_atlas_file_name, index=False)
+                else:
+                    input_atlas_file_name = fname
+                new_atlas_db_name = os.path.basename(input_atlas_file_name).replace(".csv","")
+                print("Depositing atlas to metatlas database Atlas table...")
+                atlas_deposited = make_atlas_from_spreadsheet(input_atlas_file_name, new_atlas_db_name, filetype="csv", polarity=polarity, store=True, mz_tolerance=config['ppm_tolerance'])
                 atlas_df = make_atlas_df(atlas_deposited)
-                print(f"Updated EMA atlas deposited to metatlas db with unique_id: {atlas_deposited.unique_id}")
-                print(f"Updated EMA atlas deposited to metatlas db with name: {atlas_deposited.name}")
+                print(f"\tUpdated EMA atlas deposited to metatlas db with unique_id: {atlas_deposited.unique_id}")
+                print(f"\tUpdated EMA atlas deposited to metatlas db with name: {atlas_deposited.name}")
                 new_atlas_ids[chrom][polarity] = atlas_deposited.unique_id
                 new_atlas_names[chrom][polarity] = atlas_deposited.name
             else:
-                new_atlas_ids[chrom][polarity] = None
-                new_atlas_names[chrom][polarity] = None
+                new_atlas_ids[chrom][polarity] = ""
+                new_atlas_names[chrom][polarity] = fname
     
     return new_atlas_ids, new_atlas_names
 
@@ -2123,9 +2145,8 @@ def update_and_save_ema_atlases(
 def update_and_save_msms_refs(
     msms_refs: pd.DataFrame,
     rt_peaks_with_spectra: pd.DataFrame,
-    msms_refs_save_path: str,
+    config: Dict[str, Any],
     timestamp: str,
-    save_refs: bool = False
 ) -> None:
     """
     Update and save MS/MS reference data by appending new entries and optionally saving to disk.
@@ -2133,9 +2154,8 @@ def update_and_save_msms_refs(
     Args:
         msms_refs (pd.DataFrame): Existing MS/MS reference data.
         rt_peaks_with_spectra (pd.DataFrame): New MS/MS reference data to be added.
-        msms_refs_save_path (str): Directory path to save the updated MS/MS references.
+        config (Dict[str, Any]): Configuration dictionary containing metadata for ref std project (used for setting write path and project name).
         timestamp (str): Timestamp to append to the updated MS/MS reference filename.
-        save_refs (bool, optional): Whether to save the updated MS/MS references to disk. Defaults to False.
 
     Returns:
         None
@@ -2153,25 +2173,28 @@ def update_and_save_msms_refs(
         return
     
     # Combine existing and new MS/MS refs
-    new_msms_refs = pd.concat([msms_refs, rt_peaks_with_spectra])
-    print(f"Existing MSMS refs went from {msms_refs.shape[0]} to {new_msms_refs.shape[0]} compounds.")
-    if new_msms_refs.shape[0] != msms_refs.shape[0] + rt_peaks_with_spectra.shape[0]:
-        print("Warning! Some new MSMS refs may not have been added correctly.")
-        return
-    if new_msms_refs.shape[1] != msms_refs.shape[1]:
-        print("Warning! Column numbers don't match between existing and new MSMS refs.")
-        return
+    if config['standalone_msms_refs'] is True:
+        new_msms_refs = rt_peaks_with_spectra
+        print(f"Standalone MSMS refs generated with {new_msms_refs.shape[0]} compounds.")
+    elif config['standalone_msms_refs'] is False:
+        new_msms_refs = pd.concat([msms_refs, rt_peaks_with_spectra])
+        print(f"Existing MSMS refs went from {msms_refs.shape[0]} to {new_msms_refs.shape[0]} compounds.")
+        if new_msms_refs.shape[0] != msms_refs.shape[0] + rt_peaks_with_spectra.shape[0]:
+            print("Warning! Some new MSMS refs may not have been added correctly.")
+            return
+        if new_msms_refs.shape[1] != msms_refs.shape[1]:
+            print("Warning! Column numbers don't match between existing and new MSMS refs.")
+            return
 
-    if save_refs:
-        updated_refs_dir = f"{msms_refs_save_path}/updated_MSMS_refs"
-        if not os.path.exists(updated_refs_dir):
-            os.makedirs(updated_refs_dir)
-        fname = f"{updated_refs_dir}/msms_refs_{timestamp}.tab"
-        print(f"\tNew MSMS refs: {fname}")
-        new_msms_refs.to_csv(fname, sep='\t', index=False)
-    else:
-        print("\nNew MSMS refs not saved to disk. Here is what would be added with the save_refs=True option:")
-        print(rt_peaks_with_spectra)
+    updated_refs_dir = f"{config['standards_output_path']}/updated_MSMS_refs"
+    standalone_tag = "_standalone" if config['standalone_msms_refs'] else ""
+    if not os.path.exists(updated_refs_dir):
+        os.makedirs(updated_refs_dir)
+    fname = f"{updated_refs_dir}/msms_refs_{timestamp}{standalone_tag}.tab"
+    print(f"\tNew MSMS refs: {fname}")
+    new_msms_refs.to_csv(fname, sep='\t', index=False)
+
+    return
 
 
 ###########################
@@ -2435,10 +2458,7 @@ def process_data_for_plotting(
     top_spectra_list: List[pd.DataFrame],
     group_name_list: List[Tuple[str, str, str]],
     rt_peak_list: List[pd.DataFrame],
-    include_adducts: Optional[List[str]] = None,
-    sort_by: str = "run",
-    subset_by_compound: Optional[str] = None,
-    subset_by_run: Optional[int] = None
+    config: Dict[str, Any]
 ) -> List[Dict[str, Any]]:
     """
     Processes data for plotting by combining EICs, spectra, and metadata for each group.
@@ -2448,16 +2468,16 @@ def process_data_for_plotting(
         top_spectra_list (List[pd.DataFrame]): List of top spectra data for each group.
         group_name_list (List[Tuple[str, str, str]]): List of group metadata (compound name, file path, SMILES).
         rt_peak_list (List[pd.DataFrame]): List of retention time peak data for each group.
-        include_adducts (Optional[List[str]]): List of adducts to include in the color mapping. Defaults to None.
-        sort_by (str): Sorting criteria, either "run" or "specs". Defaults to "run".
-        subset_by_compound (Optional[str]): Compound name to filter the data. Defaults to None.
-        subset_by_run (Optional[int]): Run number to filter the data. Defaults to None.
+        config (Dict[str, Any]): Configuration dictionary containing metadata for ref std project. Uses:
+                                analysis_sort (str): Sorting criteria, either "run" or "specs". Defaults to "run".
+                                analysis_compound_subset (str): Compound name to filter the data. Defaults to None.
+                                analysis_run_subset (int): Run number to filter the data. Defaults to None.
 
     Returns:
         List[Dict[str, Any]]: Processed data for each group, including metadata and EICs.
     """
     processed_data = []
-    adduct_color = generate_adduct_colors(include_adducts)
+    adduct_color = generate_adduct_colors(config['include_adducts'])
     obj_lengths = [len(eics_list), len(top_spectra_list), len(group_name_list), len(rt_peak_list)]
 
     if len(set(obj_lengths)) != 1:
@@ -2500,20 +2520,20 @@ def process_data_for_plotting(
             "adduct_color": adduct_color
         })
 
-    if sort_by == "run":
+    if config['analysis_sort'] == "run":
         processed_data.sort(key=lambda x: (x['group_run_number']))
-    elif sort_by == "specs":
+    elif config['analysis_sort'] == "specs":
         processed_data.sort(key=lambda x: (x['compound_name'], x['group_chrom'], x['group_pol']))
 
-    if subset_by_compound:
+    if config['analysis_compound_subset'] != "":
         processed_data = [
             entry for entry in processed_data
-            if entry.get('compound_name') == subset_by_compound
+            if entry.get('compound_name') == config['analysis_compound_subset']
         ]
-    if subset_by_run:
+    if config['analysis_run_subset'] != "":
         processed_data = [
             entry for entry in processed_data
-            if entry.get('group_run_number') == subset_by_run
+            if entry.get('group_run_number') == config['analysis_run_subset']
         ]
 
     return processed_data
@@ -2592,7 +2612,7 @@ def generate_static_summary_plots(
     processed_data: List[Dict[str, Any]],
     selected_good_adducts: Dict[str, List[str]],
     top_adducts: Dict[str, List[str]],
-    export_dir: Optional[str]
+    config: Dict[str, Any],
 ) -> None:
     """
     Generate static summary plots for selected compounds, including EICs, spectra, and molecular images.
@@ -2604,7 +2624,7 @@ def generate_static_summary_plots(
         selected_good_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of selected
             adduct-peak combinations in the format "adduct||peak_index".
         top_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of top adducts.
-        export_dir (Optional[str]): Directory path to save the generated plots. If None, plots are not saved.
+        config (Dict[str, Any]): Configuration dictionary containing metadata for ref std project.
 
     Returns:
         None
@@ -3120,8 +3140,8 @@ def generate_static_summary_plots(
             )
         )
         # Export the figure if export_dir is provided
-        if export_dir:
-            export_dirname = os.path.join(export_dir, "selection_summary_plots")
+        if config["standards_output_path"]:
+            export_dirname = os.path.join(config["standards_output_path"], "selection_summary_plots")
             os.makedirs(export_dirname, exist_ok=True)
             fname=f"{export_dirname}/{group_id}_summary_plot.png"
             fig.write_image(

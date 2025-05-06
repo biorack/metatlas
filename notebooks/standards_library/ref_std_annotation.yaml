@@ -1,0 +1,102 @@
+# Polarity types to include in the analysis.
+include_polarities:
+  - POS
+  - NEG
+
+# Chromatography types to include in the analysis.
+include_chromatographies:
+  - C18
+  - HILIC
+
+# Adducts to include in the analysis.
+include_adducts:
+  - "[M+H]+"
+  - "[M+Na]+"
+  - "[M-H2O+H]+"
+  - "[M+K]+"
+  - "[M+NH4]+"
+  - "[M]+"
+  - "[M+2H]2+"
+  - "[M-H]-"
+  - "[M+Cl]-"
+  - "[M]-"
+  - "[M-2H]2-"
+
+# Sort analysis by run; use "specs" to sort by chromatography and polarity per compound.
+analysis_sort: "run"
+
+# Specify a compound name to analyze a subset (leave empty for all compounds).
+analysis_compound_subset: "sorgoleone"
+
+# Specify a sample run number to analyze a subset (leave empty for all runs).
+analysis_run_subset: ""
+
+# Set the mass accuracy tolerance for extracting data and for new EMA atlases in parts per million (ppm).
+ppm_tolerance: 5
+
+# Path to save all outputs of this standards annotation
+standards_output_path: "/global/homes/b/bkieft/metatlas_junkdrawer/example_data/schellermetasci"
+
+# Path to the input file containing standards information.
+standards_input_file: "/global/homes/b/bkieft/metatlas_junkdrawer/example_data/schellermetasci/scheller_test.csv"
+
+# EMA atlases can be direct paths to files or metatlas atlas UIDs. This is for appending new standards to existing atlases.
+# If you want to create a new atlas from ref stds from scratch, set the standalone_atlas flag to true below.
+current_ema_atlases:
+  HILICZ:
+    positive: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_EMA-standards_positive.tsv"
+    negative: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_EMA-standards_negative.tsv"
+  C18:
+    positive: "/global/homes/b/bkieft/metatlas-data/C18/C18_EMA-standards_positive.tsv"
+    negative: "/global/homes/b/bkieft/metatlas-data/C18/C18_EMA-standards_negative.tsv"
+
+# Set to true to create new EMA atlases from just the selected ref stds instead of appending them to existing atlases.
+# Set to false to append the selected ref stds to the existing atlases.
+standalone_atlas: false
+
+# Set to true to save new EMA atlases locally after adding standards. This will write a new EMA atlas file
+# in the project directory. If set to false, the new atlas will only be stored in memory or cache.
+save_new_ema_atlases: true
+
+# Set to true to directly deposit new EMA atlases into the metatlas database after adding standards. This will
+# create a new atlas in the database and assign it a new UID and atlas name.
+direct_deposit_new_emas: false
+
+# QC atlases can be direct paths to files or metatlas atlas UIDs. These are used for creating the backward
+# RT correction models that refit the ref standards measured RTs to baseline RT space.
+current_qc_atlases:
+  HILICZ: "/global/homes/b/bkieft/metatlas-data/HILIC/HILIC_QCv7_positive.tsv"
+  C18: "/global/homes/b/bkieft/metatlas-data/C18/C18_QCv7_positive.tsv"
+
+# Set to true to directly store new ref std compounds selected during the analysis into the metatlas database Compounds table.
+direct_store_to_compounds_table: false
+
+# Path to the current MSMS references file. Used to search for existing entries for ref stds to avoid doubling up and to 
+# append MSMS data from the ref stds to the existing MSMS references file.
+current_msms_refs_path: "/global/cfs/cdirs/metatlas/projects/spectral_libraries/20240430_istdv7-addition_msms_refs.tab"
+
+# Set to true to create a new MSMS references file from just the ref stds instead of appending them to the existing MSMS references file.
+# Set to false to append the ref stds to the existing MSMS references file.
+standalone_msms_refs: false
+
+# Set to true to save new MSMS references locally after adding standards. This will write a new MSMS references file
+# in the project directory. If set to false, the MSMS refs data will only be stored in memory or cache.
+save_new_msms_refs: true
+
+# Extra metadata fields for the MSMS references file. Make sure to update these for each new ref stds dataset.
+msms_refs_metadata:
+  ce_type: "ramp"
+  msms_refs_prefix: "schellermetasci"
+  frag_method: "HCD"
+  instrument_type: "Orbitrap"
+  decimal: 4.0
+
+# Set any of these to true to use cached data for the specified data types. This can speed up the analysis process.
+# Check the cache directory to see the latest timestamp to determine if these should be true or false.
+full_data_from_cache: false
+selected_data_from_cache: false
+filtered_data_from_cache: false
+metatlas_db_data_from_cache: false
+ema_atlas_data_from_cache: false
+rt_correction_data_from_cache: false
+msms_refs_data_from_cache: false
