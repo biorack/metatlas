@@ -1202,14 +1202,12 @@ def search_for_matches_in_atlases(
                 atlas_data['label'] = atlas_data['label'].astype(str)
                 if 'compound_name' in atlas_data.columns:
                     atlas_data['compound_name'] = atlas_data['compound_name'].astype(str)
-                # else:
-                #     if 'name' in atlas_data.columns:
-                #         atlas_data['compound_name'] = atlas_data['name']
-                #     else:
-                #         atlas_data['compound_name'] = atlas_data['label']
-                #     atlas_data['compound_name'] = atlas_data['compound_name'].astype(str)
-                
+
                 relevant_query_entries = query_entries[(query_entries['polarity'] == polarity) & (query_entries['chromatography'] == chrom)]
+                if relevant_query_entries.empty:
+                    print(f"No compounds need to be searched against the {chrom} {polarity} atlas. Skipping.")
+                    continue
+                
                 for _, query_row in tqdm(relevant_query_entries.iterrows(), total=relevant_query_entries.shape[0], desc=f" Searching in {chrom} {polarity} atlas", unit=" compound"):
                     query_label = str(query_row['label'])
                     query_compound_name = str(query_row['compound_name'])
@@ -1606,7 +1604,7 @@ def get_ema_atlas_data(ema_atlases_path: Dict[str, Dict[str, str]]) -> Dict[str,
 
     Args:
         ema_atlases_path (Dict[str, Dict[str, str]]): A dictionary where keys are chromatography types,
-            and values are dictionaries mapping polarities to file paths.
+            and values are dictionaries mapping polarities to file paths or metatlas UIDs.
 
     Returns:
         Dict[str, Dict[str, Union[str, pd.DataFrame]]]: Same format as ema_atlases_path dict, but with DataFrames instead of file paths or UUIDs.
@@ -1618,7 +1616,8 @@ def get_ema_atlas_data(ema_atlases_path: Dict[str, Dict[str, str]]) -> Dict[str,
             if file_path.endswith('.tsv'):
                 if not os.path.exists(file_path):
                     print(f"Warning: file {file_path} does not exist.")
-                    return
+                    atlas_dfs[chrom_type][polarity] = pd.DataFrame()
+                    continue
                 else:
                     df = pd.read_csv(file_path, sep='\t', index_col=None)
                     df['source_atlas'] = os.path.basename(file_path)
@@ -1626,14 +1625,19 @@ def get_ema_atlas_data(ema_atlases_path: Dict[str, Dict[str, str]]) -> Dict[str,
             elif file_path.endswith('.csv'):
                 if not os.path.exists(file_path):
                     print(f"Warning: file {file_path} does not exist.")
-                    return
+                    atlas_dfs[chrom_type][polarity] = pd.DataFrame()
+                    continue
                 else:
                     df = pd.read_csv(file_path, index_col=None)
                     df['source_atlas'] = os.path.basename(file_path)
                     atlas_dfs[chrom_type][polarity] = df
             else:
-                df = atlas_id_to_df(file_path)
-                df['source_atlas'] = f"{file_path}_{chrom_type}_{polarity}"
+                try:
+                    df = atlas_id_to_df(file_path)
+                    df['source_atlas'] = f"{file_path}_{chrom_type}_{polarity}"
+                except:
+                    df = pd.DataFrame()
+                    print(f"Warning: Unable to retrieve atlas with ID {file_path}. Returning empty dataframe")
                 atlas_dfs[chrom_type][polarity] = df
 
     return atlas_dfs
@@ -1971,6 +1975,11 @@ def substitute_corrected_rt_values(
             on=['label', 'adduct', 'chromatography', 'polarity', 'rt_peak_experimental'],
             how='left'
         )
+
+        # Check if merged_df has any non-QC values in the 'polarity' column
+        if merged_df[merged_df['polarity'] != 'QC'].empty: # There are no compounds to correct for this chromatography
+            print(f"No compounds to correct for {chromatography} chromatography.")
+            continue
 
         # Substitute the RT values with the corrected ones
         merged_df.loc[:, 'rt_peak_experimental'] = merged_df.loc[:, 'rt_peak_corrected'].combine_first(merged_df.loc[:, 'rt_peak_experimental'])
@@ -4249,7 +4258,7 @@ def create_interactive_plots_jupyterlab(
                 if len(filtered_rt) > 0:  # Ensure there are valid points
                     # Sort retention times
                     rt_sort = np.argsort(filtered_rt)
-                    adduct = sta.get_adduct(eic_row['label'])  # Extract adduct from the label
+                    adduct = get_adduct(eic_row['label'])  # Extract adduct from the label
                     color = adduct_color.get(adduct, 'gray')  # Default to gray if adduct color is missing
                     label = eic_row['label']
 
@@ -4334,7 +4343,7 @@ def create_interactive_plots_jupyterlab(
         for idx, (lcmsrun_path, eic) in enumerate(eics.items()):
             for i, eic_row in eic.iterrows():
                 rt_sort = np.argsort(eic_row['rt'])
-                adduct = sta.get_adduct(eic_row['label'])
+                adduct = get_adduct(eic_row['label'])
                 color = adduct_color[adduct]
                 
                 # Determine row and column for the current trace
@@ -4886,7 +4895,7 @@ def create_interactive_plots_jupyterlab(
 
 # def filter_by_selected_top_adduct(rt_peaks, top_adducts, rt_check_cutoff=0.05):
 #     """
-#     rt_peaks_filtered_top_adduct = sta.filter_by_selected_top_adduct(rt_peaks_filtered, top_adducts_dict)
+#     rt_peaks_filtered_top_adduct = filter_by_selected_top_adduct(rt_peaks_filtered, top_adducts_dict)
 #     """
 #     unfiltered_rt_peaks = rt_peaks.copy()
 #     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']

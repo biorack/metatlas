@@ -21,9 +21,9 @@ include_adducts:
   - "[M+Cl]-"
   - "[M]-"
   - "[M-2H]2-"
-
+  
 # Sort analysis by run; use "specs" to sort by chromatography and polarity per compound.
-analysis_sort: "run"
+analysis_sort: "specs"
 
 # Specify a compound name to analyze a subset (leave empty for all compounds).
 analysis_compound_subset: "sorgoleone"
