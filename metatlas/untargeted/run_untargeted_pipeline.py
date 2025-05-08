@@ -36,7 +36,9 @@ def main():
     if args.hard_raw_data_mirror:
         if args.direct_input is not None:
             for project in args.direct_input:
-                mzm.mirror_raw_data_to_gnps2(project=project,username="bpbowen",raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir)
+                logging.info(f'Hard mirroring raw data to GNPS2 for project {project}. This will overwrite any existing files in the remote directory.')
+                mzm.mirror_raw_data_to_gnps2(project=project,username="bpbowen",raw_data_dir=args.raw_data_dir,raw_data_subdir=args.raw_data_subdir,
+                                             overwrite_existing_dir=True) # Force overwrite when hard mirroring
         else:
             logging.info('Hard mirroring of raw data to GNPS2 requires --direct_input flag. Exiting.')
             sys.exit(1)
