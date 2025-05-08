@@ -204,6 +204,8 @@ jupyterlab-server==2.27.3
     # via jupyterlab
 jupyterlab-widgets==3.0.13
     # via ipywidgets
+kaleido==0.2.1
+    # via -r requirements.in
 kiwisolver==1.4.7
     # via matplotlib
 llvmlite==0.43.0
