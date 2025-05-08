@@ -1348,19 +1348,26 @@ def filter_by_selected(
     top_spectra_selected = select_compounds_from_gui(top_spectra_selected, selected_compounds_table, "all")
     top_spectra_best = select_compounds_from_gui(top_spectra_selected, selected_compounds_table, "best")
 
-    print(f"\nAll unique compounds selected: {eics_selected['compound_name'].nunique()}")
-    print(f"All unique compound+adduct entries selected: {eics_selected['label'].nunique()}")
-    print(f"All EICs selected: {eics_selected.shape[0]}")
-    print(f"All RT peaks selected: {rt_peaks_selected.shape[0]}")
-    print(f"All MS2 spectra selected: {top_spectra_selected.shape[0]}")
+    all_data = {"eics": eics_selected,
+                "rt_peaks": rt_peaks_selected,
+                "top_spectra": top_spectra_selected}
 
-    print(f"\nBest unique compounds selected: {eics_best['compound_name'].nunique()}")
-    print(f"Best unique compound+adduct entries selected: {eics_best['label'].nunique()}")
-    print(f"Best EICs selected: {eics_best.shape[0]}")
-    print(f"Best RT peaks selected: {rt_peaks_best.shape[0]}")
-    print(f"Best MS2 spectra selected: {top_spectra_best.shape[0]}")
+    print(f"\nAll unique compounds selected: {all_data['eics']['compound_name'].nunique()}")
+    print(f"All unique compound+adduct entries selected: {all_data['eics']['label'].nunique()}")
+    print(f"All unique compound+adduct+peak entries selected: {all_data['rt_peaks'].shape[0]}")
+    print(f"All unique compound+adduct+peak+spectra entries selected: {all_data['top_spectra'].shape[0]}")
+    
+    best_data = {"eics": eics_best,
+                "rt_peaks": rt_peaks_best,
+                "top_spectra": top_spectra_best }
 
-    return eics_selected, rt_peaks_selected, top_spectra_selected, eics_best, rt_peaks_best, top_spectra_best
+    print(f"\nBest unique compounds selected: {best_data['eics']['compound_name'].nunique()}")
+    print(f"Best unique compound+adduct entries selected: {best_data['eics']['label'].nunique()}")
+    print(f"Best unique compound+adduct+peak entries selected: {best_data['rt_peaks'].shape[0]}")
+    print(f"Best unique compound+adduct+peak+spectra entries selected: {best_data['top_spectra'].shape[0]}")
+
+    return all_data, best_data
+
 
 def format_rt_peaks(
     all_rt_peaks: pd.DataFrame, 
@@ -1457,6 +1464,12 @@ def format_rt_peaks(
             rt_data_formatted_labeled = pd.DataFrame(selected_best_adducts_df_grouped_best_ces)
 
         datasets_formatted_dict[rt_data_name] = rt_data_formatted_labeled
+
+    # Add column to "all" to indicate if it's in "best"
+    datasets_formatted_dict['all']['best'] = datasets_formatted_dict['all'].apply(
+        lambda row: "Yes" if row.tolist() in datasets_formatted_dict['best'].values.tolist() else "No",
+        axis=1
+    )
 
     print(f"\n'All' peaks dataset: {datasets_formatted_dict['all'].shape[0]} total compound peaks.")
     print(f"'Best' peaks dataset: {datasets_formatted_dict['best'].shape[0]} best compound peaks.\n")
@@ -1601,7 +1614,31 @@ def format_and_select_best_adducts(
 ### MSMS refs tools ###
 #######################
 
-def index_and_read_mgf(mgf_refs_path: str):
+def get_scan_number(file_path: str) -> int:
+    """
+    Extract the scan number from the last line of the file containing 'scan=' and 'spectrum id'.
+
+    Args:
+        file_path (str): Path to the file to process.
+
+    Returns:
+        int: The extracted scan number.
+    """
+    try:
+        # Run the shell command
+        command = f"cat {file_path} | grep 'scan=' | grep 'spectrum id' | tail -n 1 | sed -n 's/.*scan=\\([0-9]*\\).*/\\1/p'"
+        result = subprocess.check_output(command, shell=True, text=True).strip()
+        
+        # Convert the result to an integer
+        scan_number = int(result)
+        return scan_number
+    except subprocess.CalledProcessError as e:
+        print(f"Error running command: {e}")
+    except ValueError:
+        print("No valid scan number found.")
+    return None
+
+def get_mgf_last_index(mgf_refs_path: str) -> str:
     """
     Index an MGF file and read specific spectra efficiently.
 
@@ -1615,24 +1652,119 @@ def index_and_read_mgf(mgf_refs_path: str):
         # Create an IndexedMGF object
         indexed_mgf = mgf.IndexedMGF(mgf_refs_path, index_by_scans=True)
         
-        # Print the number of spectra in the file
-        print(f"Number of spectra in the MGF file: {len(indexed_mgf)}")
-        
-        # Access a spectrum by its index
-        first_spectrum = indexed_mgf[0]
-        print(f"First spectrum TITLE: {first_spectrum['params'].get('TITLE', 'Unknown')}")
-        
-        # Access a spectrum by its TITLE (if available)
-        if 'TITLE' in first_spectrum['params']:
-            title = first_spectrum['params']['TITLE']
-            spectrum_by_title = indexed_mgf[title]
-            print(f"Spectrum with TITLE '{title}' found.")
-        
-        return indexed_mgf
+        # Access the last spectrum in the file
+        last_spectrum = indexed_mgf[-1]
+
+        # Access a spectrum by its SPECTRUMID (if available)
+        if 'spectrumid' in last_spectrum['params']:
+            id = last_spectrum['params']['spectrumid']
+            return id
+        else:
+            print("Warning: SPECTRUMID parameter not found in the last spectrum. Check MGF file/path/format.")
+    
     except FileNotFoundError:
         print(f"Error: File not found at {mgf_refs_path}")
     except Exception as e:
         print(f"An error occurred: {e}")
+
+def write_mgf_from_top_spectra(top_spectra_all: pd.DataFrame, 
+                               rt_peaks_all: pd.DataFrame, 
+                               config: Dict[str, Any],
+                               timestamp: str
+) -> None:
+    """
+    Write an MGF file from the spectra data in top_spectra_all.
+
+    Args:
+        top_spectra_all (pd.DataFrame): DataFrame containing spectra data.
+        rt_peaks_all (pd.DataFrame): DataFrame containing retention time peak data.
+        config (Dict[str, Any]): Configuration dictionary containing metadata for the project, including output path.
+        timestamp (str): Timestamp for naming the output file.
+
+    Returns:
+        None
+    """
+    mgf_entries = []
+
+    rt_peaks_and_top_spectra = rt_peaks_all.merge(top_spectra_all[['compound_name', 'adduct', 'polarity', 'standard_lcmsrun', 'peak_index', 'rt', 'precursor_mz', 'precursor_peak_height', 'spectrum']],
+                                                on=['compound_name', 'adduct', 'polarity', 'standard_lcmsrun', 'peak_index'], how='left')
+
+    if config['msms_refs']['standalone_mgf'] is True:
+        current_id = 0
+    elif config['msms_refs']['standalone_mgf'] is False:
+        starting_mgf_id = get_mgf_last_index(config['msms_refs']['current_mgf_path'])
+        print(f"Last ID from existing file to increment: {starting_mgf_id}")
+        if "CCMSLIB" in starting_mgf_id:
+            current_id = int(starting_mgf_id.split("CCMSLIB")[1])
+
+    for _, row in rt_peaks_and_top_spectra.iterrows():
+        # Extract m/z and intensity values
+        mz_values, intensity_values = row['spectrum']
+        
+        # Increment the SPECTRUMID for each entry
+        if config['msms_refs']['standalone_mgf'] is True:
+            current_id += 1
+            new_spectrum_id = f"{config['msms_refs']['msms_refs_metadata']['msms_refs_prefix'].upper()}{current_id:011d}"
+        elif config['msms_refs']['standalone_mgf'] is False:
+            current_id += 1
+            new_spectrum_id = f"CCMSLIB{current_id:011d}"
+
+        # Find scan number
+        mzml_file = row['standard_lcmsrun'].replace(".h5", ".mzML")
+        scan_num = get_scan_number(mzml_file)
+
+        # Calculate charge from adduct
+        charge = row['adduct'].split("]")[-1]
+        if charge in ["-", "+"]:
+            charge = str(1) + charge
+
+        # Create an MGF entry
+        mgf_entry = {
+            'm/z array': mz_values,
+            'intensity array': intensity_values,
+            'params': {
+                'TITLE': f"MS/MS scan for {row['compound_name']} at {round(row['rt_peak'], 3)} min with intensity {round(row['intensity'], 3)}",
+                'PEPMASS': round(row['precursor_mz'], 3),
+                'CHARGE': charge,
+                'MSLEVEL': 2,
+                'SOURCE_INSTRUMENT': 'LC-ESI-Orbitrap',
+                'FILENAME': row['standard_lcmsrun'],
+                'SEQ': "*..*",
+                'IONMODE': "Positive" if row['polarity'] == "POS" else "Negative",
+                'ORGANISM': 'BERKELEY-LAB',
+                'NAME': f"{row['compound_name']} {row['collision_energy']} {row['adduct']}",
+                'PI': 'Trent Northen',
+                'DATACOLLECTOR': 'JGI',
+                'SMILES': row['smiles'],
+                'INCHI': row['inchi'],
+                'FORMULA': row['formula'],
+                'INCHIAUX': "N/A",
+                'PUBMED': "N/A",
+                'SUBMITUSER': 'bkieft',
+                'LIBRARYQUALITY': 3,
+                'SPECTRUMID': new_spectrum_id,
+                'SCANS': scan_num
+            }
+        }
+        
+        mgf_entries.append(mgf_entry)
+
+    # Write the MGF file
+    updated_refs_dir = f"{config['project']['standards_output_path']}/updated_MSMS_refs"
+    standalone_tag = "_standalone" if config['msms_refs']['standalone_mgf'] else ""
+    if not os.path.exists(updated_refs_dir):
+        os.makedirs(updated_refs_dir)
+    fname = f"{updated_refs_dir}/berkeley_lab_refs_{timestamp}{standalone_tag}.mgf"
+    mgf.write(mgf_entries, fname)
+
+    if config['msms_refs']['standalone_mgf'] is True:
+        print(f"Standalone MGF file created: {fname}")
+    elif config['msms_refs']['standalone_mgf'] is False:
+        temp_fname = f"{fname}.tmp"
+        command = f"(cat {config['msms_refs']['current_mgf_path']} && echo && cat {fname}) > {temp_fname}"
+        subprocess.run(command, shell=True, check=True)
+        os.replace(temp_fname, fname)
+        print(f"Updated MGF file created: {fname}")
 
 
 def get_msms_refs(msms_refs_path: str) -> pd.DataFrame:
@@ -2819,11 +2951,11 @@ def generate_selection_summary_table(
     """
     # Create a new column in rt_peaks_all to store the notes
     summary_table = rt_peaks_data.copy()
-    summary_table['notes'] = None
+    summary_table['notes'] = ""
     summary_table['reviewed'] = "No"
 
     # Iterate through the running_notes_dict and map notes to the DataFrame
-    for key, notes in tqdm(running_notes_dict.items(), desc=" Creating summary table", unit=" compound"):
+    for key, notes in running_notes_dict.items():
         compound_name, standard_lcmsrun = key.split(";;")
         mask = (summary_table['compound_name'] == compound_name) & \
                (summary_table['standard_lcmsrun'] == standard_lcmsrun)
@@ -2836,6 +2968,7 @@ def generate_selection_summary_table(
 
     fname = f"{config['project']['standards_output_path']}/standards_summary_table_{timestamp}.csv"
     summary_table.to_csv(fname, index=False)
+    print(f"Summary table saved to: {fname}")
 
     return summary_table
 
@@ -2862,7 +2995,8 @@ def generate_static_summary_plots(
         None
     """
     
-    for i in tqdm(range(len(processed_data)), desc=" Writing summary plots for selected compounds", unit=" compound group"):
+    print("Writing summary plots for selected compounds...")
+    for i in tqdm(range(len(processed_data)), desc="Summary plots", unit=" compound groups"):
         data = processed_data[i]
         eics = data['eics']
         rt_peaks = data['rt_peaks']
@@ -4179,22 +4313,23 @@ def create_interactive_plots(
         best_adducts_options = list(dict.fromkeys(combo['adduct'] for combo in adduct_peak_combinations))
         best_adducts_children = []
         
-        # Pre-select first adduct if this is a new unique_id
-        default_to_first = unique_id not in best_adducts and len(best_adducts_options) > 0
-        
+        # Pre-select first adduct if this is a new unique_id (REMOVED)
+        # default_to_first = unique_id not in best_adducts and len(best_adducts_options) > 0
+
         for idx, adduct in enumerate(best_adducts_options):
             # Check if this adduct should be selected
             is_selected = False
-            
+
             if unique_id in best_adducts:
                 # Use existing selection
                 is_selected = adduct in best_adducts[unique_id]
-            elif idx == 0 and default_to_first:
-                # This is the first checkbox for a new unique_id - select it by default
-                is_selected = True
-                # Also update the dictionary
-                best_adducts[unique_id] = [adduct]
-                
+
+            # Set default selection to the first adduct if this is a new unique_id (REMOVED)
+            # elif idx == 0 and default_to_first:
+            #     is_selected = True
+            #     # Also update the dictionary
+            #     best_adducts[unique_id] = [adduct]
+
             checkbox = widgets.Checkbox(
                 value=is_selected,
                 description=adduct,
