@@ -10,6 +10,7 @@ import pubchempy as pcp
 import base64
 import io
 import pickle
+import subprocess
 
 import ipywidgets as widgets
 from IPython.display import display, clear_output, HTML
@@ -44,6 +45,8 @@ from rdkit.Chem import rdMolDescriptors as Descriptors
 from rdkit.Chem.Descriptors import ExactMolWt
 from rdkit.Chem import rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
+
+from pyteomics import mgf
 
 from typing import Dict, List, Tuple, Union, Any, Optional, Set
 
@@ -200,16 +203,16 @@ def build_standard_lcmsrun_table(
     Returns:
         pd.DataFrame: A DataFrame containing the LCMS run files with annotated adducts.
     """
-    standard_info = pd.read_csv(config['standards_input_file'])
+    standard_info = pd.read_csv(config['project']['standards_input_file'])
     standard_info['standard_lcmsruns'] = standard_info.apply(
-        lambda row: get_matching_lcmsruns(row, config['include_polarities'], config['include_chromatographies'], raw_data_dir), axis=1
+        lambda row: get_matching_lcmsruns(row, config['project']['include_polarities'], config['project']['include_chromatographies'], raw_data_dir), axis=1
     )
     standard_lcmsruns_table = standard_info.explode('standard_lcmsruns').reset_index(drop=True).rename(
         columns={'standard_lcmsruns': 'standard_lcmsrun'}
     )
     
     standard_lcmsruns_table_with_adducts = build_adduct_annotated_table(
-        standard_lcmsruns_table, include_adducts=config['include_adducts']
+        standard_lcmsruns_table, include_adducts=config['project']['include_adducts']
     )
 
     return standard_lcmsruns_table_with_adducts
@@ -593,17 +596,18 @@ def check_db_deposit(new_entries_df: pd.DataFrame) -> None:
     Returns:
         None
     """
+    print("Running double check for compounds in metatlas db Comopunds table...")
     missing = {}
     for inchi_key, label in zip(new_entries_df['inchi_key'], new_entries_df['label']):
         entry = test_metatlas_db_insertion(inchi_key=inchi_key, table="Compounds")
         if not entry:
-            print(f"{label} entry not found in Compounds table for InChIKey {inchi_key}")
+            #print(f"{label} entry not found in Compounds table for InChIKey {inchi_key}")
             missing[inchi_key] = label
     if missing:
-        print("Some compounds still missing from database:")
+        print("\tSome compounds still missing from database:")
         display(pd.DataFrame.from_dict(missing, orient='index', columns=['label']))
     else:
-        print("All new entries found in the database.\n")
+        print("\tAll new entries found in the database.\n")
 
 def test_metatlas_db_insertion(inchi_key: str, table: str) -> list:
     """
@@ -643,7 +647,7 @@ def handle_data(
     Returns:
         Optional[Union[Tuple[Any, ...], None]]: Loaded data as a tuple if mode is "load", or None if mode is "save".
     """
-    write_path = os.path.join(config['standards_output_path'], "cache")
+    write_path = os.path.join(config['project']['standards_output_path'], "cache")
     if mode == "save":
         if not os.path.isdir(write_path):
             os.mkdir(write_path)
@@ -998,7 +1002,7 @@ def extract_data(
         adduct_to_polarity = dict(zip(group['adduct'].tolist(), group['polarity'].tolist()))
         group_name = (group_name[0], group_name[1], compound_smiles)
 
-        eics, ms2_data, atlas = collect_eics_and_ms2(group, config['ppm_tolerance'])
+        eics, ms2_data, atlas = collect_eics_and_ms2(group, config['project']['ppm_tolerance'])
 
         if method == "intensity":
             rt_peaks, top_spectra = get_top_ms1_and_ms2(eics, ms2_data, group_name[1], theoretical_mzs, compound_smiles, adduct_to_polarity)
@@ -1290,7 +1294,7 @@ def filter_by_selected(
     rt_peaks_full: List[pd.DataFrame],
     top_spectra_full: List[pd.DataFrame],
     selected_adducts_dict: Dict[str, List[str]],
-    top_adducts_dict: Dict[str, List[str]]
+    best_adducts_dict: Dict[str, List[str]]
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Filters EICs, RT peaks, and MS2 spectra based on selected adducts and compounds.
@@ -1300,38 +1304,170 @@ def filter_by_selected(
         rt_peaks_full (List[pd.DataFrame]): List of DataFrames containing RT peak data.
         top_spectra_full (List[pd.DataFrame]): List of DataFrames containing MS2 spectra data.
         selected_adducts_dict (Dict[str, List[str]]): Dictionary of selected adducts for each compound.
-        top_adducts_dict (Dict[str, List[str]]): Dictionary of top adducts for each compound.
+        best_adducts_dict (Dict[str, List[str]]): Dictionary of top adducts for each compound.
 
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Filtered EICs, RT peaks, and MS2 spectra DataFrames.
     """
-    selected_compounds_table = extract_selected_compounds(selected_adducts_dict, top_adducts_dict)
+    bad_best_keys = []
+    for key, value in best_adducts_dict.items():
+        # Check that compound+lcmsrun keys of best adducts are a subset of all selected adducts keys
+        if key not in selected_adducts_dict:
+            bad_best_keys.append(key)
+            continue
+        
+        # Extract the first part of each element in selected_adducts_dict[key] before '||'
+        selected_adducts_dict_peakless = selected_adducts_dict.copy()
+        selected_adducts = {adduct.split("||")[0] for adduct in selected_adducts_dict_peakless[key]}
+
+        # Check if best adducts values are a subset of all selected adducts values and remove if they are not
+        if not set(value).issubset(selected_adducts):
+            best_adducts_dict[key] = [adduct for adduct in value if adduct in selected_adducts]
+            continue
+    # Remove keys from best adducts dict that are not in all adducts dict
+    best_adducts_dict = {k: v for k, v in best_adducts_dict.items() if k not in bad_best_keys}
+
+    # Filter data based on selected adducts
+    selected_compounds_table = extract_selected_compounds(selected_adducts_dict, best_adducts_dict)
 
     eics_selected = pd.concat(
         [df.assign(key=key) for d in eics_full for key, df in d.items()],
         ignore_index=True
     ).rename(columns={'key': 'standard_lcmsrun'})
     eics_selected['compound_name'] = eics_selected['label'].apply(lambda x: x.split('_')[0])
-    eics_selected = select_compounds_from_gui(eics_selected, selected_compounds_table)
+    eics_selected['adduct'] = eics_selected['label'].apply(lambda x: x.split('_')[1])
+    eics_selected = select_compounds_from_gui(eics_selected, selected_compounds_table, "all")
+    eics_best = select_compounds_from_gui(eics_selected, selected_compounds_table, "best")
         
     rt_peaks_selected = pd.concat(rt_peaks_full).rename(columns={'lcmsrun': 'standard_lcmsrun'})
-    rt_peaks_selected = select_compounds_from_gui(rt_peaks_selected, selected_compounds_table)
+    rt_peaks_selected = select_compounds_from_gui(rt_peaks_selected, selected_compounds_table, "all")
+    rt_peaks_best = select_compounds_from_gui(rt_peaks_selected, selected_compounds_table, "best")
 
     top_spectra_selected = pd.concat(top_spectra_full, ignore_index=True).rename(columns={'lcmsrun': 'standard_lcmsrun'})
     top_spectra_selected['compound_name'] = top_spectra_selected['label'].apply(lambda x: x.split('_')[0])
-    top_spectra_selected = select_compounds_from_gui(top_spectra_selected, selected_compounds_table)
+    top_spectra_selected = select_compounds_from_gui(top_spectra_selected, selected_compounds_table, "all")
+    top_spectra_best = select_compounds_from_gui(top_spectra_selected, selected_compounds_table, "best")
 
-    print(f"\nTotal unique compounds selected: {eics_selected['compound_name'].nunique()}")
-    print(f"Total unique compound+adduct entries selected: {eics_selected['label'].nunique()}\n")
-    print(f"Total EICs selected: {eics_selected.shape[0]}")
-    print(f"Total RT peaks selected: {rt_peaks_selected.shape[0]}")
-    print(f"Total MS2 spectra selected: {top_spectra_selected.shape[0]}")
+    print(f"\nAll unique compounds selected: {eics_selected['compound_name'].nunique()}")
+    print(f"All unique compound+adduct entries selected: {eics_selected['label'].nunique()}")
+    print(f"All EICs selected: {eics_selected.shape[0]}")
+    print(f"All RT peaks selected: {rt_peaks_selected.shape[0]}")
+    print(f"All MS2 spectra selected: {top_spectra_selected.shape[0]}")
 
-    return eics_selected, rt_peaks_selected, top_spectra_selected
+    print(f"\nBest unique compounds selected: {eics_best['compound_name'].nunique()}")
+    print(f"Best unique compound+adduct entries selected: {eics_best['label'].nunique()}")
+    print(f"Best EICs selected: {eics_best.shape[0]}")
+    print(f"Best RT peaks selected: {rt_peaks_best.shape[0]}")
+    print(f"Best MS2 spectra selected: {top_spectra_best.shape[0]}")
 
-def format_and_select_top_adducts(
+    return eics_selected, rt_peaks_selected, top_spectra_selected, eics_best, rt_peaks_best, top_spectra_best
+
+def format_rt_peaks(
+    all_rt_peaks: pd.DataFrame, 
+    best_rt_peaks: pd.DataFrame,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Format and validate retention time (RT) peak data for downstream analysis.
+
+    This function processes two datasets of RT peaks (`all_rt_peaks` and `best_rt_peaks`) to:
+    - Add unique labels for peaks with multiple indices.
+    - Check for consistency in retention times (RTs) across collision energies (CEs) and polarities.
+    - Identify and handle isomers based on monoisotopic mass.
+    - Select the best collision energy row by intensity for the top adduct(s) per compound in the `all_rt_peaks` dataset.
+
+    Args:
+        all_rt_peaks (pd.DataFrame): A DataFrame containing all RT peaks with required columns:
+            ['compound_name', 'standard_lcmsrun', 'adduct', 'rt_peak', 'collision_energy', 
+             'polarity', 'monoisotopic_mass', 'intensity'].
+        best_rt_peaks (pd.DataFrame): A DataFrame containing the best RT peaks with the same required columns.
+
+    Returns:
+        Tuple[pd.DataFrame, pd.DataFrame]: A tuple containing:
+            - The formatted `all_rt_peaks` DataFrame.
+            - The formatted `best_rt_peaks` DataFrame.
+    """
+    datasets_dict = {'all': all_rt_peaks, 'best': best_rt_peaks}
+    datasets_formatted_dict = {}
+
+    for rt_data_name, rt_data in datasets_dict.items():
+
+        print(f"\nFormatting {rt_data_name} dataset")
+
+        rt_data_formatted = rt_data.copy()
+        rt_data_formatted['label'] = rt_data_formatted['compound_name']
+
+        # Put peak index into label if there are multiple peaks selected for a given adduct
+        rt_data_formatted_labeled_list = []
+        rt_data_formatted_grouped = rt_data_formatted.groupby(['standard_lcmsrun', 'label', 'adduct'])
+        for _, group in rt_data_formatted_grouped:
+            if group.shape[0] > 1:
+                group = group.copy()
+                group['label'] = group.apply(
+                    lambda row: f"{row['label']} ({row['peak_index']})", axis=1
+                )
+            rt_data_formatted_labeled_list.append(group)
+        rt_data_formatted_labeled = pd.concat(rt_data_formatted_labeled_list, ignore_index=True)
+
+        print("\tChecking for differing RTs between CEs and polarities, which are unexpected...")
+        dataset_grouped = rt_data_formatted_labeled.groupby(['chromatography', 'label'])
+        for group_name, group in dataset_grouped:
+            rt_values = group['rt_peak']
+            cutoff = 0.05
+            ces = group['collision_energy'].unique()
+            pols = group['polarity'].unique()
+            if rt_values.max() - rt_values.min() <= cutoff:
+                print(f"\t\tGroup {group_name}: All RT values for {ces} and {pols} are within {cutoff} mins of each other ({round(rt_values.max() - rt_values.min(), 4)}).")
+            else:
+                print(f"\t\tGroup {group_name}: RT values for {ces} and {pols} are NOT within {cutoff} mins of each other ({round(rt_values.max() - rt_values.min(), 4)}).")
+
+        print("\n\tChecking monoisotopic mass to identify isomers in the datasets...")
+        dataset_grouped = rt_data_formatted_labeled.groupby(['monoisotopic_mass', 'polarity', 'chromatography'])
+        grouped_compounds = dataset_grouped['compound_name'].nunique()
+        multiple_compounds_per_mim = grouped_compounds[grouped_compounds > 1]
+        if not multiple_compounds_per_mim.empty:
+            for isomer_mim in multiple_compounds_per_mim.index:
+                isomer_data = rt_data_formatted[
+                    (rt_data_formatted['monoisotopic_mass'] == isomer_mim[0]) &
+                    (rt_data_formatted['polarity'] == isomer_mim[1]) &
+                    (rt_data_formatted['chromatography'] == isomer_mim[2])
+                ]
+                unique_adducts = isomer_data['adduct'].unique()
+                if len(unique_adducts) == 1:
+                    print(f"\t\tNote: Found isomers in {isomer_mim[2]} {isomer_mim[1]} mode at {isomer_mim[0]} ({list(isomer_data['label'])}) but they had matching selected adducts {unique_adducts[0]}.")
+                else:
+                    print(f"\t\tWarning! Adducts for isomers do not agree. See data for monoisotopic mass {isomer_mim[0]}:\n")
+                    display(isomer_data[['label', 'adduct', 'inchi', 'monoisotopic_mass']])
+                    print("\n\t\tPlease return to the GUI to select a matching adduct for isomers.\n")
+                    return None, None
+        else:
+            print(f"\t\tNo isomers found in {rt_data_name} data.\n")
+
+        if rt_data_name == 'best':
+            print("\tSelecting best collision energy row by intensity for the top adduct(s) per compound...")
+            best_ce = rt_data_formatted_labeled.copy()
+            selected_best_adducts_df_grouped = best_ce.groupby(['chromatography', 'polarity', 'label', 'adduct'])
+            selected_best_adducts_df_grouped_best_ces = []
+            for group_name, group in selected_best_adducts_df_grouped:
+                ces = group.sort_values(by='intensity', ascending=False)
+                if len(ces) >= 1:
+                    selected_best_adducts_df_grouped_best_ces.append(ces.iloc[0])
+                    print(f"\t\tSelected 1 row and removed {ces.shape[0] - 1} row(s) for {group_name}.")
+                else:
+                    print(f"\t\tWarning! No collision energy found for {group_name}.")
+            rt_data_formatted_labeled = pd.DataFrame(selected_best_adducts_df_grouped_best_ces)
+
+        datasets_formatted_dict[rt_data_name] = rt_data_formatted_labeled
+
+    print(f"\n'All' peaks dataset: {datasets_formatted_dict['all'].shape[0]} total compound peaks.")
+    print(f"'Best' peaks dataset: {datasets_formatted_dict['best'].shape[0]} best compound peaks.\n")
+
+    # Return both the unfiltered dataframe and the subsetted dataframe
+    return datasets_formatted_dict['all'], datasets_formatted_dict['best']
+
+
+def format_and_select_best_adducts(
     rt_peaks: pd.DataFrame, 
-    top_adducts: Dict[str, List[str]]
+    best_adducts: Dict[str, List[str]]
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Format and filter retention time (RT) peaks to select the top adducts for each compound.
@@ -1339,7 +1475,7 @@ def format_and_select_top_adducts(
     Args:
         rt_peaks (pd.DataFrame): A DataFrame containing retention time peaks with columns such as 
                                  'compound_name', 'standard_lcmsrun', 'adduct', 'rt_peak', etc.
-        top_adducts (Dict[str, List[str]]): A dictionary where keys are compound identifiers 
+        best_adducts (Dict[str, List[str]]): A dictionary where keys are compound identifiers 
                                             (formatted as "compound_name;;standard_lcmsrun") and 
                                             values are lists of top adducts to select.
 
@@ -1353,11 +1489,11 @@ def format_and_select_top_adducts(
     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
 
     # Initialize lists to store selected and unfiltered data
-    selected_top_adducts = []
-    unfiltered_top_adducts = []
+    selected_best_adducts = []
+    unfiltered_best_adducts = []
 
-    # Process rows matching the top_adducts dictionary
-    for key, value in top_adducts.items():
+    # Process rows matching the best_adducts dictionary
+    for key, value in best_adducts.items():
         label = key.split(';;')[0]
         standard_lcmsrun = key.split(';;')[1]
         
@@ -1377,9 +1513,9 @@ def format_and_select_top_adducts(
                     adduct_subset['label'] = adduct_subset.apply(
                         lambda row: f"{row['label']} ({row['peak_index']})", axis=1
                     )
-                selected_top_adducts.append(adduct_subset)
+                selected_best_adducts.append(adduct_subset)
         else:
-            selected_top_adducts.append(selected_adduct)
+            selected_best_adducts.append(selected_adduct)
 
     # Handle multiple peaks per top adduct for the unfiltered dataframe
     unfiltered_rt_peaks_grouped = unfiltered_rt_peaks.groupby(['standard_lcmsrun', 'label', 'adduct'])
@@ -1389,20 +1525,20 @@ def format_and_select_top_adducts(
             group['label'] = group.apply(
                 lambda row: f"{row['label']} ({row['peak_index']})", axis=1
             )
-        unfiltered_top_adducts.append(group)
+        unfiltered_best_adducts.append(group)
 
     # Combine selected rows into a dataframe
-    if selected_top_adducts:
-        selected_top_adducts_df = pd.concat(selected_top_adducts, ignore_index=True)
+    if selected_best_adducts:
+        selected_best_adducts_df = pd.concat(selected_best_adducts, ignore_index=True)
     else:
-        selected_top_adducts_df = pd.DataFrame()
+        selected_best_adducts_df = pd.DataFrame()
     # Combine unfiltered rows into a dataframe
-    if unfiltered_top_adducts:
-        unfiltered_adducts_df = pd.concat(unfiltered_top_adducts, ignore_index=True)
+    if unfiltered_best_adducts:
+        unfiltered_adducts_df = pd.concat(unfiltered_best_adducts, ignore_index=True)
     else:
         unfiltered_adducts_df = pd.DataFrame()
 
-    datasets_dict = {'top': selected_top_adducts_df, 'all': unfiltered_adducts_df}
+    datasets_dict = {'top': selected_best_adducts_df, 'all': unfiltered_adducts_df}
     
     for dataset_name, dataset in datasets_dict.items():
         print(f"\nWorking on dataset: {dataset_name}")
@@ -1442,28 +1578,62 @@ def format_and_select_top_adducts(
 
         if dataset_name == 'top':
             print("\tSelecting best collision energy row by intensity for the top adduct(s) per compound...")
-            selected_top_adducts_df_grouped = selected_top_adducts_df.groupby(['chromatography', 'polarity', 'label', 'adduct'])
-            selected_top_adducts_df_grouped_best_ces = []
-            for group_name, group in selected_top_adducts_df_grouped:
+            selected_best_adducts_df_grouped = selected_best_adducts_df.groupby(['chromatography', 'polarity', 'label', 'adduct'])
+            selected_best_adducts_df_grouped_best_ces = []
+            for group_name, group in selected_best_adducts_df_grouped:
                 ces = group.sort_values(by='intensity', ascending=False)
                 if len(ces) >= 1:
-                    selected_top_adducts_df_grouped_best_ces.append(ces.iloc[0])
+                    selected_best_adducts_df_grouped_best_ces.append(ces.iloc[0])
                     print(f"\t\tSelected 1 row and removed {ces.shape[0] - 1} row(s) for {group_name}.")
                 else:
                     print(f"\t\tWarning! No collision energy found for {group_name}.")
-            selected_top_adducts_df_best_ces = pd.DataFrame(selected_top_adducts_df_grouped_best_ces)
+            selected_best_adducts_df_best_ces = pd.DataFrame(selected_best_adducts_df_grouped_best_ces)
 
-    print(f"'All' peaks dataset (for MSMS refs): {unfiltered_rt_peaks.shape[0]} total compound peaks.")
-    print(f"'Top' peaks dataset (for EMA atlases): {selected_top_adducts_df_best_ces.shape[0]} best compound peaks.\n")
+    print(f"'All' peaks dataset: {unfiltered_rt_peaks.shape[0]} total compound peaks.")
+    print(f"'Best' peaks dataset: {selected_best_adducts_df_best_ces.shape[0]} best compound peaks.\n")
 
     # Return both the unfiltered dataframe and the subsetted dataframe
-    return unfiltered_rt_peaks, selected_top_adducts_df_best_ces
+    return unfiltered_rt_peaks, selected_best_adducts_df_best_ces
 
 
 
 #######################
 ### MSMS refs tools ###
 #######################
+
+def index_and_read_mgf(mgf_refs_path: str):
+    """
+    Index an MGF file and read specific spectra efficiently.
+
+    Args:
+        mgf_refs_path (str): Path to the MGF file.
+
+    Returns:
+        IndexedMGF: An indexed MGF object for efficient access.
+    """
+    try:
+        # Create an IndexedMGF object
+        indexed_mgf = mgf.IndexedMGF(mgf_refs_path, index_by_scans=True)
+        
+        # Print the number of spectra in the file
+        print(f"Number of spectra in the MGF file: {len(indexed_mgf)}")
+        
+        # Access a spectrum by its index
+        first_spectrum = indexed_mgf[0]
+        print(f"First spectrum TITLE: {first_spectrum['params'].get('TITLE', 'Unknown')}")
+        
+        # Access a spectrum by its TITLE (if available)
+        if 'TITLE' in first_spectrum['params']:
+            title = first_spectrum['params']['TITLE']
+            spectrum_by_title = indexed_mgf[title]
+            print(f"Spectrum with TITLE '{title}' found.")
+        
+        return indexed_mgf
+    except FileNotFoundError:
+        print(f"Error: File not found at {mgf_refs_path}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
 
 def get_msms_refs(msms_refs_path: str) -> pd.DataFrame:
     """
@@ -1538,11 +1708,11 @@ def format_for_msms_refs(
 
     # Add all required columns for MS/MS refs
     output_df = input_df_with_spectra.copy()
-    output_df['ce_type'] = config['msms_refs_metadata']['ce_type']
+    output_df['ce_type'] = config['msms_refs']['msms_refs_metadata']['ce_type']
     output_df['ce'] = output_df['standard_lcmsrun'].apply(get_collision_energy)
     output_df['file'] = output_df['standard_lcmsrun'].apply(os.path.basename)
     output_df.rename(columns={'mz_theoretical': 'mz'}, inplace=True)
-    output_df = enrich_metadata(output_df, config['msms_refs_metadata'])
+    output_df = enrich_metadata(output_df, config['msms_refs']['msms_refs_metadata'])
     output_df['spectrum'] = output_df['spectrum'].apply(make_text_spectrum)
     output_df = output_df[msms_refs.columns.intersection(output_df.columns)]
     output_df = output_df.reset_index(drop=True)
@@ -1616,7 +1786,7 @@ def get_ema_atlas_data(ema_atlases_path: Dict[str, Dict[str, str]]) -> Dict[str,
             if file_path.endswith('.tsv'):
                 if not os.path.exists(file_path):
                     print(f"Warning: file {file_path} does not exist.")
-                    atlas_dfs[chrom_type][polarity] = pd.DataFrame()
+                    #atlas_dfs[chrom_type][polarity] = None
                     continue
                 else:
                     df = pd.read_csv(file_path, sep='\t', index_col=None)
@@ -1625,7 +1795,7 @@ def get_ema_atlas_data(ema_atlases_path: Dict[str, Dict[str, str]]) -> Dict[str,
             elif file_path.endswith('.csv'):
                 if not os.path.exists(file_path):
                     print(f"Warning: file {file_path} does not exist.")
-                    atlas_dfs[chrom_type][polarity] = pd.DataFrame()
+                    #atlas_dfs[chrom_type][polarity] = pd.DataFrame()
                     continue
                 else:
                     df = pd.read_csv(file_path, index_col=None)
@@ -2013,7 +2183,7 @@ def update_and_save_ema_atlases(
         ema_atlases (Dict[str, Dict[str, Union[str, pd.DataFrame]]]): Nested dictionary with chromatography and polarity keys,
             containing atlas DataFrames or file paths.
         config (Dict[str, Any]): Configuration dictionary containing metadata for the reference standard project.
-            Includes keys like 'standards_output_path', 'standalone_atlas', and 'msms_refs_metadata'.
+            Includes keys like 'standards_output_path', 'standalone_ema_atlas', and 'msms_refs_metadata'.
         current_time (str): Timestamp to append to the updated atlas filenames.
 
     Returns:
@@ -2061,12 +2231,12 @@ def update_and_save_ema_atlases(
                 atlas_data['file_type'] = ""
                 compounds_to_add_to_atlas['file_name'] = compounds_to_add_to_atlas['standard_lcmsrun']
                 compounds_to_add_to_atlas['file_type'] = "lcms_file"
-                compounds_to_add_to_atlas['source_atlas'] = config['msms_refs_metadata']['msms_refs_prefix']
+                compounds_to_add_to_atlas['source_atlas'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
             if chrom == "C18":
                 compounds_to_add_to_atlas = compounds_to_add_to_atlas.copy()
                 compounds_to_add_to_atlas['file_name'] = compounds_to_add_to_atlas['standard_lcmsrun']
                 compounds_to_add_to_atlas['file_type'] = "lcms_file"
-                compounds_to_add_to_atlas['library'] = config['msms_refs_metadata']['msms_refs_prefix']
+                compounds_to_add_to_atlas['library'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
                 compounds_to_add_to_atlas['code'] = compounds_to_add_to_atlas['library'].str.upper() + compounds_to_add_to_atlas.index.astype(str)
                 compounds_to_add_to_atlas['name'] = compounds_to_add_to_atlas['compound_name']
                 atlas_data['identification_notes'] = ""
@@ -2075,7 +2245,7 @@ def update_and_save_ema_atlases(
                 compounds_to_add_to_atlas['identification_notes'] = ""
                 compounds_to_add_to_atlas['ms1_notes'] = ""
                 compounds_to_add_to_atlas['ms2_notes'] = ""                
-                compounds_to_add_to_atlas['source_atlas'] = config['msms_refs_metadata']['msms_refs_prefix']
+                compounds_to_add_to_atlas['source_atlas'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
 
             # Format the columns of compounds to be added to match the atlas format so no columns are missing
             missing_columns = atlas_data.columns.difference(compounds_to_add_to_atlas.columns)
@@ -2094,9 +2264,9 @@ def update_and_save_ema_atlases(
 
             # Merge the compounds_to_add_to_atlas_formatted with the current atlas
             column_order = atlas_data.columns
-            if config['standalone_atlas'] is True:
+            if config['atlases']['standalone_ema_atlas'] is True:
                 new_atlas_data = compounds_to_add_to_atlas_formatted
-            elif config['standalone_atlas'] is False:
+            elif config['atlases']['standalone_ema_atlas'] is False:
                 new_atlas_data = pd.concat([atlas_data, compounds_to_add_to_atlas_formatted], ignore_index=False)
             new_atlas_data.drop(columns=['source_atlas'], inplace=True)
             new_atlas_data = new_atlas_data.reindex(columns=[col for col in column_order if col in new_atlas_data.columns])
@@ -2105,10 +2275,10 @@ def update_and_save_ema_atlases(
             new_atlas_data.sort_values(by=["rt_peak", "mz"], ascending=[True, False], inplace=True)
 
             # Set up for printing/depositing
-            updated_atlas_dir = f"{config['standards_output_path']}/updated_EMA_atlases"
+            updated_atlas_dir = f"{config['project']['standards_output_path']}/updated_EMA_atlases"
             if not os.path.exists(updated_atlas_dir):
                 os.makedirs(updated_atlas_dir)
-            standalone_tag = "_standalone" if config['standalone_atlas'] else ""
+            standalone_tag = "_standalone" if config['atlases']['standalone_ema_atlas'] else ""
             if atlas_name.endswith('.tsv'): # If atlas input from yaml is a file and in tsv format
                 new_atlas_name = atlas_name.replace(".tsv", f"_{current_time}{standalone_tag}.tsv")
             elif atlas_name.endswith('.csv'): # If atlas input from yaml is a file and in csv format
@@ -2124,17 +2294,17 @@ def update_and_save_ema_atlases(
                 new_atlas_data.to_csv(fname, index=False)
             
             # Print summary of the update
-            if config['standalone_atlas'] is True:
+            if config['atlases']['standalone_ema_atlas'] is True:
                 print(f"\nStandalone atlas (not appended to existing data) generated for {chrom} {polarity} EMA atlas.")
                 print(f"New atlas has {len(new_atlas_data)} compounds.")
                 print(f"Saved to: {fname}\n")
-            elif config['standalone_atlas'] is False:
+            elif config['atlases']['standalone_ema_atlas'] is False:
                 print(f"\nCurrent {chrom} {polarity} EMA atlas: {atlas_name}")
                 print(f"{len(atlas_data)} current compounds updated with {len(compounds_to_add_to_atlas_formatted)} new compounds for a total of {len(new_atlas_data)} compounds.")
                 print(f"Updated {chrom} {polarity} EMA atlas saved to: {fname}\n")
 
             # Deposit atlas directly to metatlas db and retrieve the new atlas ID
-            if config['direct_deposit_new_emas']:
+            if config['atlases']['direct_deposit_new_emas']:
                 if fname.endswith('.tsv'): # Must convert to csv for atlas deposit
                     input_atlas_file_name = fname.replace('.tsv', '.csv')
                     new_atlas_data.to_csv(input_atlas_file_name, index=False)
@@ -2142,7 +2312,7 @@ def update_and_save_ema_atlases(
                     input_atlas_file_name = fname
                 new_atlas_db_name = os.path.basename(input_atlas_file_name).replace(".csv","")
                 print("Depositing atlas to metatlas database Atlas table...")
-                atlas_deposited = make_atlas_from_spreadsheet(input_atlas_file_name, new_atlas_db_name, filetype="csv", polarity=polarity, store=True, mz_tolerance=config['ppm_tolerance'])
+                atlas_deposited = make_atlas_from_spreadsheet(input_atlas_file_name, new_atlas_db_name, filetype="csv", polarity=polarity, store=True, mz_tolerance=config['project']['ppm_tolerance'])
                 atlas_df = make_atlas_df(atlas_deposited)
                 print(f"\tUpdated EMA atlas deposited to metatlas db with unique_id: {atlas_deposited.unique_id}")
                 print(f"\tUpdated EMA atlas deposited to metatlas db with name: {atlas_deposited.name}")
@@ -2186,10 +2356,10 @@ def update_and_save_msms_refs(
         return
     
     # Combine existing and new MS/MS refs
-    if config['standalone_msms_refs'] is True:
+    if config['msms_refs']['standalone_msms_refs'] is True:
         new_msms_refs = rt_peaks_with_spectra
         print(f"Standalone MSMS refs generated with {new_msms_refs.shape[0]} compounds.")
-    elif config['standalone_msms_refs'] is False:
+    elif config['msms_refs']['standalone_msms_refs'] is False:
         new_msms_refs = pd.concat([msms_refs, rt_peaks_with_spectra])
         print(f"Existing MSMS refs went from {msms_refs.shape[0]} to {new_msms_refs.shape[0]} compounds.")
         if new_msms_refs.shape[0] != msms_refs.shape[0] + rt_peaks_with_spectra.shape[0]:
@@ -2199,8 +2369,8 @@ def update_and_save_msms_refs(
             print("Warning! Column numbers don't match between existing and new MSMS refs.")
             return
 
-    updated_refs_dir = f"{config['standards_output_path']}/updated_MSMS_refs"
-    standalone_tag = "_standalone" if config['standalone_msms_refs'] else ""
+    updated_refs_dir = f"{config['project']['standards_output_path']}/updated_MSMS_refs"
+    standalone_tag = "_standalone" if config['msms_refs']['standalone_msms_refs'] else ""
     if not os.path.exists(updated_refs_dir):
         os.makedirs(updated_refs_dir)
     fname = f"{updated_refs_dir}/msms_refs_{timestamp}{standalone_tag}.tab"
@@ -2233,19 +2403,22 @@ def generate_adduct_colors(include_adducts: List[str]) -> Dict[str, str]:
         adduct_color[adduct] = hex_color
     return adduct_color
 
-def select_compounds_from_gui(full_dataset: pd.DataFrame, selected_compounds_table: pd.DataFrame) -> pd.DataFrame:
+def select_compounds_from_gui(full_dataset: pd.DataFrame, selected_compounds_table: pd.DataFrame, method: str = "all") -> pd.DataFrame:
     """
     Select compounds from a dataset based on user-specified criteria, including compound name, LCMS run, adducts, and peak indices.
 
     Args:
         full_dataset (pd.DataFrame): The full dataset containing compound information.
         selected_compounds_table (pd.DataFrame): A table specifying the compounds, adducts, and peak indices to select.
+        method (str): The method of selection. Defaults to "all", which selects all adducts from the selected_compounds_table, or "best" for best adducts
 
     Returns:
         pd.DataFrame: A filtered dataset containing only the selected compounds.
     """
-    select_dataset = pd.DataFrame()
-    
+    if len(selected_compounds_table) == 0:
+        print("No compounds selected for annotation.")
+        return pd.DataFrame()
+
     if 'smiles' in full_dataset.columns:
         full_dataset['inchi'] = full_dataset['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
         full_dataset['inchi_key'] = full_dataset['inchi'].apply(inchi_to_inchikey)
@@ -2259,23 +2432,26 @@ def select_compounds_from_gui(full_dataset: pd.DataFrame, selected_compounds_tab
             print(f"Warning! The InChIKey and neutralized InChIKey do not match for the following selected compounds:")
             print(full_dataset[full_dataset['inchi_key'] != full_dataset['neutralized_inchi_key']][['compound_name', 'inchi_key', 'neutralized_inchi_key']])
 
+    select_dataset = pd.DataFrame()
     for _, row in selected_compounds_table.iterrows():
         compound_name = row['compound_name']
         standard_lcmsrun = row['standard_lcmsrun']
         selected_adducts = row['selected_adducts']
         selected_peak_indices = row['selected_peak_indices']
+        best_adduct = row['best_adduct']
         
         # Filter by compound name and standard_lcmsrun
-        mask = (full_dataset['compound_name'] == compound_name) & (full_dataset['standard_lcmsrun'] == standard_lcmsrun)
-        
-        # Further filter by adduct and peak_index if they exist in the dataframe
-        if 'adduct' in full_dataset.columns and len(selected_adducts) > 0:
-            adduct_mask = full_dataset['adduct'].isin(selected_adducts)
-            mask = mask & adduct_mask
-            
-        if 'peak_index' in full_dataset.columns and len(selected_peak_indices) > 0:
-            peak_mask = full_dataset['peak_index'].isin(selected_peak_indices)
-            mask = mask & peak_mask
+        if 'peak_index' in full_dataset.columns:
+            mask = (full_dataset['compound_name'] == compound_name) & \
+                        (full_dataset['standard_lcmsrun'] == standard_lcmsrun) & \
+                        (full_dataset['adduct'].isin(selected_adducts)) & \
+                        (full_dataset['peak_index'].isin(selected_peak_indices))
+        else: # EIC doesn't contain peak index
+            mask = (full_dataset['compound_name'] == compound_name) & \
+                        (full_dataset['standard_lcmsrun'] == standard_lcmsrun) & \
+                        (full_dataset['adduct'].isin(selected_adducts))
+        if method == "best":
+            mask = mask & (full_dataset['adduct'].isin(best_adduct))
         
         selected_compounds = full_dataset[mask].copy()
         select_dataset = pd.concat([select_dataset, selected_compounds], ignore_index=True)
@@ -2490,7 +2666,7 @@ def process_data_for_plotting(
         List[Dict[str, Any]]: Processed data for each group, including metadata and EICs.
     """
     processed_data = []
-    adduct_color = generate_adduct_colors(config['include_adducts'])
+    adduct_color = generate_adduct_colors(config['project']['include_adducts'])
     obj_lengths = [len(eics_list), len(top_spectra_list), len(group_name_list), len(rt_peak_list)]
 
     if len(set(obj_lengths)) != 1:
@@ -2533,20 +2709,20 @@ def process_data_for_plotting(
             "adduct_color": adduct_color
         })
 
-    if config['analysis_sort'] == "run":
+    if config['analysis']['analysis_sort'] == "run":
         processed_data.sort(key=lambda x: (x['group_run_number']))
-    elif config['analysis_sort'] == "specs":
-        processed_data.sort(key=lambda x: (x['compound_name'], x['group_chrom'], x['group_pol']))
+    elif config['analysis']['analysis_sort'] == "specs":
+        processed_data.sort(key=lambda x: (x['compound_name'], x['group_chrom'], x['group_params'], x['group_pol']))
 
-    if config['analysis_compound_subset'] != "":
+    if config['analysis']['analysis_compound_subset'] != "":
         processed_data = [
             entry for entry in processed_data
-            if entry.get('compound_name') == config['analysis_compound_subset']
+            if entry.get('compound_name') == config['analysis']['analysis_compound_subset']
         ]
-    if config['analysis_run_subset'] != "":
+    if config['analysis']['analysis_run_subset'] != "":
         processed_data = [
             entry for entry in processed_data
-            if entry.get('group_run_number') == config['analysis_run_subset']
+            if entry.get('group_run_number') == config['analysis']['analysis_run_subset']
         ]
 
     return processed_data
@@ -2554,20 +2730,22 @@ def process_data_for_plotting(
 
 def extract_selected_compounds(
     selected_dict: Dict[str, List[str]],
-    top_adducts_dict: Dict[str, List[str]]
+    best_adducts_dict: Dict[str, List[str]]
 ) -> pd.DataFrame:
     """
     Extracts selected compounds and merges them with top adducts.
 
     Args:
         selected_dict (Dict[str, List[str]]): Dictionary of selected compounds with adduct peaks.
-        top_adducts_dict (Dict[str, List[str]]): Dictionary of top adducts for each compound.
+        best_adducts_dict (Dict[str, List[str]]): Dictionary of top adducts for each compound.
 
     Returns:
         pd.DataFrame: Merged table of selected compounds and top adducts.
     """
     if len(selected_dict) == 0:
-        selected_compounds_table = pd.DataFrame()
+        print("Warning: No selected adducts for any compounds!")
+        return
+    
     else:
         selected_compounds_table = pd.DataFrame({
             'index': selected_dict.keys(),
@@ -2582,14 +2760,14 @@ def extract_selected_compounds(
         )
         selected_compounds_table = selected_compounds_table.drop(columns=['index', 'selected_adduct_peaks'])
 
-        top_adducts_table = pd.DataFrame({
-            'index': top_adducts_dict.keys(),
-            'top_adduct': top_adducts_dict.values()
+        best_adducts_table = pd.DataFrame({
+            'index': best_adducts_dict.keys(),
+            'best_adduct': best_adducts_dict.values()
         }).reset_index(drop=True)
-        top_adducts_table[['compound_name', 'standard_lcmsrun']] = top_adducts_table['index'].str.split(';;', expand=True)
-        top_adducts_table = top_adducts_table.drop(columns=['index'])
+        best_adducts_table[['compound_name', 'standard_lcmsrun']] = best_adducts_table['index'].str.split(';;', expand=True)
+        best_adducts_table = best_adducts_table.drop(columns=['index'])
 
-        merged_table = pd.merge(selected_compounds_table, top_adducts_table, on=['compound_name', 'standard_lcmsrun'], how='left')
+        merged_table = pd.merge(selected_compounds_table, best_adducts_table, on=['compound_name', 'standard_lcmsrun'], how='left')
 
     return merged_table
 
@@ -2621,10 +2799,51 @@ def extract_ambiguous_compounds(
     return ambiguous_adducts_table
 
 
+def generate_selection_summary_table(
+    rt_peaks_data: pd.DataFrame, 
+    running_notes_dict: Dict[str, str], 
+    config: Dict[str, Any], 
+    timestamp: str
+) -> pd.DataFrame:
+    """
+    Create a summary table by combining rt_peaks_all DataFrame with running_notes_dict.
+
+    Parameters:
+        rt_peaks_data (pd.DataFrame): DataFrame containing RT peak information.
+        running_notes_dict (dict): Dictionary with keys as "compound_name;;standard_lcmsrun"
+                                   and values as notes.
+        config (Dict[str, Any]): Configuration dictionary containing metadata used for writing summary to disk.
+
+    Returns:
+        pd.DataFrame: A new DataFrame with all columns from rt_peaks_all plus a 'notes' column.
+    """
+    # Create a new column in rt_peaks_all to store the notes
+    summary_table = rt_peaks_data.copy()
+    summary_table['notes'] = None
+    summary_table['reviewed'] = "No"
+
+    # Iterate through the running_notes_dict and map notes to the DataFrame
+    for key, notes in tqdm(running_notes_dict.items(), desc=" Creating summary table", unit=" compound"):
+        compound_name, standard_lcmsrun = key.split(";;")
+        mask = (summary_table['compound_name'] == compound_name) & \
+               (summary_table['standard_lcmsrun'] == standard_lcmsrun)
+        summary_table.loc[mask, 'notes'] = notes
+
+    summary_table['ppm_error'] = abs(summary_table['mz_theoretical']-summary_table['mz_observed'])/summary_table['mz_theoretical']*1e6
+
+    column_order = ['reviewed', 'compound_name', 'formula', 'neutralized_inchi', 'monoisotopic_mass', 'mz_theoretical', 'mz_observed', 'ppm_error', 'polarity', 'standard_lcmsrun', 'adduct', 'rt_peak', 'intensity', 'notes']
+    summary_table = summary_table[column_order]
+
+    fname = f"{config['project']['standards_output_path']}/standards_summary_table_{timestamp}.csv"
+    summary_table.to_csv(fname, index=False)
+
+    return summary_table
+
+
 def generate_static_summary_plots(
     processed_data: List[Dict[str, Any]],
     selected_good_adducts: Dict[str, List[str]],
-    top_adducts: Dict[str, List[str]],
+    best_adducts: Dict[str, List[str]],
     config: Dict[str, Any],
 ) -> None:
     """
@@ -2636,7 +2855,7 @@ def generate_static_summary_plots(
             'unique_id', 'group_file', and 'compound_name'.
         selected_good_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of selected
             adduct-peak combinations in the format "adduct||peak_index".
-        top_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of top adducts.
+        best_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of top adducts.
         config (Dict[str, Any]): Configuration dictionary containing metadata for ref std project.
 
     Returns:
@@ -3047,13 +3266,13 @@ def generate_static_summary_plots(
         # Add table with adduct information
         if not rt_peaks_subset.empty and \
             unique_id in selected_good_adducts and \
-            unique_id in top_adducts:
+            unique_id in best_adducts:
 
             # Create a dictionary to hold data for each peak
             peak_data = {}
-            top_adduct = top_adducts[unique_id]
+            best_adduct = best_adducts[unique_id]
             for idx, peak in rt_peaks_subset.iterrows():
-                if peak['adduct'] in top_adduct:
+                if peak['adduct'] in best_adduct:
                     peak['top'] = "Yes"
                 else:
                     peak['top'] = "No"
@@ -3152,11 +3371,12 @@ def generate_static_summary_plots(
                 x=0.5  # Center horizontally
             )
         )
+        
         # Export the figure if export_dir is provided
-        if config["standards_output_path"]:
-            export_dirname = os.path.join(config["standards_output_path"], "selection_summary_plots")
+        if config['project']["standards_output_path"]:
+            export_dirname = os.path.join(config['project']["standards_output_path"], "selection_summary_plots")
             os.makedirs(export_dirname, exist_ok=True)
-            fname=f"{export_dirname}/{group_id}_summary_plot.png"
+            fname = f"{export_dirname}/{group_id}_summary_plot.pdf"
             fig.write_image(
                 fname,
                 engine="kaleido",
@@ -3165,12 +3385,14 @@ def generate_static_summary_plots(
                 scale=2
             )
 
-def create_interactive_plots_vscode(
+
+def create_interactive_plots(
     processed_data: List[Dict[str, Any]],
     runnum_to_structure_image_grid: Dict[int, str],
     selected_good_adducts: Dict[str, List[str]],
     ambiguous_adducts: Dict[str, str],
-    top_adducts: Dict[str, List[str]]
+    best_adducts: Dict[str, List[str]],
+    running_notes: Dict[str, str]
 ) -> None:
     """
     Create interactive plots for visualizing and annotating processed data.
@@ -3183,750 +3405,9 @@ def create_interactive_plots_vscode(
         selected_good_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of selected
             adduct-peak combinations in the format "adduct||peak_index".
         ambiguous_adducts (Dict[str, str]): A dictionary mapping unique compound IDs to ambiguous annotations.
-        top_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of top adducts.
-
-    Returns:
-        None
-    """
-
-    # Widget Creation
-    image_toggle = widgets.ToggleButton(
-        value=False,  # Default to hidden
-        description='Show Structures',
-        tooltip='Toggle to show/hide the compound structure image',
-        layout=widgets.Layout(width='150px', margin='5px 0 0 0')
-    )
-    yaxis_toggle = widgets.ToggleButton(
-        value=False,  # Default to unique y-axis
-        description='Shared Y-Axis',  # Description when toggled to shared y-axis
-        tooltip='Toggle between unique and shared y-axes for non-log EIC plots',
-        layout=widgets.Layout(width='150px', margin='30px 0 0 0')
-    )
-    next_button = widgets.Button(
-        description="Next Group"
-        )
-    previous_button = widgets.Button(
-        description="Previous Group"
-        )
-    progress_label = widgets.Label(
-        value=f"1/{len(processed_data)} Groups Completed"
-        )
-    navigate_textbox = widgets.Text(
-        placeholder='Index...',
-        description='Go to:',
-        layout=widgets.Layout(width='50px')
-    )
-    navigate_button = widgets.Button(
-        description="Go",
-        layout=widgets.Layout(width='50px')
-    )
-    compound_image_widget = widgets.Image(
-        format='png',
-        layout=widgets.Layout(
-            width='400px',
-            height='400px',
-            margin='0 0 0 50px',
-        )
-    )
-    compound_image_label = widgets.Label(
-        value="Compound Structures",
-        layout=widgets.Layout(margin='0 0 10px 0')  # Add some margin below the label
-    )
-    completion_label = widgets.Label(value="", layout=widgets.Layout(margin="0 0 0 0"))
-    output_container = widgets.Output()
-
-    # Event Handlers
-    def on_image_toggle_change(change):
-        if image_toggle.value:
-            image_toggle.description = 'Hide Structures'
-            compound_image_widget.layout.display = 'block'
-        else:
-            image_toggle.description = 'Show Structures'
-            compound_image_widget.layout.display = 'none'
-
-    def update_progress_text():
-        progress_label.value = f"{current_index + 1}/{len(processed_data)} Groups Completed"
-
-    def on_toggle_change(change):
-        yaxis_toggle.description = 'Shared Y-Axis' if not yaxis_toggle.value else 'Unique Y-Axis'
-        update_plot(current_index)
-
-    def navigate_to_group(b):
-        nonlocal current_index
-        try:
-            target_index = int(navigate_textbox.value) - 1
-            if 0 <= target_index < len(processed_data):
-                current_index = target_index
-                update_plot(current_index)
-            else:
-                output_container.clear_output(wait=True)
-                with output_container:
-                    print(f"Invalid index. Please enter a number between 1 and {len(processed_data)}.")
-        except ValueError:
-            output_container.clear_output(wait=True)
-            with output_container:
-                print("Invalid input. Please enter a valid integer.")
-
-    def next_group(b):
-        nonlocal current_index
-        if current_index < len(processed_data) - 1:            
-            current_index += 1
-            update_plot(current_index)
-            image_toggle.value = False
-            image_toggle.description = 'Show Structures'
-        else:
-            completion_label.value = "Analysis completed!"
-
-    def previous_group(b):
-        nonlocal current_index
-        if current_index > 0:
-            current_index -= 1
-            update_plot(current_index)
-            image_toggle.value = False
-            image_toggle.description = 'Show Structures'
-            completion_label.value = ""
-        else:
-            output_container.clear_output(wait=True)
-            with output_container:
-                print("Already at the first group.")
-
-    # Attach Event Handlers
-    image_toggle.observe(on_image_toggle_change, names='value')
-    yaxis_toggle.observe(on_toggle_change, names='value')
-    next_button.on_click(next_group)
-    previous_button.on_click(previous_group)
-    navigate_button.on_click(navigate_to_group)
-
-    # Layout Definitions
-    def create_layout(all_adducts_checkboxes, top_adducts_checkboxes):
-        checkbox_layout = widgets.VBox(
-            children=[
-                widgets.Label(value="Select all good adducts:"),
-                *all_adducts_checkboxes
-            ],
-            layout=widgets.Layout(
-                border='1px solid black',
-                padding='10px',
-                margin='10px',
-                width='300px',
-                align_items='flex-start'  # Align items to the start (left)
-            )
-        )
-        top_adducts_checkboxes_layout = widgets.VBox(
-            children=[
-                widgets.Label(value="Select best adduct(s) - default intensity:"),
-                top_adducts_checkboxes
-            ],
-            layout=widgets.Layout(
-                border='1px solid black',
-                padding='10px',
-                margin='10px',
-                width='300px',
-                align_items='flex-start'
-            )
-        )
-        go_to_label = widgets.Label(value="Go To:")
-        go_to_layout = widgets.HBox(
-            [go_to_label, navigate_textbox, navigate_button],
-            layout=widgets.Layout(
-                justify_content='flex-start',  # Align to the far left
-                spacing='5px',
-                margin='30px 0 0 0'  # Add space above the widget
-            )
-        )
-        navigate_textbox.description = ""
-        navigate_textbox.layout = widgets.Layout(width='150px')  # Decrease the size of the search box
-
-        compound_image_widget.layout.display = 'none'
-        image_toggle.layout.margin = '0 0 0 50px'
-
-        navigation_buttons_layout = widgets.HBox(
-            [
-                widgets.VBox([next_button, previous_button]),  # Stack Previous and Next buttons vertically
-                image_toggle  # Place the Image Toggle button to the right
-            ],
-            layout=widgets.Layout(
-                justify_content='flex-start',  # Align items to the left
-                spacing='10px',  # Add spacing between elements
-                margin='0 0 0 0'  # No margin for the navigation buttons
-            )
-        )
-        button_layout = widgets.VBox(
-            [navigation_buttons_layout, progress_label, go_to_layout, yaxis_toggle],
-            layout=widgets.Layout(
-                align_items='flex-start',
-                spacing='5px'
-            )
-        )
-        compound_image_container = widgets.VBox(
-            [compound_image_label, compound_image_widget],
-            layout=widgets.Layout(
-                align_items='center',  # Center-align the content
-                padding='10px',  # Add padding around the container
-                border='1px solid lightgray',  # Optional: Add a border for better visibility
-                width='500px'  # Ensure the container is slightly wider than the image
-            )
-        )
-        top_layout = widgets.HBox(
-            [checkbox_layout, top_adducts_checkboxes_layout, button_layout, compound_image_container],
-            layout=widgets.Layout(
-                align_items='flex-start',
-                justify_content='flex-start',
-                spacing='10px'
-            )
-        )
-        final_layout = widgets.VBox(
-            [completion_label, top_layout],
-            layout=widgets.Layout(
-                align_items='flex-start',  # Center-align the content
-                padding='0px',  # Add padding around the container
-            )
-        )
-        return final_layout
-
-    # Plot Update Logic
-    def update_plot(index):
-        nonlocal current_index
-        data = processed_data[index]
-
-        eics = data['eics']
-        top_spectra = data['top_spectra']
-        rt_peaks = data['rt_peaks']
-        adduct_color = data['adduct_color']
-        group_id = data['group_id']
-        unique_id = data['unique_id']
-        group_run_number = data['group_run_number']
-
-        # Extract adduct-peak combinations from rt_peaks and top_spectra
-        adduct_peak_combinations = []
-        if isinstance(rt_peaks, pd.DataFrame) and not rt_peaks.empty:
-            # Create a mapping from adducts to peak indices and intensities
-            adduct_to_peaks = {}
-            for _, peak_row in rt_peaks.iterrows():
-                adduct = peak_row['adduct'] if 'adduct' in peak_row else None
-                if adduct:
-                    if adduct not in adduct_to_peaks:
-                        adduct_to_peaks[adduct] = []
-                    adduct_to_peaks[adduct].append({
-                        'peak_index': peak_row['peak_index'],
-                        'intensity': peak_row['intensity']
-                    })
-
-        # Create unique identifiers for each adduct-peak combination
-        for adduct, peaks in adduct_to_peaks.items():
-            max_intensity = max(peak['intensity'] for peak in peaks)
-            for peak in peaks:
-                # Check if there is an MS2 spectrum for this adduct+peak_index
-                if top_spectra.empty:
-                    has_ms2 = False
-                else:
-                    has_ms2 = not top_spectra[
-                        (top_spectra['adduct'] == adduct) & 
-                        (top_spectra['peak_index'] == peak['peak_index'])
-                    ].empty
-
-                # Add a star to the description if MS2 spectrum exists
-                description = f"{adduct} ({peak['peak_index']}){' *' if has_ms2 else ''}"
-                adduct_peak_combinations.append({
-                    'adduct': adduct,
-                    'peak_index': peak['peak_index'],
-                    'description': description,
-                    'max_intensity': max_intensity
-                })
-
-        # Sort adduct_peak_combinations by max_intensity in descending order
-        adduct_peak_combinations.sort(key=lambda x: x['max_intensity'], reverse=True)
-
-        # Create the summary EIC plot data
-        group_run_eics = [
-            eic for pdata in processed_data if pdata['group_run_number'] == group_run_number
-            for eic in pdata['eics'].values()
-        ]
-        summary_traces = []
-        summary_xmin_list = []
-        summary_xmax_list = []
-        for eic in group_run_eics:
-            # Loop through each row in the eic DataFrame
-            for _, eic_row in eic.iterrows():
-                # Filter data where intensity is above 1e5
-                valid_indices = eic_row['i'] > 1e5
-                filtered_rt = eic_row['rt'][valid_indices]
-                filtered_i = eic_row['i'][valid_indices]
-
-                if len(filtered_rt) > 0:  # Ensure there are valid points
-                    # Sort retention times
-                    rt_sort = np.argsort(filtered_rt)
-                    adduct = get_adduct(eic_row['label'])  # Extract adduct from the label
-                    color = adduct_color.get(adduct, 'gray')  # Default to gray if adduct color is missing
-                    label = eic_row['label']
-
-                    # Update x_min and x_max based on filtered data
-                    summary_xmin_list.append(filtered_rt.min())
-                    summary_xmax_list.append(filtered_rt.max())
-
-                    # Add a trace for the current adduct
-                    summary_traces.append(
-                        go.Scatter(
-                            x=filtered_rt[rt_sort],
-                            y=filtered_i[rt_sort],
-                            mode='lines',
-                            name=f"{label}",
-                            line=dict(color=color),
-                            showlegend=False
-                        )
-                    )
-        x_min = min(summary_xmin_list) if summary_xmin_list else None
-        x_max = max(summary_xmax_list) if summary_xmax_list else None
-
-        # Create the figure with subplots
-        num_spectra = len(top_spectra)
-        if num_spectra == 0:
-            num_spectra = 1  # Ensure at least one row for empty top_spectra
-        num_columns = 4
-        num_spectra_rows = math.ceil(num_spectra / num_columns)
-
-        # Adjust subplot titles and specifications
-        subplot_titles = [
-            "Sample",
-            "Blank",
-            "EIC Summary",
-            "Sample (Log)",
-            "Blank (Log)",
-            *(f"" if top_spectra.empty else f"{row['adduct']} @ {round(row['rt'], 2)} mins" for _, row in top_spectra.iterrows())
-        ]
-
-        specs = [
-            [{"type": "scatter"}, {"type": "scatter"}, {"type": "scatter", "rowspan": 2, "colspan": 2}, None],
-            [{"type": "scatter"}, {"type": "scatter"}, None, None],
-            *[[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows)]
-        ]
-
-        # Ensure there is at least one row for empty top_spectra
-        if top_spectra.empty:
-            subplot_titles.extend([""] * (num_spectra_rows * num_columns - len(subplot_titles) + 5))
-            specs.extend([[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows - 1)])
-
-        fig = make_subplots(
-            rows=2 + num_spectra_rows,
-            cols=4,
-            shared_xaxes=False,
-            shared_yaxes=yaxis_toggle.value,
-            vertical_spacing=0.3 / (2 + num_spectra_rows),
-            horizontal_spacing=0.1,
-            subplot_titles=subplot_titles,
-            specs=specs
-        )
-
-        # Add fallback traces if top_spectra is empty
-        if top_spectra.empty:
-            fig.add_trace(
-                go.Scatter(
-                    x=[],
-                    y=[],
-                    mode='lines',
-                    name="No Spectra Available",
-                    line=dict(color='gray'),
-                    showlegend=False
-                ),
-                row=3,
-                col=1
-            )
-
-        # Add the summary traces to the spanning subplot
-        fig.update_xaxes(range=[x_min, x_max], row=1, col=3)  # Set x-axis bounds for the summary graph
-        for trace in summary_traces:
-            fig.add_trace(trace, row=1, col=3)  # Add to row 1, col 3
-
-        # Add EIC traces for each adduct/peak
-        for idx, (lcmsrun_path, eic) in enumerate(eics.items()):
-            for i, eic_row in eic.iterrows():
-                rt_sort = np.argsort(eic_row['rt'])
-                adduct = get_adduct(eic_row['label'])
-                color = adduct_color[adduct]
-                
-                # Determine row and column for the current trace
-                row = 1 if idx < 2 else 2
-                col = (idx % 2) + 1
-                
-                # Dynamic facet_name determination 
-                if row == 1 and col == 1:
-                    facet_name = "Sample"
-                elif row == 1 and col == 2:
-                    facet_name = "Blank"
-                elif row == 2 and col == 1:
-                    facet_name = "Sample (Log)"
-                elif row == 2 and col == 2:
-                    facet_name = "Blank (Log)"
-
-                # Add line traces for raw intensity
-                trace_index = len(fig.data)
-                fig.add_trace(
-                    go.Scatter(
-                        x=eic_row['rt'][rt_sort],
-                        y=eic_row['i'][rt_sort],
-                        mode='lines',
-                        name=f"{adduct} {facet_name}",  # Include facet_name in legend
-                        line=dict(color=color),
-                        showlegend=True
-                    ),
-                    row=row,
-                    col=col
-                )
-
-                # Recalculate facet_name for log-transformed traces
-                if row + 1 == 2 and col == 1:
-                    facet_name = "Sample (Log)"
-                elif row + 1 == 2 and col == 2:
-                    facet_name = "Blank (Log)"
-
-                # Add line traces for log-transformed intensity
-                trace_index = len(fig.data)
-                fig.add_trace(
-                    go.Scatter(
-                        x=eic_row['rt'][rt_sort],
-                        y=np.log10(eic_row['i'][rt_sort].astype(float)),
-                        mode='lines',
-                        name=f"{adduct} {facet_name}",  # Include updated facet_name in legend
-                        line=dict(color=color),
-                        showlegend=True
-                    ),
-                    row=row + 1,  # Log traces go to the next row
-                    col=col
-                )
-
-                # Add peak markers for each peak associated with this adduct
-                if not rt_peaks.empty:
-                    if facet_name == "Sample" or facet_name == "Sample (Log)":
-                        adduct_peaks = rt_peaks[rt_peaks['adduct'] == adduct]
-                        for _, peak_info in adduct_peaks.iterrows():
-                            peak_rt = peak_info['rt_peak']
-                            peak_index = peak_info['peak_index']
-                            peak_intensity = peak_info['intensity']
-
-                            # Add marker for raw intensity
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=[peak_rt],
-                                    y=[peak_intensity],
-                                    mode='markers',
-                                    marker=dict(color=color, size=10),
-                                    name=f"{adduct} RT {peak_index}",
-                                    showlegend=False
-                                ),
-                                row=row,
-                                col=col
-                            )
-
-                            # Add marker for log-transformed intensity
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=[peak_rt],
-                                    y=[np.log10(peak_intensity)],
-                                    mode='markers',
-                                    marker=dict(color=color, size=10),
-                                    name=f"{adduct} RT {peak_index}",
-                                    showlegend=False
-                                ),
-                                row=row + 1,  # Log traces go to the next row
-                                col=col
-                            )
-
-                # Add MS2 spectra markers
-                if not top_spectra.empty:
-                    if facet_name == "Sample" or facet_name == "Sample (Log)":
-                        adduct_spectra = top_spectra[top_spectra['adduct'] == adduct]
-                        # Remove adduct filtering to show all MS2 spectra
-                        for _, spectrum_row in adduct_spectra.iterrows():
-                            spectrum_adduct = spectrum_row['adduct']
-                            spectrum_peak_index = spectrum_row['peak_index']
-                            rounded_rt = round(spectrum_row['rt'], 2)
-                            marker_color = adduct_color.get(spectrum_adduct, 'gray')
-
-                            # Find closest point in the current EIC
-                            sorted_rt = eic_row['rt'][rt_sort]
-                            sorted_intensity = eic_row['i'][rt_sort]
-                            
-                            # Skip if no intensity data available
-                            if len(sorted_rt) == 0 or len(sorted_intensity) == 0:
-                                continue
-                                
-                            # Find the closest RT point in the EIC
-                            closest_idx = np.argmin(np.abs(sorted_rt - spectrum_row['rt']))
-                            
-                            if closest_idx >= len(sorted_rt):
-                                # If the index is out of bounds, skip this spectrum
-                                print(f"Warning: RT {spectrum_row['rt']} is out of bounds for EIC RT range.")
-                                continue
-                                
-                            raw_intensity = sorted_intensity[closest_idx]
-                            log_intensity = np.log10(raw_intensity)
-                            
-                            # Display marker for all spectra on the raw intensity plot
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=[spectrum_row['rt']],
-                                    y=[raw_intensity],
-                                    mode='markers',
-                                    marker=dict(color=marker_color, symbol='x', size=10),
-                                    name=f"MS2: {spectrum_adduct} ({spectrum_peak_index}) @ {rounded_rt}",
-                                    showlegend=False
-                                ),
-                                row=row,
-                                col=col
-                            )
-                            
-                            # Display marker for all spectra on the log-transformed plot
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=[spectrum_row['rt']],
-                                    y=[log_intensity],
-                                    mode='markers',
-                                    marker=dict(color=marker_color, symbol='x', size=10),
-                                    name=f"MS2: {spectrum_adduct} ({spectrum_peak_index}) @ {rounded_rt}",
-                                    showlegend=False
-                                ),
-                                row=row + 1,
-                                col=col
-                            )
-
-        # Add traces for Spectra plots
-        if not top_spectra.empty:
-            top_spectra_sorted = top_spectra.sort_values(['adduct', 'peak_index'])
-
-            mz_list = [lst[0] for lst in top_spectra_sorted['spectrum'] if isinstance(lst, (list, np.ndarray)) and len(lst) > 0]
-            mz_list_flattened = np.concatenate([np.ravel(arr) if isinstance(arr, np.ndarray) else np.array([arr]) for arr in mz_list])
-            lowest_mz = np.min(mz_list_flattened)*0.9
-            highest_mz = np.max(mz_list_flattened)*1.1
-
-            for i, spectrum_row in enumerate(top_spectra_sorted.iterrows()):
-                mz_values = spectrum_row[1]['spectrum'][0]
-                i_values = spectrum_row[1]['spectrum'][1]
-                adduct = spectrum_row[1]['adduct']
-                color = adduct_color[adduct]
-                precursor_mz = spectrum_row[1]['precursor_mz']
-                peak_index = spectrum_row[1]['peak_index']
-                spectrum_title = f"{adduct} ({peak_index}) @ {round(spectrum_row[1]['rt'], 2)} mins"
-
-                # Determine the row and column for this spectrum
-                spectrum_row_idx = 3 + (i // num_columns)  # Start after EIC rows
-                spectrum_col = (i % num_columns) + 1
-
-                # Update the x-axis range for the current subplot
-                fig.update_xaxes(
-                    range=[lowest_mz, highest_mz],  # Set x-axis limits
-                    row=spectrum_row_idx,
-                    col=spectrum_col
-                )
-
-                # Add vertical lines for each point
-                for mz, intensity in zip(mz_values, i_values):
-                    fig.add_trace(
-                        go.Scatter(
-                            x=[mz, mz],
-                            y=[0, intensity],
-                            mode='lines',
-                            line=dict(color=color),
-                            showlegend=False
-                        ),
-                        row=spectrum_row_idx,
-                        col=spectrum_col
-                    )
-
-                # Add markers for each point
-                fig.add_trace(
-                    go.Scatter(
-                        x=mz_values,
-                        y=i_values,
-                        mode='markers',
-                        marker=dict(color=color, size=6),
-                        name=f"Spectrum {i+1}: {adduct}",
-                        showlegend=False
-                    ),
-                    row=spectrum_row_idx,
-                    col=spectrum_col
-                )
-
-                # Add a black circle at precursor_mz (y=0)
-                fig.add_trace(
-                    go.Scatter(
-                        x=[precursor_mz],
-                        y=[0],
-                        mode='markers',
-                        marker=dict(color='black', symbol='circle', size=20),
-                        name=f"Precursor MZ: {precursor_mz}",
-                        showlegend=False
-                    ),
-                    row=spectrum_row_idx,
-                    col=spectrum_col
-                )
-                
-                fig.layout.annotations[5 + i].text = spectrum_title
-
-        # Update layout
-        fig_title = (group_id.replace('_', '  |  '))
-        fig.update_layout(
-            hoverlabel=dict(
-                font_size=11,  # Increase font size for better readability
-                namelength=-1  # Show the full name without truncation
-            ),
-            title=dict(text=fig_title, font=dict(size=14), x=0.5, xanchor="center"),
-            height=700 + 300 * num_spectra_rows,
-            width=1500,
-            plot_bgcolor="white",
-            paper_bgcolor="white",
-            legend=dict(
-                orientation="h",
-                xanchor="center",
-                yanchor="top",
-                x=0.5,
-                y=-0.2
-            )
-        )
-
-        # Add black borders and keep gridlines
-        fig.update_xaxes(
-            showline=True,  # Show axis line
-            linewidth=1,  # Set line width
-            linecolor="black",  # Set line color to black
-            showgrid=True,  # Keep gridlines
-            gridcolor="lightgray"  # Set gridline color
-        )
-        fig.update_yaxes(
-            showline=True,  # Show axis line
-            linewidth=1,  # Set line width
-            linecolor="black",  # Set line color to black
-            showgrid=True,  # Keep gridlines
-            gridcolor="lightgray"  # Set gridline color
-        )
-
-        # Update the compound image based on group_run_number
-        if group_run_number in runnum_to_structure_image_grid:
-            compound_image_widget.value = base64.b64decode(runnum_to_structure_image_grid[group_run_number])
-            compound_image_label.value = f"Structures in Run{group_run_number}"  # Update the label text
-        else:
-            compound_image_widget.value = b''  # Clear the image if not found
-            compound_image_label.value = "No Structures Found"  # Update the label text
-
-        # Create checkboxes for selecting good adducts with peak indices
-        all_adducts_checkboxes = [
-            widgets.Checkbox(
-                value=False,
-                description=combo['description'],
-                disabled=False,
-                layout=widgets.Layout(width='300px', margin='0 0 0 -75px')
-            )
-            for combo in adduct_peak_combinations
-        ]
-        ambiguous_checkbox = widgets.Checkbox(
-            value=False,
-            description="Ambiguous",
-            disabled=False,
-             layout=widgets.Layout(width='300px', margin='0 0 0 -75px')
-        )
-        all_adducts_checkboxes.append(ambiguous_checkbox)
-        checkbox_dict = {checkbox.description: checkbox for checkbox in all_adducts_checkboxes}
-
-        # Initialize top_adducts with the default value if not already set
-        if unique_id not in top_adducts and adduct_peak_combinations:
-            top_adducts[unique_id] = [adduct_peak_combinations[0]['adduct']]
-
-        # Create top_adducts_checkboxes for adduct selection
-        top_adducts_checkboxes = widgets.VBox(
-            children=[
-                widgets.Checkbox(
-                    value=(adduct in top_adducts.get(unique_id, [])),
-                    description=adduct,
-                    layout=widgets.Layout(width='275px', margin='0 0 0 -75px')
-                )
-                for adduct in dict.fromkeys(combo['adduct'] for combo in adduct_peak_combinations)
-            ]
-        )
+        best_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of top adducts.
+        running_notes (Dict[str, str]): A dictionary mapping unique compound IDs to user notes.
         
-        def on_all_adducts_checkboxes_change(change):
-            if ambiguous_checkbox.value:
-                ambiguous_adducts[unique_id] = unique_id
-                selected_good_adducts.pop(unique_id, None)
-                top_adducts.pop(unique_id, None)
-            else:
-                selected_good_adducts[unique_id] = [
-                    combo['adduct'] + "||" + str(combo['peak_index'])
-                    for combo in adduct_peak_combinations 
-                    if checkbox_dict[combo['description']].value
-                ]
-                ambiguous_adducts.pop(unique_id, None)
-
-        def on_top_adducts_checkboxes_change(change):
-            selected_adducts = [
-                checkbox.description
-                for checkbox in top_adducts_checkboxes.children
-                if checkbox.value
-            ]
-            top_adducts[unique_id] = selected_adducts
-
-        for checkbox in all_adducts_checkboxes:
-            checkbox.observe(on_all_adducts_checkboxes_change, names='value')
-
-        for checkbox in top_adducts_checkboxes.children:
-            checkbox.observe(on_top_adducts_checkboxes_change, names='value')
-
-        # Set previously selected values
-        if unique_id in selected_good_adducts:
-            for selected_combo in selected_good_adducts[unique_id]:
-                adduct, peak_index = selected_combo.split("||")
-                for combo in adduct_peak_combinations:
-                    if combo['adduct'] == adduct and str(combo['peak_index']) == peak_index:
-                        combo_description = combo['description']
-                        if combo_description in checkbox_dict:
-                            checkbox_dict[combo_description].value = True
-        elif unique_id in ambiguous_adducts:
-            ambiguous_checkbox.value = True
-
-        # Set previously selected value for top_adducts_checkboxes
-        if unique_id in top_adducts:
-            for checkbox in top_adducts_checkboxes.children:
-                if checkbox.description in top_adducts[unique_id]:
-                    checkbox.value = True
-    
-        # Create the layout with all_adducts_checkboxes and top_adducts_checkboxes
-        top_layout = create_layout(all_adducts_checkboxes, top_adducts_checkboxes)
-        plot_and_checkboxes = widgets.VBox(
-            [top_layout, widgets.Output()],
-            layout=widgets.Layout(align_items='flex-start')
-        )
-
-        clear_output(wait=True)
-        update_progress_text()
-        with plot_and_checkboxes.children[1]:
-            display(fig)
-        display(plot_and_checkboxes)
-        display(output_container)
-
-    # Initialize
-    current_index = 0
-    update_plot(current_index)
-
-
-
-def create_interactive_plots_jupyterlab(
-    processed_data: List[Dict[str, Any]],
-    runnum_to_structure_image_grid: Dict[int, str],
-    selected_good_adducts: Dict[str, List[str]],
-    ambiguous_adducts: Dict[str, str],
-    top_adducts: Dict[str, List[str]]
-) -> None:
-    """
-    Create interactive plots for visualizing and annotating processed data.
-
-    Args:
-        processed_data (List[Dict[str, Any]]): A list of dictionaries containing processed data for each compound group.
-            Each dictionary should include keys such as 'eics', 'rt_peaks', 'top_spectra', 'adduct_color', 'group_id',
-            'unique_id', 'group_file', and 'compound_name'.
-        runnum_to_structure_image_grid (Dict[int, str]): A dictionary mapping run numbers to base64-encoded molecular structure images.
-        selected_good_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of selected
-            adduct-peak combinations in the format "adduct||peak_index".
-        ambiguous_adducts (Dict[str, str]): A dictionary mapping unique compound IDs to ambiguous annotations.
-        top_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of top adducts.
-
     Returns:
         None
     """
@@ -3954,12 +3435,18 @@ def create_interactive_plots_jupyterlab(
         tooltip='Toggle between unique and shared y-axes for non-log EIC plots',
         layout=widgets.Layout(width='150px', margin='30px 0 0 0')
     )
-    next_button = widgets.Button(description="Next Group")
-    previous_button = widgets.Button(description="Previous Group")
-    progress_label = widgets.Label(value=f"1/{len(processed_data)} Groups Completed")
+    next_button = widgets.Button(
+        description="Next Group"
+    )
+    previous_button = widgets.Button(
+        description="Previous Group"
+    )
+    progress_label = widgets.Label(
+        value=f"1/{len(processed_data)} Groups Completed"
+    )
     navigate_textbox = widgets.Text(
-        placeholder='Index...',
-        description='Go to:',
+        placeholder='Go to index...',
+        #description='Go to:',
         layout=widgets.Layout(width='50px')
     )
     navigate_button = widgets.Button(
@@ -3978,6 +3465,12 @@ def create_interactive_plots_jupyterlab(
     compound_image_label = widgets.Label(
         value="Compound Structures",
         layout=widgets.Layout(margin='0 0 10px 0')
+    )
+    notes_textarea = widgets.Textarea(
+        placeholder='Enter notes about this compound...',
+        #description='Notes:',
+        disabled=False,
+        layout=widgets.Layout(width='750px', height='35px')
     )
     completion_label = widgets.Label(value="", layout=widgets.Layout(margin="0 0 0 0"))
     output_container = widgets.Output()
@@ -4038,16 +3531,21 @@ def create_interactive_plots_jupyterlab(
             output_container.clear_output(wait=True)
             with output_container:
                 print("Invalid input. Please enter a valid integer.")
-    
+
+    def on_notes_change(change):
+        if state.current_unique_id:
+            running_notes[state.current_unique_id] = notes_textarea.value
+            
     # Bind event handlers
     image_toggle.observe(on_image_toggle_change, names='value')
     yaxis_toggle.observe(on_toggle_change, names='value')
     next_button.on_click(next_group)
     previous_button.on_click(previous_group)
     navigate_button.on_click(navigate_to_group)
+    notes_textarea.observe(on_notes_change, names='value')
     
     # Helper function to directly update dictionaries when checkboxes change
-    def create_checkbox_handlers(unique_id, all_adducts_checkboxes, adduct_peak_combinations, ambiguous_checkbox, top_adducts_checkboxes):
+    def create_checkbox_handlers(unique_id, all_adducts_checkboxes, adduct_peak_combinations, ambiguous_checkbox, best_adducts_checkboxes):
         """Creates handlers that explicitly use the provided unique_id"""
         
         def on_all_adducts_change(change):
@@ -4058,8 +3556,8 @@ def create_interactive_plots_jupyterlab(
                 # Remove from other dictionaries
                 if unique_id in selected_good_adducts:
                     del selected_good_adducts[unique_id]
-                if unique_id in top_adducts:
-                    del top_adducts[unique_id]
+                if unique_id in best_adducts:
+                    del best_adducts[unique_id]
                 
             else:
                 # Get all selected adduct combinations
@@ -4080,21 +3578,22 @@ def create_interactive_plots_jupyterlab(
                 if unique_id in ambiguous_adducts:
                     del ambiguous_adducts[unique_id]
         
-        def on_top_adducts_change(change):
+        def on_best_adducts_change(change):
             selected = []
-            for checkbox in top_adducts_checkboxes.children:
+            for checkbox in best_adducts_checkboxes.children:
                 if checkbox.value:
                     selected.append(checkbox.description)
             
             if selected:
-                top_adducts[unique_id] = selected
-            elif unique_id in top_adducts:
-                del top_adducts[unique_id]
+                best_adducts[unique_id] = selected
+            elif unique_id in best_adducts:
+                del best_adducts[unique_id]
         
-        return on_all_adducts_change, on_top_adducts_change
+        return on_all_adducts_change, on_best_adducts_change
 
     # Layout Definitions
-    def create_layout(all_adducts_checkboxes, top_adducts_checkboxes):
+    def create_layout(all_adducts_checkboxes, best_adducts_checkboxes):
+        
         checkbox_layout = widgets.VBox(
             children=[
                 widgets.Label(value="Select all good adducts:"),
@@ -4108,10 +3607,11 @@ def create_interactive_plots_jupyterlab(
                 align_items='flex-start'  # Align items to the start (left)
             )
         )
-        top_adducts_checkboxes_layout = widgets.VBox(
+        
+        best_adducts_checkboxes_layout = widgets.VBox(
             children=[
                 widgets.Label(value="Select best adduct(s) - default intensity:"),
-                top_adducts_checkboxes
+                best_adducts_checkboxes
             ],
             layout=widgets.Layout(
                 border='1px solid black',
@@ -4121,17 +3621,23 @@ def create_interactive_plots_jupyterlab(
                 align_items='flex-start'
             )
         )
-        go_to_label = widgets.Label(value="Go To:")
+        
+        #go_to_label = widgets.Label(
+        #    value="Go To:"
+        #)
         go_to_layout = widgets.HBox(
-            [go_to_label, navigate_textbox, navigate_button],
+            [navigate_textbox, navigate_button],
+            #[go_to_label, navigate_textbox, navigate_button],
             layout=widgets.Layout(
                 justify_content='flex-start',  # Align to the far left
+                width='200px',
                 spacing='5px',
-                margin='30px 0 0 0'  # Add space above the widget
+                margin='20px 0 0 0'  # Add space above the widget
             )
         )
+        
         navigate_textbox.description = ""
-        navigate_textbox.layout = widgets.Layout(width='150px')  # Decrease the size of the search box
+        navigate_textbox.layout = widgets.Layout(width='100px')  # size of the search box
     
         compound_image_widget.layout.display = 'none'
         image_toggle.layout.margin = '0 0 0 50px'
@@ -4147,6 +3653,7 @@ def create_interactive_plots_jupyterlab(
                 margin='0 0 0 0'  # No margin for the navigation buttons
             )
         )
+        
         button_layout = widgets.VBox(
             [navigation_buttons_layout, progress_label, go_to_layout, yaxis_toggle],
             layout=widgets.Layout(
@@ -4154,6 +3661,7 @@ def create_interactive_plots_jupyterlab(
                 spacing='5px'
             )
         )
+
         compound_image_container = widgets.VBox(
             [compound_image_label, compound_image_widget],
             layout=widgets.Layout(
@@ -4163,19 +3671,45 @@ def create_interactive_plots_jupyterlab(
                 width='500px'  # Ensure the container is slightly wider than the image
             )
         )
+        
+        notes_container = widgets.VBox(
+            [
+                widgets.Label(value="Annotation Notes:"),
+                notes_textarea
+            ],
+            layout=widgets.Layout(
+                border='1px solid black',
+                padding='10px',
+                margin='10px',
+                width='780px',
+                height='100px',
+                align_items='flex-start'
+            )
+        )
+        
         top_layout = widgets.HBox(
-            [checkbox_layout, top_adducts_checkboxes_layout, button_layout, compound_image_container],
+            [checkbox_layout, best_adducts_checkboxes_layout, button_layout, compound_image_container],
             layout=widgets.Layout(
                 align_items='flex-start',
                 justify_content='flex-start',
                 spacing='10px'
             )
         )
-        final_layout = widgets.VBox(
-            [completion_label, top_layout],
+        
+        notes_row = widgets.HBox(
+            [notes_container],
             layout=widgets.Layout(
-                align_items='flex-start',  # Center-align the content
-                padding='0px',  # Add padding around the container
+                align_items='flex-start',
+                justify_content='flex-start',
+                margin='10px 0 0 0'
+            )
+        )
+        
+        final_layout = widgets.VBox(
+            [completion_label, top_layout, notes_row],
+            layout=widgets.Layout(
+                align_items='flex-start',
+                padding='0px',
             )
         )
         return final_layout
@@ -4199,6 +3733,12 @@ def create_interactive_plots_jupyterlab(
         unique_id = data['unique_id']
         group_run_number = data['group_run_number']
 
+        # Update the notes text area with any existing notes
+        if unique_id in running_notes:
+            notes_textarea.value = running_notes[unique_id]
+        else:
+            notes_textarea.value = ""
+            
         # Extract adduct-peak combinations from rt_peaks and top_spectra
         adduct_peak_combinations = []
         if isinstance(rt_peaks, pd.DataFrame) and not rt_peaks.empty:
@@ -4635,48 +4175,48 @@ def create_interactive_plots_jupyterlab(
         )
         all_adducts_checkboxes.append(ambiguous_checkbox)
         
-        # Create top_adducts checkboxes
-        top_adducts_options = list(dict.fromkeys(combo['adduct'] for combo in adduct_peak_combinations))
-        top_adducts_children = []
+        # Create best_adducts checkboxes
+        best_adducts_options = list(dict.fromkeys(combo['adduct'] for combo in adduct_peak_combinations))
+        best_adducts_children = []
         
         # Pre-select first adduct if this is a new unique_id
-        default_to_first = unique_id not in top_adducts and len(top_adducts_options) > 0
+        default_to_first = unique_id not in best_adducts and len(best_adducts_options) > 0
         
-        for idx, adduct in enumerate(top_adducts_options):
+        for idx, adduct in enumerate(best_adducts_options):
             # Check if this adduct should be selected
             is_selected = False
             
-            if unique_id in top_adducts:
+            if unique_id in best_adducts:
                 # Use existing selection
-                is_selected = adduct in top_adducts[unique_id]
+                is_selected = adduct in best_adducts[unique_id]
             elif idx == 0 and default_to_first:
                 # This is the first checkbox for a new unique_id - select it by default
                 is_selected = True
                 # Also update the dictionary
-                top_adducts[unique_id] = [adduct]
+                best_adducts[unique_id] = [adduct]
                 
             checkbox = widgets.Checkbox(
                 value=is_selected,
                 description=adduct,
                 layout=widgets.Layout(width='275px', margin='0 0 0 -75px')
             )
-            top_adducts_children.append(checkbox)
+            best_adducts_children.append(checkbox)
         
-        top_adducts_checkboxes = widgets.VBox(children=top_adducts_children)
+        best_adducts_checkboxes = widgets.VBox(children=best_adducts_children)
         
         # Create and attach handlers that explicitly use the current unique_id
-        on_all_adducts_change, on_top_adducts_change = create_checkbox_handlers(
-            unique_id, all_adducts_checkboxes, adduct_peak_combinations, ambiguous_checkbox, top_adducts_checkboxes
+        on_all_adducts_change, on_best_adducts_change = create_checkbox_handlers(
+            unique_id, all_adducts_checkboxes, adduct_peak_combinations, ambiguous_checkbox, best_adducts_checkboxes
         )
         
         for checkbox in all_adducts_checkboxes:
             checkbox.observe(on_all_adducts_change, names='value')
         
-        for checkbox in top_adducts_checkboxes.children:
-            checkbox.observe(on_top_adducts_change, names='value')
+        for checkbox in best_adducts_checkboxes.children:
+            checkbox.observe(on_best_adducts_change, names='value')
         
         # Create layout with current widgets
-        layout = create_layout(all_adducts_checkboxes, top_adducts_checkboxes)
+        layout = create_layout(all_adducts_checkboxes, best_adducts_checkboxes)
         
         # Update image
         group_run_number = data['group_run_number']
@@ -4705,7 +4245,6 @@ def create_interactive_plots_jupyterlab(
     
     # Show the UI
     display(ui)
-
 
 
 # def get_existing_atlases(existing_atlases_path: str) -> pd.DataFrame:
@@ -4893,16 +4432,16 @@ def create_interactive_plots_jupyterlab(
 
 #     plt.tight_layout()
 
-# def filter_by_selected_top_adduct(rt_peaks, top_adducts, rt_check_cutoff=0.05):
+# def filter_by_selected_best_adduct(rt_peaks, best_adducts, rt_check_cutoff=0.05):
 #     """
-#     rt_peaks_filtered_top_adduct = filter_by_selected_top_adduct(rt_peaks_filtered, top_adducts_dict)
+#     rt_peaks_filtered_best_adduct = filter_by_selected_best_adduct(rt_peaks_filtered, best_adducts_dict)
 #     """
 #     unfiltered_rt_peaks = rt_peaks.copy()
 #     unfiltered_rt_peaks['label'] = unfiltered_rt_peaks['compound_name']
 
-#     selected_top_adducts = []
-#     # Find the row that matches the top_adducts dict keys
-#     for key, value in top_adducts.items():
+#     selected_best_adducts = []
+#     # Find the row that matches the best_adducts dict keys
+#     for key, value in best_adducts.items():
 #         label = key.split(';;')[0]
 #         standard_lcmsrun = key.split(';;')[1]
         
@@ -4922,18 +4461,18 @@ def create_interactive_plots_jupyterlab(
 #                     adduct_subset['label'] = adduct_subset.apply(
 #                         lambda row: f"{row['label']} ({row['peak_index']})", axis=1
 #                     )
-#                 selected_top_adducts.append(adduct_subset)
+#                 selected_best_adducts.append(adduct_subset)
 #         else:
-#             selected_top_adducts.append(selected_adduct)
+#             selected_best_adducts.append(selected_adduct)
 
-#     if selected_top_adducts:
-#         selected_top_adducts_df = pd.concat(selected_top_adducts, ignore_index=True)
+#     if selected_best_adducts:
+#         selected_best_adducts_df = pd.concat(selected_best_adducts, ignore_index=True)
 #     else:
-#         selected_top_adducts_df = pd.DataFrame()  # Return an empty DataFrame if no matches are found
+#         selected_best_adducts_df = pd.DataFrame()  # Return an empty DataFrame if no matches are found
 
 #     # Check that polarities and CEs for a given compound+adduct have the same RTs
-#     selected_top_adducts_df_grouped = selected_top_adducts_df.groupby(['chromatography', 'label'])
-#     for group_name, group in selected_top_adducts_df_grouped:
+#     selected_best_adducts_df_grouped = selected_best_adducts_df.groupby(['chromatography', 'label'])
+#     for group_name, group in selected_best_adducts_df_grouped:
 #         rt_values = group['rt_peak']
 #         cutoff = rt_check_cutoff
 #         ces = group['collision_energy'].unique()
@@ -4944,16 +4483,16 @@ def create_interactive_plots_jupyterlab(
 #             print(f"Group {group_name}: RT values for {ces} and {pols} are NOT within {cutoff} mins of each other ({round(rt_values.max() - rt_values.min(), 4)}).\n")
 
 #     # Group by monoisotopic_mass and identify isomers if present, then check they have the same adduct
-#     selected_top_adducts_grouped = selected_top_adducts_df.groupby(['monoisotopic_mass','polarity','chromatography'])
-#     grouped_compounds = selected_top_adducts_grouped['compound_name'].nunique()
+#     selected_best_adducts_grouped = selected_best_adducts_df.groupby(['monoisotopic_mass','polarity','chromatography'])
+#     grouped_compounds = selected_best_adducts_grouped['compound_name'].nunique()
 #     multiple_compounds_per_mim = grouped_compounds[grouped_compounds > 1]
 #     if not multiple_compounds_per_mim.empty:
 #         # Iterate over each monoisotopic mass with multiple compounds
 #         for isomer_mim in multiple_compounds_per_mim.index:
-#             isomer_data = selected_top_adducts_df[
-#                 (selected_top_adducts_df['monoisotopic_mass'] == isomer_mim[0]) &
-#                 (selected_top_adducts_df['polarity'] == isomer_mim[1]) &
-#                 (selected_top_adducts_df['chromatography'] == isomer_mim[2])
+#             isomer_data = selected_best_adducts_df[
+#                 (selected_best_adducts_df['monoisotopic_mass'] == isomer_mim[0]) &
+#                 (selected_best_adducts_df['polarity'] == isomer_mim[1]) &
+#                 (selected_best_adducts_df['chromatography'] == isomer_mim[2])
 #             ]
 #             # Check if all adducts are the same
 #             unique_adducts = isomer_data['adduct'].unique()
@@ -4969,25 +4508,25 @@ def create_interactive_plots_jupyterlab(
 #     else:
 #         print("No isomers found in selected top adducts.")
     
-#     # Select best collision energy row by intensity for each compound+adduct in selected_top_adducts_df
-#     selected_top_adducts_df_grouped = selected_top_adducts_df.groupby(['chromatography', 'polarity', 'label', 'adduct'])
-#     selected_top_adducts_df_grouped_best_ces = []
-#     for group_name, group in selected_top_adducts_df_grouped:
+#     # Select best collision energy row by intensity for each compound+adduct in selected_best_adducts_df
+#     selected_best_adducts_df_grouped = selected_best_adducts_df.groupby(['chromatography', 'polarity', 'label', 'adduct'])
+#     selected_best_adducts_df_grouped_best_ces = []
+#     for group_name, group in selected_best_adducts_df_grouped:
 #         ces = group.sort_values(by='intensity', ascending=False)
 #         if len(ces) == 2:
-#             selected_top_adducts_df_grouped_best_ces.append(ces.iloc[0])
+#             selected_best_adducts_df_grouped_best_ces.append(ces.iloc[0])
 #         elif len(ces) == 1:
-#             selected_top_adducts_df_grouped_best_ces.append(ces.iloc[0])
+#             selected_best_adducts_df_grouped_best_ces.append(ces.iloc[0])
 #         else:
 #             print("Unexpected number of collision energies found.")
-#     selected_top_adducts_df_best_ces = pd.DataFrame(selected_top_adducts_df_grouped_best_ces)
+#     selected_best_adducts_df_best_ces = pd.DataFrame(selected_best_adducts_df_grouped_best_ces)
 
-#     print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {selected_top_adducts_df_best_ces.shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
-#     display(selected_top_adducts_df_best_ces[['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass', 'collision_energy']].sort_values(by=['label','adduct']))
+#     print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {selected_best_adducts_df_best_ces.shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
+#     display(selected_best_adducts_df_best_ces[['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass', 'collision_energy']].sort_values(by=['label','adduct']))
 
-#     return selected_top_adducts_df_best_ces
+#     return selected_best_adducts_df_best_ces
 
-# def filter_by_top_adduct(rt_peaks):
+# def filter_by_best_adduct(rt_peaks):
     
 #     unfiltered_rt_peaks = rt_peaks.copy()
 
@@ -4999,18 +4538,18 @@ def create_interactive_plots_jupyterlab(
 
 #     # # Filter rows to keep only those with the same adduct as the highest intensity row
 #     group_list.extend(['adduct', 'collision_energy'])
-#     top_adducts_per_pol = unfiltered_rt_peaks.merge(
+#     best_adducts_per_pol = unfiltered_rt_peaks.merge(
 #         highest_intensity_row[group_list],
 #         on=group_list,
 #         how='inner'
 #     )
 
 #     # Find all other peaks for the selected adduct
-#     top_adducts_per_pol_grouped = top_adducts_per_pol.groupby(group_list)
+#     best_adducts_per_pol_grouped = best_adducts_per_pol.groupby(group_list)
 #     unfiltered_rt_peaks_grouped = unfiltered_rt_peaks.groupby(group_list)
 #     all_peaks = []
 
-#     for group_key, _ in top_adducts_per_pol_grouped:
+#     for group_key, _ in best_adducts_per_pol_grouped:
 #         # Check if the group_key exists in rt_peaks_grouped
 #         if group_key in unfiltered_rt_peaks_grouped.groups:
 #             # Retrieve all rows for the matching group
@@ -5019,20 +4558,20 @@ def create_interactive_plots_jupyterlab(
 #                 matching_rows.loc[:,'label'] = matching_rows.apply(lambda row: f"{row['label']} ({row['peak_index']})", axis=1)
 #             all_peaks.append(matching_rows)
 
-#     top_adducts_per_pol_allpeaks = pd.concat(all_peaks, ignore_index=True) if all_peaks else pd.DataFrame()
+#     best_adducts_per_pol_allpeaks = pd.concat(all_peaks, ignore_index=True) if all_peaks else pd.DataFrame()
 
 #     # Group by monoisotopic_mass and identify isomers if present
-#     top_adducts_per_pol_allpeaks_isomer_grouping = top_adducts_per_pol_allpeaks.groupby(['monoisotopic_mass','polarity','chromatography'])
-#     grouped_compounds = top_adducts_per_pol_allpeaks_isomer_grouping['compound_name'].nunique()
+#     best_adducts_per_pol_allpeaks_isomer_grouping = best_adducts_per_pol_allpeaks.groupby(['monoisotopic_mass','polarity','chromatography'])
+#     grouped_compounds = best_adducts_per_pol_allpeaks_isomer_grouping['compound_name'].nunique()
 #     multiple_compounds_per_mim = grouped_compounds[grouped_compounds > 1]
 
 #     if not multiple_compounds_per_mim.empty:
 #         # Iterate over each monoisotopic mass with multiple compounds
 #         for isomer_mim in multiple_compounds_per_mim.index:
-#             isomer_data = top_adducts_per_pol_allpeaks[
-#                 (top_adducts_per_pol_allpeaks['monoisotopic_mass'] == isomer_mim[0]) &
-#                 (top_adducts_per_pol_allpeaks['polarity'] == isomer_mim[1]) &
-#                 (top_adducts_per_pol_allpeaks['chromatography'] == isomer_mim[2])
+#             isomer_data = best_adducts_per_pol_allpeaks[
+#                 (best_adducts_per_pol_allpeaks['monoisotopic_mass'] == isomer_mim[0]) &
+#                 (best_adducts_per_pol_allpeaks['polarity'] == isomer_mim[1]) &
+#                 (best_adducts_per_pol_allpeaks['chromatography'] == isomer_mim[2])
 #             ]
             
 #             # Check if all adducts are the same
@@ -5047,13 +4586,13 @@ def create_interactive_plots_jupyterlab(
 #                 print("\nPlease return to the GUI to select a matching adduct for isomers.")
 #                 return
     
-#     print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {top_adducts_per_pol_allpeaks.shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
-#     display(top_adducts_per_pol_allpeaks[['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label','adduct']))
+#     print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {best_adducts_per_pol_allpeaks.shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
+#     display(best_adducts_per_pol_allpeaks[['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label','adduct']))
 
-#     return top_adducts_per_pol_allpeaks
+#     return best_adducts_per_pol_allpeaks
 
 
-# def filter_by_top_adduct(rt_peaks, top_adducts_per_pol_allpeaks=None, method="manual"):
+# def filter_by_best_adduct(rt_peaks, best_adducts_per_pol_allpeaks=None, method="manual"):
 #     import pandas as pd
 #     from IPython.display import display, clear_output
 #     import ipywidgets as widgets
@@ -5149,19 +4688,19 @@ def create_interactive_plots_jupyterlab(
 #                     print("All groups processed!")
 #                     # Combine all processed peaks
 #                     if all_peaks:
-#                         top_adducts_per_pol_allpeaks[0] = pd.concat(all_peaks, ignore_index=True)
+#                         best_adducts_per_pol_allpeaks[0] = pd.concat(all_peaks, ignore_index=True)
 #                     else:
-#                         top_adducts_per_pol_allpeaks[0] = pd.DataFrame()  # Return an empty DataFrame if no peaks are selected
+#                         best_adducts_per_pol_allpeaks[0] = pd.DataFrame()  # Return an empty DataFrame if no peaks are selected
 
 #                     # Display final results
 #                     with output_container:
 #                         clear_output(wait=True)
-#                         if top_adducts_per_pol_allpeaks[0].empty:
+#                         if best_adducts_per_pol_allpeaks[0].empty:
 #                             print("\nNo peaks were retained. Please check your input data or selection process.")
 #                         else:
 #                             print("Analysis complete!")
-#                             #print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {top_adducts_per_pol_allpeaks[0].shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
-#                             #display(top_adducts_per_pol_allpeaks[0][['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label', 'adduct']))
+#                             #print(f"\nFiltered {unfiltered_rt_peaks.shape[0]} compound peaks to {best_adducts_per_pol_allpeaks[0].shape[0]} peaks by best adduct. Here are the compounds+adducts retained:\n")
+#                             #display(best_adducts_per_pol_allpeaks[0][['label', 'adduct', 'polarity', 'chromatography', 'inchi_key', 'monoisotopic_mass']].sort_values(by=['label', 'adduct']))
 
 #     # Attach event handler
 #     next_button.on_click(on_next)
@@ -5219,3 +4758,744 @@ def create_interactive_plots_jupyterlab(
 #         atlas_df.append(row)
         
 #     return pd.DataFrame(atlas_df)
+
+
+# def create_interactive_plots_vscode(
+#     processed_data: List[Dict[str, Any]],
+#     runnum_to_structure_image_grid: Dict[int, str],
+#     selected_good_adducts: Dict[str, List[str]],
+#     ambiguous_adducts: Dict[str, str],
+#     best_adducts: Dict[str, List[str]]
+# ) -> None:
+#     """
+#     Create interactive plots for visualizing and annotating processed data.
+
+#     Args:
+#         processed_data (List[Dict[str, Any]]): A list of dictionaries containing processed data for each compound group.
+#             Each dictionary should include keys such as 'eics', 'rt_peaks', 'top_spectra', 'adduct_color', 'group_id',
+#             'unique_id', 'group_file', and 'compound_name'.
+#         runnum_to_structure_image_grid (Dict[int, str]): A dictionary mapping run numbers to base64-encoded molecular structure images.
+#         selected_good_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of selected
+#             adduct-peak combinations in the format "adduct||peak_index".
+#         ambiguous_adducts (Dict[str, str]): A dictionary mapping unique compound IDs to ambiguous annotations.
+#         best_adducts (Dict[str, List[str]]): A dictionary mapping unique compound IDs to lists of top adducts.
+
+#     Returns:
+#         None
+#     """
+
+#     # Widget Creation
+#     image_toggle = widgets.ToggleButton(
+#         value=False,  # Default to hidden
+#         description='Show Structures',
+#         tooltip='Toggle to show/hide the compound structure image',
+#         layout=widgets.Layout(width='150px', margin='5px 0 0 0')
+#     )
+#     yaxis_toggle = widgets.ToggleButton(
+#         value=False,  # Default to unique y-axis
+#         description='Shared Y-Axis',  # Description when toggled to shared y-axis
+#         tooltip='Toggle between unique and shared y-axes for non-log EIC plots',
+#         layout=widgets.Layout(width='150px', margin='30px 0 0 0')
+#     )
+#     next_button = widgets.Button(
+#         description="Next Group"
+#         )
+#     previous_button = widgets.Button(
+#         description="Previous Group"
+#         )
+#     progress_label = widgets.Label(
+#         value=f"1/{len(processed_data)} Groups Completed"
+#         )
+#     navigate_textbox = widgets.Text(
+#         placeholder='Index...',
+#         description='Go to:',
+#         layout=widgets.Layout(width='50px')
+#     )
+#     navigate_button = widgets.Button(
+#         description="Go",
+#         layout=widgets.Layout(width='50px')
+#     )
+#     compound_image_widget = widgets.Image(
+#         format='png',
+#         layout=widgets.Layout(
+#             width='400px',
+#             height='400px',
+#             margin='0 0 0 50px',
+#         )
+#     )
+#     compound_image_label = widgets.Label(
+#         value="Compound Structures",
+#         layout=widgets.Layout(margin='0 0 10px 0')  # Add some margin below the label
+#     )
+#     completion_label = widgets.Label(value="", layout=widgets.Layout(margin="0 0 0 0"))
+#     output_container = widgets.Output()
+
+#     # Event Handlers
+#     def on_image_toggle_change(change):
+#         if image_toggle.value:
+#             image_toggle.description = 'Hide Structures'
+#             compound_image_widget.layout.display = 'block'
+#         else:
+#             image_toggle.description = 'Show Structures'
+#             compound_image_widget.layout.display = 'none'
+
+#     def update_progress_text():
+#         progress_label.value = f"{current_index + 1}/{len(processed_data)} Groups Completed"
+
+#     def on_toggle_change(change):
+#         yaxis_toggle.description = 'Shared Y-Axis' if not yaxis_toggle.value else 'Unique Y-Axis'
+#         update_plot(current_index)
+
+#     def navigate_to_group(b):
+#         nonlocal current_index
+#         try:
+#             target_index = int(navigate_textbox.value) - 1
+#             if 0 <= target_index < len(processed_data):
+#                 current_index = target_index
+#                 update_plot(current_index)
+#             else:
+#                 output_container.clear_output(wait=True)
+#                 with output_container:
+#                     print(f"Invalid index. Please enter a number between 1 and {len(processed_data)}.")
+#         except ValueError:
+#             output_container.clear_output(wait=True)
+#             with output_container:
+#                 print("Invalid input. Please enter a valid integer.")
+
+#     def next_group(b):
+#         nonlocal current_index
+#         if current_index < len(processed_data) - 1:            
+#             current_index += 1
+#             update_plot(current_index)
+#             image_toggle.value = False
+#             image_toggle.description = 'Show Structures'
+#         else:
+#             completion_label.value = "Analysis completed!"
+
+#     def previous_group(b):
+#         nonlocal current_index
+#         if current_index > 0:
+#             current_index -= 1
+#             update_plot(current_index)
+#             image_toggle.value = False
+#             image_toggle.description = 'Show Structures'
+#             completion_label.value = ""
+#         else:
+#             output_container.clear_output(wait=True)
+#             with output_container:
+#                 print("Already at the first group.")
+
+#     # Attach Event Handlers
+#     image_toggle.observe(on_image_toggle_change, names='value')
+#     yaxis_toggle.observe(on_toggle_change, names='value')
+#     next_button.on_click(next_group)
+#     previous_button.on_click(previous_group)
+#     navigate_button.on_click(navigate_to_group)
+
+#     # Layout Definitions
+#     def create_layout(all_adducts_checkboxes, best_adducts_checkboxes):
+#         checkbox_layout = widgets.VBox(
+#             children=[
+#                 widgets.Label(value="Select all good adducts:"),
+#                 *all_adducts_checkboxes
+#             ],
+#             layout=widgets.Layout(
+#                 border='1px solid black',
+#                 padding='10px',
+#                 margin='10px',
+#                 width='300px',
+#                 align_items='flex-start'  # Align items to the start (left)
+#             )
+#         )
+#         best_adducts_checkboxes_layout = widgets.VBox(
+#             children=[
+#                 widgets.Label(value="Select best adduct(s) - default intensity:"),
+#                 best_adducts_checkboxes
+#             ],
+#             layout=widgets.Layout(
+#                 border='1px solid black',
+#                 padding='10px',
+#                 margin='10px',
+#                 width='300px',
+#                 align_items='flex-start'
+#             )
+#         )
+#         go_to_label = widgets.Label(value="Go To:")
+#         go_to_layout = widgets.HBox(
+#             [go_to_label, navigate_textbox, navigate_button],
+#             layout=widgets.Layout(
+#                 justify_content='flex-start',  # Align to the far left
+#                 spacing='5px',
+#                 margin='30px 0 0 0'  # Add space above the widget
+#             )
+#         )
+#         navigate_textbox.description = ""
+#         navigate_textbox.layout = widgets.Layout(width='150px')  # Decrease the size of the search box
+
+#         compound_image_widget.layout.display = 'none'
+#         image_toggle.layout.margin = '0 0 0 50px'
+
+#         navigation_buttons_layout = widgets.HBox(
+#             [
+#                 widgets.VBox([next_button, previous_button]),  # Stack Previous and Next buttons vertically
+#                 image_toggle  # Place the Image Toggle button to the right
+#             ],
+#             layout=widgets.Layout(
+#                 justify_content='flex-start',  # Align items to the left
+#                 spacing='10px',  # Add spacing between elements
+#                 margin='0 0 0 0'  # No margin for the navigation buttons
+#             )
+#         )
+#         button_layout = widgets.VBox(
+#             [navigation_buttons_layout, progress_label, go_to_layout, yaxis_toggle],
+#             layout=widgets.Layout(
+#                 align_items='flex-start',
+#                 spacing='5px'
+#             )
+#         )
+#         compound_image_container = widgets.VBox(
+#             [compound_image_label, compound_image_widget],
+#             layout=widgets.Layout(
+#                 align_items='center',  # Center-align the content
+#                 padding='10px',  # Add padding around the container
+#                 border='1px solid lightgray',  # Optional: Add a border for better visibility
+#                 width='500px'  # Ensure the container is slightly wider than the image
+#             )
+#         )
+#         top_layout = widgets.HBox(
+#             [checkbox_layout, best_adducts_checkboxes_layout, button_layout, compound_image_container],
+#             layout=widgets.Layout(
+#                 align_items='flex-start',
+#                 justify_content='flex-start',
+#                 spacing='10px'
+#             )
+#         )
+#         final_layout = widgets.VBox(
+#             [completion_label, top_layout],
+#             layout=widgets.Layout(
+#                 align_items='flex-start',  # Center-align the content
+#                 padding='0px',  # Add padding around the container
+#             )
+#         )
+#         return final_layout
+
+#     # Plot Update Logic
+#     def update_plot(index):
+#         nonlocal current_index
+#         data = processed_data[index]
+
+#         eics = data['eics']
+#         top_spectra = data['top_spectra']
+#         rt_peaks = data['rt_peaks']
+#         adduct_color = data['adduct_color']
+#         group_id = data['group_id']
+#         unique_id = data['unique_id']
+#         group_run_number = data['group_run_number']
+
+#         # Extract adduct-peak combinations from rt_peaks and top_spectra
+#         adduct_peak_combinations = []
+#         if isinstance(rt_peaks, pd.DataFrame) and not rt_peaks.empty:
+#             # Create a mapping from adducts to peak indices and intensities
+#             adduct_to_peaks = {}
+#             for _, peak_row in rt_peaks.iterrows():
+#                 adduct = peak_row['adduct'] if 'adduct' in peak_row else None
+#                 if adduct:
+#                     if adduct not in adduct_to_peaks:
+#                         adduct_to_peaks[adduct] = []
+#                     adduct_to_peaks[adduct].append({
+#                         'peak_index': peak_row['peak_index'],
+#                         'intensity': peak_row['intensity']
+#                     })
+
+#         # Create unique identifiers for each adduct-peak combination
+#         for adduct, peaks in adduct_to_peaks.items():
+#             max_intensity = max(peak['intensity'] for peak in peaks)
+#             for peak in peaks:
+#                 # Check if there is an MS2 spectrum for this adduct+peak_index
+#                 if top_spectra.empty:
+#                     has_ms2 = False
+#                 else:
+#                     has_ms2 = not top_spectra[
+#                         (top_spectra['adduct'] == adduct) & 
+#                         (top_spectra['peak_index'] == peak['peak_index'])
+#                     ].empty
+
+#                 # Add a star to the description if MS2 spectrum exists
+#                 description = f"{adduct} ({peak['peak_index']}){' *' if has_ms2 else ''}"
+#                 adduct_peak_combinations.append({
+#                     'adduct': adduct,
+#                     'peak_index': peak['peak_index'],
+#                     'description': description,
+#                     'max_intensity': max_intensity
+#                 })
+
+#         # Sort adduct_peak_combinations by max_intensity in descending order
+#         adduct_peak_combinations.sort(key=lambda x: x['max_intensity'], reverse=True)
+
+#         # Create the summary EIC plot data
+#         group_run_eics = [
+#             eic for pdata in processed_data if pdata['group_run_number'] == group_run_number
+#             for eic in pdata['eics'].values()
+#         ]
+#         summary_traces = []
+#         summary_xmin_list = []
+#         summary_xmax_list = []
+#         for eic in group_run_eics:
+#             # Loop through each row in the eic DataFrame
+#             for _, eic_row in eic.iterrows():
+#                 # Filter data where intensity is above 1e5
+#                 valid_indices = eic_row['i'] > 1e5
+#                 filtered_rt = eic_row['rt'][valid_indices]
+#                 filtered_i = eic_row['i'][valid_indices]
+
+#                 if len(filtered_rt) > 0:  # Ensure there are valid points
+#                     # Sort retention times
+#                     rt_sort = np.argsort(filtered_rt)
+#                     adduct = get_adduct(eic_row['label'])  # Extract adduct from the label
+#                     color = adduct_color.get(adduct, 'gray')  # Default to gray if adduct color is missing
+#                     label = eic_row['label']
+
+#                     # Update x_min and x_max based on filtered data
+#                     summary_xmin_list.append(filtered_rt.min())
+#                     summary_xmax_list.append(filtered_rt.max())
+
+#                     # Add a trace for the current adduct
+#                     summary_traces.append(
+#                         go.Scatter(
+#                             x=filtered_rt[rt_sort],
+#                             y=filtered_i[rt_sort],
+#                             mode='lines',
+#                             name=f"{label}",
+#                             line=dict(color=color),
+#                             showlegend=False
+#                         )
+#                     )
+#         x_min = min(summary_xmin_list) if summary_xmin_list else None
+#         x_max = max(summary_xmax_list) if summary_xmax_list else None
+
+#         # Create the figure with subplots
+#         num_spectra = len(top_spectra)
+#         if num_spectra == 0:
+#             num_spectra = 1  # Ensure at least one row for empty top_spectra
+#         num_columns = 4
+#         num_spectra_rows = math.ceil(num_spectra / num_columns)
+
+#         # Adjust subplot titles and specifications
+#         subplot_titles = [
+#             "Sample",
+#             "Blank",
+#             "EIC Summary",
+#             "Sample (Log)",
+#             "Blank (Log)",
+#             *(f"" if top_spectra.empty else f"{row['adduct']} @ {round(row['rt'], 2)} mins" for _, row in top_spectra.iterrows())
+#         ]
+
+#         specs = [
+#             [{"type": "scatter"}, {"type": "scatter"}, {"type": "scatter", "rowspan": 2, "colspan": 2}, None],
+#             [{"type": "scatter"}, {"type": "scatter"}, None, None],
+#             *[[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows)]
+#         ]
+
+#         # Ensure there is at least one row for empty top_spectra
+#         if top_spectra.empty:
+#             subplot_titles.extend([""] * (num_spectra_rows * num_columns - len(subplot_titles) + 5))
+#             specs.extend([[{"type": "scatter"} for _ in range(4)] for _ in range(num_spectra_rows - 1)])
+
+#         fig = make_subplots(
+#             rows=2 + num_spectra_rows,
+#             cols=4,
+#             shared_xaxes=False,
+#             shared_yaxes=yaxis_toggle.value,
+#             vertical_spacing=0.3 / (2 + num_spectra_rows),
+#             horizontal_spacing=0.1,
+#             subplot_titles=subplot_titles,
+#             specs=specs
+#         )
+
+#         # Add fallback traces if top_spectra is empty
+#         if top_spectra.empty:
+#             fig.add_trace(
+#                 go.Scatter(
+#                     x=[],
+#                     y=[],
+#                     mode='lines',
+#                     name="No Spectra Available",
+#                     line=dict(color='gray'),
+#                     showlegend=False
+#                 ),
+#                 row=3,
+#                 col=1
+#             )
+
+#         # Add the summary traces to the spanning subplot
+#         fig.update_xaxes(range=[x_min, x_max], row=1, col=3)  # Set x-axis bounds for the summary graph
+#         for trace in summary_traces:
+#             fig.add_trace(trace, row=1, col=3)  # Add to row 1, col 3
+
+#         # Add EIC traces for each adduct/peak
+#         for idx, (lcmsrun_path, eic) in enumerate(eics.items()):
+#             for i, eic_row in eic.iterrows():
+#                 rt_sort = np.argsort(eic_row['rt'])
+#                 adduct = get_adduct(eic_row['label'])
+#                 color = adduct_color[adduct]
+                
+#                 # Determine row and column for the current trace
+#                 row = 1 if idx < 2 else 2
+#                 col = (idx % 2) + 1
+                
+#                 # Dynamic facet_name determination 
+#                 if row == 1 and col == 1:
+#                     facet_name = "Sample"
+#                 elif row == 1 and col == 2:
+#                     facet_name = "Blank"
+#                 elif row == 2 and col == 1:
+#                     facet_name = "Sample (Log)"
+#                 elif row == 2 and col == 2:
+#                     facet_name = "Blank (Log)"
+
+#                 # Add line traces for raw intensity
+#                 trace_index = len(fig.data)
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=eic_row['rt'][rt_sort],
+#                         y=eic_row['i'][rt_sort],
+#                         mode='lines',
+#                         name=f"{adduct} {facet_name}",  # Include facet_name in legend
+#                         line=dict(color=color),
+#                         showlegend=True
+#                     ),
+#                     row=row,
+#                     col=col
+#                 )
+
+#                 # Recalculate facet_name for log-transformed traces
+#                 if row + 1 == 2 and col == 1:
+#                     facet_name = "Sample (Log)"
+#                 elif row + 1 == 2 and col == 2:
+#                     facet_name = "Blank (Log)"
+
+#                 # Add line traces for log-transformed intensity
+#                 trace_index = len(fig.data)
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=eic_row['rt'][rt_sort],
+#                         y=np.log10(eic_row['i'][rt_sort].astype(float)),
+#                         mode='lines',
+#                         name=f"{adduct} {facet_name}",  # Include updated facet_name in legend
+#                         line=dict(color=color),
+#                         showlegend=True
+#                     ),
+#                     row=row + 1,  # Log traces go to the next row
+#                     col=col
+#                 )
+
+#                 # Add peak markers for each peak associated with this adduct
+#                 if not rt_peaks.empty:
+#                     if facet_name == "Sample" or facet_name == "Sample (Log)":
+#                         adduct_peaks = rt_peaks[rt_peaks['adduct'] == adduct]
+#                         for _, peak_info in adduct_peaks.iterrows():
+#                             peak_rt = peak_info['rt_peak']
+#                             peak_index = peak_info['peak_index']
+#                             peak_intensity = peak_info['intensity']
+
+#                             # Add marker for raw intensity
+#                             fig.add_trace(
+#                                 go.Scatter(
+#                                     x=[peak_rt],
+#                                     y=[peak_intensity],
+#                                     mode='markers',
+#                                     marker=dict(color=color, size=10),
+#                                     name=f"{adduct} RT {peak_index}",
+#                                     showlegend=False
+#                                 ),
+#                                 row=row,
+#                                 col=col
+#                             )
+
+#                             # Add marker for log-transformed intensity
+#                             fig.add_trace(
+#                                 go.Scatter(
+#                                     x=[peak_rt],
+#                                     y=[np.log10(peak_intensity)],
+#                                     mode='markers',
+#                                     marker=dict(color=color, size=10),
+#                                     name=f"{adduct} RT {peak_index}",
+#                                     showlegend=False
+#                                 ),
+#                                 row=row + 1,  # Log traces go to the next row
+#                                 col=col
+#                             )
+
+#                 # Add MS2 spectra markers
+#                 if not top_spectra.empty:
+#                     if facet_name == "Sample" or facet_name == "Sample (Log)":
+#                         adduct_spectra = top_spectra[top_spectra['adduct'] == adduct]
+#                         # Remove adduct filtering to show all MS2 spectra
+#                         for _, spectrum_row in adduct_spectra.iterrows():
+#                             spectrum_adduct = spectrum_row['adduct']
+#                             spectrum_peak_index = spectrum_row['peak_index']
+#                             rounded_rt = round(spectrum_row['rt'], 2)
+#                             marker_color = adduct_color.get(spectrum_adduct, 'gray')
+
+#                             # Find closest point in the current EIC
+#                             sorted_rt = eic_row['rt'][rt_sort]
+#                             sorted_intensity = eic_row['i'][rt_sort]
+                            
+#                             # Skip if no intensity data available
+#                             if len(sorted_rt) == 0 or len(sorted_intensity) == 0:
+#                                 continue
+                                
+#                             # Find the closest RT point in the EIC
+#                             closest_idx = np.argmin(np.abs(sorted_rt - spectrum_row['rt']))
+                            
+#                             if closest_idx >= len(sorted_rt):
+#                                 # If the index is out of bounds, skip this spectrum
+#                                 print(f"Warning: RT {spectrum_row['rt']} is out of bounds for EIC RT range.")
+#                                 continue
+                                
+#                             raw_intensity = sorted_intensity[closest_idx]
+#                             log_intensity = np.log10(raw_intensity)
+                            
+#                             # Display marker for all spectra on the raw intensity plot
+#                             fig.add_trace(
+#                                 go.Scatter(
+#                                     x=[spectrum_row['rt']],
+#                                     y=[raw_intensity],
+#                                     mode='markers',
+#                                     marker=dict(color=marker_color, symbol='x', size=10),
+#                                     name=f"MS2: {spectrum_adduct} ({spectrum_peak_index}) @ {rounded_rt}",
+#                                     showlegend=False
+#                                 ),
+#                                 row=row,
+#                                 col=col
+#                             )
+                            
+#                             # Display marker for all spectra on the log-transformed plot
+#                             fig.add_trace(
+#                                 go.Scatter(
+#                                     x=[spectrum_row['rt']],
+#                                     y=[log_intensity],
+#                                     mode='markers',
+#                                     marker=dict(color=marker_color, symbol='x', size=10),
+#                                     name=f"MS2: {spectrum_adduct} ({spectrum_peak_index}) @ {rounded_rt}",
+#                                     showlegend=False
+#                                 ),
+#                                 row=row + 1,
+#                                 col=col
+#                             )
+
+#         # Add traces for Spectra plots
+#         if not top_spectra.empty:
+#             top_spectra_sorted = top_spectra.sort_values(['adduct', 'peak_index'])
+
+#             mz_list = [lst[0] for lst in top_spectra_sorted['spectrum'] if isinstance(lst, (list, np.ndarray)) and len(lst) > 0]
+#             mz_list_flattened = np.concatenate([np.ravel(arr) if isinstance(arr, np.ndarray) else np.array([arr]) for arr in mz_list])
+#             lowest_mz = np.min(mz_list_flattened)*0.9
+#             highest_mz = np.max(mz_list_flattened)*1.1
+
+#             for i, spectrum_row in enumerate(top_spectra_sorted.iterrows()):
+#                 mz_values = spectrum_row[1]['spectrum'][0]
+#                 i_values = spectrum_row[1]['spectrum'][1]
+#                 adduct = spectrum_row[1]['adduct']
+#                 color = adduct_color[adduct]
+#                 precursor_mz = spectrum_row[1]['precursor_mz']
+#                 peak_index = spectrum_row[1]['peak_index']
+#                 spectrum_title = f"{adduct} ({peak_index}) @ {round(spectrum_row[1]['rt'], 2)} mins"
+
+#                 # Determine the row and column for this spectrum
+#                 spectrum_row_idx = 3 + (i // num_columns)  # Start after EIC rows
+#                 spectrum_col = (i % num_columns) + 1
+
+#                 # Update the x-axis range for the current subplot
+#                 fig.update_xaxes(
+#                     range=[lowest_mz, highest_mz],  # Set x-axis limits
+#                     row=spectrum_row_idx,
+#                     col=spectrum_col
+#                 )
+
+#                 # Add vertical lines for each point
+#                 for mz, intensity in zip(mz_values, i_values):
+#                     fig.add_trace(
+#                         go.Scatter(
+#                             x=[mz, mz],
+#                             y=[0, intensity],
+#                             mode='lines',
+#                             line=dict(color=color),
+#                             showlegend=False
+#                         ),
+#                         row=spectrum_row_idx,
+#                         col=spectrum_col
+#                     )
+
+#                 # Add markers for each point
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=mz_values,
+#                         y=i_values,
+#                         mode='markers',
+#                         marker=dict(color=color, size=6),
+#                         name=f"Spectrum {i+1}: {adduct}",
+#                         showlegend=False
+#                     ),
+#                     row=spectrum_row_idx,
+#                     col=spectrum_col
+#                 )
+
+#                 # Add a black circle at precursor_mz (y=0)
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=[precursor_mz],
+#                         y=[0],
+#                         mode='markers',
+#                         marker=dict(color='black', symbol='circle', size=20),
+#                         name=f"Precursor MZ: {precursor_mz}",
+#                         showlegend=False
+#                     ),
+#                     row=spectrum_row_idx,
+#                     col=spectrum_col
+#                 )
+                
+#                 fig.layout.annotations[5 + i].text = spectrum_title
+
+#         # Update layout
+#         fig_title = (group_id.replace('_', '  |  '))
+#         fig.update_layout(
+#             hoverlabel=dict(
+#                 font_size=11,  # Increase font size for better readability
+#                 namelength=-1  # Show the full name without truncation
+#             ),
+#             title=dict(text=fig_title, font=dict(size=14), x=0.5, xanchor="center"),
+#             height=700 + 300 * num_spectra_rows,
+#             width=1500,
+#             plot_bgcolor="white",
+#             paper_bgcolor="white",
+#             legend=dict(
+#                 orientation="h",
+#                 xanchor="center",
+#                 yanchor="top",
+#                 x=0.5,
+#                 y=-0.2
+#             )
+#         )
+
+#         # Add black borders and keep gridlines
+#         fig.update_xaxes(
+#             showline=True,  # Show axis line
+#             linewidth=1,  # Set line width
+#             linecolor="black",  # Set line color to black
+#             showgrid=True,  # Keep gridlines
+#             gridcolor="lightgray"  # Set gridline color
+#         )
+#         fig.update_yaxes(
+#             showline=True,  # Show axis line
+#             linewidth=1,  # Set line width
+#             linecolor="black",  # Set line color to black
+#             showgrid=True,  # Keep gridlines
+#             gridcolor="lightgray"  # Set gridline color
+#         )
+
+#         # Update the compound image based on group_run_number
+#         if group_run_number in runnum_to_structure_image_grid:
+#             compound_image_widget.value = base64.b64decode(runnum_to_structure_image_grid[group_run_number])
+#             compound_image_label.value = f"Structures in Run{group_run_number}"  # Update the label text
+#         else:
+#             compound_image_widget.value = b''  # Clear the image if not found
+#             compound_image_label.value = "No Structures Found"  # Update the label text
+
+#         # Create checkboxes for selecting good adducts with peak indices
+#         all_adducts_checkboxes = [
+#             widgets.Checkbox(
+#                 value=False,
+#                 description=combo['description'],
+#                 disabled=False,
+#                 layout=widgets.Layout(width='300px', margin='0 0 0 -75px')
+#             )
+#             for combo in adduct_peak_combinations
+#         ]
+#         ambiguous_checkbox = widgets.Checkbox(
+#             value=False,
+#             description="Ambiguous",
+#             disabled=False,
+#              layout=widgets.Layout(width='300px', margin='0 0 0 -75px')
+#         )
+#         all_adducts_checkboxes.append(ambiguous_checkbox)
+#         checkbox_dict = {checkbox.description: checkbox for checkbox in all_adducts_checkboxes}
+
+#         # Initialize best_adducts with the default value if not already set
+#         if unique_id not in best_adducts and adduct_peak_combinations:
+#             best_adducts[unique_id] = [adduct_peak_combinations[0]['adduct']]
+
+#         # Create best_adducts_checkboxes for adduct selection
+#         best_adducts_checkboxes = widgets.VBox(
+#             children=[
+#                 widgets.Checkbox(
+#                     value=(adduct in best_adducts.get(unique_id, [])),
+#                     description=adduct,
+#                     layout=widgets.Layout(width='275px', margin='0 0 0 -75px')
+#                 )
+#                 for adduct in dict.fromkeys(combo['adduct'] for combo in adduct_peak_combinations)
+#             ]
+#         )
+        
+#         def on_all_adducts_checkboxes_change(change):
+#             if ambiguous_checkbox.value:
+#                 ambiguous_adducts[unique_id] = unique_id
+#                 selected_good_adducts.pop(unique_id, None)
+#                 best_adducts.pop(unique_id, None)
+#             else:
+#                 selected_good_adducts[unique_id] = [
+#                     combo['adduct'] + "||" + str(combo['peak_index'])
+#                     for combo in adduct_peak_combinations 
+#                     if checkbox_dict[combo['description']].value
+#                 ]
+#                 ambiguous_adducts.pop(unique_id, None)
+
+#         def on_best_adducts_checkboxes_change(change):
+#             selected_adducts = [
+#                 checkbox.description
+#                 for checkbox in best_adducts_checkboxes.children
+#                 if checkbox.value
+#             ]
+#             best_adducts[unique_id] = selected_adducts
+
+#         for checkbox in all_adducts_checkboxes:
+#             checkbox.observe(on_all_adducts_checkboxes_change, names='value')
+
+#         for checkbox in best_adducts_checkboxes.children:
+#             checkbox.observe(on_best_adducts_checkboxes_change, names='value')
+
+#         # Set previously selected values
+#         if unique_id in selected_good_adducts:
+#             for selected_combo in selected_good_adducts[unique_id]:
+#                 adduct, peak_index = selected_combo.split("||")
+#                 for combo in adduct_peak_combinations:
+#                     if combo['adduct'] == adduct and str(combo['peak_index']) == peak_index:
+#                         combo_description = combo['description']
+#                         if combo_description in checkbox_dict:
+#                             checkbox_dict[combo_description].value = True
+#         elif unique_id in ambiguous_adducts:
+#             ambiguous_checkbox.value = True
+
+#         # Set previously selected value for best_adducts_checkboxes
+#         if unique_id in best_adducts:
+#             for checkbox in best_adducts_checkboxes.children:
+#                 if checkbox.description in best_adducts[unique_id]:
+#                     checkbox.value = True
+    
+#         # Create the layout with all_adducts_checkboxes and best_adducts_checkboxes
+#         top_layout = create_layout(all_adducts_checkboxes, best_adducts_checkboxes)
+#         plot_and_checkboxes = widgets.VBox(
+#             [top_layout, widgets.Output()],
+#             layout=widgets.Layout(align_items='flex-start')
+#         )
+
+#         clear_output(wait=True)
+#         update_progress_text()
+#         with plot_and_checkboxes.children[1]:
+#             display(fig)
+#         display(plot_and_checkboxes)
+#         display(output_container)
+
+#     # Initialize
+#     current_index = 0
+#     update_plot(current_index)
