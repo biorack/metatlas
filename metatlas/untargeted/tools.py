@@ -1107,6 +1107,8 @@ def mirror_raw_data_to_gnps2(
             if overwrite_existing_dir is False:
                 logging.info(tab_print(f"Found existing directory {remote_directory} at GNPS2 and overwrite_existing_dir is False. Exiting.", 3))
                 return "Failed"
+            elif overwrite_existing_dir is True:
+                logging.info(tab_print(f"Found existing directory {remote_directory} at GNPS2 and overwrite_existing_dir is True. Continuing.", 3))
         else:
             logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
             return "Failed"
