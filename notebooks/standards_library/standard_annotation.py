@@ -2949,28 +2949,36 @@ def generate_selection_summary_table(
     Returns:
         pd.DataFrame: A new DataFrame with all columns from rt_peaks_all plus a 'notes' column.
     """
-    # Create a new column in rt_peaks_all to store the notes
-    summary_table = rt_peaks_data.copy()
-    summary_table['notes'] = ""
-    summary_table['reviewed'] = "No"
 
-    # Iterate through the running_notes_dict and map notes to the DataFrame
-    for key, notes in running_notes_dict.items():
-        compound_name, standard_lcmsrun = key.split(";;")
-        mask = (summary_table['compound_name'] == compound_name) & \
-               (summary_table['standard_lcmsrun'] == standard_lcmsrun)
-        summary_table.loc[mask, 'notes'] = notes
+    for chrom in config['project']['include_chromatographies']:
 
-    summary_table['ppm_error'] = abs(summary_table['mz_theoretical']-summary_table['mz_observed'])/summary_table['mz_theoretical']*1e6
+        # Create a new column in rt_peaks_all to store the notes
+        summary_table = rt_peaks_data[rt_peaks_data['chromatography'] == chrom]
+        summary_table  = summary_table.copy()
+        summary_table['notes'] = ""
+        summary_table['reviewed'] = "No"
 
-    column_order = ['reviewed', 'compound_name', 'formula', 'neutralized_inchi', 'monoisotopic_mass', 'mz_theoretical', 'mz_observed', 'ppm_error', 'polarity', 'standard_lcmsrun', 'adduct', 'rt_peak', 'intensity', 'notes']
-    summary_table = summary_table[column_order]
+        # Iterate through the running_notes_dict and map notes to the DataFrame
+        for key, notes in running_notes_dict.items():
+            compound_name, standard_lcmsrun = key.split(";;")
+            mask = (summary_table['compound_name'] == compound_name) & \
+                (summary_table['standard_lcmsrun'] == standard_lcmsrun)
+            summary_table.loc[mask, 'notes'] = notes
 
-    fname = f"{config['project']['standards_output_path']}/standards_summary_table_{timestamp}.csv"
-    summary_table.to_csv(fname, index=False)
-    print(f"Summary table saved to: {fname}")
+        summary_table['ppm_error'] = abs(summary_table['mz_theoretical']-summary_table['mz_observed'])/summary_table['mz_theoretical']*1e6
 
-    return summary_table
+        column_order = ['reviewed', 'compound_name', 'polarity', 'formula', 'neutralized_inchi', 'monoisotopic_mass', 'mz_theoretical', 'mz_observed', 'ppm_error', 'standard_lcmsrun', 'adduct', 'rt_peak', 'intensity', 'notes']
+        summary_table = summary_table[column_order]
+
+        # Save the summary table to a CSV file
+        summaries_path = f"{config['project']['standards_output_path']}/summary_tables"
+        if not os.path.exists(summaries_path):
+            os.makedirs(summaries_path)
+        fname = f"{summaries_path}/{chrom}_standards_summary_table_{timestamp}.csv"
+        summary_table.to_csv(fname, index=False)
+        print(f"\n{chrom} summary table saved to: {fname}")
+
+    return
 
 
 def generate_static_summary_plots(
@@ -3508,7 +3516,7 @@ def generate_static_summary_plots(
         
         # Export the figure if export_dir is provided
         if config['project']["standards_output_path"]:
-            export_dirname = os.path.join(config['project']["standards_output_path"], "selection_summary_plots")
+            export_dirname = os.path.join(config['project']["standards_output_path"], "summary_plots")
             os.makedirs(export_dirname, exist_ok=True)
             fname = f"{export_dirname}/{group_id}_summary_plot.pdf"
             fig.write_image(
