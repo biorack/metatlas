@@ -1,7 +1,7 @@
 """Transfer files to Google Drive"""
 
 import logging
-
+from datetime import datetime
 from pathlib import Path
 
 from IPython.core.display import display, HTML
@@ -36,7 +36,9 @@ def copy_outputs_to_google_drive(ids: AnalysisIdentifiers) -> None:
         return
     pre_parts = len(ids.project_directory.parts)
     upload_folders = ids.output_dir.parts[pre_parts:]
+    date_str = datetime.now().strftime("%Y-%m-%d")
     dest = Path("Analysis_uploads").joinpath(*upload_folders)
+    dest = dest.with_name(f"{dest.name}_{date_str}")
     rci.copy_to_drive(ids.output_dir, drive, dest, progress=True)
     logger.info("Done copying output files to Google Drive")
     path_string = f"{drive}:{dest}"
