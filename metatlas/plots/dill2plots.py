@@ -3,6 +3,7 @@ import logging
 import os
 import os.path
 import warnings
+import gc
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
 
@@ -357,8 +358,20 @@ class adjust_rt_for_selected_compound(object):
         self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
         self.id_note.observe(self.on_id_note_change, names='value')
         self.set_plot_data()
+        self._event_cids = {}
         # Turn On interactive plot
         plt.ion()
+        self.connect_events()
+
+    def connect_events(self):
+        # Disconnect previous if present
+        for name, cid in self._event_cids.items():
+            self.fig.canvas.mpl_disconnect(cid)
+        self._event_cids.clear()
+        # Connect and store new
+        self._event_cids['pick'] = self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
+        self._event_cids['key_press'] = self.fig.canvas.mpl_connect('key_press_event', self.press)
+        self._event_cids['motion'] = self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
 
     def set_plot_data(self):
         logger.debug('Starting replot')
@@ -436,6 +449,13 @@ class adjust_rt_for_selected_compound(object):
         self.msms_flag_radio.active = self.enable_edit
 
     def y_max_slider(self):
+        # Remove old slider if it exists
+        if hasattr(self, 'y_scale_slider') and self.y_scale_slider is not None:
+            try:
+                self.y_scale_slider.ax.cla()
+            except Exception:
+                pass
+            self.y_scale_slider = None
         (self.slider_y_min, self.slider_y_max) = self.ax.get_ylim()
         self.y_scale_slider = Slider(self.y_scale_ax, '', self.slider_y_min, self.slider_y_max,
                                      valfmt='', valinit=self.slider_y_max, color=self.peak_color,
@@ -444,6 +464,15 @@ class adjust_rt_for_selected_compound(object):
         self.y_scale_slider.on_changed(self.update_y_scale)
 
     def rt_bounds(self):
+        # Remove old sliders if they exist
+        for attr in ['rt_min_slider', 'rt_max_slider', 'rt_peak_slider']:
+            slider = getattr(self, attr, None)
+            if slider is not None:
+                try:
+                    slider.ax.cla()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
         # put vlines on plot before creating sliders, as adding the vlines may increase plot
         # width, as the vline could occur outside of the data points
         rt = self.data.rts[self.compound_idx]
@@ -729,25 +758,48 @@ class adjust_rt_for_selected_compound(object):
                 self.fig.canvas.draw_idle()
 
     def hide_radio_buttons(self):
-        self.peak_flag_radio.set_radio_props({'facecolor':'white'})
-        self.lin_log_radio.set_radio_props({'facecolor':'white'})
-        self.msms_flag_radio.set_radio_props({'facecolor':'white'})
-        for label in self.peak_flag_radio.labels:
-            label.set_color('white')
-        for label in self.lin_log_radio.labels:
-            label.set_color('white')
-        for label in self.msms_flag_radio.labels:
-            label.set_color('white')
+        if getattr(self, 'peak_flag_radio', None) is not None:
+            self.peak_flag_radio.set_radio_props({'facecolor':'white'})
+            for label in self.peak_flag_radio.labels:
+                label.set_color('white')
+        if getattr(self, 'lin_log_radio', None) is not None:
+            self.lin_log_radio.set_radio_props({'facecolor':'white'})
+            for label in self.lin_log_radio.labels:
+                label.set_color('white')
+        if getattr(self, 'msms_flag_radio', None) is not None:
+            self.msms_flag_radio.set_radio_props({'facecolor':'white'})
+            for label in self.msms_flag_radio.labels:
+                label.set_color('white')
 
     def update_plots(self):
         self.msms_zoom_factor = 1
         self.ax.cla()
         self.ax2.cla()
-        self.rt_peak_ax.cla()
-        self.rt_min_ax.cla()
-        self.rt_max_ax.cla()
-        self.y_scale_ax.cla()
+        # Clear widget axes
+        for widget_ax in [self.rt_peak_ax, self.rt_min_ax, self.rt_max_ax, self.y_scale_ax]:
+            widget_ax.cla()
+        # Hide radio buttons before removing them
         self.hide_radio_buttons()
+        # Remove old radio buttons if they exist
+        for attr in ['peak_flag_radio', 'lin_log_radio', 'msms_flag_radio']:
+            btn = getattr(self, attr, None)
+            if btn is not None:
+                try:
+                    btn.disconnect_events()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+        # Disconnect all events
+        for name, cid in self._event_cids.items():
+            self.fig.canvas.mpl_disconnect(cid)
+        self._event_cids.clear()
+        # Clear lists and other data structures
+        self.similar_rects = []
+        self.similar_compounds = []
+        # Force garbage collection
+        gc.collect()
+        # Reconnect events
+        self.connect_events()
         self.set_plot_data()
 
     @log_errors(output_context=LOGGING_WIDGET)
