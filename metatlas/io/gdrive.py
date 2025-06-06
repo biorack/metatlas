@@ -36,7 +36,7 @@ def copy_outputs_to_google_drive(ids: AnalysisIdentifiers) -> None:
         return
     pre_parts = len(ids.project_directory.parts)
     upload_folders = ids.output_dir.parts[pre_parts:]
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     dest = Path("Analysis_uploads").joinpath(*upload_folders)
     dest = dest.with_name(f"{dest.name}_{date_str}")
     rci.copy_to_drive(ids.output_dir, drive, dest, progress=True)
