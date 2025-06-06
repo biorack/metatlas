@@ -473,7 +473,7 @@ def write_notebooks(
     out = []
     for atlas, analysis in zip(atlases, workflow.analyses):
         source = repo_path() / "notebooks" / "reference" / "Targeted.ipynb"
-        dest = Path(ids.notebook_dir) / f"{ids.experiment_id}_{workflow.name}_{analysis.name}.ipynb"
+        dest = Path(ids.notebook_dir) / f"{ids.experiment_id}_{workflow.name}_{analysis.name}_{ids.rt_alignment_number}.ipynb"
         out_parameters: Dict[str, Any] = {"analysis_number": 0}
         for key, set_value in set_parameters.items():
             if isinstance(set_value, dict):
