@@ -510,6 +510,7 @@ def run(
     )
     shutil.copy2(params.config_file_name, ids.output_dir)
     ids.set_output_state(params, "rt_alignment")
-    metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus, rt_min_delta=params.rt_min_delta, rt_max_delta=params.rt_max_delta)
+    metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus, rt_min_delta=params.rt_min_delta, 
+                                       rt_max_delta=params.rt_max_delta, inchi_key_subset=params.inchi_key_subset)
     generate_outputs(metatlas_dataset, workflow, set_parameters)
     return metatlas_dataset

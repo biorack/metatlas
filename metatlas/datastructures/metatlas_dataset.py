@@ -149,6 +149,7 @@ class MetatlasDataset(HasTraits):
     atlas: metob.Atlas = Instance(klass=metob.Atlas)
     rt_min_delta = Float(allow_none=True, default_value=None)
     rt_max_delta = Float(allow_none=True, default_value=None)
+    inchi_key_subset: Optional[List[str]] = traitlets.List(allow_none=True, default_value=None)
     _atlas_df: Optional[pd.DataFrame] = Instance(klass=pd.DataFrame, allow_none=True, default_value=None)
     # _all_data contanis all data in experiement before any filtering
     _all_data: Optional[SampleSet] = traitlets.Tuple(allow_none=True, default_value=None)
@@ -263,6 +264,7 @@ class MetatlasDataset(HasTraits):
         else:
             temp_atlas = self._clone_source_atlas()
         self.atlas = metob.adjust_atlas_rt_range(temp_atlas, self.rt_min_delta, self.rt_max_delta)
+        self.atlas = metob.subset_atlas_by_compounds(self.atlas, self.inchi_key_subset)
         if self.parameters.mz_tolerance_override is not None:
             set_atlas_mz_tolerance(self.atlas, self.parameters.mz_tolerance_override, True)
         else:

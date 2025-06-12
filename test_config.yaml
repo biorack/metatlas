@@ -43,6 +43,7 @@ workflows:
           name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
           unique_id: e7fba1813272439498405436a28b90b2
         parameters:
+          inchi_key_subset: ["OLXZPDWKRNYJJZ-RRKCRQDMSA-N", "GFFGJBXGBJISGV-UHFFFAOYSA-N"]
           groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
           include_groups:
             rt_alignment: ["QC"]

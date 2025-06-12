@@ -62,6 +62,7 @@ class BaseNotebookParameters(BaseModel):
     copy_atlas: bool = False
     draft: bool = False
     source_atlas_unique_id: Optional[str] = None
+    inchi_key_subset: List[str] = None
     include_groups: OutputLists = OutputLists()
     exclude_groups: OutputLists = OutputLists()
     include_lcmsruns: OutputLists = OutputLists()

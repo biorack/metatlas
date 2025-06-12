@@ -725,3 +725,27 @@ def adjust_atlas_rt_range(
         rts.rt_min = rts.rt_min if rt_min_delta is None else rts.rt_peak + rt_min_delta
         rts.rt_max = rts.rt_max if rt_max_delta is None else rts.rt_peak + rt_max_delta
     return out_atlas
+
+def subset_atlas_by_compounds(
+    in_atlas: Atlas, compounds: Optional[MetList] = None
+) -> Atlas:
+    """Return a new atlas with only the specified compounds or inchi_keys."""
+    if compounds is None or not compounds:
+        logger.info("No compounds specified for subsetting, returning the original atlas.")
+        return in_atlas
+    out_atlas = deepcopy(in_atlas)
+    # If compounds is a list of strings, treat as inchi_keys
+    if isinstance(compounds, list) and all(isinstance(c, str) for c in compounds):
+        inchi_keys = set(compounds)
+        out_atlas.compound_identifications = [
+            cid for cid in out_atlas.compound_identifications
+            if any(getattr(comp, "inchi_key", None) in inchi_keys for comp in cid.compound)
+        ]
+    else:
+        out_atlas.compound_identifications = [
+            cid for cid in out_atlas.compound_identifications
+            if any(c in compounds for c in cid.compound)
+        ]
+    logger.info(f"Subset original atlas by compounds defined in inchi_key_subset list in config: {set(compounds)}")
+    logger.info(f"Filtered atlas from {len(in_atlas.compound_identifications)} to {len(out_atlas.compound_identifications)} compound identifications.")
+    return out_atlas
