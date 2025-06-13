@@ -435,17 +435,26 @@ def create_aligned_atlases(
     model = offset if workflow.rt_alignment.parameters.use_offset_model else model
     for analysis in tqdm(workflow.analyses, unit="atlas", disable=in_papermill()):
         template_atlas = get_atlas(analysis.atlas.unique_id, analysis.atlas.name)
+        template_atlas = metob.subset_atlas_by_compounds(template_atlas, analysis.parameters.custom_compound_list)
         if analysis.atlas.do_alignment or analysis.atlas.do_prefilter:
             name = get_atlas_name(ids, workflow, analysis, model)
             logger.info("Creating atlas %s", name)
             out_atlas_file_name = ids.output_dir / f"{name}.csv"
 
-            aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset, analysis.atlas.align_rt_min_max) if analysis.atlas.do_alignment else template_atlas
+            if analysis.atlas.do_alignment:
+                aligned_atlas = align_atlas(template_atlas, model, analysis.atlas.rt_offset, analysis.atlas.align_rt_min_max)
+            else:
+                logger.info("Skipping RT alignment for atlas %s", template_atlas.name)
+                aligned_atlas = template_atlas
+
             logger.info("Collecting data for pre-filter") if analysis.atlas.do_prefilter else None
             aligned_filtered_atlas = filter_atlas(aligned_atlas, ids, analysis, data) if analysis.atlas.do_prefilter else aligned_atlas
             aligned_filtered_atlas.name = name
 
+            logger.info(f"RT alignment of {template_atlas.name} ({template_atlas.unique_id}) complete.")
+            logger.info(f"New aligned atlas will be stored: {aligned_filtered_atlas.name} ({aligned_filtered_atlas.unique_id})")
             metob.store(aligned_filtered_atlas)
+
             aligned_filtered_atlas_df = ma_data.make_atlas_df(aligned_filtered_atlas)
             write_utils.export_dataframe_die_on_diff(
                 aligned_filtered_atlas_df, out_atlas_file_name, "RT aligned atlas", index=False, float_format="%.6e"
@@ -511,6 +520,6 @@ def run(
     shutil.copy2(params.config_file_name, ids.output_dir)
     ids.set_output_state(params, "rt_alignment")
     metatlas_dataset = MetatlasDataset(ids=ids, max_cpus=params.max_cpus, rt_min_delta=params.rt_min_delta, 
-                                       rt_max_delta=params.rt_max_delta, inchi_key_subset=params.inchi_key_subset)
+                                       rt_max_delta=params.rt_max_delta)
     generate_outputs(metatlas_dataset, workflow, set_parameters)
     return metatlas_dataset
