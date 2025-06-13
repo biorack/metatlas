@@ -74,7 +74,7 @@ workflows:
             do_prefilter: False
             align_rt_min_max: False
           parameters:
-            custom_compound_list: ["C1[C@@H]([C@H](O[C@H]1N2C=NC3=C(N=CN=C32)N)CO)O", "GFFGJBXGBJISGV-UHFFFAOYSA-N"]
+            custom_compound_list: []
             copy_atlas: True
             polarity: positive
             exclude_groups:
@@ -116,7 +116,7 @@ workflows:
             align_rt_min_max: False
             rt_offset: 0.2
           parameters:
-            custom_compound_list: ["OLXZPDWKRNYJJZ-RRKCRQDMSA-N", "GFFGJBXGBJISGV-UHFFFAOYSA-N"]
+            custom_compound_list: []
             copy_atlas: True
             polarity: negative
             exclude_groups:
