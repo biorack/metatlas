@@ -6,6 +6,9 @@ import os
 import pprint
 import time
 import uuid
+import re
+
+from rdkit import Chem
 
 from copy import deepcopy
 from typing import Dict, Optional
@@ -724,4 +727,54 @@ def adjust_atlas_rt_range(
         rts = cid.rt_references[0]
         rts.rt_min = rts.rt_min if rt_min_delta is None else rts.rt_peak + rt_min_delta
         rts.rt_max = rts.rt_max if rt_max_delta is None else rts.rt_peak + rt_max_delta
+    return out_atlas
+
+def is_inchi_key(s: str) -> bool:
+    return bool(re.compile(r"^[A-Z]{14}-[A-Z]{10}-[A-Z]$").match(s))
+
+def smiles_to_inchi_key(smiles: str) -> str:
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        raise ValueError(f"Invalid SMILES string: {smiles}")
+    return Chem.inchi.MolToInchiKey(mol)
+
+def ensure_inchi_keys(compounds):
+    result = []
+    for c in compounds:
+        if is_inchi_key(c):
+            result.append(c)
+        else:
+            try:
+                inchi_key = smiles_to_inchi_key(c)
+                result.append(inchi_key)
+            except Exception as e:
+                raise ValueError(f"Could not convert '{c}' to InChIKey: {e}")
+    return result
+
+def subset_atlas_by_compounds(
+    in_atlas: Atlas, compounds: Optional[MetList] = None
+) -> Atlas:
+    """Return a new atlas with only the specified compounds or inchi_keys."""
+    if compounds is None or not compounds:
+        logger.info(f"No compounds specified for subsetting {in_atlas.name} ({in_atlas.unique_id}), returning the original atlas.")
+        return in_atlas
+    out_atlas = deepcopy(in_atlas)
+    # If compounds is a list of strings, ensure all are inchi_keys (convert SMILES if needed)
+    if isinstance(compounds, list) and all(isinstance(c, str) for c in compounds):
+        try:
+            inchi_keys = set(ensure_inchi_keys(compounds))
+        except Exception as e:
+            logger.error(f"Error converting compounds to InChIKeys: {e}")
+            raise
+        out_atlas.compound_identifications = [
+            cid for cid in out_atlas.compound_identifications
+            if any(getattr(comp, "inchi_key", None) in inchi_keys for comp in cid.compound)
+        ]
+    else:
+        out_atlas.compound_identifications = [
+            cid for cid in out_atlas.compound_identifications
+            if any(c in compounds for c in cid.compound)
+        ]
+    logger.info(f"Compounds were specified for subsetting atlas {in_atlas.name} ({in_atlas.unique_id}): {set(compounds)}")
+    logger.info(f"Filtered atlas from {len(in_atlas.compound_identifications)} to {len(out_atlas.compound_identifications)} compounds.")
     return out_atlas
