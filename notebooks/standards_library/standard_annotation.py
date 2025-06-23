@@ -542,6 +542,8 @@ def get_collision_energy(lcmsrun_path: str) -> str:
     Returns:
         str: The extracted collision energy as a string.
     """
+    if not lcmsrun_path or (isinstance(lcmsrun_path, float) and np.isnan(lcmsrun_path)):
+        return np.nan
     lcmsrun = os.path.basename(lcmsrun_path)
     collision_energy = lcmsrun.split('_')[-2].split('-')[1][2:]
     return collision_energy
@@ -598,7 +600,7 @@ def check_db_deposit(new_entries_df: pd.DataFrame) -> None:
     Returns:
         None
     """
-    print("Running double check for compounds in metatlas db Comopunds table...")
+    print("Running double check for compounds in metatlas db Compounds table...")
     missing = {}
     all_molecules_check = new_entries_df[new_entries_df['adduct'] != "Ambiguous"]
 
@@ -833,10 +835,10 @@ def get_all_ms1_and_ms2(
             if peaks.size == 0:
                 peaks = [np.argmax(eic_row['i'][rt_sort])]
 
-            # Filter peaks to retain only the one with the highest intensity if they are within 0.1 RT minutes
+            # Filter peaks to retain only the one with the highest intensity if they are within 0.05 RT minutes
             filtered_peaks = []
             for i, peak_index in enumerate(peaks):
-                if i == 0 or (sorted_rt[peak_index] - sorted_rt[filtered_peaks[-1]] > 0.1):
+                if i == 0 or (sorted_rt[peak_index] - sorted_rt[filtered_peaks[-1]] > 0.05):
                     filtered_peaks.append(peak_index)
                 else:
                     # Replace the last peak if the current one has higher intensity
@@ -2199,9 +2201,6 @@ def create_baseline_correction_input(
 
     baseline_correction_inputs = {}
     for chrom in baseline_to_experimental_qc.keys():
-        if config['atlases']['rt_correction_models'][chrom] is not None:
-            print(f"Skipping baseline RT correction {chrom} chromatography as it has a user-defined RT correction model.")
-            continue
         uncorrected_atlas_chrom = uncorrected_atlas[uncorrected_atlas['chromatography'] == chrom]
         uncorrected_atlas_chrom = uncorrected_atlas_chrom.drop(columns=['chromatography'])
         uncorrected_atlas_chrom = uncorrected_atlas_chrom.rename(columns={'rt_peak': 'rt_peak_experimental', 'rt_min': 'rt_min_experimental', 'rt_max': 'rt_max_experimental'})
@@ -2244,9 +2243,11 @@ def rt_correction_from_baseline(
             fit_data["rt_peak_baseline"] = pd.to_numeric(fit_data["rt_peak_baseline"], errors="coerce")
             coefficients = np.polyfit(fit_data["rt_peak_experimental"], fit_data["rt_peak_baseline"], 2)
             polynomial = np.poly1d(coefficients)
+            type_of_fit = "auto-generated"
         elif config['atlases']['rt_correction_models'][chromatography] is not None:
-            coeffs = config['atlases']['rt_correction_models'][chromatography]
-            polynomial = np.poly1d(coeffs)
+            coefficients = config['atlases']['rt_correction_models'][chromatography]
+            polynomial = np.poly1d(coefficients)
+            type_of_fit = "user-defined"
 
         # Apply the polynomial to all rows where rt_experimental is available
         df["rt_peak_corrected"] = df["rt_peak_experimental"].apply(
@@ -2278,7 +2279,7 @@ def rt_correction_from_baseline(
              'rt_peak_corrected', 'rt_min_corrected', 'rt_max_corrected', 'rt_diff_experimental_vs_corrected']
         ]
 
-        print(f"\t{chromatography} RT correction results:")
+        print(f"\t{chromatography} RT correction results using {type_of_fit} polynomial coefficients: {coefficients}")
         display(corrected_dfs[chromatography])
 
     return corrected_dfs
@@ -2368,9 +2369,6 @@ def update_and_save_ema_atlases(
         for polarity, atlas_data in polarities.items():
             new_atlas_ids[chrom][polarity] = ""
             new_atlas_names[chrom][polarity] = ""
-            if not isinstance(atlas_data, pd.DataFrame):
-                print(f"Warning: Atlas data for {chrom} {polarity} is not a DataFrame. Skipping.")
-                continue
             atlas_name = atlas_data['source_atlas'].iloc[0]
 
             # Filter nonmatches_to_atlases_rt_corrected to match the current chrom and polarity
@@ -2396,8 +2394,6 @@ def update_and_save_ema_atlases(
                 compounds_to_add_to_atlas['synonyms'] = compounds_to_add_to_atlas['inchi_key'].map(synonyms_dict)
                 pubchem_id_dict = get_pubchem_cids_from_inchi_keys(compounds_to_add_to_atlas['inchi_key'].tolist())
                 compounds_to_add_to_atlas['pubchem_compound_id'] = compounds_to_add_to_atlas['inchi_key'].map(pubchem_id_dict)
-                atlas_data['file_name'] = ""
-                atlas_data['file_type'] = ""
                 compounds_to_add_to_atlas['file_name'] = compounds_to_add_to_atlas['standard_lcmsrun']
                 compounds_to_add_to_atlas['file_type'] = "lcms_file"
                 compounds_to_add_to_atlas['source_atlas'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
@@ -2408,15 +2404,16 @@ def update_and_save_ema_atlases(
                 compounds_to_add_to_atlas['library'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
                 compounds_to_add_to_atlas['code'] = compounds_to_add_to_atlas['library'].str.upper() + compounds_to_add_to_atlas.index.astype(str)
                 compounds_to_add_to_atlas['name'] = compounds_to_add_to_atlas['compound_name']
-                atlas_data['identification_notes'] = ""
-                atlas_data['ms1_notes'] = ""
-                atlas_data['ms2_notes'] = ""
                 compounds_to_add_to_atlas['identification_notes'] = ""
                 compounds_to_add_to_atlas['ms1_notes'] = ""
                 compounds_to_add_to_atlas['ms2_notes'] = ""                
                 compounds_to_add_to_atlas['source_atlas'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
-            atlas_data['compound_classes'] = ""
-            atlas_data['compound_pathways'] = ""
+            for col in [
+                'file_name', 'file_type', 'identification_notes',
+                'ms1_notes', 'ms2_notes', 'compound_classes', 'compound_pathways'
+            ]:
+                if col not in atlas_data.columns:
+                    atlas_data[col] = ""
 
             # Format the columns of compounds to be added to match the atlas format so no columns are missing
             missing_columns = atlas_data.columns.difference(compounds_to_add_to_atlas.columns)
@@ -2450,9 +2447,9 @@ def update_and_save_ema_atlases(
             if not os.path.exists(updated_atlas_dir):
                 os.makedirs(updated_atlas_dir)
             standalone_tag = "_standalone" if config['atlases']['standalone_ema_atlas'] else ""
-            if atlas_name.endswith('.tsv'): # If atlas input from yaml is a file and in tsv format
+            if atlas_name.endswith('.tsv'):
                 new_atlas_name = atlas_name.replace(".tsv", f"_{current_time}{standalone_tag}.tsv")
-            elif atlas_name.endswith('.csv'): # If atlas input from yaml is a file and in csv format
+            elif atlas_name.endswith('.csv'):
                 new_atlas_name = atlas_name.replace(".csv", f"_{current_time}{standalone_tag}.tsv")
             else: # If atlas input from yaml is a metatlas UID
                 new_atlas_name = f"{atlas_name}_{current_time}{standalone_tag}.csv"
@@ -2546,7 +2543,7 @@ def update_and_save_msms_refs(
         os.makedirs(updated_refs_dir)
     fname = f"{updated_refs_dir}/msms_refs_{timestamp}{standalone_tag}.tab"
     print(f"\tNew MSMS refs: {fname}")
-    new_msms_refs.to_csv(fname, sep='\t', index=False)
+    new_msms_refs.to_csv(fname, sep='\t')
 
     return
 
@@ -3198,7 +3195,8 @@ def generate_selection_summary_table(
 
         # Merge rt_peaks_table with summary_table on compound_name and polarity
         summary_table = pd.merge(compound_table, rt_peaks_table, on=['compound_name', 'chromatography', 'polarity'], how='left')
-        summary_table['reviewed'] = "No"
+        summary_table['collision_energy'] = summary_table['standard_lcmsrun'].apply(get_collision_energy)
+        summary_table['post_review_notes'] = ""
 
         # Iterate through the running_notes_dict and map notes to the DataFrame
         for key, notes in running_notes_dict.items():
@@ -3226,7 +3224,7 @@ def generate_selection_summary_table(
                 print(f"Warning: Compound '{compound_name}' in chromatography '{chrom}' does not have at least one adduct in both polarities (only has {polarities}).")
 
         for summary_data_name, summary_data in summary_tables_dict.items():
-            column_order = ['reviewed', 'compound_name', 'adduct', 'polarity', 'formula', 'neutralized_inchi', 'monoisotopic_mass', 'mz_theoretical', 'mz_observed', 'ppm_error', 'standard_lcmsrun', 'rt_peak', 'intensity', 'notes']
+            column_order = ['compound_name', 'adduct', 'best_adduct', 'polarity', 'collision_energy', 'formula', 'neutralized_inchi', 'monoisotopic_mass', 'mz_theoretical', 'mz_observed', 'ppm_error', 'standard_lcmsrun', 'rt_peak', 'intensity', 'notes', 'post_review_notes']
             summary_output = summary_data[column_order]
             summary_output = summary_output.fillna("-")
 
