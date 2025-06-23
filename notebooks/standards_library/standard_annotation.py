@@ -584,6 +584,7 @@ def store_in_metatlas_db(cid_not_in_db: Any) -> None:
     Args:
         cid_not_in_db (Any): The compound identification object to be stored.
     """
+    print("Storing compound in the metatlas database compounds table...")
     metob.store(cid_not_in_db)
 
 def check_db_deposit(new_entries_df: pd.DataFrame) -> None:
@@ -1707,8 +1708,10 @@ def write_mgf_from_top_spectra(top_spectra_all: pd.DataFrame,
             current_id = int(starting_mgf_id.split("CCMSLIB")[1])
 
     for _, row in rt_peaks_and_top_spectra.iterrows():
-        # Extract m/z and intensity values
-        mz_values, intensity_values = row['spectrum']
+        spectrum = row['spectrum']
+        if spectrum is None or (isinstance(spectrum, float) and pd.isna(spectrum)):
+            continue
+        mz_values, intensity_values = spectrum
         
         # Increment the SPECTRUMID for each entry
         if config['msms_refs']['standalone_mgf'] is True:
@@ -2094,9 +2097,31 @@ def get_qc_atlas_dataframe(atlas_identifier: str) -> pd.DataFrame:
     else:
         return atlas_id_to_df(atlas_identifier)
     
+def run_rt_correction(
+    nonmatches_to_atlases: pd.DataFrame, 
+    config: Dict[str, Any]
+) -> None:
+    """
+    Run retention time (RT) correction for compounds not matched to existing atlases.
+    This function collects experimental QC data, retrieves baseline atlases, and performs RT correction.
+    Args:
+        nonmatches_to_atlases (pd.DataFrame): DataFrame containing compounds not matched to existing atlases.
+        config (Dict[str, Any]): Configuration dictionary containing parameters for mapping chromatography types to baseline atlas file paths or IDs.
+    Returns:
+        Tuple[Dict[str, pd.DataFrame], Dict[str, pd.DataFrame]]: A tuple containing two dictionaries:
+            - baseline_correction_inputs: Dictionary where keys are chromatography types and values are DataFrames with experimental and baseline QC data.
+            - baseline_correction_outputs: Dictionary where keys are chromatography types and values are DataFrames with RT correction outputs.
+    """
+
+    _, _, baseline_to_experimental_qc = get_qc_experimental_atlas(nonmatches_to_atlases, config, include_istds=True)
+    baseline_correction_inputs = create_baseline_correction_input(nonmatches_to_atlases, baseline_to_experimental_qc, config)
+    baseline_correction_outputs = rt_correction_from_baseline(baseline_correction_inputs, config)
+
+    return baseline_correction_inputs, baseline_correction_outputs
+
 def get_qc_experimental_atlas(
     nonmatches_to_atlases: pd.DataFrame, 
-    current_atlases: Dict[str, str], 
+    config: Dict[str, Any],
     include_istds: bool = False
 ) -> Dict[str, pd.DataFrame]:
     """
@@ -2104,7 +2129,7 @@ def get_qc_experimental_atlas(
 
     Args:
         nonmatches_to_atlases (pd.DataFrame): DataFrame containing compounds not matched to existing atlases.
-        current_atlases (Dict[str, str]): Dictionary mapping chromatography types to baseline atlas file paths or IDs.
+        config (Dict[str, Any]): Configuration dictionary containing parameters for mapping chromatography types to baseline atlas file paths or IDs.
         include_istds (bool, optional): Whether to include internal standards (ISTDs) in the QC files. Defaults to False.
 
     Returns:
@@ -2131,8 +2156,8 @@ def get_qc_experimental_atlas(
         print(f"\tGetting all QC files for project {project}\n")
         qc_files = get_qc_files(project, chrom, include_istds)
         
-        print(f"\tRetrieving baseline {chrom} QC atlas: {current_atlases[chrom]}\n")
-        baseline_atlas_df = get_qc_atlas_dataframe(current_atlases[chrom])
+        print(f"\tRetrieving baseline {chrom} QC atlas: {config['atlases']['current_qc_atlases'][chrom]}\n")
+        baseline_atlas_df = get_qc_atlas_dataframe(config["atlases"]["current_qc_atlases"][chrom])
         baseline_qc[chrom] = baseline_atlas_df
 
         print(f"\tCollecting QC MS1 data for {chrom}...\n")
@@ -2153,7 +2178,8 @@ def get_qc_experimental_atlas(
 
 def create_baseline_correction_input(
     compounds_to_correct: pd.DataFrame, 
-    baseline_to_experimental_qc: Dict[str, pd.DataFrame]
+    baseline_to_experimental_qc: Dict[str, pd.DataFrame],
+    config: Dict[str, Any]
 ) -> Dict[str, pd.DataFrame]:
     """
     Create input data for retention time (RT) correction by combining experimental and baseline QC data.
@@ -2163,6 +2189,7 @@ def create_baseline_correction_input(
                                              ['label', 'polarity', 'chromatography', 'rt_peak', 'rt_min', 'rt_max'].
         baseline_to_experimental_qc (Dict[str, pd.DataFrame]): Dictionary where keys are chromatography types and 
                                                                values are DataFrames with experimental and baseline QC data.
+        config (Dict[str, Any]): Configuration dictionary containing parameters for RT correction.
 
     Returns:
         Dict[str, pd.DataFrame]: A dictionary where keys are chromatography types and values are DataFrames 
@@ -2172,6 +2199,9 @@ def create_baseline_correction_input(
 
     baseline_correction_inputs = {}
     for chrom in baseline_to_experimental_qc.keys():
+        if config['atlases']['rt_correction_models'][chrom] is not None:
+            print(f"Skipping baseline RT correction {chrom} chromatography as it has a user-defined RT correction model.")
+            continue
         uncorrected_atlas_chrom = uncorrected_atlas[uncorrected_atlas['chromatography'] == chrom]
         uncorrected_atlas_chrom = uncorrected_atlas_chrom.drop(columns=['chromatography'])
         uncorrected_atlas_chrom = uncorrected_atlas_chrom.rename(columns={'rt_peak': 'rt_peak_experimental', 'rt_min': 'rt_min_experimental', 'rt_max': 'rt_max_experimental'})
@@ -2206,32 +2236,28 @@ def rt_correction_from_baseline(
 
     print("\tPerforming RT correction...\n")
     for chromatography, df in tqdm(baseline_correction_dfs.items(), desc="Calculating RT correction model", unit=' chromatography'):
-        # Step 1: Filter rows with both rt_peak_baseline and rt_peak_experimental
-        fit_data = df.dropna(subset=["rt_peak_baseline", "rt_peak_experimental"])
-        fit_data = fit_data[fit_data["polarity"] == "QC"]
         
-        # Ensure numeric data types
-        fit_data["rt_peak_experimental"] = pd.to_numeric(fit_data["rt_peak_experimental"], errors="coerce")
-        fit_data["rt_peak_baseline"] = pd.to_numeric(fit_data["rt_peak_baseline"], errors="coerce")
-        
-        # Step 2: Generate 2nd order polynomial from valid rows
-        coefficients = np.polyfit(fit_data["rt_peak_experimental"], fit_data["rt_peak_baseline"], 2)
-        polynomial = np.poly1d(coefficients)
+        if config['atlases']['rt_correction_models'][chromatography] is None:
+            fit_data = df.dropna(subset=["rt_peak_baseline", "rt_peak_experimental"])
+            fit_data = fit_data[fit_data["polarity"] == "QC"]
+            fit_data["rt_peak_experimental"] = pd.to_numeric(fit_data["rt_peak_experimental"], errors="coerce")
+            fit_data["rt_peak_baseline"] = pd.to_numeric(fit_data["rt_peak_baseline"], errors="coerce")
+            coefficients = np.polyfit(fit_data["rt_peak_experimental"], fit_data["rt_peak_baseline"], 2)
+            polynomial = np.poly1d(coefficients)
+        elif config['atlases']['rt_correction_models'][chromatography] is not None:
+            coeffs = config['atlases']['rt_correction_models'][chromatography]
+            polynomial = np.poly1d(coeffs)
 
-        # Step 3: Apply the polynomial to all rows where rt_experimental is available
+        # Apply the polynomial to all rows where rt_experimental is available
         df["rt_peak_corrected"] = df["rt_peak_experimental"].apply(
             lambda x: polynomial(x) if not np.isnan(x) else np.nan
         )
-
-        # Step 4: Compute rt_min_corrected
         df["rt_min_corrected"] = df.apply(
             lambda row: row["rt_peak_corrected"] - row["rt_peak_experimental"] + row["rt_min_experimental"]
             if not np.isnan(row["rt_peak_corrected"])
             else np.nan,
             axis=1
         )
-
-        # Step 5: Compute rt_max_corrected
         df["rt_max_corrected"] = df.apply(
             lambda row: row["rt_peak_corrected"] + row["rt_max_experimental"] - row["rt_peak_experimental"]
             if not np.isnan(row["rt_peak_corrected"])
@@ -2239,7 +2265,7 @@ def rt_correction_from_baseline(
             axis=1
         )
 
-        # Step 6: Check difference between rt_peak_experimental and rt_peak_corrected
+        # Check difference between rt_peak_experimental and rt_peak_corrected
         df['rt_diff_experimental_vs_corrected'] = df["rt_peak_experimental"] - df["rt_peak_corrected"]
         large_diff_rows = df[df['rt_diff_experimental_vs_corrected'].abs() > 0.5]
         if not large_diff_rows.empty:
@@ -2252,7 +2278,6 @@ def rt_correction_from_baseline(
              'rt_peak_corrected', 'rt_min_corrected', 'rt_max_corrected', 'rt_diff_experimental_vs_corrected']
         ]
 
-        # Print results for preview
         print(f"\t{chromatography} RT correction results:")
         display(corrected_dfs[chromatography])
 
@@ -2390,6 +2415,8 @@ def update_and_save_ema_atlases(
                 compounds_to_add_to_atlas['ms1_notes'] = ""
                 compounds_to_add_to_atlas['ms2_notes'] = ""                
                 compounds_to_add_to_atlas['source_atlas'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
+            atlas_data['compound_classes'] = ""
+            atlas_data['compound_pathways'] = ""
 
             # Format the columns of compounds to be added to match the atlas format so no columns are missing
             missing_columns = atlas_data.columns.difference(compounds_to_add_to_atlas.columns)
