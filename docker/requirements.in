@@ -1,5 +1,6 @@
 alembic
 banal
+pybase64
 black
 colorama
 dataset
@@ -13,12 +14,15 @@ ipysheet
 ipywidgets==8.1.1
 jupyter-client
 jupyterlab
+kaleido
 matchms==0.28.2
 matplotlib
 numpy==1.24.4
 oauth2client
 pandas==2.2.3
 papermill
+plotly
+pillow
 pubchempy
 pydantic
 pymysql
