@@ -58,6 +58,7 @@ workflows:
             name: HILICz150_ANT20190824_TPL_QCv3_Unlab_POS
             unique_id: e7fba1813272439498405436a28b90b2
           parameters:
+            custom_compound_list: []
             polarity: positive
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             include_groups:
@@ -73,6 +74,7 @@ workflows:
             do_prefilter: False
             align_rt_min_max: False
           parameters:
+            custom_compound_list: []
             copy_atlas: True
             polarity: positive
             exclude_groups:
@@ -114,6 +116,7 @@ workflows:
             align_rt_min_max: False
             rt_offset: 0.2
           parameters:
+            custom_compound_list: []
             copy_atlas: True
             polarity: negative
             exclude_groups:

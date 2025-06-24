@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 from typing import TypeAlias, Optional
 from tqdm.notebook import tqdm
+import logging
 
 import matchms as mms
 from matchms.similarity import CosineHungarian
@@ -15,6 +16,8 @@ from metatlas.datastructures.analysis_identifiers import AnalysisIdentifiers
 from metatlas.datastructures.metatlas_dataset import MetatlasDataset
 from metatlas.tools.config import Analysis
 from metatlas.tools.notebook import in_papermill
+
+logger = logging.getLogger(__name__)
 
 # Typing:
 MS2Spectrum: TypeAlias = npt.NDArray[npt.NDArray[float]]
@@ -132,11 +135,13 @@ def filter_atlas_labels(ms1_data: pd.DataFrame, ms2_data_scored: pd.DataFrame, p
                         msms_score: Optional[float], msms_matches: Optional[int], msms_frag_ratio: Optional[int]) -> set[str]:
     """Filter atlas labels to include only those that pass the MS1 and MS2 thresholds."""
 
+    ms1_full_labels = set(ms1_data.label.tolist())
     ms1_data_filtered = ms1_data[ms1_data['peak_height'] >= peak_height] if peak_height is not None else ms1_data
     ms1_data_filtered = ms1_data_filtered[ms1_data_filtered['num_datapoints'] >= num_points] if num_points is not None else ms1_data_filtered
     ms1_reduced_labels = set(ms1_data_filtered.label.tolist())
 
     if msms_score is not None or msms_matches is not None or msms_frag_ratio is not None:
+        ms2_full_labels = set(ms2_data_scored.label.tolist())
         ms2_data_filtered = ms2_data_scored[ms2_data_scored['score'] >= msms_score] if msms_score is not None else ms2_data_scored
         ms2_data_filtered = ms2_data_filtered[ms2_data_filtered['matches'] >= msms_matches] if msms_matches is not None else ms2_data_filtered
         ms2_data_filtered = ms2_data_filtered[ms2_data_filtered['match_reference_ratio'] >= msms_frag_ratio] if msms_frag_ratio is not None else ms2_data_filtered
@@ -144,9 +149,10 @@ def filter_atlas_labels(ms1_data: pd.DataFrame, ms2_data_scored: pd.DataFrame, p
     else:
         ms2_reduced_labels = ms1_reduced_labels
 
+    full_labels = ms1_full_labels.intersection(ms2_full_labels) if ms2_full_labels else ms1_full_labels
     reduced_labels = ms1_reduced_labels.intersection(ms2_reduced_labels)
-
-    return reduced_labels
+    
+    return reduced_labels, full_labels
 
 
 def filter_atlas(aligned_atlas, ids: AnalysisIdentifiers, analysis: Analysis, data: MetatlasDataset):
@@ -163,8 +169,9 @@ def filter_atlas(aligned_atlas, ids: AnalysisIdentifiers, analysis: Analysis, da
     ms2_data_scored = score_ms2_data(ms2_data, aligned_atlas_df, analysis.parameters.polarity,
                                      analysis.parameters.msms_refs, analysis.parameters.frag_mz_tolerance)
 
-    reduced_labels = filter_atlas_labels(ms1_data, ms2_data_scored, analysis.parameters.peak_height, analysis.parameters.num_points,
+    reduced_labels, full_labels = filter_atlas_labels(ms1_data, ms2_data_scored, analysis.parameters.peak_height, analysis.parameters.num_points,
                                          analysis.parameters.msms_score, analysis.parameters.msms_matches, analysis.parameters.msms_frag_ratio)
+    logger.info(f"Pre-filtered atlas reduced from {len(full_labels)} to {len(reduced_labels)} compounds.")
 
     aligned_filtered_atlas_df = aligned_atlas_df[aligned_atlas_df['label'].isin(reduced_labels)]
     aligned_filtered_atlas = dp.get_atlas(aligned_atlas.name, aligned_filtered_atlas_df, analysis.parameters.polarity, mz_tolerance)
