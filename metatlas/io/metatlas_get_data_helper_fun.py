@@ -288,6 +288,17 @@ def extract(data, ids, default=None):
         return data
     try:
         if isinstance(ids[0], tuple):
+            sub_data = getattr(data, ids[0][0])
+        else:
+            try:
+                sub_data = data[ids[0]]
+            except TypeError:
+                sub_data = getattr(data, ids[0])
+    except (AttributeError, IndexError, KeyError):
+        return default
+    else:
+        return extract(sub_data, ids[1:], default)
+        
 def set_nested(data, ids, value):
     """
     inputs:
