@@ -42,7 +42,24 @@ logger = logging.getLogger(__name__)
 # Whether to fetch stubs automatically, disabled when we want to display
 # a large number of objects.
 FETCH_STUBS = True
-ADDUCTS = ('','[M]+','[M+H]+','[M+H]2+','[M+2H]2+','[M+H-H2O]2+','[M+K]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-H+Cl]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M+formate]-','[M-H+Cl]2-','[M-H+2Na]+','[M+3H]3+','[M-3H]3-')
+#ADDUCTS = ('','[M]+','[M+H]+','[M+H]2+','[M+2H]2+','[M+H-H2O]2+','[M+K]2+','[M+NH4]+','[M+Na]+','[M+H-H2O]+','[M-H]-','[M-2H]-','[M-H+Cl]-','[M-2H]2-','[M+Cl]-','[2M+H]+','[2M-H]-','[M-H+Na]+','[M+K]+','[M+2Na]2+','[M-e]+','[M+acetate]-','[M+formate]-','[M-H+Cl]2-','[M-H+2Na]+','[M+3H]3+','[M-3H]3-')
+ADDUCTS = (
+    "", "[M]+", "[M+H]2+", "[M+H-H2O]2+", "[M+K]2+", "[M-2H]2-",
+    "[M+3H]3+", "[M+2H+Na]3+", "[M+H+2Na]3+", "[M+3Na]3+", "[M+2H]2+",
+    "[M+H+NH4]2+", "[M+H+Na]2+", "[M+H+K]2+", "[M+ACN+2H]2+", "[M+2Na]2+",
+    "[M+2ACN+2H]2+", "[M+3ACN+2H]2+", "[M+H]+", "[M+H-NH3]+", "[M-H2O+H]+",
+    "[M-2H2O+H]+", "[M+NH4]+", "[M+Na]+", "[M+CH3OH+H]+", "[M+K]+",
+    "[M+ACN+H]+", "[M+2Na-H]+", "[M+IsoProp+H]+", "[M+ACN+Na]+",
+    "[M+2K-H]+", "[M+DMSO+H]+", "[M+2ACN+H]+", "[M+IsoProp+Na+H]+",
+    "[2M+H]+", "[2M+NH4]+", "[2M+Na]+", "[2M+K]+", "[2M+ACN+H]+",
+    "[2M+ACN+Na]+", "[M-3H]3-", "[M-2H]2-", "[M-H2O-H]-", "[M-H]-",
+    "[M+Na-2H]-", "[M+Cl]-", "[M+K-2H]-", "[M+FA-H]-", "[M+Hac-H]-",
+    "[M+Br]-", "[M+TFA-H]-", "[2M-H]-", "[2M+FA-H]-", "[2M+Hac-H]-",
+    "[3M-H]-", "[M]-", "[M-H-CO2-2HF]-", "[M-2H]-", "[M+CH3COO]-",
+    "[M-CH3]-", "[M+OAc]-", "[M]+", "[M+H-CH3NH2]+", "[2M-2H+Na]-",
+    "[M-H+Cl]-", "[M-H+2Na]+", "[M-e]+", "[M+acetate]-", "[M+formate]-",
+    "[M-H+Cl]2-", "[M-H+Na]+"
+)
 POLARITY = ('positive', 'negative', 'alternating')
 FRAGMENTATION_TECHNIQUE = ('hcd','cid','etd','ecd','irmpd')
 
