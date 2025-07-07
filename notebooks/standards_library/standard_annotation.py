@@ -28,9 +28,8 @@ from metatlas.datastructures import metatlas_objects as metob
 from metatlas.tools import cheminfo
 from metatlas.tools import extract_msms as exms
 from metatlas.datastructures.utils import get_atlas
-from metatlas.io.metatlas_get_data_helper_fun import make_atlas_df
 from metatlas.plots.dill2plots import make_atlas_from_spreadsheet
-from metatlas.io.metatlas_get_data_helper_fun import make_atlas_df,sort_atlas_csv
+from metatlas.io.metatlas_get_data_helper_fun import make_atlas_df
 
 from matchms.filtering.filter_utils.load_known_adducts import load_known_adducts
 

@@ -26,32 +26,50 @@ logger = logging.getLogger(__name__)
 
 MetatlasDataset = List[List[Any]]  # avoiding a circular import
 
-def sort_atlas_csv(input_csv: str, column1: str, column2: str, istd_atlas: bool) -> pd.DataFrame:
+def sort_atlas_table(input_atlas: str, column1: str, column2: str, istd_atlas: bool) -> str:
     """
-    Reads in the atlas CSV, sorts it based on two numeric columns in ascending order
+    Reads in the atlas table, sorts it based on two columns, and writes the sorted table to a new file.
 
     Parameters:
-    - input_csv: Path to the input CSV file.
-    - column1: The first column to sort by.
-    - column2: The second column to sort by.
-    """
-    # Read the CSV file into a DataFrame
-    df = pd.read_csv(input_csv)
+    - input_atlas: Path to the input atlas file.
+    - column1: The first column to sort by (ascending).
+    - column2: The second column to sort by (descending).
+    - istd_atlas: Whether this is an internal standard atlas with isotopic labeling.
 
-    # Sort the DataFrame based on the specified columns in ascending order
-    if istd_atlas == True:
+    Returns:
+    - Path to the sorted output file as a string.
+    """
+    # Use file extension to determine separator and output file name
+    if input_atlas.lower().endswith('.csv'):
+        sep = ','
+        output_file = input_atlas[:-4] + '_sorted.csv'
+    elif input_atlas.lower().endswith('.tsv'):
+        sep = '\t'
+        output_file = input_atlas[:-4] + '_sorted.tsv'
+    else:
+        raise ValueError("Input atlas file must be a .csv or .tsv file.")
+
+    df = pd.read_csv(input_atlas, sep=sep)
+
+    # Check columns exist
+    for col in [column1, column2]:
+        if col not in df.columns:
+            raise ValueError(f"Column '{col}' not found in atlas file.")
+
+    # Sort the DataFrame
+    if istd_atlas:
         if 'label' in df.columns:
             if not df['label'].str.contains('unlabeled').any():
-                logger.info("Warning: The designation 'unlabeled' does not appear in the 'label' column. Only set 'istd_atlas' to True if this is an internal standard atlas with isotopic labeling. Exiting!")
-                sys.exit(1)
-            sorted_df = df.sort_values(by=[column1, column2], ascending=[True, False]) # Sort small->large for column1 (rt peak), large->small for column2 (mz)
+                logger.error("The designation 'unlabeled' does not appear in the 'label' column. Only set 'istd_atlas' to True if this is an internal standard atlas with isotopic labeling.")
+                raise ValueError("'unlabeled' not found in 'label' column.")
         else:
-            logger.info("Warning: The 'label' column is missing. Not sorting with heavy isotope compound first even though 'istd_atlas' is set to True.")
-            sorted_df = df.sort_values(by=[column1, column2], ascending=[True, False])
-    else:
-        sorted_df = df.sort_values(by=[column1, column2], ascending=[True, False])
+            logger.warning("The 'label' column is missing. Not sorting with heavy isotope compound first even though 'istd_atlas' is set to True.")
+    sorted_df = df.sort_values(by=[column1, column2], ascending=[True, False])
 
-    return(sorted_df)
+    logger.info('Writing sorted atlas to: ' + output_file)
+    sorted_df.to_csv(output_file, sep=sep, index=False)
+
+    return output_file
 
 def create_msms_dataframe(df):
     """
@@ -270,18 +288,6 @@ def extract(data, ids, default=None):
         return data
     try:
         if isinstance(ids[0], tuple):
-            sub_data = getattr(data, ids[0][0])
-        else:
-            try:
-                sub_data = data[ids[0]]
-            except TypeError:
-                sub_data = getattr(data, ids[0])
-    except (AttributeError, IndexError, KeyError):
-        return default
-    else:
-        return extract(sub_data, ids[1:], default)
-
-
 def set_nested(data, ids, value):
     """
     inputs:
