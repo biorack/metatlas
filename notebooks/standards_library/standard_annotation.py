@@ -102,6 +102,11 @@ def get_closest_injbl(lcmsrun_path: str, injbl_pattern: str = '-InjBL-') -> Opti
     injbl_run_nums = {get_run_num(injbl_path): injbl_path for injbl_path in all_injbl_files}
     
     closest_run_num = max((run_num for run_num in injbl_run_nums if run_num <= lcmsrun_num), default=None)
+
+    if closest_run_num is None:
+        # No injection blank found before the LCMS run, use the closest one afterwards as a holder
+        closest_run_num = min((run_num for run_num in injbl_run_nums if run_num > lcmsrun_num), default=None)
+
     return injbl_run_nums.get(closest_run_num)
 
 
