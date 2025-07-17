@@ -3429,6 +3429,8 @@ def make_atlas_from_table(filename, atlas_name, store=False, mz_tolerance=None, 
         if polarity is not None:
             logger.info("Overriding existing polarity values in input table with %s.", polarity)
             atlas_df['polarity'] = polarity
+        else:
+            polarity = atlas_df['polarity'].dropna().unique()
     else:
         if polarity is None:
             if 'adduct' not in atlas_df.columns:
