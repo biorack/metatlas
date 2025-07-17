@@ -3373,7 +3373,7 @@ def get_atlas(name, atlas_df, polarity, mz_tolerance):
     return atlas
 
 
-def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
+def make_atlas_from_spreadsheet(filename, atlas_name, filetype,
                                 polarity=None, store=False, mz_tolerance=None):
     '''
     specify polarity as 'positive' or 'negative'
@@ -3381,7 +3381,7 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
     '''
     required_columns = ['rt_min', 'rt_peak', 'rt_max', 'mz']
     logger.debug('Generating atlas named %s from %s source.', atlas_name, filetype)
-    atlas_df = _get_dataframe(filename, filetype, sheetname)
+    atlas_df = _get_dataframe(filename, filetype)
     _clean_dataframe(atlas_df, required_columns=[])  # only remove fully empty
     initial_row_count = len(atlas_df)
     _clean_dataframe(atlas_df, required_columns)
@@ -3403,6 +3403,84 @@ def make_atlas_from_spreadsheet(filename, atlas_name, filetype, sheetname=None,
         metob.store(atlas)
     return atlas
 
+
+def make_atlas_from_table(filename, atlas_name, store=False, mz_tolerance=None, polarity=None):
+    """
+    
+    """
+    filetype = "csv" if filename.endswith(".csv") else "tab"
+    required_columns = ['polarity', 'mz_tolerance', 'rt_min', 'rt_peak', 'rt_max', 'mz']
+    logger.debug('Generating atlas named %s from %s source.', atlas_name, filetype)
+    atlas_df = _get_dataframe(filename, filetype)
+
+    # mz_tolerance logic
+    if 'mz_tolerance' in atlas_df.columns:
+        if mz_tolerance is not None:
+            logger.info("Overriding existing mz_tolerance values in input table with %s.", mz_tolerance)
+            atlas_df['mz_tolerance'] = mz_tolerance
+    else:
+        if mz_tolerance is None:
+            logger.info("mz_tolerance not specified in input table or parameter, setting to default value of 5.0 ppm.")
+            mz_tolerance = 5.0
+        atlas_df['mz_tolerance'] = mz_tolerance
+
+    # polarity logic
+    if 'polarity' in atlas_df.columns:
+        if polarity is not None:
+            logger.info("Overriding existing polarity values in input table with %s.", polarity)
+            atlas_df['polarity'] = polarity
+    else:
+        if polarity is None:
+            if 'adduct' not in atlas_df.columns:
+                logger.error("Polarity is not specified in input table or parameter and cannot be determined manually because 'adducts' column doesn't exist.")
+                raise ValueError("Polarity must be specified as a parameter or input column because 'adducts' column is missing.")
+            logger.info("Polarity not specified in input table or parameter, inferring from adducts.")
+            adducts = atlas_df['adduct'].dropna().unique()
+            if "[M-H]-" in adducts:
+                polarity = 'negative'
+            elif "[M+H]+" in adducts:
+                polarity = 'positive'
+            else:
+                logger.error("Polarity is not specified and cannot be determined from adducts.")
+                raise ValueError(f"Polarity must be specified as a parameter or input column because it cannot be inferred from adducts: {adducts}.")
+        atlas_df['polarity'] = polarity
+
+    # Clean up the dataframe before deposit
+    _clean_dataframe(atlas_df, required_columns=[])  # only remove fully empty
+    initial_row_count = len(atlas_df)
+    _clean_dataframe(atlas_df, required_columns)
+
+    # Enforce column types
+    enforce_types = {
+        'polarity': str,
+        'mz_tolerance': int,
+        'rt_min': float,
+        'rt_peak': float,
+        'rt_max': float,
+        'mz': float
+    }
+    for col, dtype in enforce_types.items():
+        if col in atlas_df.columns:
+            atlas_df[col] = atlas_df[col].astype(dtype)
+
+    # Add missing columns with default values
+    _add_columns(
+        atlas_df,
+        column_names=['label', 'inchi_key', 'adduct'],
+        default_values=[np.NaN, np.NaN, np.NaN]
+    )
+    check_compound_names(atlas_df)
+    check_filenames(atlas_df, 'file_msms')
+    atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
+    rows_removed = initial_row_count - len(atlas_df)
+    if rows_removed > 0:
+        raise ValueError(
+            f"Required columns ({', '.join(required_columns)}) missing in {rows_removed} rows."
+        )
+    if store:
+        logger.info('Saving atlas named %s to DB.', atlas_name)
+        metob.store(atlas)
+    return atlas
 
 def _copy_attributes(source, dest, attribute_list, default_list=None, error_on_missing=False):
     """
