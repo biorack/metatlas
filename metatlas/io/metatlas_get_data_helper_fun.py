@@ -46,8 +46,14 @@ def sort_atlas_table(input_atlas: str, column1: str, column2: str, istd_atlas: b
     elif input_atlas.lower().endswith('.tsv'):
         sep = '\t'
         output_file = input_atlas[:-4] + '_sorted.tsv'
+    elif input_atlas.lower().endswith('.txt'):
+        sep = '\t'
+        output_file = input_atlas[:-4] + '_sorted.txt'
+    elif input_atlas.lower().endswith('.tab'):
+        sep = '\t'
+        output_file = input_atlas[:-4] + '_sorted.tab'
     else:
-        raise ValueError("Input atlas file must be a .csv or .tsv file.")
+        raise ValueError("Input atlas file must be a .csv, .txt, .tsv, or .tab file.")
 
     df = pd.read_csv(input_atlas, sep=sep)
 
