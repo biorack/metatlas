@@ -208,8 +208,24 @@ def build_adduct_annotated_table(
     Returns:
         pd.DataFrame: A DataFrame with annotated adduct information, including precursor m/z values.
     """
+    if 'smiles' in standard_lcmsruns_table.columns:
+        standard_lcmsruns_table['exact_mass'] = standard_lcmsruns_table['smiles'].apply(inchi_or_smiles_to_mass)
+    elif 'inchi' in standard_lcmsruns_table.columns:
+        standard_lcmsruns_table['exact_mass'] = standard_lcmsruns_table['inchi'].apply(inchi_or_smiles_to_mass)
+    else:
+        pubchem_data = standard_lcmsruns_table['inchi_key'].apply(get_pubchem_data)
+        standard_lcmsruns_table['smiles'] = pubchem_data.apply(lambda d: d['smiles'] if d and 'smiles' in d else "")
+        standard_lcmsruns_table['inchi'] = pubchem_data.apply(lambda d: d['inchi'] if d and 'inchi' in d else "")
+        def get_exact_mass(row):
+            if row.smiles:
+                return inchi_or_smiles_to_mass(row.smiles)
+            elif row.inchi:
+                return inchi_or_smiles_to_mass(row.inchi)
+            else:
+                print(f"Error: Cannot get exact mass for row with missing SMILES and InChI (compound_name: {row.get('compound_name', 'unknown')})")
+                return np.nan
+        standard_lcmsruns_table['exact_mass'] = standard_lcmsruns_table.apply(get_exact_mass, axis=1)
     standard_lcmsruns_table['polarity'] = standard_lcmsruns_table.apply(lambda row: get_file_polarity(row.standard_lcmsrun), axis=1)
-    standard_lcmsruns_table['exact_mass'] = standard_lcmsruns_table.apply(lambda row: inchi_or_smiles_to_mass(row.smiles), axis=1)
     standard_lcmsruns_table['all_adducts'] = standard_lcmsruns_table[['exact_mass', 'polarity']].apply(lambda row: calc_all_adducts(row.exact_mass, row.polarity, include_adducts), axis=1)
     standard_lcmsruns_table = standard_lcmsruns_table.explode('all_adducts').reset_index(drop=True).rename(columns={'all_adducts': 'adduct_data'})
     standard_lcmsruns_table[['adduct', 'precursor_mz']] = pd.DataFrame(standard_lcmsruns_table['adduct_data'].tolist(), index=standard_lcmsruns_table.index)
@@ -246,6 +262,59 @@ def build_standard_lcmsrun_table(
 ###########################
 ### Tools for chemistry ###
 ###########################
+
+def get_pubchem_data(inchi_key: str) -> Dict[str, Any]:
+    """Get comprehensive compound data from PubChem using InChI key."""
+    try:
+
+        # Get CID from InChI key
+        cid_result = pcp.get_compounds(inchi_key, namespace='inchikey', 
+                                        as_dataframe=True, listkey_count=5)
+
+        if cid_result.empty:
+            return None
+            
+        cid_result = cid_result.reset_index()
+        cid = cid_result['cid'].to_string(index=False)
+        
+        # Handle multiple CIDs
+        if "\n" in cid:
+            cid = (cid.rstrip().split('\n'))[-1]
+        
+        # Extract SMILES if available due to broken API response
+        try:
+            cid_result_subset = cid_result[cid_result['cid'] == int(cid)]
+            cid_result_subset_dict = cid_result_subset.to_dict()
+            if "record" in cid_result_subset_dict:
+                if "props" in cid_result_subset_dict["record"][0]:
+                    cid_list = [i for i in cid_result_subset_dict["record"][0]["props"] if i["urn"]["label"] == "SMILES"]
+                    if cid_list:
+                        smiles = str(cid_list[0]['value']['sval'])
+        except:
+            smiles = ""
+
+        # Get detailed compound information
+        compound = pcp.Compound.from_cid(cid)
+        
+        # Extract all available properties
+        compound_data = {
+            "pubchem_cid": str(compound.cid) if compound.cid else "",
+            "iupac_name": compound.iupac_name or "",
+            "synonyms": compound.synonyms or [],
+            "inchi": compound.inchi or "",
+            "inchi_key": compound.inchikey or inchi_key,
+            "smiles": smiles if smiles else "",
+            "formula": compound.molecular_formula or "",
+            "mono_isotopic_molecular_weight": str(compound.monoisotopic_mass) if compound.monoisotopic_mass else "",
+            "molecular_weight": str(compound.molecular_weight) if compound.molecular_weight else "",
+            "pubchem_compound_url": f"https://pubchem.ncbi.nlm.nih.gov/compound/{compound.cid}" if compound.cid else ""
+        }
+        
+        return compound_data
+        
+    except Exception as e:
+        print(f"Error retrieving PubChem data for {inchi_key}: {e}")
+        return None
 
 def get_pubchem_synonyms_from_inchi_keys(inchi_keys: List[str]) -> Dict[str, str]:
     """
