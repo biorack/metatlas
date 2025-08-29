@@ -2653,7 +2653,7 @@ def upload_to_google_drive(
         print("Warning! Overwrite is set to False, existing files will not be replaced.\n")
 
     upload_command = (
-        f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --exclude cache/** {update_flag} '
+        f'/global/cfs/cdirs/m342/USA/shared-envs/rclone/bin/rclone copy --exclude "cache/**" {update_flag} '
         f'"{orig_folder}/" "{dest_folder}"'
     )
     try:
