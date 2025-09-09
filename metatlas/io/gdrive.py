@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from IPython.core.display import display, HTML
+from IPython.display import display, HTML
 
 from metatlas.datastructures.analysis_identifiers import AnalysisIdentifiers
 from metatlas.io import rclone
