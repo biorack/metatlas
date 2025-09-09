@@ -9,7 +9,7 @@ from os import PathLike
 from typing import Any, List, Optional, Sequence
 
 import pandas as pd
-from IPython.core.display import display, HTML
+from IPython.display import display, HTML
 from metatlas.tools.logging import activate_logging
 from metatlas.tools.logging import activate_module_logging
 from metatlas.tools.environment import get_commit_date
