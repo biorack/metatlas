@@ -349,7 +349,8 @@ class adjust_rt_for_selected_compound(object):
         # Turn On interactive plot
         ipy = get_ipython()
         if ipy:  # test suite does not run ipython, so need to bypass
-            ipy.magic('matplotlib widget')
+            #ipy.magic('matplotlib widget')
+            ipy.run_line_magic('matplotlib', 'widget')
         self.layout_figure()
         # create all event handlers
         self.fig.canvas.callbacks.connect('pick_event', self.on_pick)
