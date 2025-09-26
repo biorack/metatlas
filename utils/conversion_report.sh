@@ -44,6 +44,11 @@ else
 fi
 num_failed_without_error="${#failed_without_error[@]}"
 
+# Print initial line that will become the email subject line
+printf 'converted=%s failed=%s pending=%s in_progress=%s\n' \
+       "$num_converted" "$num_failed" "$num_to_convert" "$num_in_progress" >&2
+
+# Print email body
 printf 'File conversion report for %s data. Ran on %s\n\n' "$1" "$(date)"
 
 printf 'Conversions not yet attempted: %s\n' "$num_to_convert"

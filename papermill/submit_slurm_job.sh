@@ -166,7 +166,7 @@ get_slurm_queue() {
 
 get_rclone_remote() {
   # this assumes you only have one google account that is set up within rclone...
-  remote="$("$rclone" listremotes --long 2> /dev/null | grep "drive$" | head -1 | cut -d' ' -f1)"
+  remote="$("$rclone" listremotes --long 2> /dev/null | grep "drive" | head -1 | cut -d' ' -f1)"
   if [ -z "$remote" ]; then
     >&2 echo "ERROR: rclone has not been configured to access Google Drive. Follow instructions at:"
     >&2 echo "       https://github.com/biorack/metatlas/blob/main/docs/Targeted_Analysis.md#rclone-configuration"
