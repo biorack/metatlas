@@ -20,7 +20,8 @@ trap finish EXIT SIGHUP SIGINT SIGTERM
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-module load parallel
+# Commented out this line on Sep 26, 2025 after NERSC moved this module to OS
+#module load parallel
 
 base_dir="/global/cfs/cdirs/metatlas/raw_data/$1"
 

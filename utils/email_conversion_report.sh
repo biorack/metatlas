@@ -15,7 +15,15 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 addresses="$(cat "/global/cfs/cdirs/metatlas/raw_data/email_${1}_reports")"
 
 # shellcheck disable=SC2086
-"${SCRIPT_DIR}/conversion_report.sh" "$1" "$2" | \
-  mailx -s "${1} file conversion report"  -R "bkieft@lbl.gov" ${addresses}
+# Commented out on Sep 26, 2025 to change email subject line format
+# "${SCRIPT_DIR}/conversion_report.sh" "$1" "$2" | \
+#   mailx -s "${1} file conversion report"  -R "bkieft@lbl.gov" ${addresses}
+
+summary_line=$( "${SCRIPT_DIR}/conversion_report.sh" "$1" "$2" 2>&1 1>/dev/null | head -n1 )
+report_body=$( "${SCRIPT_DIR}/conversion_report.sh" "$1" "$2" 2>/dev/null )
+
+eval "$summary_line"          # creates $converted $failed $pending $in_progress
+subject="${1} conversion report: ${converted} succeeded, ${failed} failed, ${pending} pending, ${in_progress} in‑progress"
+printf "%s\n" "$report_body" | mailx -s "$subject" -R "bkieft@lbl.gov" ${addresses}
 
 printf "INFO: report generation and emailing complete\n" | ts
