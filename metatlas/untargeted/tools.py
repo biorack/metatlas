@@ -1779,7 +1779,7 @@ def create_filtered_peakheight_file(
             print_empty_filter_files(data_table, {filter_file: filtered_filenames[filter_file]}, jgi_project)
             continue
         else:
-            data_table_filtered = data_table.loc[[0] + indices]
+            data_table_filtered = data_table.loc[sorted(set([0] + indices))]
 
             # Replace zeros with a small value for JGI projects
             if filter_file == f'>{background_ratio}x_exctrl':
