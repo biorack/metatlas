@@ -853,7 +853,7 @@ def filter_and_output(atlas_df, metatlas_dataset, output_dir,
 
         print('making identification figures')
         #Identification figures
-        dp.make_identification_figure_v2(input_dataset=filtered_dataset, include_lcmsruns = [],exclude_lcmsruns=[], output_loc=os.path.join(output_dir, 'identification'))
+        dp.make_identification_figure_v3(input_dataset=filtered_dataset, include_lcmsruns = [],exclude_lcmsruns=[], output_loc=os.path.join(output_dir, 'identification'))
 
         print('making chromatograms')
         # Chromatograms

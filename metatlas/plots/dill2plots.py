@@ -3558,7 +3558,7 @@ def make_copy_to_clipboard_button(text: str, button_text: str) -> None:
 
 ######### New mirror (summary) plot functions #########
 
-def make_identification_figure_v2(input_fname: Optional[Path] = None, input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
+def make_identification_figure_v3(input_fname: Optional[Path] = None, input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
                                   include_groups=[], exclude_groups=[], output_loc: Path = None, msms_hits=None,
                                   use_labels=False, intensity_sorted_matches=False,
                                   short_names_df=pd.DataFrame(), polarity='', overwrite=True):
@@ -3580,14 +3580,14 @@ def make_identification_figure_v2(input_fname: Optional[Path] = None, input_data
                     'Matching M/Zs above 1E-3*max': str,
                     'All matching M/Zs': str}
 
-    match = pd.DataFrame(columns=match_dtypes).astype(match_dtypes)
+    match_out_df = pd.DataFrame(columns=match_dtypes).astype(match_dtypes)
     disable_interactive_plots()
     
     for compound_idx, _ in enumerate(compound_names):
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
         inchi_key = extract(data, [0, compound_idx, "identification", "compound", 0, "inchi_key"], "")
         
-        #  Find 5 best file and reference pairs by score
+        #  Find 3 best file and reference pairs by score
         try:
             rt_ref = data[0][compound_idx]['identification'].rt_references[0]
             mz_ref = data[0][compound_idx]['identification'].mz_references[0]
@@ -3599,7 +3599,7 @@ def make_identification_figure_v2(input_fname: Optional[Path] = None, input_data
                                                 mz_ref.mz,
                                                 mz_ref.mz_tolerance*1e-6
                                             )
-                                          ].drop_duplicates('file_name').head(5)
+                                          ].drop_duplicates('file_name').head(3)
             comp_msms_hits = comp_msms_hits[comp_msms_hits['file_name'].isin(file_names)]
             file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
             scores = comp_msms_hits['score'].values.tolist()
@@ -3623,39 +3623,47 @@ def make_identification_figure_v2(input_fname: Optional[Path] = None, input_data
             msv_ref_list = [np.array([0, np.nan]).T]
             scores = [np.nan]
 
-        # Create figure with new layout: 3 rows x 5 columns
-        fig = plt.figure(figsize=(25, 14))
+        # Create figure with new layout: 3 rows x 4 columns
+        fig = plt.figure(figsize=(25, 13))
         
-        # Define grid layout: 3 rows x 5 columns
-        gs = fig.add_gridspec(3, 5, hspace=0.3, wspace=0.3, 
+        # Define grid layout: 3 rows x 4 columns
+        gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3, 
                              height_ratios=[2, 1.2, 0.8])
         
-        # Row 1: 5 MSMS mirror plots across all columns
-        mirror_plot_titles = ['Best MSMS Match', '#2', '#3', '#4', '#5']
-        for i in range(5):
+        # Row 1: 3 MSMS mirror plots (columns 0-2) + molecular structure (column 3)
+        mirror_plot_titles = ['Best MSMS Match', 'Second Best', 'Third Best']
+        for i in range(3):
             ax_msms = fig.add_subplot(gs[0, i])
             
             if i < len(scores) and file_idxs and file_idxs[0] is not None:
                 # Use the same function for all plots to make them identical
                 plot_msms_comparison(i, scores[i], ax_msms, msv_sample_list[i], msv_ref_list[i])
                 
-                # Consistent title formatting for all plots
-                if i == 0:
-                    ax_msms.set_title(f'{mirror_plot_titles[i]} (Score: {scores[i]:.4f})', fontsize=12, weight='bold')
-                else:
-                    ax_msms.set_title(f'{mirror_plot_titles[i]} (Score: {scores[i]:.3f})', fontsize=10)
+                # Get file name and RT for title - shorten filename to last 7 underscore-separated fields
+                full_filename = os.path.basename(data[file_idxs[i]][compound_idx]['lcmsrun'].hdf5_file)
+                # Remove .h5 extension and split by underscore, take last 7 fields
+                filename_parts = full_filename.replace('.h5', '').split('_')
+                filename = '_'.join(filename_parts[-5:]) if len(filename_parts) >= 7 else '_'.join(filename_parts)
+                rt_time = f"RT: {rt_list[i]:.2f}" if len(rt_list) > i else ""
                 
-                # Add filename info for all plots
-                if not short_names_df.empty:
-                    try:
-                        short_name = short_names_df.loc[
-                            os.path.basename(data[file_idxs[i]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 
-                            'short_samplename'
-                        ][0]
-                        ax_msms.text(0.02, 0.98, short_name, transform=ax_msms.transAxes, 
-                                   fontsize=8, verticalalignment='top', weight='bold')
-                    except:
-                        pass
+                # Title formatting: Score bold and larger, file name and RT smaller
+                title = (f"Score: ", f"{scores[i]:.3f}", f"\n{filename}\n{rt_time}")
+                # Use two lines: Score (large, bold), then filename/RT (smaller)
+                ax_msms.set_title(
+                    f"Score: {scores[i]:.3f}\n{filename}\n{rt_time}",
+                    fontsize=9, weight='normal'
+                )
+                # Make just the Score bold and larger using set_title with manual text objects
+                # Remove the title and use text for more control
+                ax_msms.set_title("")
+                ax_msms.text(
+                    0.5, 1.08, f"Score: {scores[i]:.3f}",
+                    fontsize=13, weight='bold', ha='center', va='bottom', transform=ax_msms.transAxes
+                )
+                ax_msms.text(
+                    0.5, 1.01, f"{filename}\n{rt_time}",
+                    fontsize=9, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
+                )
                         
                 ax_msms.tick_params(labelsize=8)
                 ax_msms.xaxis.label.set_size(9)
@@ -3664,27 +3672,35 @@ def make_identification_figure_v2(input_fname: Optional[Path] = None, input_data
                 # Empty plot if no data
                 ax_msms.text(0.5, 0.5, 'No MSMS data', transform=ax_msms.transAxes, 
                            horizontalalignment='center', verticalalignment='center')
-                ax_msms.set_title(f'{mirror_plot_titles[i]}', fontsize=10)
+                ax_msms.set_title(f'{mirror_plot_titles[i]}', fontsize=9)
                 ax_msms.axis('off')
 
-        # Row 2: EICs, Table, Structure across 5 columns
+        # Row 1, Column 4: Molecular structure
+        if file_idxs and file_idxs[0] is not None:
+            ax_structure = fig.add_subplot(gs[0, 3])
+            plot_structure(ax_structure, data[file_idxs[0]][compound_idx]['identification'].compound, 500)
+        else:
+            ax_structure = fig.add_subplot(gs[0, 3])
+            plot_structure(ax_structure, data[0][compound_idx]['identification'].compound, 500)
+
+        # Row 2: EICs and Table across 4 columns
         
         # Column 1: Linear EIC
         ax_eic_linear = fig.add_subplot(gs[1, 0])
         plot_eic(ax_eic_linear, data, compound_idx)
-        ax_eic_linear.set_title('EIC (Linear Scale)', fontsize=11, weight='bold')
+        ax_eic_linear.set_title('EIC (Linear Scale)', fontsize=12, weight='bold')
         ax_eic_linear.tick_params(labelsize=9)
-        ax_eic_linear.set_xlabel('Retention Time (min)', fontsize=10)
-        ax_eic_linear.set_ylabel('Intensity', fontsize=10)
+        ax_eic_linear.set_xlabel('Retention Time (min)', fontsize=12)
+        ax_eic_linear.set_ylabel('Intensity', fontsize=12)
         
         # Column 2: Log EIC
         ax_eic_log = fig.add_subplot(gs[1, 1])
         plot_eic_log(ax_eic_log, data, compound_idx)
-        ax_eic_log.set_title('EIC (Log Scale)', fontsize=11, weight='bold')
+        ax_eic_log.set_title('EIC (Log Scale)', fontsize=12, weight='bold')
         ax_eic_log.tick_params(labelsize=9)
-        ax_eic_log.set_xlabel('Retention Time (min)', fontsize=10)
-        ax_eic_log.set_ylabel('Intensity (log)', fontsize=10)
-        
+        ax_eic_log.set_xlabel('Retention Time (min)', fontsize=12)
+        ax_eic_log.set_ylabel('Intensity (log)', fontsize=12)
+
         # Columns 3-4: Compound info table (spanning 2 columns)
         if file_idxs and file_idxs[0] is not None:
             ax_info = fig.add_subplot(gs[1, 2:4])
@@ -3692,22 +3708,14 @@ def make_identification_figure_v2(input_fname: Optional[Path] = None, input_data
         else:
             ax_info = fig.add_subplot(gs[1, 2:4])
             plot_compound_info_table_simple(ax_info, data[0][compound_idx]['identification'])
-        
-        # Column 5: Molecular structure
-        if file_idxs and file_idxs[0] is not None:
-            ax_structure = fig.add_subplot(gs[1, 4])
-            plot_structure(ax_structure, data[file_idxs[0]][compound_idx]['identification'].compound, 200)
-        else:
-            ax_structure = fig.add_subplot(gs[1, 4])
-            plot_structure(ax_structure, data[0][compound_idx]['identification'].compound, 200)
 
-        # Row 3: Metadata text information spanning all 5 columns
-        ax_metadata = fig.add_subplot(gs[2, 0:5])
-        plot_metadata_info_enhanced(ax_metadata, data, file_idxs, compound_idx, scores, rt_list, 
+        # Row 3: Metadata text information spanning all 4 columns
+        ax_metadata = fig.add_subplot(gs[2, 0:4])
+        match_out_df = plot_metadata_info_enhanced(match_out_df, ax_metadata, data, file_idxs, compound_idx, scores, rt_list, 
                                   short_names_df, compound_names, msv_sample_list, msv_ref_list, 
                                   intensity_sorted_matches)
 
-        plt.suptitle(f'{compound_names[compound_idx]}', fontsize=18, weight='bold', y=0.95)
+        plt.suptitle(f'{compound_names[compound_idx]}\n', fontsize=18, weight='bold', y=0.95)
         
         fig_path = output_loc / f"{compound_names[compound_idx]}.pdf"
         write_utils.check_existing_file(fig_path, overwrite)
@@ -3716,7 +3724,7 @@ def make_identification_figure_v2(input_fname: Optional[Path] = None, input_data
         logger.debug('Exported identification figures for %s to %s.', compound_names[compound_idx], fig_path)
     
     match_path = output_loc / "MatchingMZs.tab"
-    write_utils.export_dataframe(match, match_path, 'matching MZs', overwrite, sep='\t', float_format="%.12e")
+    write_utils.export_dataframe(match_out_df, match_path, 'matching MZs', overwrite, sep='\t', float_format="%.12e")
 
 def plot_compound_info_table_simple(ax, compound_info):
     """Simple black and white 2-column, 7-row compound information table"""
@@ -3744,7 +3752,7 @@ def plot_compound_info_table_simple(ax, compound_info):
     
     # Simple black and white styling
     table.auto_set_font_size(False)
-    table.set_fontsize(10)
+    table.set_fontsize(12)
     table.scale(1.0, 1.2)
     
     # Style all cells consistently
@@ -3768,6 +3776,9 @@ def plot_compound_info_table_simple(ax, compound_info):
 
 def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     """Standard MSMS comparison plot for smaller subplots"""
+    matplotlib.rcParams['toolbar'] = 'None'
+    matplotlib.rcParams['keymap.pan'] = [] 
+
     msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
 
     msv_sample_unaligned = np.concatenate((msv_sample_matches, msv_sample_nonmatches), axis=1)
@@ -3788,10 +3799,10 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
 
     # Always show labels and axes for smaller plots
-    ax.set_xlabel('m/z', fontsize=6, weight='bold')
-    ax.set_ylabel('intensity', fontsize=6, weight='bold')
-    ax.tick_params(axis='both', which='major', labelsize=5)
-    
+    ax.set_xlabel('m/z', fontsize=9, weight='bold')
+    ax.set_ylabel('< reference    intensity    experimental >', fontsize=9, weight='bold')
+    ax.tick_params(axis='both', which='major', labelsize=7)
+
     # Force scientific notation for y-axis
     ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
@@ -3807,7 +3818,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
                         xy=(msv_sample_unaligned[0][m], 1.01 * msv_sample_unaligned[1][m]),
                         rotation=90,
                         horizontalalignment='left', verticalalignment='center',
-                        size=6)  # Increased from size=4 to size=6
+                        size=8)
             labels.append(msv_sample_unaligned[0][m])
 
     if msv_ref_unaligned[0].size > 0:
@@ -3825,7 +3836,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     ylim = ax.get_ylim()
     ax.set_ylim(ylim[0], ylim[1] * 1.33)
 
-def plot_metadata_info_enhanced(ax, data, file_idxs, compound_idx, scores, rt_list, short_names_df, 
+def plot_metadata_info_enhanced(match_out_df, ax, data, file_idxs, compound_idx, scores, rt_list, short_names_df, 
                                compound_names, msv_sample_list, msv_ref_list, intensity_sorted_matches):
     """Enhanced metadata information with fragment matching details"""
     ax.axis('off')
@@ -3851,12 +3862,20 @@ def plot_metadata_info_enhanced(ax, data, file_idxs, compound_idx, scores, rt_li
         # Basic information
         filename = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file)
         info_text.append(f"BEST MATCH: {filename}")
-        info_text.append(f"Score: {scores[0]:.4f}" if len(scores) > 0 and not np.isnan(scores[0]) else "")
+        info_text.append(f"SCORE: {scores[0]:.4f}" if len(scores) > 0 and not np.isnan(scores[0]) else "")
 
         # Mass and RT accuracy
         info_text.append(f"MASS ACCURACY: Theoretical={mz_theoretical:.4f} m/z, Measured={mz_measured:.4f} m/z, Error={delta_ppm:.2f} ppm")
         info_text.append(f"RT ACCURACY: Expected={rt_theoretical:.2f} min, Measured={rt_measured:.2f} min" + 
                         (f", MSMS={rt_list[0]:.2f} min" if len(rt_list) > 0 else ""))
+        
+        # Always add an entry to the match DataFrame, regardless of fragment matching
+        new_row = {
+            'label': compound_names[compound_idx],
+            'file name': os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file) if file_idxs else '',
+            'Matching M/Zs above 1E-3*max': '',
+            'All matching M/Zs': ''
+        }
         
         # Fragment matching information
         if len(scores) > 0 and len(msv_sample_list) > 0:
@@ -3878,35 +3897,26 @@ def plot_metadata_info_enhanced(ax, data, file_idxs, compound_idx, scores, rt_li
                     if len(threshold_matches) > 0:
                         threshold_mzs = ', '.join([f'{m:.3f}' for m in threshold_matches])
                         info_text.append(f"  High-intensity matches: {threshold_mzs}")
+                        new_row['Matching M/Zs above 1E-3*max'] = threshold_mzs
                     
                     if len(mz_sample_matches) > 0:
                         all_mzs = ', '.join([f'{m:.3f}' for m in mz_sample_matches])
                         info_text.append(f"  All matching m/z: {all_mzs}")
+                        new_row['All matching M/Zs'] = all_mzs
                 else:
                     info_text.append("  No fragment matches found")
+            else:
+                info_text.append("  No spectral data available")
         
-        # # Additional file matches
-        # if len(scores) > 1:
-        #     info_text.append("")
-        #     info_text.append("OTHER MATCHES:")
-        #     for i in range(1, min(4, len(scores))):
-        #         if not short_names_df.empty:
-        #             try:
-        #                 short_name = short_names_df.loc[
-        #                     os.path.basename(data[file_idxs[i]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 
-        #                     'short_samplename'
-        #                 ][0]
-        #                 info_text.append(f"  #{i+1}: {short_name} (Score: {scores[i]:.3f})")
-        #             except:
-        #                 info_text.append(f"  #{i+1}: Score {scores[i]:.3f}")
-        #         else:
-        #             info_text.append(f"  #{i+1}: Score {scores[i]:.3f}")
+        # Add the row to the DataFrame
+        match_out_df = pd.concat([match_out_df, pd.DataFrame([new_row])], ignore_index=True)
         
         # Display the text
         full_text = '\n'.join(info_text)
-        ax.text(0.02, 0.98, full_text, transform=ax.transAxes, fontsize=10,
-                verticalalignment='top', fontfamily='monospace')
+        ax.text(0.02, 0.98, full_text, transform=ax.transAxes, fontsize=12,
+                verticalalignment='top')
 
+    return match_out_df
 
 def plot_fragment_matches_info(ax, msv_sample_list, msv_ref_list, scores, intensity_sorted_matches):
     """Plot detailed fragment matching information"""
@@ -3946,8 +3956,8 @@ def plot_fragment_matches_info(ax, msv_sample_list, msv_ref_list, scores, intens
             info_lines.append("No spectral data available")
         
         full_text = '\n'.join(info_lines)
-        ax.text(0.05, 0.95, full_text, transform=ax.transAxes, fontsize=9,
-                verticalalignment='top', fontfamily='monospace')
+        ax.text(0.05, 0.95, full_text, transform=ax.transAxes, fontsize=12,
+                verticalalignment='top')
     else:
         ax.text(0.5, 0.5, "No MSMS data\navailable", transform=ax.transAxes, 
                 fontsize=12, horizontalalignment='center', verticalalignment='center')
