@@ -4,6 +4,8 @@ import os
 import io
 import os.path
 import warnings
+import threading
+import atexit
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
 
@@ -32,6 +34,8 @@ import pandas as pd
 import dill
 import numpy as np
 import numpy.typing as npt
+from scipy.signal import find_peaks
+from scipy.ndimage import gaussian_filter1d
 import json
 import matplotlib.pyplot as plt
 
@@ -252,28 +256,28 @@ class LayoutPosition(Enum):
 
 class adjust_rt_for_selected_compound(object):
     def __init__(self,
-                 data,
-                 msms_sorting_method=None,
-                 msms_radio_buttons=None,
-                 include_lcmsruns=None,
-                 exclude_lcmsruns=None,
-                 include_groups=None,
-                 exclude_groups=None,
-                 msms_hits=None,
-                 color_me=None,
-                 compound_idx=0,
-                 width=10,
-                 height=4,
-                 y_scale='linear',
-                 alpha=0.5,
-                 min_max_color='green',
-                 peak_color='darkviolet',
-                 slider_color='ghostwhite',
-                 y_max='auto',
-                 y_min=0,
-                 peak_flags=None,
-                 msms_flags=None,
-                 adjustable_rt_peak=False):
+                data,
+                msms_sorting_method=None,
+                msms_radio_buttons=None,
+                include_lcmsruns=None,
+                exclude_lcmsruns=None,
+                include_groups=None,
+                exclude_groups=None,
+                msms_hits=None,
+                color_me=None,
+                compound_idx=0,
+                width=10,
+                height=4,
+                y_scale='linear',
+                alpha=0.5,
+                min_max_color='green',
+                peak_color='darkviolet',
+                slider_color='ghostwhite',
+                y_max='auto',
+                y_min=0,
+                peak_flags=None,
+                msms_flags=None,
+                adjustable_rt_peak=False):
         """
         INPUTS:
             data: a metatlas_dataset where info on files and compounds are stored
@@ -302,12 +306,22 @@ class adjust_rt_for_selected_compound(object):
 
         Key Bindings:
            Next compound: 'l' or right arrow
-           Previous compound: 'h' or left arrow
-           Next MSMS hit: 'j' or down arrow
-           Previous MSMS hit: 'k' or up arrow
+           Previous compound: 'j' or left arrow
+           Next MSMS hit: 'i' or down arrow
+           Previous MSMS hit: 'u' or up arrow
            Cycle zoom on MSMS plot: 'z'
            Flag for removal: 'x'
-           Toggle display of similar compounds list and highlighting: 's'
+           Toggle display of similar compounds list and highlighting: 'r'
+           Apply suggested RT bounds: 'p'
+           Clear suggested bounds display: 'Escape'
+           Set MSMS flag to '1.0, good match': '1'
+           Set MSMS flag to '0.5, partial or putative match of fragments': '5'
+           Set MSMS flag to '0.0, no match or no MSMS collected': '0'
+           RT min left (widen): 'a'
+           RT min right (tighten): 's' 
+           RT max left (tighten): 'd'
+           RT max right (widen): 'f'
+           Manual save changes to the database: 'b'
         """
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
@@ -327,6 +341,18 @@ class adjust_rt_for_selected_compound(object):
         self.peak_flags = peak_flags
         self.msms_flags = msms_flags
         self.adjustable_rt_peak = adjustable_rt_peak
+
+        # set up autosaving in bulk to increase speed of GUI
+        self.pending_changes = {}
+        self.auto_save_timer = None
+        self.save_delay = 5 # seconds
+        self.compound_switch_save = True
+        self._update_timer = None
+        atexit.register(self.cleanup_on_exit)
+
+        # set up suggested min and max values
+        self._suggested_bounds = None
+        self._suggestion_lines = []
 
         self.file_names = ma_data.get_file_names(self.data)
         self.configure_flags()
@@ -364,15 +390,323 @@ class adjust_rt_for_selected_compound(object):
         # Turn On interactive plot
         plt.ion()
 
+    def schedule_auto_save(self):
+        """Auto-save changes after a delay"""
+        if self.auto_save_timer:
+            self.auto_save_timer.cancel()
+        
+        self.auto_save_timer = threading.Timer(self.save_delay, self.flush_pending_changes)
+        self.auto_save_timer.start()
+
+    def flush_pending_changes(self):
+        """Write all pending changes to database in batch"""
+        if not self.pending_changes:
+            return
+            
+        logger.debug("Flushing %d pending changes to database", len(self.pending_changes))
+        
+        # Batch database operations
+        for compound_key, changes in self.pending_changes.items():
+            compound_idx = int(compound_key.split('_')[1])
+            
+            # Handle RT changes
+            for rt_type, value in changes.items():
+                if rt_type in ['rt_min', 'rt_max', 'rt_peak']:
+                    self.data.set_rt(compound_idx, rt_type, value)
+            
+            # Handle flag changes
+            if 'flags' in changes:
+                for flag_name, flag_value in changes['flags'].items():
+                    self.data.set_note(compound_idx, flag_name, flag_value)
+        
+        self.pending_changes.clear()
+        logger.debug("Database flush completed")
+
+    def cleanup_on_exit(self):
+        """Ensure pending changes are saved if the system crashes
+        
+        Closing Jupyter notebook - Will trigger cleanup
+        Restarting the kernel - Will trigger cleanup
+        Shutting down Jupyter - Will trigger cleanup
+        Script ending - Will trigger cleanup
+        Closing the Python interpreter - Will trigger cleanup
+        """
+        if self.pending_changes:
+            logger.warning("System exiting with unsaved changes. Auto-saving...")
+            self.flush_pending_changes()
+
+    def schedule_dependent_updates(self):
+        """Schedule expensive operations to run after UI updates"""
+        if self._update_timer:
+            self._update_timer.cancel()
+        
+        self._update_timer = threading.Timer(0.3, self._perform_dependent_updates)
+        self._update_timer.start()
+
+    def _perform_dependent_updates(self):
+        """Perform expensive updates after RT changes"""
+        self.msms_zoom_factor = 1
+        self.filter_hits()
+        self.similar_compounds = self.get_similar_compounds()
+        self.highlight_similar_compounds()
+        self.msms_plot()
+        self.fig.canvas.draw_idle()
+
+    def suggest_rt_bounds(self):
+        """Calculate suggested RT bounds using peak detection on the EIC data"""
+        try:
+            # Get the file with maximum intensity for peak detection
+            file_idx, _ = file_with_max_ms1_intensity(self.data, self.compound_idx, limit_to_rt_range=False)
+            if file_idx is None:
+                return None
+                
+            eic_data = self.data[file_idx][self.compound_idx]['data']['eic']
+            if not eic_data or len(eic_data['rt']) == 0:
+                return None
+                
+            rt = np.array(eic_data['rt'])
+            intensity = np.array(eic_data['intensity'])
+            
+            # Remove zero/negative intensities and invalid values
+            valid_mask = (intensity > 0) & (~np.isnan(rt)) & (~np.isnan(intensity))
+            if not np.any(valid_mask):
+                return None
+                
+            rt = rt[valid_mask]
+            intensity = intensity[valid_mask]
+            
+            if len(rt) < 5:  # Need sufficient data points
+                return None
+            
+            # Get theoretical RT peak for finding closest peak
+            theoretical_rt = self.data.rts[self.compound_idx].rt_peak
+            atlas_rt_min = self.data.rts[self.compound_idx].rt_min
+            atlas_rt_max = self.data.rts[self.compound_idx].rt_max
+            
+            # Apply modest smoothing (smaller sigma for tighter peaks)
+            smoothed_intensity = gaussian_filter1d(intensity, sigma=0.8)
+            
+            # Use better peak detection parameters (borrowed from old function)
+            max_intensity = np.max(smoothed_intensity)
+            min_height = max_intensity * 0.10  # 10% of max (from old function)
+            min_prominence = max_intensity * 0.05  # 5% of max (from old function)
+            
+            peaks, properties = find_peaks(
+                smoothed_intensity, 
+                height=min_height,
+                prominence=min_prominence,
+                distance=3  # Minimum separation between peaks
+            )
+            
+            if len(peaks) == 0:
+                # If no peaks found, use the maximum intensity point
+                peaks = np.array([np.argmax(smoothed_intensity)])
+                # Calculate basic properties for the max point
+                properties = {
+                    'prominences': np.array([max_intensity * 0.5]),
+                    'widths': np.array([10.0]),  # Default width
+                    'left_bases': np.array([max(0, peaks[0] - 5)]),
+                    'right_bases': np.array([min(len(rt) - 1, peaks[0] + 5)])
+                }
+            
+            # Find the peak closest to theoretical RT (current logic)
+            peak_rts = rt[peaks]
+            closest_peak_idx = np.argmin(np.abs(peak_rts - theoretical_rt))
+            main_peak_idx = peaks[closest_peak_idx]
+            peak_rt = rt[main_peak_idx]
+            
+            # Use peak_widths for more accurate bounds calculation (from old function concept)
+            try:
+                from scipy.signal import peak_widths
+                widths, _, left_ips, right_ips = peak_widths(
+                    smoothed_intensity,
+                    [main_peak_idx],
+                    rel_height=0.5  # Width at half maximum
+                )
+                
+                # Convert from continuous indices to actual indices
+                left_idx = int(np.floor(left_ips[0]))
+                right_idx = int(np.ceil(right_ips[0]))
+                left_idx = max(0, left_idx)
+                right_idx = min(len(rt) - 1, right_idx)
+                
+            except (ImportError, Exception):
+                # Fallback to original method if peak_widths fails
+                left_idx = int(properties['left_bases'][closest_peak_idx])
+                right_idx = int(properties['right_bases'][closest_peak_idx])
+            
+            # Calculate base RT bounds
+            rt_left = rt[left_idx]
+            rt_right = rt[right_idx]
+            
+            # Add intelligent padding (borrowed from old function)
+            width_rt = rt_right - rt_left
+            pad = max(0.05, width_rt * 0.05)  # 5% of width or 0.05 min minimum
+            rt_min_suggested = rt_left - pad
+            rt_max_suggested = rt_right + pad
+            
+            # Constrain to reasonable bounds
+            rt_min_suggested = max(rt_min_suggested, rt[0])
+            rt_max_suggested = min(rt_max_suggested, rt[-1])
+            
+            # Quality control on width (tightened from original)
+            final_width = rt_max_suggested - rt_min_suggested
+            if final_width < 0.08:  # Minimum width
+                center = peak_rt
+                rt_min_suggested = center - 0.04
+                rt_max_suggested = center + 0.04
+            elif final_width > 0.6:  # Maximum width (tighter than before)
+                center = peak_rt
+                rt_min_suggested = center - 0.3
+                rt_max_suggested = center + 0.3
+            
+            # Calculate comprehensive confidence score (from old function)
+            prominence = properties['prominences'][closest_peak_idx]
+            peak_intensity = smoothed_intensity[main_peak_idx]
+            
+            # Intensity score
+            intensity_score = min(1.0, peak_intensity / max(max_intensity, 1e3))
+            
+            # Prominence score
+            prominence_score = min(1.0, prominence / max(peak_intensity * 0.5, 1e3))
+            
+            # Width score (optimal width around 0.2-0.4 minutes for metabolomics)
+            optimal_width = 0.3
+            width_score = 1.0 - min(1.0, abs(final_width - optimal_width) / optimal_width)
+            
+            # RT proximity score
+            max_expected_dev = max(abs(atlas_rt_max - atlas_rt_min), 0.5)
+            rt_dev = abs(peak_rt - theoretical_rt)
+            rt_score = max(0.0, 1.0 - (rt_dev / max_expected_dev))
+            
+            # Shape symmetry score
+            left_tail = main_peak_idx - left_idx
+            right_tail = right_idx - main_peak_idx
+            if left_tail + right_tail > 0:
+                asym = abs(left_tail - right_tail) / (left_tail + right_tail)
+                shape_score = max(0.0, 1.0 - asym)
+            else:
+                shape_score = 0.5
+            
+            # Weighted confidence score
+            confidence = (
+                0.30 * intensity_score +
+                0.20 * prominence_score +
+                0.15 * width_score +
+                0.20 * rt_score +
+                0.15 * shape_score
+            )
+            confidence = float(np.clip(confidence, 0.0, 1.0))
+            
+            # Apply penalties for problematic cases
+            if confidence < 0.1:
+                return None
+            if final_width > (atlas_rt_max - atlas_rt_min) * 1.5:  # Too wide compared to atlas
+                confidence *= 0.6
+            if rt_dev > max_expected_dev * 1.5:  # Too far from expected RT
+                confidence *= 0.5
+                
+            return {
+                'rt_min': float(rt_min_suggested),
+                'rt_max': float(rt_max_suggested),
+                'rt_peak': float(peak_rt),
+                'confidence': float(confidence)
+            }
+            
+        except Exception as e:
+            logger.warning("Error in peak detection for compound %d: %s", self.compound_idx, str(e))
+            return None
+
+    def apply_suggested_bounds(self):
+        """Apply the suggested RT bounds to the current compound"""
+        if not hasattr(self, '_suggested_bounds') or self._suggested_bounds is None:
+            self._suggested_bounds = self.suggest_rt_bounds()
+            
+        if self._suggested_bounds is None:
+            logger.info("No suggested bounds available for compound %d", self.compound_idx)
+            return
+            
+        logger.info("Applying suggested bounds: min=%.3f, max=%.3f, peak=%.3f (confidence=%.2f)",
+                    self._suggested_bounds['rt_min'], 
+                    self._suggested_bounds['rt_max'],
+                    self._suggested_bounds['rt_peak'],
+                    self._suggested_bounds['confidence'])
+        
+        # Apply the suggestions with immediate database updates (like ASDF keys)
+        # RT min
+        self.data.set_rt(self.compound_idx, 'rt_min', self._suggested_bounds['rt_min'])
+        self.rt_min_slider.set_val(self._suggested_bounds['rt_min'])
+        self.min_line.set_xdata((self._suggested_bounds['rt_min'], self._suggested_bounds['rt_min']))
+        
+        # RT max
+        self.data.set_rt(self.compound_idx, 'rt_max', self._suggested_bounds['rt_max'])
+        self.rt_max_slider.set_val(self._suggested_bounds['rt_max'])
+        self.max_line.set_xdata((self._suggested_bounds['rt_max'], self._suggested_bounds['rt_max']))
+        
+        # RT peak (if adjustable)
+        if self.adjustable_rt_peak:
+            self.data.set_rt(self.compound_idx, 'rt_peak', self._suggested_bounds['rt_peak'])
+            self.rt_peak_slider.set_val(self._suggested_bounds['rt_peak'])
+            self.peak_line.set_xdata((self._suggested_bounds['rt_peak'], self._suggested_bounds['rt_peak']))
+        
+        # Schedule expensive background operations and draw immediately
+        self.schedule_dependent_updates()
+        self.fig.canvas.draw_idle()
+
+    def show_suggested_bounds(self):
+        """Visualize suggested bounds on the EIC plot"""
+        if not hasattr(self, '_suggested_bounds') or self._suggested_bounds is None:
+            self._suggested_bounds = self.suggest_rt_bounds()
+            
+        if self._suggested_bounds is None:
+            return
+            
+        # Remove any existing suggestion lines
+        if hasattr(self, '_suggestion_lines'):
+            for line in self._suggestion_lines:
+                line.remove()
+                
+        # Add suggestion lines
+        self._suggestion_lines = []
+        
+        # Dashed lines for suggestions
+        line1 = self.ax.axvline(self._suggested_bounds['rt_min'], 
+                            color='orange', linewidth=2, linestyle='--', alpha=0.7,
+                            label='Suggested bounds')
+        line2 = self.ax.axvline(self._suggested_bounds['rt_max'], 
+                            color='orange', linewidth=2, linestyle='--', alpha=0.7)
+        
+        self._suggestion_lines = [line1, line2]
+        
+        if self.adjustable_rt_peak:
+            line3 = self.ax.axvline(self._suggested_bounds['rt_peak'], 
+                                color='red', linewidth=2, linestyle=':', alpha=0.7,
+                                label='Suggested peak')
+            self._suggestion_lines.append(line3)
+        
+        self.fig.canvas.draw_idle()
+
+    def clear_suggested_bounds(self):
+        """Clear suggestion visualization"""
+        if hasattr(self, '_suggestion_lines'):
+            for line in self._suggestion_lines:
+                line.remove()
+            self._suggestion_lines = []
+        self.fig.canvas.draw_idle()
+
     def set_plot_data(self):
         logger.debug('Starting replot')
         self.enable_similar_compounds = True
         self.similar_compounds = self.get_similar_compounds()
+        self._suggested_bounds = None
+        if hasattr(self, '_suggestion_lines'):
+            self._suggestion_lines = []
         self.eic_plot()
         self.filter_hits()
         self.msms_plot()
         self.flag_radio_buttons()
         self.notes()
+        self.show_suggested_bounds()
         self.in_switch_event = False
         logger.debug('Finished replot')
 
@@ -393,8 +727,14 @@ class adjust_rt_for_selected_compound(object):
 
     def on_id_note_change(self, change):
         if not self.in_switch_event:
-            logger.debug('ID_NOTE change handler got value: %s', change['new'])
-            self.data.set_note(self.compound_idx, "identification_notes", change["new"])
+            logger.debug('Buffering ID_NOTE change: %s', change['new'])
+            compound_key = f"compound_{self.compound_idx}"
+            if compound_key not in self.pending_changes:
+                self.pending_changes[compound_key] = {}
+            if 'flags' not in self.pending_changes[compound_key]:
+                self.pending_changes[compound_key]['flags'] = {}
+            self.pending_changes[compound_key]['flags']['identification_notes'] = change["new"]
+            self.schedule_auto_save()
 
     def eic_plot(self):
         logger.debug('Starting eic_plot')
@@ -411,9 +751,10 @@ class adjust_rt_for_selected_compound(object):
         self.y_max_slider()
         idx = 0 if self.y_scale == 'linear' else 1
         self.lin_log_radio = self.create_radio_buttons(self.lin_log_ax, ('linear', 'log'),
-                                                       self.set_lin_log, 0.07, active_idx=idx)
+                                                    self.set_lin_log, 0.07, active_idx=idx)
         self.rt_bounds()
         self.highlight_similar_compounds()
+        self.show_suggested_bounds()
         logger.debug('Finished eic_plot')
 
     def flag_radio_buttons(self):
@@ -596,10 +937,12 @@ class adjust_rt_for_selected_compound(object):
         wide_layout = widgets.Layout(width="85%")
         self.instructions = widgets.HTML(value="Compound Info will go here", layout=wide_layout)
         self.copy_button_area = widgets.Output()
+                
         self.id_note = widgets.Textarea(
-            description="ID Notes", value="", placeholder="No note entered", continuous_update=False,
-            layout=wide_layout
+            description="ID Notes", value="", placeholder="No note entered", 
+            continuous_update=False, layout=wide_layout
         )
+        
         display(widgets.HBox([self.instructions, self.copy_button_area],
                 layout=widgets.Layout(justify_content='space-between')))
         display(self.id_note)
@@ -677,6 +1020,10 @@ class adjust_rt_for_selected_compound(object):
     def create_radio_buttons(self, axes, labels, on_click_handler, radius, active_idx=0):
         buttons = RadioButtons(axes, labels, active=active_idx)
         buttons.set_radio_props({'s':1600*radius, 'facecolor':'blue'})
+        axes.spines['top'].set_visible(False)
+        axes.spines['right'].set_visible(False)
+        axes.spines['bottom'].set_visible(False)
+        axes.spines['left'].set_visible(False)
         buttons.on_clicked(on_click_handler)
         return buttons
 
@@ -687,9 +1034,23 @@ class adjust_rt_for_selected_compound(object):
             self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
         self.fig.canvas.draw_idle()
 
+    # def set_flag(self, name, value):
+    #     logger.debug('Setting flag "%s" to "%s".', name, value)
+    #     self.data.set_note(self.compound_idx, name, value)
+
     def set_flag(self, name, value):
-        logger.debug('Setting flag "%s" to "%s".', name, value)
-        self.data.set_note(self.compound_idx, name, value)
+        """Buffer flag changes instead of immediate database writes"""
+        logger.debug('Buffering flag "%s" to "%s".', name, value)
+        
+        compound_key = f"compound_{self.compound_idx}"
+        if compound_key not in self.pending_changes:
+            self.pending_changes[compound_key] = {}
+        
+        if 'flags' not in self.pending_changes[compound_key]:
+            self.pending_changes[compound_key]['flags'] = {}
+        
+        self.pending_changes[compound_key]['flags'][name] = value
+        self.schedule_auto_save()
 
     def set_peak_flag(self, label):
         old_label = ma_data.extract(self.current_id, ["ms1_notes"])
@@ -732,16 +1093,16 @@ class adjust_rt_for_selected_compound(object):
                 self.mz_annot.set_visible(False)
                 self.fig.canvas.draw_idle()
 
-    def hide_radio_buttons(self):
-        self.peak_flag_radio.set_radio_props({'facecolor':'white'})
-        self.lin_log_radio.set_radio_props({'facecolor':'white'})
-        self.msms_flag_radio.set_radio_props({'facecolor':'white'})
-        for label in self.peak_flag_radio.labels:
-            label.set_color('white')
-        for label in self.lin_log_radio.labels:
-            label.set_color('white')
-        for label in self.msms_flag_radio.labels:
-            label.set_color('white')
+    # def hide_radio_buttons(self):
+    #     self.peak_flag_radio.set_radio_props({'facecolor':'white'})
+    #     self.lin_log_radio.set_radio_props({'facecolor':'white'})
+    #     self.msms_flag_radio.set_radio_props({'facecolor':'white'})
+    #     for label in self.peak_flag_radio.labels:
+    #         label.set_color('white')
+    #     for label in self.lin_log_radio.labels:
+    #         label.set_color('white')
+    #     for label in self.msms_flag_radio.labels:
+    #         label.set_color('white')
 
     def update_plots(self):
         self.msms_zoom_factor = 1
@@ -751,43 +1112,69 @@ class adjust_rt_for_selected_compound(object):
         self.rt_min_ax.cla()
         self.rt_max_ax.cla()
         self.y_scale_ax.cla()
-        self.hide_radio_buttons()
+        self.peak_flag_ax.cla()
+        self.msms_flag_ax.cla() 
+        self.lin_log_ax.cla()
         self.set_plot_data()
+        self.show_suggested_bounds()
 
     @log_errors(output_context=LOGGING_WIDGET)
     def press(self, event):
-        if event.key in ['right', 'l']:
+        if event.key in ['right', ';', ' ']:
+            total_compounds = len(self.data[0])
+            logger.debug("Current compound_idx: %d, Total compounds: %d", self.compound_idx, total_compounds)
+
+            if self.compound_idx + 1 >= len(self.data[0]):
+                # At final compound - force save
+                logger.debug("Reached final compound, auto-saving all changes...")
+                self.flush_pending_changes()
+    
             if self.compound_idx + 1 < len(self.data[0]):
+                # Force save before switching compounds
+                if self.pending_changes and self.compound_switch_save:
+                    logger.debug("Auto-saving before compound switch...")
+                    self.flush_pending_changes()
+                    
                 self.in_switch_event = True
                 self.compound_idx += 1
                 logger.debug("Increasing compound_idx to %d (inchi_key:%s adduct:%s).",
-                             self.compound_idx,
-                             self.current_inchi_key,
-                             self.current_adduct
-                             )
+                            self.compound_idx,
+                            self.current_inchi_key,
+                            self.current_adduct
+                            )
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
+                self.show_suggested_bounds()
                 self.in_switch_event = False
-        elif event.key in ['left', 'h']:
+        elif event.key in ['left', 'j']:
             if self.compound_idx > 0:
+                # Force save before switching compounds
+                if self.pending_changes and self.compound_switch_save:
+                    logger.info("Auto-saving before compound switch...")
+                    self.flush_pending_changes()
+                    
                 self.in_switch_event = True
                 self.compound_idx -= 1
                 logger.debug("Decreasing compound_idx to %d (inchi_key:%s adduct:%s).",
-                             self.compound_idx,
-                             self.current_inchi_key,
-                             self.current_adduct
-                             )
+                            self.compound_idx,
+                            self.current_inchi_key,
+                            self.current_adduct
+                            )
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
+                self.show_suggested_bounds()
                 self.in_switch_event = False
-        elif event.key in ['up', 'k']:
+        elif event.key == 'b':
+            logger.info("Manual save triggered via 'b' key event.")
+            self.flush_pending_changes()
+        elif event.key in ['up', 'i']:
             if self.hit_ctr > 0:
                 self.hit_ctr -= 1
                 logger.debug("Decreasing hit_ctr to %d.", self.hit_ctr)
                 self.update_plots()
-        elif event.key in ['down', 'j']:
+        elif event.key in ['down', 'u']:
             if self.hit_ctr < len(self.hits) - 1:
                 logger.debug("Increasing hit_ctr to %d.", self.hit_ctr)
                 self.hit_ctr += 1
@@ -802,7 +1189,7 @@ class adjust_rt_for_selected_compound(object):
             self.msms_zoom_factor = 1 if self.msms_zoom_factor == 25 else self.msms_zoom_factor * 5
             logger.debug("Setting msms zoom factor to %d.", self.msms_zoom_factor)
             self.msms_plot()
-        elif event.key == 's':
+        elif event.key == 'r':
             self.enable_similar_compounds = not self.enable_similar_compounds
             self.similar_compounds = self.get_similar_compounds()
             if self.enable_similar_compounds:
@@ -817,6 +1204,93 @@ class adjust_rt_for_selected_compound(object):
             if num_sim > 0:
                 self.match_idx = 0 if self.match_idx is None else (self.match_idx + 1) % num_sim
                 self.match_rts()
+        elif event.key == 'p':
+            if not self.enable_edit:
+                self.warn_if_not_atlas_owner()
+                return
+            logger.debug("Applying suggested peak bounds for compound %d.", self.compound_idx)
+            self.apply_suggested_bounds()
+            self.show_suggested_bounds()
+        elif event.key == 'escape':
+            logger.debug("Clearing suggested bounds display.")
+            self.clear_suggested_bounds()
+        elif event.key == '1':
+            if not self.enable_edit:
+                self.warn_if_not_atlas_owner()
+                return
+            good_match_flag = '1.0, good match'
+            if good_match_flag in self.msms_flags:
+                flag_index = self.msms_flags.index(good_match_flag)
+                logger.debug("Setting MSMS flag to '%s' via '1' key event.", good_match_flag)
+                self.msms_flag_radio.set_active(flag_index)
+        elif event.key == '0':
+            if not self.enable_edit:
+                self.warn_if_not_atlas_owner()
+                return
+            no_match_flag = '0.0, no match or no MSMS collected'
+            if no_match_flag in self.msms_flags:
+                flag_index = self.msms_flags.index(no_match_flag)
+                logger.debug("Setting MSMS flag to '%s' via '0' key event.", no_match_flag)
+                self.msms_flag_radio.set_active(flag_index)
+        elif event.key == '5':
+            if not self.enable_edit:
+                self.warn_if_not_atlas_owner()
+                return
+            no_match_flag = '0.5, partial or putative match of fragments'
+            if no_match_flag in self.msms_flags:
+                flag_index = self.msms_flags.index(no_match_flag)
+                logger.debug("Setting MSMS flag to '%s' via '5' key event.", no_match_flag)
+                self.msms_flag_radio.set_active(flag_index)
+        elif event.key == 'a':  # Move RT min left (widen - decrease rt_min)
+            if not self.enable_edit:
+                self.warn_if_not_atlas_owner()
+                return
+            current_rt_min = self.data.rts[self.compound_idx].rt_min
+            new_rt_min = max(0, current_rt_min - 0.025)
+            logger.debug("Moving RT min left from %.3f to %.3f", current_rt_min, new_rt_min)
+            self.data.set_rt(self.compound_idx, 'rt_min', new_rt_min)
+            self.rt_min_slider.set_val(new_rt_min)
+            self.min_line.set_xdata((new_rt_min, new_rt_min))
+            self.schedule_dependent_updates()
+            self.fig.canvas.draw_idle()
+        elif event.key == 's':  # Move RT min right (tighten - increase rt_min) 
+            if not self.enable_edit:
+                self.warn_if_not_atlas_owner()
+                return
+            current_rt_min = self.data.rts[self.compound_idx].rt_min
+            current_rt_max = self.data.rts[self.compound_idx].rt_max
+            new_rt_min = min(current_rt_max - 0.025, current_rt_min + 0.025)
+            logger.debug("Moving RT min right from %.3f to %.3f", current_rt_min, new_rt_min)
+            self.data.set_rt(self.compound_idx, 'rt_min', new_rt_min)
+            self.rt_min_slider.set_val(new_rt_min)
+            self.min_line.set_xdata((new_rt_min, new_rt_min))
+            self.schedule_dependent_updates()
+            self.fig.canvas.draw_idle()
+        elif event.key == 'd':  # Move RT max left (tighten - decrease rt_max)
+            if not self.enable_edit:
+                self.warn_if_not_atlas_owner()
+                return
+            current_rt_min = self.data.rts[self.compound_idx].rt_min
+            current_rt_max = self.data.rts[self.compound_idx].rt_max
+            new_rt_max = max(current_rt_min + 0.025, current_rt_max - 0.025)
+            logger.debug("Moving RT max left from %.3f to %.3f", current_rt_max, new_rt_max)
+            self.data.set_rt(self.compound_idx, 'rt_max', new_rt_max)
+            self.rt_max_slider.set_val(new_rt_max)
+            self.max_line.set_xdata((new_rt_max, new_rt_max))
+            self.schedule_dependent_updates()
+            self.fig.canvas.draw_idle()
+        elif event.key == 'f':  # Move RT max right (widen - increase rt_max)
+            if not self.enable_edit:
+                self.warn_if_not_atlas_owner()
+                return
+            current_rt_max = self.data.rts[self.compound_idx].rt_max
+            new_rt_max = min(current_rt_max + 0.025, 22)
+            logger.debug("Moving RT max right from %.3f to %.3f", current_rt_max, new_rt_max)
+            self.data.set_rt(self.compound_idx, 'rt_max', new_rt_max)
+            self.rt_max_slider.set_val(new_rt_max)
+            self.max_line.set_xdata((new_rt_max, new_rt_max))
+            self.schedule_dependent_updates()
+            self.fig.canvas.draw_idle()
 
     def match_rts(self):
         """Sets RT min and max to match similar compound referenced by match_idx"""
@@ -844,25 +1318,74 @@ class adjust_rt_for_selected_compound(object):
             self.ax.set_title(text % user)
             logger.warning(text, user)
 
+#     def update_rt(self,val):
+#         self.my_rt.rt_min = self.rt_min_slider.val
+#         self.my_rt.rt_max = self.rt_max_slider.val
+#         self.my_rt.rt_peak = self.rt_peak_slider.val
+
+#         self.rt_min_slider.valinit = self.my_rt.rt_min
+#         self.rt_max_slider.valinit = self.my_rt.rt_max
+#         self.rt_peak_slider.valinit = self.my_rt.rt_peak
+
+#         metob.store(self.my_rt)
+#         self.min_line.set_xdata((self.my_rt.rt_min,self.my_rt.rt_min))
+#         self.max_line.set_xdata((self.my_rt.rt_max,self.my_rt.rt_max))
+#         self.peak_line.set_xdata((self.my_rt.rt_peak,self.my_rt.rt_peak))
+#         self.fig.canvas.draw_idle()
+
+    # def update_rt(self, which, val):
+    #     """
+    #     inputs:
+    #         which: 'rt_min', 'rt_max', or 'rt_peak'
+    #         val: new RT value
+    #     """
+    #     logger.debug("Updating %s to %0.4f", which, val)
+    #     slider = {'rt_min': self.rt_min_slider, 'rt_peak': self.rt_peak_slider,
+    #               'rt_max': self.rt_max_slider}
+    #     line = {'rt_min': self.min_line, 'rt_peak': self.peak_line, 'rt_max': self.max_line}
+    #     self.data.set_rt(self.compound_idx, which, val)
+    #     slider[which].valinit = val
+    #     line[which].set_xdata((val, val))
+    #     if which != 'rt_peak':
+    #         self.msms_zoom_factor = 1
+    #         self.filter_hits()
+    #         self.similar_compounds = self.get_similar_compounds()
+    #         self.highlight_similar_compounds()
+    #         self.msms_plot()
+    #     self.fig.canvas.draw_idle()
+
     def update_rt(self, which, val):
         """
+        Buffer RT changes instead of immediate database writes
         inputs:
             which: 'rt_min', 'rt_max', or 'rt_peak'
             val: new RT value
         """
-        logger.debug("Updating %s to %0.4f", which, val)
+        logger.debug("Buffering %s to %0.4f", which, val)
+        
+        # Update UI immediately for responsiveness
         slider = {'rt_min': self.rt_min_slider, 'rt_peak': self.rt_peak_slider,
-                  'rt_max': self.rt_max_slider}
+                'rt_max': self.rt_max_slider}
         line = {'rt_min': self.min_line, 'rt_peak': self.peak_line, 'rt_max': self.max_line}
-        self.data.set_rt(self.compound_idx, which, val)
+        
+        # Buffer the change instead of immediate database write
+        compound_key = f"compound_{self.compound_idx}"
+        if compound_key not in self.pending_changes:
+            self.pending_changes[compound_key] = {}
+        self.pending_changes[compound_key][which] = val
+        
+        # Update UI elements immediately
         slider[which].valinit = val
         line[which].set_xdata((val, val))
+        
+        # Schedule auto-save and update indicator
+        self.schedule_auto_save()
+        
+        # Schedule expensive operations for later if this affects MSMS
         if which != 'rt_peak':
-            self.msms_zoom_factor = 1
-            self.filter_hits()
-            self.similar_compounds = self.get_similar_compounds()
-            self.highlight_similar_compounds()
-            self.msms_plot()
+            self.schedule_dependent_updates()
+        
+        # Draw immediately for UI responsiveness
         self.fig.canvas.draw_idle()
 
     def update_rt_min(self, val):
@@ -1102,22 +1625,6 @@ class adjust_mz_for_selected_compound(object):
                 self.mz_min_ax.cla()
                 self.mz_max_ax.cla()
                 self.set_plot_data()
-
-#     def update_rt(self,val):
-#         self.my_rt.rt_min = self.rt_min_slider.val
-#         self.my_rt.rt_max = self.rt_max_slider.val
-#         self.my_rt.rt_peak = self.rt_peak_slider.val
-
-#         self.rt_min_slider.valinit = self.my_rt.rt_min
-#         self.rt_max_slider.valinit = self.my_rt.rt_max
-#         self.rt_peak_slider.valinit = self.my_rt.rt_peak
-
-#         metob.store(self.my_rt)
-#         self.min_line.set_xdata((self.my_rt.rt_min,self.my_rt.rt_min))
-#         self.max_line.set_xdata((self.my_rt.rt_max,self.my_rt.rt_max))
-#         self.peak_line.set_xdata((self.my_rt.rt_peak,self.my_rt.rt_peak))
-#         self.fig.canvas.draw_idle()
-
 
 def replace_compound_id_with_name(x):
     id_list = literal_eval(x)
