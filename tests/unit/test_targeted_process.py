@@ -10,16 +10,17 @@ def test_annotation_gui01(metatlas_dataset, hits, mocker, instructions):
     mocker.patch("pandas.read_csv", return_value=instructions)
     agui = annotation_gui(metatlas_dataset)
     agui.compound_idx = 0
-    agui.set_msms_flag("1, co-isolated precursor but all reference ions are in sample spectrum")
+    agui.set_msms_flag("1.0, co-isolated precursor, good match")
     agui.set_peak_flag("remove")
     agui.data.set_rt(0, "rt_min", 2.1245)
     agui.data.set_rt(0, "rt_max", 2.4439)
+    agui.flush_pending_changes()
     assert metatlas_dataset.rts[0].rt_min == 2.1245
     assert metatlas_dataset.rts[0].rt_max == 2.4439
     assert metatlas_dataset.data[0][0]["identification"].ms1_notes == "remove"
     assert (
         metatlas_dataset.data[0][0]["identification"].ms2_notes
-        == "1, co-isolated precursor but all reference ions are in sample spectrum"
+        == "1.0, co-isolated precursor, good match"
     )
 
 
