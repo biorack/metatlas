@@ -278,7 +278,9 @@ class adjust_rt_for_selected_compound(object):
                 y_min=0,
                 peak_flags=None,
                 msms_flags=None,
-                adjustable_rt_peak=False):
+                adjustable_rt_peak=False,
+                display_suggested_rt_bounds: bool = True
+                ) -> None:
         """
         INPUTS:
             data: a metatlas_dataset where info on files and compounds are stored
@@ -342,6 +344,7 @@ class adjust_rt_for_selected_compound(object):
         self.peak_flags = peak_flags
         self.msms_flags = msms_flags
         self.adjustable_rt_peak = adjustable_rt_peak
+        self.display_suggested_rt_bounds = display_suggested_rt_bounds
 
         # set up autosaving in bulk to increase speed of GUI
         self.pending_changes = {}
@@ -706,7 +709,8 @@ class adjust_rt_for_selected_compound(object):
         self.msms_plot()
         self.flag_radio_buttons()
         self.notes()
-        self.show_suggested_bounds()
+        if self.display_suggested_rt_bounds:
+            self.show_suggested_bounds()
         self.in_switch_event = False
         logger.debug('Finished replot')
 
@@ -754,7 +758,8 @@ class adjust_rt_for_selected_compound(object):
                                                     self.set_lin_log, 0.07, active_idx=idx)
         self.rt_bounds()
         self.highlight_similar_compounds()
-        self.show_suggested_bounds()
+        if self.display_suggested_rt_bounds:
+            self.show_suggested_bounds()
         logger.debug('Finished eic_plot')
 
     def flag_radio_buttons(self):
@@ -1116,7 +1121,8 @@ class adjust_rt_for_selected_compound(object):
         self.msms_flag_ax.cla() 
         self.lin_log_ax.cla()
         self.set_plot_data()
-        self.show_suggested_bounds()
+        if self.display_suggested_rt_bounds:
+            self.show_suggested_bounds()
 
     @log_errors(output_context=LOGGING_WIDGET)
     def press(self, event):
@@ -1145,7 +1151,8 @@ class adjust_rt_for_selected_compound(object):
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
-                self.show_suggested_bounds()
+                if self.display_suggested_rt_bounds:
+                    self.show_suggested_bounds()
                 self.in_switch_event = False
         elif event.key in ['left', 'j']:
             if self.compound_idx > 0:
@@ -1164,7 +1171,8 @@ class adjust_rt_for_selected_compound(object):
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
-                self.show_suggested_bounds()
+                if self.display_suggested_rt_bounds:
+                    self.show_suggested_bounds()
                 self.in_switch_event = False
         elif event.key == 'b':
             logger.info("Manual save triggered via 'b' key event.")
@@ -1207,6 +1215,9 @@ class adjust_rt_for_selected_compound(object):
         elif event.key == 'p':
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
+                return
+            if not self.display_suggested_rt_bounds:
+                logger.warning("Display suggested RT bounds is disabled with current settings.")
                 return
             logger.debug("Applying suggested peak bounds for compound %d.", self.compound_idx)
             self.apply_suggested_bounds()
@@ -4056,7 +4067,8 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
     match_dtypes = {'label': str,
                     'file name': str,
                     'Matching M/Zs above 1E-3*max': str,
-                    'All matching M/Zs': str}
+                    #'All matching M/Zs': str
+                    }
 
     match_out_df = pd.DataFrame(columns=match_dtypes).astype(match_dtypes)
     disable_interactive_plots()
@@ -4102,37 +4114,27 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
             scores = [np.nan]
 
         # Create figure with original layout: 3 rows x 4 columns
-        fig = plt.figure(figsize=(25, 13))
+        fig = plt.figure(figsize=(25, 15))
         
         # Define grid layout: 3 rows x 4 columns
         gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3, 
-                             height_ratios=[2, 1.2, 0.8])
+                             height_ratios=[1.45, 1.2, 1.35])
         
         # Row 1: 3 MSMS mirror plots (columns 0-2) + molecular structure (column 3)
-        mirror_plot_titles = ['Best', '2nd Best', '3rd Best']
+        mirror_plot_titles = ['Best MSMS Match', '2nd Best MSMS Match', '3rd Best MSMS Match']
         for i in range(3):
             ax_msms = fig.add_subplot(gs[0, i])
-            
+
+            # Always show the top title, even if no data
+            ax_msms.text(
+                0.5, 1.12, mirror_plot_titles[i],
+                fontsize=15, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
+            )
+
             if i < len(scores) and file_idxs and file_idxs[0] is not None:
                 # Use the same function for all plots to make them identical
                 plot_msms_comparison(i, scores[i], ax_msms, msv_sample_list[i], msv_ref_list[i])
-                
-                # Remove the title and use text for more control with increased font sizes
-                if i == 0:
-                    ax_msms.text(
-                        0.5, 1.11, f"Best MSMS Match",
-                        fontsize=15, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
-                    )
-                elif i == 1:
-                    ax_msms.text(
-                        0.5, 1.11, f"2nd Best MSMS Match",
-                        fontsize=15, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
-                    )
-                elif i == 2:
-                    ax_msms.text(
-                        0.5, 1.11, f"3rd Best MSMS Match",
-                        fontsize=15, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
-                    )
+
                 ax_msms.text(
                     0.5, 1.06, f"MSMS Score: {scores[i]:.3f}",
                     fontsize=15, weight='bold', ha='center', va='bottom', transform=ax_msms.transAxes
@@ -4141,7 +4143,7 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
                     0.5, 1.01, f"MSMS RT: {rt_list[i]:.2f}" if len(rt_list) > i else "",
                     fontsize=12, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
                 )
-                        
+
                 ax_msms.tick_params(labelsize=15)
                 ax_msms.xaxis.label.set_size(15)
                 ax_msms.yaxis.label.set_size(15)
@@ -4151,26 +4153,26 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
                 ax_msms.set_ylabel('intensity', fontsize=15, weight='bold')
                 ax_msms.tick_params(axis='both', which='major', labelsize=15)
                 ax_msms.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
-                
+
                 # Set reasonable axis limits to match other plots
                 ax_msms.set_xlim(0, 500)
                 ax_msms.set_ylim(0, 1000)
-                
+
                 # Add the "No MSMS data" text in the center
-                ax_msms.text(0.5, 0.5, 'No MSMS Data', transform=ax_msms.transAxes, 
-                           horizontalalignment='center', verticalalignment='center', 
-                           fontsize=18, weight='bold', color='gray')
-                
-                # Add empty score text to match the format
+                ax_msms.text(0.5, 0.5, 'No MSMS Data', transform=ax_msms.transAxes,
+                        horizontalalignment='center', verticalalignment='center',
+                        fontsize=18, weight='bold', color='gray')
+
+                # Add empty score and RT text to match the format
                 ax_msms.text(
                     0.5, 1.06, f"MSMS Score: N/A",
                     fontsize=15, weight='bold', ha='center', va='bottom', transform=ax_msms.transAxes
                 )
                 ax_msms.text(
-                    0.5, 1.01, f"RT: N/A",
+                    0.5, 1.01, f"MSMS RT: N/A",
                     fontsize=12, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
                 )
-                
+
                 # Increase line width of plot borders to match other plots
                 for spine in ax_msms.spines.values():
                     spine.set_linewidth(1.5)
@@ -4188,18 +4190,18 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
         # Column 1: Linear EIC
         ax_eic_linear = fig.add_subplot(gs[1, 0])
         plot_eic(ax_eic_linear, data, compound_idx, log_scale=False)
-        ax_eic_linear.set_title('', fontsize=15, weight='bold')
+        #ax_eic_linear.set_title('', fontsize=15, weight='bold')
         ax_eic_linear.tick_params(labelsize=15)
-        ax_eic_linear.set_xlabel('Retention Time (min)', fontsize=15)
-        ax_eic_linear.set_ylabel('Intensity', fontsize=15)
+        ax_eic_linear.set_xlabel('Retention Time (min)', fontsize=15, weight='bold')
+        ax_eic_linear.set_ylabel('Intensity', fontsize=15, weight='bold')
 
         # Column 2: Log EIC
         ax_eic_log = fig.add_subplot(gs[1, 1])
         plot_eic(ax_eic_log, data, compound_idx, log_scale=True)
-        ax_eic_log.set_title('', fontsize=15, weight='bold')
+        #ax_eic_log.set_title('', fontsize=15, weight='bold')
         ax_eic_log.tick_params(labelsize=15)
-        ax_eic_log.set_xlabel('Retention Time (min)', fontsize=15)
-        ax_eic_log.set_ylabel('Intensity (log)', fontsize=15)
+        ax_eic_log.set_xlabel('Retention Time (min)', fontsize=15, weight='bold')
+        ax_eic_log.set_ylabel('Intensity (log)', fontsize=15, weight='bold')
 
         # Columns 3-4: Compound info table (spanning 2 columns)
         if file_idxs and file_idxs[0] is not None:
@@ -4222,7 +4224,7 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
         plt.suptitle(f'{compound_names[compound_idx]}\n', fontsize=22, weight='bold', y=0.96)
 
         # Add horizontal lines to separate sections
-        for y in [0.51, 0.25]:
+        for y in [0.6, 0.35]:
             fig.add_artist(plt.Line2D([0.08, 0.9], [y, y], 
                                      transform=fig.transFigure, 
                                      color='black', linewidth=1, clip_on=False))
@@ -4261,9 +4263,9 @@ def plot_info_box(ax):
     ]
     
     # Create single text box positioned at the top with consistent positioning
-    ax.text(0.05, 0.95, '\n'.join(info_text), 
+    ax.text(0.05, 1.03, '\n'.join(info_text), 
             transform=ax.transAxes, 
-            fontsize=12.5,
+            fontsize=12.47,
             verticalalignment='top',
             horizontalalignment='left',
             bbox=dict(boxstyle='round,pad=0.5', 
@@ -4323,7 +4325,7 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
             'label': compound_names[compound_idx],
             'file name': add_star_if_control(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file)) if file_idxs else '',
             'Matching M/Zs above 1E-3*max': '',
-            'All matching M/Zs': ''
+            #'All matching M/Zs': ''
         }
         
         # Fragment matching information
@@ -4347,10 +4349,10 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
                         info_text.append(f"  High-intensity matches: {threshold_mzs}")
                         new_row['Matching M/Zs above 1E-3*max'] = threshold_mzs
                     
-                    if len(mz_sample_matches) > 0:
-                        all_mzs = ', '.join([f'{m:.3f}' for m in mz_sample_matches])
-                        info_text.append(f"  All matching m/z: {all_mzs}")
-                        new_row['All matching M/Zs'] = all_mzs
+                    # if len(mz_sample_matches) > 0:
+                    #     all_mzs = ', '.join([f'{m:.3f}' for m in mz_sample_matches])
+                    #     info_text.append(f"  All matching m/z: {all_mzs}")
+                    #     new_row['All matching M/Zs'] = all_mzs
                 else:
                     info_text.append("  No fragment matches found")
             else:
@@ -4359,19 +4361,17 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
             # Additional matches section
             info_text.append((r"$\bf{ADDITIONAL\ MATCHES:}$"))
             if len(file_idxs) > 1:
-                # Second match
-                if len(file_idxs) > 1:
-                    filename = os.path.basename(data[file_idxs[1]][compound_idx]['lcmsrun'].hdf5_file)
-                    filename_with_star = add_star_if_control(filename)
-                    info_text.append(f"  2nd best: {filename_with_star}")
-                
-                # Third match
-                if len(file_idxs) > 2:
-                    filename = os.path.basename(data[file_idxs[2]][compound_idx]['lcmsrun'].hdf5_file)
-                    filename_with_star = add_star_if_control(filename)
-                    info_text.append(f"  3rd best: {filename_with_star}")
+                filename = os.path.basename(data[file_idxs[1]][compound_idx]['lcmsrun'].hdf5_file)
+                filename_with_star = add_star_if_control(filename)
+                info_text.append(f"  2nd best: {filename_with_star}")
             else:
-                info_text.append("  No additional matches")
+                info_text.append("  2nd best: N/A")
+            if len(file_idxs) > 2:
+                filename = os.path.basename(data[file_idxs[2]][compound_idx]['lcmsrun'].hdf5_file)
+                filename_with_star = add_star_if_control(filename)
+                info_text.append(f"  3rd best: {filename_with_star}")
+            else:
+                info_text.append("  3rd best: N/A")
 
             # Print total number of matches
             info_text.append(f"  Total files with database matches: {len(file_idxs)}")
@@ -4381,9 +4381,9 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
         
         # Display the text with gray box styling, similar to plot_info_box
         full_text = '\n'.join(info_text)
-        ax.text(-0.05, 0.95, full_text, 
+        ax.text(-0.08, 1.03, full_text, 
                 transform=ax.transAxes, 
-                fontsize=13,
+                fontsize=12.5,
                 verticalalignment='top', 
                 horizontalalignment='left',
                 bbox=dict(boxstyle='round,pad=0.5', 
@@ -4399,9 +4399,9 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
         info_text.append("No match data available")
         
         full_text = '\n'.join(info_text)
-        ax.text(-0.05, 0.95, full_text, 
+        ax.text(-0.08, 1.03, full_text, 
                 transform=ax.transAxes, 
-                fontsize=13,
+                fontsize=14,
                 verticalalignment='top', 
                 horizontalalignment='left',
                 bbox=dict(boxstyle='round,pad=0.5', 
@@ -4468,22 +4468,22 @@ def plot_eic(ax, data, compound_idx, log_scale=False):
     y_min, y_max = ax.get_ylim()
     # For log scale, compute y_mid in log space for correct placement
     if log_scale:
-        y_mid = np.exp((np.log(y_min) + np.log(y_max)) / 1.8)
+        y_mid = np.exp((np.log(y_min) + np.log(y_max)) / 1.7)
     else:
-        y_mid = (y_min + y_max) / 1.4
+        y_mid = (y_min + y_max) / 1.3
 
     if rt_min is not None:
         ax.axvline(rt_min, color='gray', linewidth=2)
         ax.annotate(
             'RT min',
             xy=(rt_min, y_mid),
-            xytext=(-4, 0),
+            xytext=(-3, 0),
             textcoords='offset points',
             ha='right',
             va='center',
             fontsize=12,
             color='gray',
-            weight='bold',
+            weight='normal',
             rotation=90
         )
     if rt_max is not None:
@@ -4491,13 +4491,13 @@ def plot_eic(ax, data, compound_idx, log_scale=False):
         ax.annotate(
             'RT max',
             xy=(rt_max, y_mid),
-            xytext=(4, 0),
+            xytext=(3, 0),
             textcoords='offset points',
             ha='left',
             va='center',
             fontsize=12,
             color='black',
-            weight='bold',
+            weight='normal',
             rotation=270
         )
     if rt_peak is not None:
