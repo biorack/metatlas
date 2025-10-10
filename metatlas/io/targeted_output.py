@@ -157,11 +157,10 @@ def write_tics(metatlas_dataset, x_min=None, x_max=None, y_min=0, overwrite=Fals
 
 def write_identification_figure(metatlas_dataset, analysis_parameters, overwrite=False):
     """Save identification figure. Will not overwrite existing file unless overwrite is True"""
-    # overwrite checks done within dp.make_identification_figure_v2
     ids = metatlas_dataset.ids
     logger.info("Exporting indentification figures to %s", ids.output_dir)
     ids.set_output_state(analysis_parameters, "chromatograms")
-    dp.make_identification_figure_v2(
+    dp.make_identification_figure_v3(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,
         use_labels=True,

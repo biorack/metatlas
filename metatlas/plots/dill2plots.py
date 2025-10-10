@@ -1,6 +1,7 @@
 import itertools
 import logging
 import os
+import io
 import os.path
 import warnings
 import threading
@@ -35,6 +36,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
+from scipy.signal import peak_widths
 import json
 import matplotlib.pyplot as plt
 
@@ -46,6 +48,8 @@ from ipywidgets import interact
 import ipywidgets as widgets
 from IPython.display import display, HTML
 from IPython import get_ipython
+
+from PIL import Image
 
 import getpass
 from typing import Type, Any
@@ -274,7 +278,9 @@ class adjust_rt_for_selected_compound(object):
                 y_min=0,
                 peak_flags=None,
                 msms_flags=None,
-                adjustable_rt_peak=False):
+                adjustable_rt_peak=False,
+                display_suggested_rt_bounds: bool = True
+                ) -> None:
         """
         INPUTS:
             data: a metatlas_dataset where info on files and compounds are stored
@@ -338,6 +344,7 @@ class adjust_rt_for_selected_compound(object):
         self.peak_flags = peak_flags
         self.msms_flags = msms_flags
         self.adjustable_rt_peak = adjustable_rt_peak
+        self.display_suggested_rt_bounds = display_suggested_rt_bounds
 
         # set up autosaving in bulk to increase speed of GUI
         self.pending_changes = {}
@@ -514,7 +521,6 @@ class adjust_rt_for_selected_compound(object):
             
             # Use peak_widths for more accurate bounds calculation (from old function concept)
             try:
-                from scipy.signal import peak_widths
                 widths, _, left_ips, right_ips = peak_widths(
                     smoothed_intensity,
                     [main_peak_idx],
@@ -703,7 +709,8 @@ class adjust_rt_for_selected_compound(object):
         self.msms_plot()
         self.flag_radio_buttons()
         self.notes()
-        self.show_suggested_bounds()
+        if self.display_suggested_rt_bounds:
+            self.show_suggested_bounds()
         self.in_switch_event = False
         logger.debug('Finished replot')
 
@@ -751,7 +758,8 @@ class adjust_rt_for_selected_compound(object):
                                                     self.set_lin_log, 0.07, active_idx=idx)
         self.rt_bounds()
         self.highlight_similar_compounds()
-        self.show_suggested_bounds()
+        if self.display_suggested_rt_bounds:
+            self.show_suggested_bounds()
         logger.debug('Finished eic_plot')
 
     def flag_radio_buttons(self):
@@ -1113,7 +1121,8 @@ class adjust_rt_for_selected_compound(object):
         self.msms_flag_ax.cla() 
         self.lin_log_ax.cla()
         self.set_plot_data()
-        self.show_suggested_bounds()
+        if self.display_suggested_rt_bounds:
+            self.show_suggested_bounds()
 
     @log_errors(output_context=LOGGING_WIDGET)
     def press(self, event):
@@ -1142,7 +1151,8 @@ class adjust_rt_for_selected_compound(object):
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
-                self.show_suggested_bounds()
+                if self.display_suggested_rt_bounds:
+                    self.show_suggested_bounds()
                 self.in_switch_event = False
         elif event.key in ['left', 'j']:
             if self.compound_idx > 0:
@@ -1161,7 +1171,8 @@ class adjust_rt_for_selected_compound(object):
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
-                self.show_suggested_bounds()
+                if self.display_suggested_rt_bounds:
+                    self.show_suggested_bounds()
                 self.in_switch_event = False
         elif event.key == 'b':
             logger.info("Manual save triggered via 'b' key event.")
@@ -1204,6 +1215,9 @@ class adjust_rt_for_selected_compound(object):
         elif event.key == 'p':
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
+                return
+            if not self.display_suggested_rt_bounds:
+                logger.warning("Display suggested RT bounds is disabled with current settings.")
                 return
             logger.debug("Applying suggested peak bounds for compound %d.", self.compound_idx)
             self.apply_suggested_bounds()
@@ -2538,66 +2552,6 @@ def top_five_scoring_files(data, frag_refs, compound_idx, filter_by):
 
     return list(zip(*sorted(zip(file_idxs, ref_idxs, scores, msv_sample_list, msv_ref_list, rt_list), key=lambda l: l[2], reverse=True)[:5]))
 
-def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
-
-    msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
-
-    msv_sample_unaligned = np.concatenate((msv_sample_matches, msv_sample_nonmatches), axis=1)
-    msv_ref_unaligned = np.concatenate((msv_ref_matches, msv_ref_nonmatches), axis=1)
-
-    sample_mz = msv_sample_nonmatches[0]
-    sample_zeros = np.zeros(msv_sample_nonmatches[0].shape)
-    sample_intensity = msv_sample_nonmatches[1]
-
-    ax.vlines(sample_mz, sample_zeros, sample_intensity, colors='r', linewidth=1)
-
-    shared_mz = msv_sample_matches[0]
-    shared_zeros = np.zeros(msv_sample_matches[0].shape)
-    shared_sample_intensity = msv_sample_matches[1]
-
-    ax.vlines(shared_mz, shared_zeros, shared_sample_intensity, colors='g', linewidth=1)
-
-    most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
-
-    if i == 0:
-        ax.set_title('%.4f' % score, fontsize=8, weight='bold')
-        ax.set_xlabel('m/z', fontsize=8, weight='bold')
-        ax.set_ylabel('intensity', fontsize=8, weight='bold')
-        ax.tick_params(axis='both', which='major', labelsize=6)
-
-        labels = [1.001e9]
-
-        intensity_requirement = [m for m in most_intense_idxs
-                                 if
-                                 np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1
-                                 and msv_sample_unaligned[1][m] > 0.2 * np.max(msv_sample_unaligned[1])]
-
-        for m in max([most_intense_idxs[:6], intensity_requirement], key=len):
-            if np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1 and msv_sample_unaligned[1][m] > 0.02 * np.max(msv_sample_unaligned[1]):
-                ax.annotate('%5.4f' % msv_sample_unaligned[0][m],
-                            xy=(msv_sample_unaligned[0][m], 1.01 * msv_sample_unaligned[1][m]),
-                            rotation=90,
-                            horizontalalignment='left', verticalalignment='center',
-                            size=4)
-                labels.append(msv_sample_unaligned[0][m])
-
-    if msv_ref_unaligned[0].size > 0:
-        ref_scale = -1 * np.max(msv_sample_unaligned[1]) / np.max(msv_ref_unaligned[1])
-
-        ref_mz = msv_ref_nonmatches[0]
-        ref_zeros = np.zeros(msv_ref_nonmatches[0].shape)
-        ref_intensity = ref_scale * msv_ref_nonmatches[1]
-        shared_ref_intensity = ref_scale * msv_ref_matches[1]
-
-        ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth=1)
-
-        ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='g', linewidth=1)
-
-        ax.axhline()
-
-    ylim = ax.get_ylim()
-    ax.set_ylim(ylim[0], ylim[1] * 1.33)
-
 def plot_msms_comparison2(i, mz_header, rt, cpd_header, ref_id, filename, score, ax, msv_sample, msv_ref, zoom_factor=1):
     pickradius = 10
     msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
@@ -2653,77 +2607,6 @@ def plot_msms_comparison2(i, mz_header, rt, cpd_header, ref_id, filename, score,
     new_ylim = 0 if ylim[0] == 0 else ylim[0]/zoom_factor
     ax.set_ylim(new_ylim, ylim[1]/zoom_factor)
     return lines
-
-
-def plot_structure(ax, compound, dimensions):
-    if compound:
-        inchi =  compound[0].inchi
-        myMol = Chem.MolFromInchi(inchi.encode('utf-8'))
-
-        if myMol:
-            image = Draw.MolToImage(myMol, size=(dimensions, dimensions))
-            ax.imshow(image)
-
-    ax.axis('off')
-
-
-def plot_ema_compound_info(ax, compound_info, label=''):
-    wrapper = TextWrapper(width=28, break_on_hyphens=True)
-
-    if compound_info.compound:
-        name = ['Name:', wrapper.fill(compound_info.compound[0].name)]
-        label = ['Label:', wrapper.fill(label)]
-        formula = ['Formula:', compound_info.compound[0].formula]
-        polarity = ['Polarity:', compound_info.mz_references[0].detected_polarity]
-        neutral_mass = ['Monoisotopic Mass:', compound_info.compound[0].mono_isotopic_molecular_weight]
-        theoretical_mz = ['Theoretical M/Z:', compound_info.mz_references[0].mz]
-        adduct = ['Adduct:', compound_info.mz_references[0].adduct]
-
-        cell_text = [name, label, formula, polarity, neutral_mass, theoretical_mz, adduct]
-
-        ema_compound_info_table = ax.table(cellText=cell_text,
-                                           colLabels=['', 'EMA Compound Info'],
-                                           bbox=[0.0, 0.0, 1, 1], loc='top left')
-        ema_compound_info_table.scale(1, .7)
-        ema_compound_info_table.auto_set_font_size(False)
-        ema_compound_info_table.set_fontsize(4)
-
-        cellDict = ema_compound_info_table.get_celld()
-        for i in range(len(cell_text)+1):
-            cellDict[(i,0)].set_width(0.3)
-            cellDict[(i,1)]._loc = 'center'
-
-    ax.axis('off')
-
-
-def plot_eic(ax, data, compound_idx):
-    for file_idx in range(len(data)):
-
-        rt_min = data[file_idx][compound_idx]['identification'].rt_references[0].rt_min
-        rt_max = data[file_idx][compound_idx]['identification'].rt_references[0].rt_max
-        rt_peak = data[file_idx][compound_idx]['identification'].rt_references[0].rt_peak
-
-        try:
-            assert len(data[file_idx][compound_idx]['data']['eic']['rt']) > 1
-            x = np.asarray(data[file_idx][compound_idx]['data']['eic']['rt'])
-            y = np.asarray(data[file_idx][compound_idx]['data']['eic']['intensity'])
-
-            ax.plot(x, y, 'k-', linewidth=.1, alpha=min(1, 10*(1./len(data))))
-            myWhere = np.logical_and(x>=rt_min, x<=rt_max )
-            ax.fill_between(x,0,y,myWhere, facecolor='c', alpha=.25)
-        except (AssertionError, TypeError):
-            pass
-
-    # ax.tick_params(labelbottom='off')
-    ax.xaxis.set_tick_params(labelsize=5)
-    ax.yaxis.set_tick_params(labelsize=5)
-    ax.tick_params(axis='y', labelsize=5)
-    ax.get_yaxis().get_major_formatter().set_useOffset(True)
-    #ax.get_yaxis().set_visible(False)
-    ax.axvline(rt_min, color='k', linewidth=1.0)
-    ax.axvline(rt_max, color='k', linewidth=1.0)
-    ax.axvline(rt_peak, color='r', linewidth=1.0)
-
 
 def plot_score_and_ref_file(ax, score, rt, ref):
     ax.text(0.5, 1, '%.4f'%score,
@@ -2977,178 +2860,6 @@ def make_chromatograms(input_dataset, include_lcmsruns=None, exclude_lcmsruns=No
 
 def _save_eic_pdf(multi_args):
     save_compound_eic_pdf(*multi_args)
-
-
-def make_identification_figure_v2(input_fname: Optional[Path] = None, input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
-                                  include_groups=[], exclude_groups=[], output_loc: Path = None, msms_hits=None,
-                                  use_labels=False, intensity_sorted_matches=False,
-                                  short_names_df=pd.DataFrame(), polarity='', overwrite=True):
-    assert output_loc
-    assert input_fname or input_dataset
-    prefix = '' if polarity == '' else f"{polarity}_"
-    output_loc = output_loc / f"{prefix}msms_mirror_plots"
-    logger.info("Exporting indentification figures to %s", output_loc)
-    data = input_dataset if input_dataset else ma_data.get_dill_data(os.path.expandvars(input_fname))
-    data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
-
-    if msms_hits is not None:
-        msms_hits_df = msms_hits.reset_index().sort_values('score', ascending=False)
-    compound_names = ma_data.get_compound_names(data, use_labels)[0]
-    file_names = ma_data.get_file_names(data)
-
-    match_dtypes = {'label': str,
-                    'file name': str,
-                    'Matching M/Zs above 1E-3*max': str,
-                    'All matching M/Zs': str}
-
-    match = pd.DataFrame(columns=match_dtypes).astype(match_dtypes)
-    disable_interactive_plots()
-    plt.clf()
-    for compound_idx, _ in enumerate(compound_names):
-        file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
-        inchi_key = extract(data, [0, compound_idx, "identification", "compound", 0, "inchi_key"], "")
-        #  Find 5 best file and reference pairs by score
-        try:
-            rt_ref = data[0][compound_idx]['identification'].rt_references[0]
-            mz_ref = data[0][compound_idx]['identification'].mz_references[0]
-            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key)
-                                          & (msms_hits_df['msms_scan'] >= rt_ref.rt_min)
-                                          & (msms_hits_df['msms_scan'] <= rt_ref.rt_max)
-                                          & within_tolerance(
-                                                msms_hits_df['precursor_mz'].values.astype(float),
-                                                mz_ref.mz,
-                                                mz_ref.mz_tolerance*1e-6
-                                            )
-                                          ].drop_duplicates('file_name').head(5)
-            comp_msms_hits = comp_msms_hits[comp_msms_hits['file_name'].isin(file_names)]
-            file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
-            scores = comp_msms_hits['score'].values.tolist()
-            msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
-            msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
-            rt_list = comp_msms_hits['msms_scan'].values.tolist()
-        except (IndexError, TypeError):
-            file_idx = None
-            max_intensity = 0
-            for file_idx, _ in enumerate(data):
-                try:
-                    temp = max(data[file_idx][compound_idx]['data']['eic']['intensity'])
-                    if temp > max_intensity:
-                        max_file_idx = file_idx
-                        max_intensity = temp
-                except (ValueError, TypeError):
-                    continue
-
-            file_idxs = [max_file_idx]
-            msv_sample_list = [np.array([0, np.nan]).T]
-            msv_ref_list = [np.array([0, np.nan]).T]
-            scores = [np.nan]
-
-        #  Plot if compound yields any scores
-        if file_idxs and file_idxs[0] is not None:
-            #  Top 5 MSMS Spectra
-            top_5_axis = [plt.subplot2grid((24, 24), (0, 0), rowspan=12, colspan=12)]
-            for i in [0, 3, 6, 9]:
-                top_5_axis.append(plt.subplot2grid((24, 24), (i, 12), rowspan=3, colspan=3))
-                top_5_axis[-1].tick_params(axis='both', length=2)
-                top_5_axis[-1].set_xticklabels([])
-                top_5_axis[-1].set_yticklabels([])
-            for i, (score, axis) in enumerate(zip(scores, top_5_axis)):
-                plot_msms_comparison(i, score, axis, msv_sample_list[i], msv_ref_list[i])
-
-            def no_axis_plot(i):
-                axis = plt.subplot2grid((24, 24), (i, 15), rowspan=3, colspan=1)
-                axis.axis('off')
-                return axis
-
-            # Next Best Scores and Filenames
-            next_best = [no_axis_plot(i) for i in [0, 3, 6, 9]]
-
-            if short_names_df.empty:
-                for i, (score, axis) in enumerate(zip(scores[1:], next_best)):
-                    plot_score_and_ref_file(axis, score, rt_list[i+1], os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file))
-            else:
-                for i, (score, ax) in enumerate(zip(scores[1:], next_best)):
-                    short_samplename = short_names_df.loc[os.path.basename(data[file_idxs[i+1]][compound_idx]['lcmsrun'].hdf5_file).split('.')[0], 'short_samplename'][0]
-                    plot_score_and_ref_file(ax, score, rt_list[i+1], short_samplename)
-
-        # EMA Compound Info
-        if file_idxs and file_idxs[0] is not None:
-            ax3 = plt.subplot2grid((24, 24), (0, 16), rowspan=6, colspan=8)
-            plot_ema_compound_info(ax3, data[file_idxs[0]][compound_idx]['identification'])
-        else:
-            ax3 = plt.subplot2grid((24, 24), (0, 0), rowspan=6, colspan=8)
-            plot_ema_compound_info(ax3, data[0][compound_idx]['identification'])
-
-        # Structure
-        if file_idxs and file_idxs[0] is not None:
-            ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
-            plot_structure(ax5, data[file_idxs[0]][compound_idx]['identification'].compound, 100)
-        else:
-            ax5 = plt.subplot2grid((24, 24), (13, 0), rowspan=6, colspan=6)
-            plot_structure(ax5, data[0][compound_idx]['identification'].compound, 100)
-
-        # EIC
-        if file_idxs and file_idxs[0] is not None:
-            ax6 = plt.subplot2grid((21, 21), (6, 15), rowspan=5, colspan=6)
-            plot_eic(ax6, data, compound_idx)
-        else:
-            ax6 = plt.subplot2grid((21, 21), (6, 0), rowspan=5, colspan=6)
-            plot_eic(ax6, data, compound_idx)
-
-        # Old code
-        if file_idxs and file_idxs[0] is not None:
-            ax7 = plt.subplot2grid((24, 24), (15, 6), rowspan=9, colspan=20)
-            mz_theoretical = data[file_idxs[0]][compound_idx]['identification'].mz_references[0].mz
-            mz_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['mz_centroid']
-            if not mz_measured:
-                mz_measured = 0
-
-            delta_mz = abs(mz_theoretical - mz_measured)
-            delta_ppm = delta_mz / mz_theoretical * 1e6
-
-            rt_theoretical = data[file_idxs[0]][compound_idx]['identification'].rt_references[0].rt_peak
-            rt_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['rt_peak']
-            if not rt_measured:
-                rt_measured = 0
-            ax7.text(0,1,'%s'%fill(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file), width=54),fontsize=8)
-            ax7.text(0,0.9,'%s %s'%(compound_names[compound_idx], data[file_idxs[0]][compound_idx]['identification'].mz_references[0].adduct),fontsize=8)
-            ax7.text(0,0.85,'Measured M/Z = %5.4f, %5.4f ppm difference'%(mz_measured, delta_ppm),fontsize=8)
-            ax7.text(0,0.8,'Expected Elution of %5.2f minutes, %5.2f min actual'%(rt_theoretical,rt_measured),fontsize=8)
-            if len(rt_list) > 0:
-                ax7.text(0,0.7,'MSMS Scan at %5.3f minutes'%rt_list[0],fontsize=8)
-                msv_sample_matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0]
-                if intensity_sorted_matches:
-                    msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
-                if len(msv_sample_matches[0]) > 0:
-                    mz_sample_matches = msv_sample_matches[0].tolist()
-                    threshold_mz_sample_matches = sp.remove_ms_vector_noise(msv_sample_matches)[0].tolist()
-                else:
-                    mz_sample_matches = [np.nan]
-                    threshold_mz_sample_matches = [np.nan]
-                ax7.text(0,0.6,
-                         fill('Matching M/Zs above 1E-3*max: ' + ', '.join(['%5.3f'%m for m in threshold_mz_sample_matches]), width=90) + '\n\n' +
-                         fill('All Matching M/Zs: ' + ', '.join(['%5.3f'%m for m in mz_sample_matches]), width=90),
-                         fontsize=6, verticalalignment='top')
-                match.loc[compound_idx, 'label'] = compound_names[compound_idx]
-                match.loc[compound_idx, 'file name'] = file_names[file_idxs[0]]
-                match.loc[compound_idx, 'RT'] = rt_list[0]
-                match.loc[compound_idx, 'score'] = scores[0]
-                match.loc[compound_idx, 'Matching M/Zs above 1E-3*max'] = ', '.join(['%5.3f' % m for m in threshold_mz_sample_matches])
-                match.loc[compound_idx, 'All matching M/Zs'] = ','.join(['%5.3f' % m for m in mz_sample_matches])
-
-            ax7.set_ylim(.5,1.1)
-            ax7.axis('off')
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="tight_layout not applied: number of rows in subplot specifications must be multiples of one another.")
-            plt.tight_layout()
-        fig_path = output_loc / f"{compound_names[compound_idx]}.pdf"
-        write_utils.check_existing_file(fig_path, overwrite)
-        plt.savefig(fig_path)
-        plt.close()
-        logger.debug('Exported identification figures for %s to %s.', compound_names[compound_idx], fig_path)
-    match_path = output_loc / "MatchingMZs.tab"
-    write_utils.export_dataframe(match, match_path, 'matching MZs', overwrite, sep='\t', float_format="%.12e")
 
 
 def plot_ms1_spectra(polarity = None, mz_min = 5, mz_max = 5, input_fname = '', input_dataset = [], compound_names = [],  include_lcmsruns = [], exclude_lcmsruns = [], include_groups = [], exclude_groups = [], output_loc = []):
@@ -4332,3 +4043,684 @@ def make_copy_to_clipboard_button(text: str, button_text: str) -> None:
             }}
         </script>
     """))
+
+
+######### New mirror (summary) plot functions #########
+
+def make_identification_figure_v3(input_fname: Optional[Path] = None, input_dataset=[], include_lcmsruns=[], exclude_lcmsruns=[],
+                                  include_groups=[], exclude_groups=[], output_loc: Path = None, msms_hits=None,
+                                  use_labels=False, intensity_sorted_matches=False,
+                                  short_names_df=pd.DataFrame(), polarity='', overwrite=True):
+    assert output_loc
+    assert input_fname or input_dataset
+    prefix = '' if polarity == '' else f"{polarity}_"
+    output_loc = output_loc / f"{prefix}msms_mirror_plots"
+    logger.info("Exporting indentification figures to %s", output_loc)
+    data = input_dataset if input_dataset else ma_data.get_dill_data(os.path.expandvars(input_fname))
+    data = filter_runs(data, include_lcmsruns, include_groups, exclude_lcmsruns, exclude_groups)
+
+    if msms_hits is not None:
+        msms_hits_df = msms_hits.reset_index().sort_values('score', ascending=False)
+    compound_names = ma_data.get_compound_names(data, use_labels)[0]
+    file_names = ma_data.get_file_names(data)
+
+    match_dtypes = {'label': str,
+                    'file name': str,
+                    'Matching M/Zs above 1E-3*max': str,
+                    #'All matching M/Zs': str
+                    }
+
+    match_out_df = pd.DataFrame(columns=match_dtypes).astype(match_dtypes)
+    disable_interactive_plots()
+    
+    for compound_idx, _ in enumerate(compound_names):
+        file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
+        inchi_key = extract(data, [0, compound_idx, "identification", "compound", 0, "inchi_key"], "")
+        
+        #  Find 3 best file and reference pairs by score
+        try:
+            rt_ref = data[0][compound_idx]['identification'].rt_references[0]
+            mz_ref = data[0][compound_idx]['identification'].mz_references[0]
+            comp_msms_hits = msms_hits_df[(msms_hits_df['inchi_key'] == inchi_key)
+                                          & (msms_hits_df['msms_scan'] >= rt_ref.rt_min)
+                                          & (msms_hits_df['msms_scan'] <= rt_ref.rt_max)
+                                          & within_tolerance(
+                                                msms_hits_df['precursor_mz'].values.astype(float),
+                                                mz_ref.mz,
+                                                mz_ref.mz_tolerance*1e-6
+                                            )
+                                          ].drop_duplicates('file_name').head(3)
+            comp_msms_hits = comp_msms_hits[comp_msms_hits['file_name'].isin(file_names)]
+            file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
+            scores = comp_msms_hits['score'].values.tolist()
+            msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
+            msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
+            rt_list = comp_msms_hits['msms_scan'].values.tolist()
+        except (IndexError, TypeError):
+            file_idx = None
+            max_intensity = 0
+            for file_idx, _ in enumerate(data):
+                try:
+                    temp = max(data[file_idx][compound_idx]['data']['eic']['intensity'])
+                    if temp > max_intensity:
+                        max_file_idx = file_idx
+                        max_intensity = temp
+                except (ValueError, TypeError):
+                    continue
+
+            file_idxs = [max_file_idx] if 'max_file_idx' in locals() else [0]
+            msv_sample_list = [np.array([0, np.nan]).T]
+            msv_ref_list = [np.array([0, np.nan]).T]
+            scores = [np.nan]
+
+        # Create figure with original layout: 3 rows x 4 columns
+        fig = plt.figure(figsize=(25, 15))
+        
+        # Define grid layout: 3 rows x 4 columns
+        gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3, 
+                             height_ratios=[1.45, 1.2, 1.35])
+        
+        # Row 1: 3 MSMS mirror plots (columns 0-2) + molecular structure (column 3)
+        mirror_plot_titles = ['Best MSMS Match', '2nd Best MSMS Match', '3rd Best MSMS Match']
+        for i in range(3):
+            ax_msms = fig.add_subplot(gs[0, i])
+
+            # Always show the top title, even if no data
+            ax_msms.text(
+                0.5, 1.12, mirror_plot_titles[i],
+                fontsize=15, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
+            )
+
+            if i < len(scores) and file_idxs and file_idxs[0] is not None:
+                # Use the same function for all plots to make them identical
+                plot_msms_comparison(i, scores[i], ax_msms, msv_sample_list[i], msv_ref_list[i])
+
+                ax_msms.text(
+                    0.5, 1.06, f"MSMS Score: {scores[i]:.3f}",
+                    fontsize=15, weight='bold', ha='center', va='bottom', transform=ax_msms.transAxes
+                )
+                ax_msms.text(
+                    0.5, 1.01, f"MSMS RT: {rt_list[i]:.2f}" if len(rt_list) > i else "",
+                    fontsize=12, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
+                )
+
+                ax_msms.tick_params(labelsize=15)
+                ax_msms.xaxis.label.set_size(15)
+                ax_msms.yaxis.label.set_size(15)
+            else:
+                # Create empty plot that matches the style of actual MSMS plots
+                ax_msms.set_xlabel('m/z', fontsize=15, weight='bold')
+                ax_msms.set_ylabel('intensity', fontsize=15, weight='bold')
+                ax_msms.tick_params(axis='both', which='major', labelsize=15)
+                ax_msms.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+                # Set reasonable axis limits to match other plots
+                ax_msms.set_xlim(0, 500)
+                ax_msms.set_ylim(0, 1000)
+
+                # Add the "No MSMS data" text in the center
+                ax_msms.text(0.5, 0.5, 'No MSMS Data', transform=ax_msms.transAxes,
+                        horizontalalignment='center', verticalalignment='center',
+                        fontsize=18, weight='bold', color='gray')
+
+                # Add empty score and RT text to match the format
+                ax_msms.text(
+                    0.5, 1.06, f"MSMS Score: N/A",
+                    fontsize=15, weight='bold', ha='center', va='bottom', transform=ax_msms.transAxes
+                )
+                ax_msms.text(
+                    0.5, 1.01, f"MSMS RT: N/A",
+                    fontsize=12, weight='normal', ha='center', va='bottom', transform=ax_msms.transAxes
+                )
+
+                # Increase line width of plot borders to match other plots
+                for spine in ax_msms.spines.values():
+                    spine.set_linewidth(1.5)
+
+        # Row 1, Column 4: Molecular structure
+        if file_idxs and file_idxs[0] is not None:
+            ax_structure = fig.add_subplot(gs[0, 3])
+            plot_structure(ax_structure, data[file_idxs[0]][compound_idx]['identification'].compound, 500)
+        else:
+            ax_structure = fig.add_subplot(gs[0, 3])
+            plot_structure(ax_structure, data[0][compound_idx]['identification'].compound, 500)
+
+        # Row 2: EICs and Table across 4 columns
+        
+        # Column 1: Linear EIC
+        ax_eic_linear = fig.add_subplot(gs[1, 0])
+        plot_eic(ax_eic_linear, data, compound_idx, log_scale=False)
+        #ax_eic_linear.set_title('', fontsize=15, weight='bold')
+        ax_eic_linear.tick_params(labelsize=15)
+        ax_eic_linear.set_xlabel('Retention Time (min)', fontsize=15, weight='bold')
+        ax_eic_linear.set_ylabel('Intensity', fontsize=15, weight='bold')
+
+        # Column 2: Log EIC
+        ax_eic_log = fig.add_subplot(gs[1, 1])
+        plot_eic(ax_eic_log, data, compound_idx, log_scale=True)
+        #ax_eic_log.set_title('', fontsize=15, weight='bold')
+        ax_eic_log.tick_params(labelsize=15)
+        ax_eic_log.set_xlabel('Retention Time (min)', fontsize=15, weight='bold')
+        ax_eic_log.set_ylabel('Intensity (log)', fontsize=15, weight='bold')
+
+        # Columns 3-4: Compound info table (spanning 2 columns)
+        if file_idxs and file_idxs[0] is not None:
+            ax_info = fig.add_subplot(gs[1, 2:4])
+            plot_compound_info_table(ax_info, data[file_idxs[0]][compound_idx]['identification'])
+        else:
+            ax_info = fig.add_subplot(gs[1, 2:4])
+            plot_compound_info_table(ax_info, data[0][compound_idx]['identification'])
+
+        # Row 3: Metadata text information (columns 0-2) + Figure Notes box (column 3)
+        ax_metadata = fig.add_subplot(gs[2, 0:2])
+        match_out_df = plot_metadata_info(match_out_df, ax_metadata, data, file_idxs, compound_idx, scores, rt_list, 
+                                  short_names_df, compound_names, msv_sample_list, msv_ref_list, 
+                                  intensity_sorted_matches)
+
+        # Row 3, Column 4: Figure Notes box
+        ax_info_box = fig.add_subplot(gs[2, 3])
+        plot_info_box(ax_info_box)
+
+        plt.suptitle(f'{compound_names[compound_idx]}\n', fontsize=22, weight='bold', y=0.96)
+
+        # Add horizontal lines to separate sections
+        for y in [0.6, 0.35]:
+            fig.add_artist(plt.Line2D([0.08, 0.9], [y, y], 
+                                     transform=fig.transFigure, 
+                                     color='black', linewidth=1, clip_on=False))
+
+        fig_path = output_loc / f"{compound_names[compound_idx]}.pdf"
+        write_utils.check_existing_file(fig_path, overwrite)
+        plt.savefig(fig_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        logger.debug('Exported identification figures for %s to %s.', compound_names[compound_idx], fig_path)
+    
+    match_path = output_loc / "MatchingMZs.tab"
+    write_utils.export_dataframe(match_out_df, match_path, 'matching MZs', overwrite, sep='\t', float_format="%.12e")
+
+def plot_info_box(ax):
+    """Create a single information box with figure notes"""
+    ax.axis('off')
+    
+    info_text = [
+        r"$\bf{FIGURE\ NOTES:}$",
+        "",
+        "• Definitions:",
+        "  - MSMS Score: Calculated using the",
+        "     CosineHungarian method between",
+        "     reference and experimental spectra",
+        "  - High-intensity matches: fragments",
+        "     with >0.1% of maximum intensity",
+        "",
+        "• MSMS Mirror Plots:",
+        "  - Grayscale lines: matching fragments",
+        "  - Red lines: non-matching fragments",
+        "",
+        "• EIC Plots:",
+        "  - Dotted line: theoretical RT peak",
+        "  - Solid lines: empirical RT min/max",
+        "    (determined by analyst)"
+    ]
+    
+    # Create single text box positioned at the top with consistent positioning
+    ax.text(0.05, 1.03, '\n'.join(info_text), 
+            transform=ax.transAxes, 
+            fontsize=12.47,
+            verticalalignment='top',
+            horizontalalignment='left',
+            bbox=dict(boxstyle='round,pad=0.5', 
+                     facecolor='lightgray', 
+                     alpha=0.85,
+                     edgecolor='black',
+                     linewidth=1))
+
+def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, rt_list, short_names_df, 
+                               compound_names, msv_sample_list, msv_ref_list, intensity_sorted_matches):
+    """Enhanced metadata information with fragment matching details"""
+    ax.axis('off')
+    
+    def add_star_if_control(filename):
+        """Add star to filename if it contains InjBL or ExCtrl"""
+        if "InjBL" in filename or "ExCtrl" in filename:
+            return filename + "*"
+        return filename
+    
+    if file_idxs and file_idxs[0] is not None:
+        # Get metadata
+        mz_theoretical = data[file_idxs[0]][compound_idx]['identification'].mz_references[0].mz
+        mz_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['mz_centroid']
+        if not mz_measured:
+            mz_measured = 0
+
+        delta_mz = abs(mz_theoretical - mz_measured)
+        delta_ppm = delta_mz / mz_theoretical * 1e6
+
+        rt_theoretical = data[file_idxs[0]][compound_idx]['identification'].rt_references[0].rt_peak
+        rt_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['rt_peak']
+        if not rt_measured:
+            rt_measured = 0
+            
+        # Create text content with fragment matching info
+        info_text = []
+        info_text.append(r"$\bf{COMPOUND\ IDENTIFICATION:}$")
+        info_text.append("")
+        
+        # File information for best match only
+        if len(file_idxs) > 0:
+            filename = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file)
+            filename_with_star = add_star_if_control(filename)
+            info_text.append(r"$\bf{BEST\ MATCH:}$")
+            info_text.append(f"  {filename_with_star}")
+
+        # Mass and RT accuracy (only for best match)
+        info_text.append(r"$\bf{MASS\ ACCURACY:}$")
+        info_text.append(f"  Theoretical={mz_theoretical:.4f} m/z")
+        info_text.append(f"  Measured={mz_measured:.4f} m/z (Diff={delta_ppm:.2f} ppm)")
+        info_text.append((r"$\bf{RT\ ACCURACY:}$"))
+        info_text.append(f"  Theoretical={rt_theoretical:.2f} min")
+        info_text.append(f"  Measured={rt_measured:.2f} min (Diff={abs(rt_theoretical - rt_measured):.2f} min)")
+
+        # Always add an entry to the match DataFrame, regardless of fragment matching
+        new_row = {
+            'label': compound_names[compound_idx],
+            'file name': add_star_if_control(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file)) if file_idxs else '',
+            'Matching M/Zs above 1E-3*max': '',
+            #'All matching M/Zs': ''
+        }
+        
+        # Fragment matching information
+        if len(scores) > 0 and len(msv_sample_list) > 0:
+            info_text.append(r"$\bf{FRAGMENT\ MATCHING:}$")
+            
+            # Get matching fragments for best hit
+            if len(msv_sample_list[0]) > 0 and len(msv_ref_list[0]) > 0:
+                msv_sample_matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0]
+                
+                if intensity_sorted_matches and len(msv_sample_matches[0]) > 0:
+                    msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
+                
+                if len(msv_sample_matches[0]) > 0:
+                    # High intensity matches (above threshold)
+                    threshold_matches = sp.remove_ms_vector_noise(msv_sample_matches)[0]
+                    mz_sample_matches = msv_sample_matches[0]
+                    
+                    if len(threshold_matches) > 0:
+                        threshold_mzs = ', '.join([f'{m:.3f}' for m in threshold_matches])
+                        info_text.append(f"  High-intensity matches: {threshold_mzs}")
+                        new_row['Matching M/Zs above 1E-3*max'] = threshold_mzs
+                    
+                    # if len(mz_sample_matches) > 0:
+                    #     all_mzs = ', '.join([f'{m:.3f}' for m in mz_sample_matches])
+                    #     info_text.append(f"  All matching m/z: {all_mzs}")
+                    #     new_row['All matching M/Zs'] = all_mzs
+                else:
+                    info_text.append("  No fragment matches found")
+            else:
+                info_text.append("  No spectral data available")
+            
+            # Additional matches section
+            info_text.append((r"$\bf{ADDITIONAL\ MATCHES:}$"))
+            if len(file_idxs) > 1:
+                filename = os.path.basename(data[file_idxs[1]][compound_idx]['lcmsrun'].hdf5_file)
+                filename_with_star = add_star_if_control(filename)
+                info_text.append(f"  2nd best: {filename_with_star}")
+            else:
+                info_text.append("  2nd best: N/A")
+            if len(file_idxs) > 2:
+                filename = os.path.basename(data[file_idxs[2]][compound_idx]['lcmsrun'].hdf5_file)
+                filename_with_star = add_star_if_control(filename)
+                info_text.append(f"  3rd best: {filename_with_star}")
+            else:
+                info_text.append("  3rd best: N/A")
+
+            # Print total number of matches
+            info_text.append(f"  Total files with database matches: {len(file_idxs)}")
+        
+        # Add the row to the DataFrame
+        match_out_df = pd.concat([match_out_df, pd.DataFrame([new_row])], ignore_index=True)
+        
+        # Display the text with gray box styling, similar to plot_info_box
+        full_text = '\n'.join(info_text)
+        ax.text(-0.08, 1.03, full_text, 
+                transform=ax.transAxes, 
+                fontsize=12.5,
+                verticalalignment='top', 
+                horizontalalignment='left',
+                bbox=dict(boxstyle='round,pad=0.5', 
+                         facecolor='lightgray', 
+                         alpha=0.85,
+                         edgecolor='black',
+                         linewidth=1))
+    else:
+        # Always show the title even when there's no match data
+        info_text = []
+        info_text.append(r"$\bf{COMPOUND\ IDENTIFICATION:}$")
+        info_text.append("")
+        info_text.append("No match data available")
+        
+        full_text = '\n'.join(info_text)
+        ax.text(-0.08, 1.03, full_text, 
+                transform=ax.transAxes, 
+                fontsize=14,
+                verticalalignment='top', 
+                horizontalalignment='left',
+                bbox=dict(boxstyle='round,pad=0.5', 
+                         facecolor='lightgray', 
+                         alpha=0.85,
+                         edgecolor='black',
+                         linewidth=1))
+
+    return match_out_df
+
+def plot_eic(ax, data, compound_idx, log_scale=False):
+    """
+    Plot EIC for all files for a given compound index.
+    If log_scale is True, plot with log y-axis and filter out zero/negative values.
+    """
+    all_y_values = []
+    rt_min = rt_max = rt_peak = None
+
+    for file_idx in range(len(data)):
+        try:
+            rt_refs = data[file_idx][compound_idx]['identification'].rt_references[0]
+            rt_min = rt_refs.rt_min
+            rt_max = rt_refs.rt_max
+            rt_peak = rt_refs.rt_peak
+
+            eic = data[file_idx][compound_idx]['data']['eic']
+            assert len(eic['rt']) > 1
+            x = np.asarray(eic['rt'])
+            y = np.asarray(eic['intensity'])
+
+            if log_scale:
+                mask = y > 0
+                x_plot = x[mask]
+                y_plot = y[mask]
+                if len(y_plot) > 0:
+                    all_y_values.extend(y_plot)
+                    ax.plot(x_plot, y_plot, 'k-', linewidth=0.8, alpha=min(1, 10*(1./len(data))))
+                    myWhere = np.logical_and(x_plot >= rt_min, x_plot <= rt_max)
+                    if np.any(myWhere):
+                        ax.fill_between(x_plot, 1, y_plot, myWhere, facecolor='c', alpha=0.35)
+            else:
+                ax.plot(x, y, 'k-', linewidth=0.8, alpha=min(1, 10*(1./len(data))))
+                myWhere = np.logical_and(x >= rt_min, x <= rt_max)
+                ax.fill_between(x, 0, y, myWhere, facecolor='c', alpha=0.35)
+        except (AssertionError, TypeError, KeyError):
+            pass
+
+    if log_scale:
+        ax.set_yscale('log')
+        if all_y_values:
+            y_min = np.min(all_y_values)
+            y_max = np.max(all_y_values)
+            y_min_padded = y_min * 0.5
+            y_max_padded = y_max * 2.0
+            ax.set_ylim(y_min_padded, y_max_padded)
+
+    # Increased tick label sizes
+    ax.xaxis.set_tick_params(labelsize=14)
+    ax.yaxis.set_tick_params(labelsize=14)
+    ax.tick_params(axis='y', labelsize=14)
+    if not log_scale:
+        ax.get_yaxis().get_major_formatter().set_useOffset(True)
+    # Increased line widths for RT markers
+    y_min, y_max = ax.get_ylim()
+    # For log scale, compute y_mid in log space for correct placement
+    if log_scale:
+        y_mid = np.exp((np.log(y_min) + np.log(y_max)) / 1.7)
+    else:
+        y_mid = (y_min + y_max) / 1.3
+
+    if rt_min is not None:
+        ax.axvline(rt_min, color='gray', linewidth=2)
+        ax.annotate(
+            'RT min',
+            xy=(rt_min, y_mid),
+            xytext=(-3, 0),
+            textcoords='offset points',
+            ha='right',
+            va='center',
+            fontsize=12,
+            color='gray',
+            weight='normal',
+            rotation=90
+        )
+    if rt_max is not None:
+        ax.axvline(rt_max, color='black', linewidth=2)
+        ax.annotate(
+            'RT max',
+            xy=(rt_max, y_mid),
+            xytext=(3, 0),
+            textcoords='offset points',
+            ha='left',
+            va='center',
+            fontsize=12,
+            color='black',
+            weight='normal',
+            rotation=270
+        )
+    if rt_peak is not None:
+        ax.axvline(rt_peak, color='k', linewidth=2, linestyle='--')
+        # ax.annotate(
+        #     'rt_peak',
+        #     xy=(rt_peak, y_max),
+        #     xytext=(0, 5),
+        #     textcoords='offset points',
+        #     ha='center',
+        #     va='bottom',
+        #     fontsize=12,
+        #     color='r',
+        #     weight='bold',
+        #     rotation=90
+        # )
+    # Increase line width of plot borders
+    for spine in ax.spines.values():
+        spine.set_linewidth(1.5)
+
+def plot_compound_info_table(ax, compound_info):
+    """Simple black and white 2-column, 7-row compound information table"""
+    ax.axis('off')
+    
+    if compound_info.compound:
+        table_data = [
+            ['Name', compound_info.compound[0].name or 'N/A'],
+            ['Formula', compound_info.compound[0].formula or 'N/A'],
+            ['Monoisotopic Mass', f"{compound_info.compound[0].mono_isotopic_molecular_weight:.4f} g/mol" if compound_info.compound[0].mono_isotopic_molecular_weight else 'N/A'],
+            ['Formula', compound_info.compound[0].formula or 'N/A'],
+            ['Theoretical m/z', f"{compound_info.mz_references[0].mz:.4f}" if compound_info.mz_references else 'N/A'],
+            ['Adduct', compound_info.mz_references[0].adduct if compound_info.mz_references else 'N/A'],
+            ['Polarity', compound_info.mz_references[0].detected_polarity if compound_info.mz_references else 'N/A'],
+            ['InChI Key', compound_info.compound[0].inchi_key if compound_info.compound[0].inchi_key else 'N/A']
+        ]
+    else:
+        table_data = [['Property', 'Value']] * 8
+
+    # Set column widths as a fraction of the table width
+    col_widths = [0.22, 0.4]  # Reduced widths (25% reduction)
+
+    table = ax.table(
+        cellText=table_data,
+        bbox=[0.0, 0.0, 0.75, 1.0],
+        loc='center',
+        cellLoc='left',
+        colWidths=col_widths
+    )
+
+    table.auto_set_font_size(False)
+    table.set_fontsize(15)
+    table.scale(1.0, 1.0)
+
+    cellDict = table.get_celld()
+    for i in range(8):
+        # First column (property names)
+        cellDict[(i, 0)].set_text_props(weight='bold')
+        cellDict[(i, 0)].set_facecolor('white')
+        cellDict[(i, 0)].set_edgecolor('black')
+        cellDict[(i, 0)].set_linewidth(1.5)
+        cellDict[(i, 0)].PAD = 0.02
+
+        # Second column (values)
+        cellDict[(i, 1)].set_text_props(weight='normal')
+        cellDict[(i, 1)].set_facecolor('white')
+        cellDict[(i, 1)].set_edgecolor('black')
+        cellDict[(i, 1)].set_linewidth(1.5)
+        cellDict[(i, 1)].PAD = 0.02
+
+def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
+    """Standard MSMS comparison plot for smaller subplots"""
+    matplotlib.rcParams['toolbar'] = 'None'
+    matplotlib.rcParams['keymap.pan'] = [] 
+
+    msv_sample_matches, msv_ref_matches, msv_sample_nonmatches, msv_ref_nonmatches = sp.partition_aligned_ms_vectors(msv_sample, msv_ref)
+
+    msv_sample_unaligned = np.concatenate((msv_sample_matches, msv_sample_nonmatches), axis=1)
+    msv_ref_unaligned = np.concatenate((msv_ref_matches, msv_ref_nonmatches), axis=1)
+
+    sample_mz = msv_sample_nonmatches[0]
+    sample_zeros = np.zeros(msv_sample_nonmatches[0].shape)
+    sample_intensity = msv_sample_nonmatches[1]
+
+    ax.vlines(sample_mz, sample_zeros, sample_intensity, colors='r', linewidth=3)
+
+    shared_mz = msv_sample_matches[0]
+    shared_zeros = np.zeros(msv_sample_matches[0].shape)
+    shared_sample_intensity = msv_sample_matches[1]
+
+    ax.vlines(shared_mz, shared_zeros, shared_sample_intensity, colors='black', linewidth=3)
+
+    most_intense_idxs = np.argsort(msv_sample_unaligned[1])[::-1]
+
+    # Updated axis labels - removed reference/experimental text
+    ax.set_xlabel('m/z', fontsize=13, weight='bold')
+    ax.set_ylabel('intensity', fontsize=13, weight='bold')
+    ax.tick_params(axis='both', which='major', labelsize=12)
+
+    # Force scientific notation for y-axis
+    ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+
+    labels = [1.001e9]
+
+    intensity_requirement = [m for m in most_intense_idxs
+                             if np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1
+                             and msv_sample_unaligned[1][m] > 0.2 * np.max(msv_sample_unaligned[1])]
+
+    for m in max([most_intense_idxs[:6], intensity_requirement], key=len):
+        if np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1 and msv_sample_unaligned[1][m] > 0.02 * np.max(msv_sample_unaligned[1]):
+            ax.annotate('%5.4f' % msv_sample_unaligned[0][m],
+                        xy=(msv_sample_unaligned[0][m], 1.01 * msv_sample_unaligned[1][m]),
+                        xytext=(4, 0),
+                        textcoords='offset points',
+                        rotation=90,
+                        horizontalalignment='left', verticalalignment='center',
+                        size=10.5)
+            labels.append(msv_sample_unaligned[0][m])
+
+    if msv_ref_unaligned[0].size > 0:
+        ref_scale = -1 * np.max(msv_sample_unaligned[1]) / np.max(msv_ref_unaligned[1])
+
+        ref_mz = msv_ref_nonmatches[0]
+        ref_zeros = np.zeros(msv_ref_nonmatches[0].shape)
+        ref_intensity = ref_scale * msv_ref_nonmatches[1]
+        shared_ref_intensity = ref_scale * msv_ref_matches[1]
+
+        ax.vlines(ref_mz, ref_zeros, ref_intensity, colors='r', linewidth=2)
+        ax.vlines(shared_mz, shared_zeros, shared_ref_intensity, colors='gray', linewidth=3)
+        ax.axhline(0, color='black', linewidth=1, linestyle='--')
+
+    # Upper left: "Experimental" (black text)
+    ax.text(0.02, 0.98, 'Experimental', transform=ax.transAxes, fontsize=13, 
+            weight='bold', verticalalignment='top', horizontalalignment='left',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8),
+            color='black', rotation=90)
+    
+    # Lower left: "Reference" (gray text, only if reference data exists)
+    if msv_ref_unaligned[0].size > 0:
+        ax.text(0.02, 0.02, 'Reference', transform=ax.transAxes, fontsize=13, 
+                weight='bold', verticalalignment='bottom', horizontalalignment='left',
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8),
+                color='gray', rotation=90)
+
+    ylim = ax.get_ylim()
+    ax.set_ylim(ylim[0], ylim[1] * 1.33)
+    
+    # Increase line width of plot borders
+    for spine in ax.spines.values():
+        spine.set_linewidth(1.5)
+
+    # Fill the entire bottom half (below y=0) with light gray
+    if msv_ref_unaligned[0].size > 0:
+        ax.axhspan(ylim[0], 0, color='lightgray', alpha=0.3, zorder=0)
+
+def plot_fragment_matches_info(ax, msv_sample_list, msv_ref_list, scores, intensity_sorted_matches):
+    """Plot detailed fragment matching information"""
+    ax.axis('off')
+    
+    if len(scores) > 0 and len(msv_sample_list) > 0 and not np.isnan(scores[0]):
+        info_lines = []
+        info_lines.append("FRAGMENT DETAILS")
+        info_lines.append("="*20)
+        
+        # Best match details
+        if len(msv_sample_list[0]) > 0 and len(msv_ref_list[0]) > 0:
+            total_sample_frags = len(msv_sample_list[0][0])
+            total_ref_frags = len(msv_ref_list[0][0])
+            
+            matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0]
+            num_matches = len(matches[0]) if len(matches[0]) > 0 else 0
+            
+            info_lines.append(f"Sample fragments: {total_sample_frags}")
+            info_lines.append(f"Reference fragments: {total_ref_frags}")
+            info_lines.append(f"Matching fragments: {num_matches}")
+            
+            if num_matches > 0:
+                match_pct = (num_matches / total_sample_frags) * 100 if total_sample_frags > 0 else 0
+                info_lines.append(f"Match percentage: {match_pct:.1f}%")
+                
+                # Show top matching m/z values
+                if intensity_sorted_matches:
+                    matches = matches[:, matches[1].argsort()[::-1]]
+                
+                top_matches = matches[0][:min(5, len(matches[0]))]
+                info_lines.append("")
+                info_lines.append("Top matching m/z:")
+                for mz in top_matches:
+                    info_lines.append(f"  {mz:.4f}")
+        else:
+            info_lines.append("No spectral data available")
+        
+        full_text = '\n'.join(info_lines)
+        ax.text(0.05, 0.95, full_text, transform=ax.transAxes, fontsize=12,
+                verticalalignment='top')
+    else:
+        ax.text(0.5, 0.5, "No MSMS data\navailable", transform=ax.transAxes, 
+                fontsize=12, horizontalalignment='center', verticalalignment='center')
+
+
+def plot_structure(ax, compound, dimensions):
+    if compound:
+        inchi = compound[0].inchi
+        myMol = Chem.MolFromInchi(inchi.encode('utf-8'))
+
+        if myMol:
+            # Use higher resolution Cairo renderer for better quality
+            drawer = rdMolDraw2D.MolDraw2DCairo(dimensions, dimensions)
+            drawer.SetFontSize(0.9)
+            drawer.DrawMolecule(myMol)
+            drawer.FinishDrawing()
+            
+            # Get the image as a PIL Image
+            img_data = drawer.GetDrawingText()
+            
+            # Convert to PIL Image and display
+            img = Image.open(io.BytesIO(img_data))
+            ax.imshow(img)
+
+            # Add compound label as a wrapped title below the structure
+            label = getattr(compound[0], "name", None)
+            if label:
+                # Wrap the label to a reasonable width (e.g., 30 characters)
+                wrapped_label = fill(label, width=30)
+                ax.set_title(wrapped_label, fontsize=14, pad=10)
+
+    ax.axis('off')
