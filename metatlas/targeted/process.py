@@ -77,6 +77,7 @@ def annotation_gui(
     msms_flags=None,
     msms_sorting_method: str = None,
     msms_radio_buttons: str = None,
+    display_suggested_rt_bounds: bool = True
 ) -> Optional[dp.adjust_rt_for_selected_compound]:
     """
     Opens the interactive GUI for setting RT bounds and annotating peaks
@@ -107,6 +108,7 @@ def annotation_gui(
         adjustable_rt_peak=adjustable_rt_peak,
         peak_flags=peak_flags,
         msms_flags=msms_flags,
+        display_suggested_rt_bounds=display_suggested_rt_bounds
     )
 
 
