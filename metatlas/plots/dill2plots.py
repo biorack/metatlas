@@ -409,8 +409,11 @@ class adjust_rt_for_selected_compound(object):
             
         logger.debug("Flushing %d pending changes to database", len(self.pending_changes))
         
+        # Create a copy of the dictionary to avoid "dictionary changed size during iteration" errors
+        pending_changes_copy = dict(self.pending_changes)
+        
         # Batch database operations
-        for compound_key, changes in self.pending_changes.items():
+        for compound_key, changes in pending_changes_copy.items():
             compound_idx = int(compound_key.split('_')[1])
             
             # Handle RT changes
