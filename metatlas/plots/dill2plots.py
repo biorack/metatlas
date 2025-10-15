@@ -57,7 +57,7 @@ from typing import Type, Any
 from ast import literal_eval
 from datetime import datetime
 
-from matplotlib.widgets import Slider, RadioButtons
+from matplotlib.widgets import Slider, RadioButtons, Button
 
 import matplotlib.patches
 
@@ -306,25 +306,6 @@ class adjust_rt_for_selected_compound(object):
         OUTPUTS:
             Writes RT min/max/peak changes to database
             Writes changes to the 'Flag' radio buttons to database
-
-        Key Bindings:
-           Next compound: 'l' or right arrow
-           Previous compound: 'j' or left arrow
-           Next MSMS hit: 'i' or down arrow
-           Previous MSMS hit: 'u' or up arrow
-           Cycle zoom on MSMS plot: 'z'
-           Flag for removal: 'x'
-           Toggle display of similar compounds list and highlighting: 'r'
-           Apply suggested RT bounds: 'p'
-           Clear suggested bounds display: 'Escape'
-           Set MSMS flag to '1.0, good match': '1'
-           Set MSMS flag to '0.5, partial or putative match of fragments': '5'
-           Set MSMS flag to '0.0, no match or no MSMS collected': '0'
-           RT min left (widen): 'a'
-           RT min right (tighten): 's' 
-           RT max left (tighten): 'd'
-           RT max right (widen): 'f'
-           Manual save changes to the database: 'b'
         """
         logger.debug("Initializing new instance of %s.", self.__class__.__name__)
         self.data = data
@@ -376,7 +357,8 @@ class adjust_rt_for_selected_compound(object):
         disable_keyboard_shortcuts({'keymap.yscale': ['l'],
                                     'keymap.xscale': ['k'],
                                     'keymap.save': ['s'],
-                                    'keymap.home': ['h']})
+                                    'keymap.home': ['h'],
+                                    'keymap.quit': ['q']})
         adjust_rt_for_selected_compound.disable()
         self.create_notes_widgets()
         # Turn On interactive plot
@@ -1017,13 +999,45 @@ class adjust_rt_for_selected_compound(object):
         rt_slider_width = self.plot_right_pos - self.plot_left_pos
 
         self.rt_peak_ax = plt.axes([self.plot_left_pos, 0, rt_slider_width, rt_slider_height],
-                                   facecolor=self.slider_color)
+                                facecolor=self.slider_color)
         self.rt_max_ax = plt.axes([self.plot_left_pos, rt_slider_height*1.5,
-                                   rt_slider_width, rt_slider_height],
-                                  facecolor=self.slider_color)
+                                rt_slider_width, rt_slider_height],
+                                facecolor=self.slider_color)
         self.rt_min_ax = plt.axes([self.plot_left_pos, rt_slider_height*3.0,
-                                   rt_slider_width, rt_slider_height],
-                                  facecolor=self.slider_color)
+                                rt_slider_width, rt_slider_height],
+                                facecolor=self.slider_color)
+        
+        # Add Accept button to the right of the RT sliders, positioned higher
+        button_width = 0.08
+        button_height = rt_slider_height * 1.2  # Slightly taller than RT slider
+        button_left = self.plot_right_pos + 0.1  # Small gap from RT sliders
+        button_bottom = rt_slider_height * 2  # Position between rt_min and rt_max sliders
+        
+        self.accept_button_ax = plt.axes([button_left, button_bottom, button_width, button_height])
+        self.create_accept_button()
+
+    def create_accept_button(self):
+        """Create the Accept button - separated so it can be recreated after plot updates"""
+        self.accept_button = plt.Button(self.accept_button_ax, 'Accept', color='orange', hovercolor='darkorange')
+        self.accept_button.on_clicked(self.on_accept_button_clicked)
+        self.accept_button.label.set_fontsize(10)
+        self.accept_button.label.set_weight('bold')
+        # Only enable if editing is allowed and suggested bounds are displayed
+        self.accept_button.active = self.enable_edit and self.display_suggested_rt_bounds
+
+    def on_accept_button_clicked(self, event):
+        """Handle Accept button click - same as 'n' key press"""
+        if not self.enable_edit:
+            self.warn_if_not_atlas_owner()
+            return
+        if not self.display_suggested_rt_bounds:
+            logger.warning("Display suggested RT bounds is disabled with current settings.")
+            return
+        logger.debug("Accept button clicked - applying suggested peak bounds for compound %d.", self.compound_idx)
+        self.apply_suggested_bounds()
+        self.show_suggested_bounds()
+        # Force immediate database flush for button click
+        self.flush_pending_changes()
 
     def create_radio_buttons(self, axes, labels, on_click_handler, radius, active_idx=0):
         buttons = RadioButtons(axes, labels, active=active_idx)
@@ -1101,17 +1115,6 @@ class adjust_rt_for_selected_compound(object):
                 self.mz_annot.set_visible(False)
                 self.fig.canvas.draw_idle()
 
-    # def hide_radio_buttons(self):
-    #     self.peak_flag_radio.set_radio_props({'facecolor':'white'})
-    #     self.lin_log_radio.set_radio_props({'facecolor':'white'})
-    #     self.msms_flag_radio.set_radio_props({'facecolor':'white'})
-    #     for label in self.peak_flag_radio.labels:
-    #         label.set_color('white')
-    #     for label in self.lin_log_radio.labels:
-    #         label.set_color('white')
-    #     for label in self.msms_flag_radio.labels:
-    #         label.set_color('white')
-
     def update_plots(self):
         self.msms_zoom_factor = 1
         self.ax.cla()
@@ -1123,12 +1126,15 @@ class adjust_rt_for_selected_compound(object):
         self.peak_flag_ax.cla()
         self.msms_flag_ax.cla() 
         self.lin_log_ax.cla()
+        self.accept_button_ax.cla()
         self.set_plot_data()
+        self.create_accept_button()
         if self.display_suggested_rt_bounds:
             self.show_suggested_bounds()
 
     @log_errors(output_context=LOGGING_WIDGET)
     def press(self, event):
+        ### Navigation
         if event.key in ['right', ';', ' ']:
             total_compounds = len(self.data[0])
             logger.debug("Current compound_idx: %d, Total compounds: %d", self.compound_idx, total_compounds)
@@ -1177,37 +1183,48 @@ class adjust_rt_for_selected_compound(object):
                 if self.display_suggested_rt_bounds:
                     self.show_suggested_bounds()
                 self.in_switch_event = False
-        elif event.key == 'b':
-            logger.info("Manual save triggered via 'b' key event.")
-            self.flush_pending_changes()
-        elif event.key in ['up', 'i']:
+        elif event.key in ['up', 'k']:
             if self.hit_ctr > 0:
                 self.hit_ctr -= 1
                 logger.debug("Decreasing hit_ctr to %d.", self.hit_ctr)
                 self.update_plots()
-        elif event.key in ['down', 'u']:
+        elif event.key in ['down', 'l']:
             if self.hit_ctr < len(self.hits) - 1:
                 logger.debug("Increasing hit_ctr to %d.", self.hit_ctr)
                 self.hit_ctr += 1
-                self.update_plots()
-        elif event.key == 'x':
+                self.update_plots()       
+        ### Database
+        elif event.key == 'b':
+            logger.info("Manual save triggered via 'b' key event.")
+            self.flush_pending_changes()
+        ### MS1 Notes
+        elif event.key in [str(n) for n in [1,2,3,4,5,6,7,8,9,0]]:
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
                 return
-            logger.debug("Removing compound %d via 'x' key event.", self.compound_idx)
-            self.peak_flag_radio.set_active(1)
+            idx = 9 if event.key == '0' else int(event.key) - 1
+            if idx < len(self.peak_flags):
+                self.peak_flag_radio.set_active(idx)
+        ### MS2 Notes
+        elif event.key in ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p']:
+            if not self.enable_edit:
+                self.warn_if_not_atlas_owner()
+                return
+            key_to_idx = {'q': 0, 'w': 1, 'e': 2, 'r': 3, 't': 4, 'y': 5, 'u': 6, 'i': 7, 'o': 8, 'p': 9}
+            idx = key_to_idx.get(event.key, None)
+            if idx is not None and idx < len(self.msms_flags):
+                self.msms_flag_radio.set_active(idx)
+        ### Plot
         elif event.key == 'z':
             self.msms_zoom_factor = 1 if self.msms_zoom_factor == 25 else self.msms_zoom_factor * 5
             logger.debug("Setting msms zoom factor to %d.", self.msms_zoom_factor)
             self.msms_plot()
-        elif event.key == 'r':
+        elif event.key == 'v':
             self.enable_similar_compounds = not self.enable_similar_compounds
             self.similar_compounds = self.get_similar_compounds()
             if self.enable_similar_compounds:
-                logger.debug("Enabling similar compounds list and EIC plot highlighting.")
                 self.highlight_similar_compounds()
             else:
-                logger.debug("Removing similar compounds list and EIC plot hightlighting.")
                 self.unhighlight_similar_compounds()
             self.msms_plot()
         elif event.key == 'm':
@@ -1215,7 +1232,7 @@ class adjust_rt_for_selected_compound(object):
             if num_sim > 0:
                 self.match_idx = 0 if self.match_idx is None else (self.match_idx + 1) % num_sim
                 self.match_rts()
-        elif event.key == 'p':
+        elif event.key == 'n':
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
                 return
@@ -1228,33 +1245,7 @@ class adjust_rt_for_selected_compound(object):
         elif event.key == 'escape':
             logger.debug("Clearing suggested bounds display.")
             self.clear_suggested_bounds()
-        elif event.key == '1':
-            if not self.enable_edit:
-                self.warn_if_not_atlas_owner()
-                return
-            good_match_flag = '1.0, good match'
-            if good_match_flag in self.msms_flags:
-                flag_index = self.msms_flags.index(good_match_flag)
-                logger.debug("Setting MSMS flag to '%s' via '1' key event.", good_match_flag)
-                self.msms_flag_radio.set_active(flag_index)
-        elif event.key == '0':
-            if not self.enable_edit:
-                self.warn_if_not_atlas_owner()
-                return
-            no_match_flag = '0.0, no match or no MSMS collected'
-            if no_match_flag in self.msms_flags:
-                flag_index = self.msms_flags.index(no_match_flag)
-                logger.debug("Setting MSMS flag to '%s' via '0' key event.", no_match_flag)
-                self.msms_flag_radio.set_active(flag_index)
-        elif event.key == '5':
-            if not self.enable_edit:
-                self.warn_if_not_atlas_owner()
-                return
-            no_match_flag = '0.5, partial or putative match of fragments'
-            if no_match_flag in self.msms_flags:
-                flag_index = self.msms_flags.index(no_match_flag)
-                logger.debug("Setting MSMS flag to '%s' via '5' key event.", no_match_flag)
-                self.msms_flag_radio.set_active(flag_index)
+        ### RT adjustment
         elif event.key == 'a':  # Move RT min left (widen - decrease rt_min)
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
@@ -4246,29 +4237,29 @@ def plot_info_box(ax):
     ax.axis('off')
     
     info_text = [
-        r"$\bf{FIGURE\ NOTES:}$",
-        "",
-        "• Definitions:",
+        r"$\bf{Definitions:}$",
         "  - MSMS Score: Calculated using the",
-        "     CosineHungarian method between",
-        "     reference and experimental spectra",
-        "  - High-intensity matches: fragments",
+        "     CosineHungarian method in Matchms",
+        "     (https://doi.org/10.1186/s13321-024-00878-1)",
+        "  - Fragment matches: fragments",
         "     with >0.1% of maximum intensity",
         "",
-        "• MSMS Mirror Plots:",
+        r"$\bf{MSMS\ Plots:}$",
         "  - Grayscale lines: matching fragments",
         "  - Red lines: non-matching fragments",
+        "  - Scale: ref intensities multiplied by this value",
         "",
-        "• EIC Plots:",
+        r"$\bf{EIC\ Plots:}$",
         "  - Dotted line: theoretical RT peak",
-        "  - Solid lines: empirical RT min/max",
-        "    (determined by analyst)"
+        "  - Solid lines: analyst-selected RT min/max",
+        "  - Green AUC: data used for peak height and",
+        "    peak area quantification",
     ]
     
     # Create single text box positioned at the top with consistent positioning
-    ax.text(0.05, 1.03, '\n'.join(info_text), 
+    ax.text(-0.05, 1.0, '\n'.join(info_text), 
             transform=ax.transAxes, 
-            fontsize=12.47,
+            fontsize=12,
             verticalalignment='top',
             horizontalalignment='left',
             bbox=dict(boxstyle='round,pad=0.5', 
@@ -4302,40 +4293,10 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
         rt_measured = data[file_idxs[0]][compound_idx]['data']['ms1_summary']['rt_peak']
         if not rt_measured:
             rt_measured = 0
-            
-        # Create text content with fragment matching info
-        info_text = []
-        info_text.append(r"$\bf{COMPOUND\ IDENTIFICATION:}$")
-        info_text.append("")
-        
-        # File information for best match only
-        if len(file_idxs) > 0:
-            filename = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file)
-            filename_with_star = add_star_if_control(filename)
-            info_text.append(r"$\bf{BEST\ MATCH:}$")
-            info_text.append(f"  {filename_with_star}")
 
-        # Mass and RT accuracy (only for best match)
-        info_text.append(r"$\bf{MASS\ ACCURACY:}$")
-        info_text.append(f"  Theoretical={mz_theoretical:.4f} m/z")
-        info_text.append(f"  Measured={mz_measured:.4f} m/z (Diff={delta_ppm:.2f} ppm)")
-        info_text.append((r"$\bf{RT\ ACCURACY:}$"))
-        info_text.append(f"  Theoretical={rt_theoretical:.2f} min")
-        info_text.append(f"  Measured={rt_measured:.2f} min (Diff={abs(rt_theoretical - rt_measured):.2f} min)")
-
-        # Always add an entry to the match DataFrame, regardless of fragment matching
-        new_row = {
-            'label': compound_names[compound_idx],
-            'file name': add_star_if_control(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file)) if file_idxs else '',
-            'Matching M/Zs above 1E-3*max': '',
-            #'All matching M/Zs': ''
-        }
-        
-        # Fragment matching information
+        # Get fragment matching information
+        fragment_text = "No fragment matches found"
         if len(scores) > 0 and len(msv_sample_list) > 0:
-            info_text.append(r"$\bf{FRAGMENT\ MATCHING:}$")
-            
-            # Get matching fragments for best hit
             if len(msv_sample_list[0]) > 0 and len(msv_ref_list[0]) > 0:
                 msv_sample_matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0]
                 
@@ -4343,70 +4304,155 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
                     msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
                 
                 if len(msv_sample_matches[0]) > 0:
-                    # High intensity matches (above threshold)
                     threshold_matches = sp.remove_ms_vector_noise(msv_sample_matches)[0]
-                    mz_sample_matches = msv_sample_matches[0]
-                    
                     if len(threshold_matches) > 0:
                         threshold_mzs = ', '.join([f'{m:.3f}' for m in threshold_matches])
-                        info_text.append(f"  High-intensity matches: {threshold_mzs}")
-                        new_row['Matching M/Zs above 1E-3*max'] = threshold_mzs
-                    
-                    # if len(mz_sample_matches) > 0:
-                    #     all_mzs = ', '.join([f'{m:.3f}' for m in mz_sample_matches])
-                    #     info_text.append(f"  All matching m/z: {all_mzs}")
-                    #     new_row['All matching M/Zs'] = all_mzs
+                        fragment_text = f"{threshold_mzs}"
                 else:
-                    info_text.append("  No fragment matches found")
+                    fragment_text = "No fragment matches found"
             else:
-                info_text.append("  No spectral data available")
-            
-            # Additional matches section
-            info_text.append((r"$\bf{ADDITIONAL\ MATCHES:}$"))
-            if len(file_idxs) > 1:
-                filename = os.path.basename(data[file_idxs[1]][compound_idx]['lcmsrun'].hdf5_file)
-                filename_with_star = add_star_if_control(filename)
-                info_text.append(f"  2nd best: {filename_with_star}")
-            else:
-                info_text.append("  2nd best: N/A")
-            if len(file_idxs) > 2:
-                filename = os.path.basename(data[file_idxs[2]][compound_idx]['lcmsrun'].hdf5_file)
-                filename_with_star = add_star_if_control(filename)
-                info_text.append(f"  3rd best: {filename_with_star}")
-            else:
-                info_text.append("  3rd best: N/A")
+                fragment_text = "No spectral data available"
 
-            # Print total number of matches
-            info_text.append(f"  Total files with database matches: {len(file_idxs)}")
+        # Always add an entry to the match DataFrame
+        new_row = {
+            'label': compound_names[compound_idx],
+            'file name': add_star_if_control(os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file)) if file_idxs else '',
+            'Matching M/Zs above 1E-3*max': '',
+        }
         
+        # Update the match DataFrame with fragment info
+        if len(scores) > 0 and len(msv_sample_list) > 0:
+            if len(msv_sample_list[0]) > 0 and len(msv_ref_list[0]) > 0:
+                msv_sample_matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0]
+                if intensity_sorted_matches and len(msv_sample_matches[0]) > 0:
+                    msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
+                if len(msv_sample_matches[0]) > 0:
+                    threshold_matches = sp.remove_ms_vector_noise(msv_sample_matches)[0]
+                    if len(threshold_matches) > 0:
+                        threshold_mzs = ', '.join([f'{m:.3f}' for m in threshold_matches])
+                        new_row['Matching M/Zs above 1E-3*max'] = threshold_mzs
+
         # Add the row to the DataFrame
         match_out_df = pd.concat([match_out_df, pd.DataFrame([new_row])], ignore_index=True)
+
+        # Create the main table data (no fragment matches row)
+        filename = os.path.basename(data[file_idxs[0]][compound_idx]['lcmsrun'].hdf5_file)
+        filename_with_star = add_star_if_control(filename)
         
-        # Display the text with gray box styling, similar to plot_info_box
+        table_data = [
+            ['BEST MATCH', 'Theoretical', 'Measured', 'Difference'],
+            ['Mass Accuracy', f'{mz_theoretical:.4f} m/z', f'{mz_measured:.4f} m/z', f'{delta_ppm:.2f} ppm'],
+            ['RT Accuracy', f'{rt_theoretical:.2f} min', f'{rt_measured:.2f} min', f'{abs(rt_theoretical - rt_measured):.2f} min']
+        ]
+
+        # Create main table
+        main_table_height = 0.4
+        table = ax.table(
+            cellText=table_data,
+            bbox=[0.0, 0.5, 1.0, main_table_height],
+            loc='center',
+            cellLoc='left',
+            colWidths=[0.25, 0.25, 0.25, 0.25]
+        )
+
+        table.auto_set_font_size(False)
+        table.set_fontsize(12)
+        table.scale(1.0, 1.0)
+
+        # Style the main table
+        cellDict = table.get_celld()
+
+        for i in range(3):  # 3 rows
+            for j in range(4):  # 4 columns
+                cell = cellDict[(i, j)]
+                
+                if i == 0:  # Header row
+                    cell.set_text_props(weight='bold')
+                    cell.set_facecolor('lightgray')
+                elif j == 0:  # First column (labels)
+                    cell.set_text_props(weight='bold')
+                    cell.set_facecolor('white')
+                else:  # Data cells
+                    cell.set_text_props(weight='normal')
+                    cell.set_facecolor('white')
+                
+                # Set borders for all cells
+                cell.set_edgecolor('black')
+                cell.set_linewidth(1.5)
+
+        # Create separate fragment matches table with same row height as main table rows
+        fragment_table_data = [
+            ['Fragment Matches', fragment_text]
+        ]
+
+        # Calculate row height: main table height (0.4) divided by number of rows (3) = 0.133
+        row_height = main_table_height / 3
+
+        fragment_table = ax.table(
+            cellText=fragment_table_data,
+            bbox=[0.0, 0.5 - row_height, 1.0, row_height],
+            loc='center',
+            cellLoc='left',
+            colWidths=[0.25, 0.75]
+        )
+
+        fragment_table.auto_set_font_size(False)
+        fragment_table.set_fontsize(10)
+        fragment_table.scale(1.0, 1.0)
+
+        # Style the fragment table
+        fragment_cellDict = fragment_table.get_celld()
+
+        # Header cell (Fragment Matches:)
+        fragment_cellDict[(0, 0)].set_text_props(weight='bold')
+        fragment_cellDict[(0, 0)].set_facecolor('white')
+        fragment_cellDict[(0, 0)].set_edgecolor('black')
+        fragment_cellDict[(0, 0)].set_linewidth(1.5)
+
+        # Data cell (fragment text) - explicitly set alignment and reduce padding
+        fragment_cellDict[(0, 1)].set_text_props(weight='normal', ha='left')
+        fragment_cellDict[(0, 1)].set_facecolor('white')
+        fragment_cellDict[(0, 1)].set_edgecolor('black')
+        fragment_cellDict[(0, 1)].set_linewidth(1.5)
+        fragment_cellDict[(0, 1)].PAD = 0.02
+
+        # Add title
+        ax.text(0.0, 0.95, f'{filename_with_star}', 
+                transform=ax.transAxes, 
+                fontsize=12, weight='bold',
+                verticalalignment='bottom', 
+                horizontalalignment='left')
+
+        # Additional matches section
+        info_text = []
+        info_text.append(r"$\bf{ADDITIONAL\ MATCHES:}$")
+        if len(file_idxs) > 1:
+            filename = os.path.basename(data[file_idxs[1]][compound_idx]['lcmsrun'].hdf5_file)
+            filename_with_star = add_star_if_control(filename)
+            info_text.append(f"  2nd best: {filename_with_star}")
+        else:
+            info_text.append("  2nd best: N/A")
+        if len(file_idxs) > 2:
+            filename = os.path.basename(data[file_idxs[2]][compound_idx]['lcmsrun'].hdf5_file)
+            filename_with_star = add_star_if_control(filename)
+            info_text.append(f"  3rd best: {filename_with_star}")
+        else:
+            info_text.append("  3rd best: N/A")
+
+        info_text.append(f"  Total files with database matches: {len(file_idxs)}")
+        
         full_text = '\n'.join(info_text)
-        ax.text(-0.08, 1.03, full_text, 
+        ax.text(0.0, 0.33, full_text, 
                 transform=ax.transAxes, 
                 fontsize=12.5,
                 verticalalignment='top', 
-                horizontalalignment='left',
-                bbox=dict(boxstyle='round,pad=0.5', 
-                         facecolor='lightgray', 
-                         alpha=0.85,
-                         edgecolor='black',
-                         linewidth=1))
+                horizontalalignment='left')
     else:
-        # Always show the title even when there's no match data
-        info_text = []
-        info_text.append(r"$\bf{COMPOUND\ IDENTIFICATION:}$")
-        info_text.append("")
-        info_text.append("No match data available")
-        
-        full_text = '\n'.join(info_text)
-        ax.text(-0.08, 1.03, full_text, 
+        ax.text(0.5, 0.5, 'No match data available', 
                 transform=ax.transAxes, 
-                fontsize=14,
-                verticalalignment='top', 
-                horizontalalignment='left',
+                fontsize=18, weight='bold',
+                verticalalignment='center', 
+                horizontalalignment='center',
                 bbox=dict(boxstyle='round,pad=0.5', 
                          facecolor='lightgray', 
                          alpha=0.85,
@@ -4467,55 +4513,54 @@ def plot_eic(ax, data, compound_idx, log_scale=False):
     ax.tick_params(axis='y', labelsize=14)
     if not log_scale:
         ax.get_yaxis().get_major_formatter().set_useOffset(True)
-    # Increased line widths for RT markers
     y_min, y_max = ax.get_ylim()
-    # For log scale, compute y_mid in log space for correct placement
-    if log_scale:
-        y_mid = np.exp((np.log(y_min) + np.log(y_max)) / 1.7)
-    else:
-        y_mid = (y_min + y_max) / 1.3
+    ymax_offset = 0.92 if log_scale else 0.98
+    xmin_offset = 0.01 * (ax.get_xlim()[1] - ax.get_xlim()[0])
 
     if rt_min is not None:
         ax.axvline(rt_min, color='gray', linewidth=2)
+        # Place label just to the left of the line, aligned right
         ax.annotate(
             'RT min',
-            xy=(rt_min, y_mid),
-            xytext=(-3, 0),
-            textcoords='offset points',
+            xy=(rt_min, y_max),
+            xytext=(rt_min - xmin_offset, y_max * ymax_offset),
+            textcoords='data',
             ha='right',
-            va='center',
+            va='top',
             fontsize=12,
             color='gray',
-            weight='normal',
-            rotation=90
+            weight='bold',
+            rotation=90,
         )
     if rt_max is not None:
         ax.axvline(rt_max, color='black', linewidth=2)
+        # Place label just inside the plot area, aligned left
         ax.annotate(
             'RT max',
-            xy=(rt_max, y_mid),
-            xytext=(3, 0),
-            textcoords='offset points',
+            xy=(rt_max, y_max),
+            xytext=(rt_max + xmin_offset, y_max * ymax_offset),
+            textcoords='data',
             ha='left',
-            va='center',
+            va='top',
             fontsize=12,
             color='black',
-            weight='normal',
-            rotation=270
+            weight='bold',
+            rotation=270,
         )
     if rt_peak is not None:
         ax.axvline(rt_peak, color='k', linewidth=2, linestyle='--')
+        # Optionally, add a label for RT peak above the plot as well
         # ax.annotate(
-        #     'rt_peak',
+        #     'RT peak',
         #     xy=(rt_peak, y_max),
-        #     xytext=(0, 5),
-        #     textcoords='offset points',
+        #     xytext=(rt_peak, y_max * 1.06),
+        #     textcoords='data',
         #     ha='center',
         #     va='bottom',
         #     fontsize=12,
-        #     color='r',
+        #     color='k',
         #     weight='bold',
-        #     rotation=90
+        #     rotation=0
         # )
     # Increase line width of plot borders
     for spine in ax.spines.values():
@@ -4534,10 +4579,11 @@ def plot_compound_info_table(ax, compound_info):
             ['Theoretical m/z', f"{compound_info.mz_references[0].mz:.4f}" if compound_info.mz_references else 'N/A'],
             ['Adduct', compound_info.mz_references[0].adduct if compound_info.mz_references else 'N/A'],
             ['Polarity', compound_info.mz_references[0].detected_polarity if compound_info.mz_references else 'N/A'],
-            ['InChI Key', compound_info.compound[0].inchi_key if compound_info.compound[0].inchi_key else 'N/A']
+            ['InChI Key', compound_info.compound[0].inchi_key if compound_info.compound[0].inchi_key else 'N/A'],
+            ['PubChem CID', str(compound_info.compound[0].pubchem_compound_id) if compound_info.compound[0].pubchem_compound_id else 'N/A']
         ]
     else:
-        table_data = [['Property', 'Value']] * 8
+        table_data = [['Property', 'Value']] * 9
 
     # Set column widths as a fraction of the table width
     col_widths = [0.22, 0.4]  # Reduced widths (25% reduction)
@@ -4555,7 +4601,7 @@ def plot_compound_info_table(ax, compound_info):
     table.scale(1.0, 1.0)
 
     cellDict = table.get_celld()
-    for i in range(8):
+    for i in range(9):
         # First column (property names)
         cellDict[(i, 0)].set_text_props(weight='bold')
         cellDict[(i, 0)].set_facecolor('white')
@@ -4634,15 +4680,18 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     # Upper left: "Experimental" (black text)
     ax.text(0.02, 0.98, 'Experimental', transform=ax.transAxes, fontsize=13, 
             weight='bold', verticalalignment='top', horizontalalignment='left',
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8),
             color='black', rotation=90)
     
     # Lower left: "Reference" (gray text, only if reference data exists)
     if msv_ref_unaligned[0].size > 0:
         ax.text(0.02, 0.02, 'Reference', transform=ax.transAxes, fontsize=13, 
                 weight='bold', verticalalignment='bottom', horizontalalignment='left',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8),
-                color='gray', rotation=90)
+                color='#888888', rotation=90)
+        
+        # Add ref_scale value underneath the "Reference" text
+        ax.text(0.07, 0.02, f'Scale: {abs(ref_scale):.3f}', transform=ax.transAxes, fontsize=13,
+                weight='normal', verticalalignment='bottom', horizontalalignment='left',
+                color='#888888', rotation=90)
 
     ylim = ax.get_ylim()
     ax.set_ylim(ylim[0], ylim[1] * 1.33)
@@ -4655,50 +4704,49 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
     if msv_ref_unaligned[0].size > 0:
         ax.axhspan(ylim[0], 0, color='lightgray', alpha=0.3, zorder=0)
 
-def plot_fragment_matches_info(ax, msv_sample_list, msv_ref_list, scores, intensity_sorted_matches):
-    """Plot detailed fragment matching information"""
-    ax.axis('off')
+# def plot_fragment_matches_info(ax, msv_sample_list, msv_ref_list, scores, intensity_sorted_matches):
+#     """Plot detailed fragment matching information"""
+#     ax.axis('off')
     
-    if len(scores) > 0 and len(msv_sample_list) > 0 and not np.isnan(scores[0]):
-        info_lines = []
-        info_lines.append("FRAGMENT DETAILS")
-        info_lines.append("="*20)
+#     if len(scores) > 0 and len(msv_sample_list) > 0 and not np.isnan(scores[0]):
+#         info_lines = []
+#         info_lines.append("FRAGMENT DETAILS")
+#         info_lines.append("="*20)
         
-        # Best match details
-        if len(msv_sample_list[0]) > 0 and len(msv_ref_list[0]) > 0:
-            total_sample_frags = len(msv_sample_list[0][0])
-            total_ref_frags = len(msv_ref_list[0][0])
+#         # Best match details
+#         if len(msv_sample_list[0]) > 0 and len(msv_ref_list[0]) > 0:
+#             total_sample_frags = len(msv_sample_list[0][0])
+#             total_ref_frags = len(msv_ref_list[0][0])
             
-            matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0]
-            num_matches = len(matches[0]) if len(matches[0]) > 0 else 0
+#             matches = sp.partition_aligned_ms_vectors(msv_sample_list[0], msv_ref_list[0])[0]
+#             num_matches = len(matches[0]) if len(matches[0]) > 0 else 0
             
-            info_lines.append(f"Sample fragments: {total_sample_frags}")
-            info_lines.append(f"Reference fragments: {total_ref_frags}")
-            info_lines.append(f"Matching fragments: {num_matches}")
+#             info_lines.append(f"Sample fragments: {total_sample_frags}")
+#             info_lines.append(f"Reference fragments: {total_ref_frags}")
+#             info_lines.append(f"Matching fragments: {num_matches}")
             
-            if num_matches > 0:
-                match_pct = (num_matches / total_sample_frags) * 100 if total_sample_frags > 0 else 0
-                info_lines.append(f"Match percentage: {match_pct:.1f}%")
+#             if num_matches > 0:
+#                 match_pct = (num_matches / total_sample_frags) * 100 if total_sample_frags > 0 else 0
+#                 info_lines.append(f"Match percentage: {match_pct:.1f}%")
                 
-                # Show top matching m/z values
-                if intensity_sorted_matches:
-                    matches = matches[:, matches[1].argsort()[::-1]]
+#                 # Show top matching m/z values
+#                 if intensity_sorted_matches:
+#                     matches = matches[:, matches[1].argsort()[::-1]]
                 
-                top_matches = matches[0][:min(5, len(matches[0]))]
-                info_lines.append("")
-                info_lines.append("Top matching m/z:")
-                for mz in top_matches:
-                    info_lines.append(f"  {mz:.4f}")
-        else:
-            info_lines.append("No spectral data available")
+#                 top_matches = matches[0][:min(5, len(matches[0]))]
+#                 info_lines.append("")
+#                 info_lines.append("Top matching m/z:")
+#                 for mz in top_matches:
+#                     info_lines.append(f"  {mz:.4f}")
+#         else:
+#             info_lines.append("No spectral data available")
         
-        full_text = '\n'.join(info_lines)
-        ax.text(0.05, 0.95, full_text, transform=ax.transAxes, fontsize=12,
-                verticalalignment='top')
-    else:
-        ax.text(0.5, 0.5, "No MSMS data\navailable", transform=ax.transAxes, 
-                fontsize=12, horizontalalignment='center', verticalalignment='center')
-
+#         full_text = '\n'.join(info_lines)
+#         ax.text(0.05, 0.95, full_text, transform=ax.transAxes, fontsize=12,
+#                 verticalalignment='top')
+#     else:
+#         ax.text(0.5, 0.5, "No MSMS data\navailable", transform=ax.transAxes, 
+#                 fontsize=12, horizontalalignment='center', verticalalignment='center')
 
 def plot_structure(ax, compound, dimensions):
     if compound:
