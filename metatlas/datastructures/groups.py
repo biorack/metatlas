@@ -38,7 +38,7 @@ def get_groups_and_runs(
     if all_groups is None:
         all_groups = create_groups(execution, groups_controlled_vocab, filtered_lcmsruns)
     groups = filter_groups(all_groups, include_groups, exclude_groups)
-    logger.debug("Getting LCMS runs for groups: %s", groups)
+    #logger.debug("Getting LCMS runs for groups: %s", groups)
     return (groups, get_lcmsruns(groups))
 
 

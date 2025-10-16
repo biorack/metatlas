@@ -378,7 +378,7 @@ class Workspace(object):
         if changed:
             self._inserts[name].append(state)
 
-        logger.debug("Exiting Workspace._get_save_data")
+        #logger.debug("Exiting Workspace._get_save_data")
 
     def fix_table(self, table_name):
         """Fix a table by converting floating point values to doubles"""
