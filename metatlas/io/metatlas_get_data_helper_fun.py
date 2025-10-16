@@ -388,6 +388,7 @@ def transfer_identification_data_to_atlas(data, atlas, ids_list=None):
 
 
 def get_data_for_mzrt(row, data_df_pos, data_df_neg, extra_time=0.5, use_mz='mz', extra_mz=0.0):
+    logger.debug(f"Getting data for mz={row.mz}, rt_min={row.rt_min}, rt_max={row.rt_max}, mz_tolerance={row.mz_tolerance}, extra_mz={extra_mz}, polarity={row.detected_polarity}")
     mz_min = '%s >= %5.4f' % (use_mz, row.mz - row.mz*row.mz_tolerance / 1e6 - extra_mz)
     rt_min = 'rt >= %5.4f' % (row.rt_min - extra_time)
     rt_max = 'rt <= %5.4f' % (row.rt_max + extra_time)
