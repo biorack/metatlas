@@ -327,14 +327,6 @@ class adjust_rt_for_selected_compound(object):
         self.adjustable_rt_peak = adjustable_rt_peak
         self.display_suggested_rt_bounds = display_suggested_rt_bounds
 
-        # set up autosaving in bulk to increase speed of GUI
-        self.pending_changes = {}
-        self.auto_save_timer = None
-        self.save_delay = 5 # seconds
-        self.compound_switch_save = True
-        self._update_timer = None
-        atexit.register(self.cleanup_on_exit)
-
         # set up suggested min and max values
         self._suggested_bounds = None
         self._suggestion_lines = []
@@ -375,71 +367,6 @@ class adjust_rt_for_selected_compound(object):
         self.set_plot_data()
         # Turn On interactive plot
         plt.ion()
-
-    def schedule_auto_save(self):
-        """Auto-save changes after a delay"""
-        if self.auto_save_timer:
-            self.auto_save_timer.cancel()
-        
-        self.auto_save_timer = threading.Timer(self.save_delay, self.flush_pending_changes)
-        self.auto_save_timer.start()
-
-    def flush_pending_changes(self):
-        """Write all pending changes to database in batch"""
-        if not self.pending_changes:
-            return
-            
-        logger.debug("Flushing %d pending changes to database", len(self.pending_changes))
-        
-        # Create a copy of the dictionary to avoid "dictionary changed size during iteration" errors
-        pending_changes_copy = dict(self.pending_changes)
-        
-        # Batch database operations
-        for compound_key, changes in pending_changes_copy.items():
-            compound_idx = int(compound_key.split('_')[1])
-            
-            # Handle RT changes
-            for rt_type, value in changes.items():
-                if rt_type in ['rt_min', 'rt_max', 'rt_peak']:
-                    self.data.set_rt(compound_idx, rt_type, value)
-            
-            # Handle flag changes
-            if 'flags' in changes:
-                for flag_name, flag_value in changes['flags'].items():
-                    self.data.set_note(compound_idx, flag_name, flag_value)
-        
-        self.pending_changes.clear()
-        logger.debug("Database flush completed")
-
-    def cleanup_on_exit(self):
-        """Ensure pending changes are saved if the system crashes
-        
-        Closing Jupyter notebook - Will trigger cleanup
-        Restarting the kernel - Will trigger cleanup
-        Shutting down Jupyter - Will trigger cleanup
-        Script ending - Will trigger cleanup
-        Closing the Python interpreter - Will trigger cleanup
-        """
-        if self.pending_changes:
-            logger.warning("System exiting with unsaved changes. Auto-saving...")
-            self.flush_pending_changes()
-
-    def schedule_dependent_updates(self):
-        """Schedule expensive operations to run after UI updates"""
-        if self._update_timer:
-            self._update_timer.cancel()
-        
-        self._update_timer = threading.Timer(0.3, self._perform_dependent_updates)
-        self._update_timer.start()
-
-    def _perform_dependent_updates(self):
-        """Perform expensive updates after RT changes"""
-        self.msms_zoom_factor = 1
-        self.filter_hits()
-        self.similar_compounds = self.get_similar_compounds()
-        self.highlight_similar_compounds()
-        self.msms_plot()
-        self.fig.canvas.draw_idle()
 
     def suggest_rt_bounds(self):
         """Calculate suggested RT bounds using peak detection on the EIC data"""
@@ -638,7 +565,6 @@ class adjust_rt_for_selected_compound(object):
             self.peak_line.set_xdata((self._suggested_bounds['rt_peak'], self._suggested_bounds['rt_peak']))
         
         # Schedule expensive background operations and draw immediately
-        self.schedule_dependent_updates()
         self.fig.canvas.draw_idle()
 
     def show_suggested_bounds(self):
@@ -716,14 +642,8 @@ class adjust_rt_for_selected_compound(object):
 
     def on_id_note_change(self, change):
         if not self.in_switch_event:
-            logger.debug('Buffering ID_NOTE change: %s', change['new'])
-            compound_key = f"compound_{self.compound_idx}"
-            if compound_key not in self.pending_changes:
-                self.pending_changes[compound_key] = {}
-            if 'flags' not in self.pending_changes[compound_key]:
-                self.pending_changes[compound_key]['flags'] = {}
-            self.pending_changes[compound_key]['flags']['identification_notes'] = change["new"]
-            self.schedule_auto_save()
+            logger.debug('ID_NOTE change handler got value: %s', change['new'])
+            self.data.set_note(self.compound_idx, "identification_notes", change["new"])
 
     def eic_plot(self):
         logger.debug('Starting eic_plot')
@@ -1036,8 +956,6 @@ class adjust_rt_for_selected_compound(object):
         logger.debug("Accept button clicked - applying suggested peak bounds for compound %d.", self.compound_idx)
         self.apply_suggested_bounds()
         self.show_suggested_bounds()
-        # Force immediate database flush for button click
-        self.flush_pending_changes()
 
     def create_radio_buttons(self, axes, labels, on_click_handler, radius, active_idx=0):
         buttons = RadioButtons(axes, labels, active=active_idx)
@@ -1056,23 +974,9 @@ class adjust_rt_for_selected_compound(object):
             self.ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
         self.fig.canvas.draw_idle()
 
-    # def set_flag(self, name, value):
-    #     logger.debug('Setting flag "%s" to "%s".', name, value)
-    #     self.data.set_note(self.compound_idx, name, value)
-
     def set_flag(self, name, value):
-        """Buffer flag changes instead of immediate database writes"""
-        logger.debug('Buffering flag "%s" to "%s".', name, value)
-        
-        compound_key = f"compound_{self.compound_idx}"
-        if compound_key not in self.pending_changes:
-            self.pending_changes[compound_key] = {}
-        
-        if 'flags' not in self.pending_changes[compound_key]:
-            self.pending_changes[compound_key]['flags'] = {}
-        
-        self.pending_changes[compound_key]['flags'][name] = value
-        self.schedule_auto_save()
+        logger.debug('Setting flag "%s" to "%s".', name, value)
+        self.data.set_note(self.compound_idx, name, value)
 
     def set_peak_flag(self, label):
         old_label = ma_data.extract(self.current_id, ["ms1_notes"])
@@ -1138,18 +1042,8 @@ class adjust_rt_for_selected_compound(object):
         if event.key in ['right', ';', ' ']:
             total_compounds = len(self.data[0])
             logger.debug("Current compound_idx: %d, Total compounds: %d", self.compound_idx, total_compounds)
-
-            if self.compound_idx + 1 >= len(self.data[0]):
-                # At final compound - force save
-                logger.debug("Reached final compound, auto-saving all changes...")
-                self.flush_pending_changes()
     
-            if self.compound_idx + 1 < len(self.data[0]):
-                # Force save before switching compounds
-                if self.pending_changes and self.compound_switch_save:
-                    logger.debug("Auto-saving before compound switch...")
-                    self.flush_pending_changes()
-                    
+            if self.compound_idx + 1 < len(self.data[0]):   
                 self.in_switch_event = True
                 self.compound_idx += 1
                 logger.debug("Increasing compound_idx to %d (inchi_key:%s adduct:%s).",
@@ -1164,12 +1058,7 @@ class adjust_rt_for_selected_compound(object):
                     self.show_suggested_bounds()
                 self.in_switch_event = False
         elif event.key in ['left', 'j']:
-            if self.compound_idx > 0:
-                # Force save before switching compounds
-                if self.pending_changes and self.compound_switch_save:
-                    logger.info("Auto-saving before compound switch...")
-                    self.flush_pending_changes()
-                    
+            if self.compound_idx > 0:                  
                 self.in_switch_event = True
                 self.compound_idx -= 1
                 logger.debug("Decreasing compound_idx to %d (inchi_key:%s adduct:%s).",
@@ -1192,11 +1081,7 @@ class adjust_rt_for_selected_compound(object):
             if self.hit_ctr < len(self.hits) - 1:
                 logger.debug("Increasing hit_ctr to %d.", self.hit_ctr)
                 self.hit_ctr += 1
-                self.update_plots()       
-        ### Database
-        elif event.key == 'b':
-            logger.info("Manual save triggered via 'b' key event.")
-            self.flush_pending_changes()
+                self.update_plots()
         ### MS1 Notes
         elif event.key in [str(n) for n in [1,2,3,4,5,6,7,8,9,0]]:
             if not self.enable_edit:
@@ -1256,7 +1141,6 @@ class adjust_rt_for_selected_compound(object):
             self.data.set_rt(self.compound_idx, 'rt_min', new_rt_min)
             self.rt_min_slider.set_val(new_rt_min)
             self.min_line.set_xdata((new_rt_min, new_rt_min))
-            self.schedule_dependent_updates()
             self.fig.canvas.draw_idle()
         elif event.key == 's':  # Move RT min right (tighten - increase rt_min) 
             if not self.enable_edit:
@@ -1269,7 +1153,6 @@ class adjust_rt_for_selected_compound(object):
             self.data.set_rt(self.compound_idx, 'rt_min', new_rt_min)
             self.rt_min_slider.set_val(new_rt_min)
             self.min_line.set_xdata((new_rt_min, new_rt_min))
-            self.schedule_dependent_updates()
             self.fig.canvas.draw_idle()
         elif event.key == 'd':  # Move RT max left (tighten - decrease rt_max)
             if not self.enable_edit:
@@ -1282,7 +1165,6 @@ class adjust_rt_for_selected_compound(object):
             self.data.set_rt(self.compound_idx, 'rt_max', new_rt_max)
             self.rt_max_slider.set_val(new_rt_max)
             self.max_line.set_xdata((new_rt_max, new_rt_max))
-            self.schedule_dependent_updates()
             self.fig.canvas.draw_idle()
         elif event.key == 'f':  # Move RT max right (widen - increase rt_max)
             if not self.enable_edit:
@@ -1294,7 +1176,6 @@ class adjust_rt_for_selected_compound(object):
             self.data.set_rt(self.compound_idx, 'rt_max', new_rt_max)
             self.rt_max_slider.set_val(new_rt_max)
             self.max_line.set_xdata((new_rt_max, new_rt_max))
-            self.schedule_dependent_updates()
             self.fig.canvas.draw_idle()
 
     def match_rts(self):
@@ -1361,36 +1242,23 @@ class adjust_rt_for_selected_compound(object):
 
     def update_rt(self, which, val):
         """
-        Buffer RT changes instead of immediate database writes
         inputs:
             which: 'rt_min', 'rt_max', or 'rt_peak'
             val: new RT value
         """
-        logger.debug("Buffering %s to %0.4f", which, val)
-        
-        # Update UI immediately for responsiveness
+        logger.debug("Updating %s to %0.4f", which, val)
         slider = {'rt_min': self.rt_min_slider, 'rt_peak': self.rt_peak_slider,
-                'rt_max': self.rt_max_slider}
+                  'rt_max': self.rt_max_slider}
         line = {'rt_min': self.min_line, 'rt_peak': self.peak_line, 'rt_max': self.max_line}
-        
-        # Buffer the change instead of immediate database write
-        compound_key = f"compound_{self.compound_idx}"
-        if compound_key not in self.pending_changes:
-            self.pending_changes[compound_key] = {}
-        self.pending_changes[compound_key][which] = val
-        
-        # Update UI elements immediately
+        self.data.set_rt(self.compound_idx, which, val)
         slider[which].valinit = val
         line[which].set_xdata((val, val))
-        
-        # Schedule auto-save and update indicator
-        self.schedule_auto_save()
-        
-        # Schedule expensive operations for later if this affects MSMS
         if which != 'rt_peak':
-            self.schedule_dependent_updates()
-        
-        # Draw immediately for UI responsiveness
+            self.msms_zoom_factor = 1
+            self.filter_hits()
+            self.similar_compounds = self.get_similar_compounds()
+            self.highlight_similar_compounds()
+            self.msms_plot()
         self.fig.canvas.draw_idle()
 
     def update_rt_min(self, val):
