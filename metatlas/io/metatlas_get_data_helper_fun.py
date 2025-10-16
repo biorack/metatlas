@@ -175,11 +175,12 @@ def compare_EIC_to_BPC_for_file(metatlas_dataset,file_index,yscale = 'linear'):
 
 def get_data_for_atlas_df_and_file(input_tuple):
     my_file, group, atlas_df, atlas = input_tuple[:4]
-    logger.debug(f"Getting data for file {my_file} and atlas {atlas.name} with {atlas_df.shape[0]} compounds")
     extra_time = input_tuple[4] if len(input_tuple) >= 5 else 0.5
     extra_mz = input_tuple[5] if len(input_tuple) == 6 else 0.0
     if atlas.compound_identifications == []:
         return tuple([])
+    logger.debug("Atlas_df head 1:")
+    logger.debug(display(atlas_df.head()))
     df_container = remove_ms1_data_not_in_atlas(atlas_df, df_container_from_metatlas_file(my_file))
     dict_ms1_summary, dict_eic, dict_ms2 = get_data_for_atlas_and_lcmsrun(atlas_df, df_container,
                                                                           extra_time, extra_mz)
@@ -487,6 +488,8 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
     '''
     # filtered the ms2 and ms1 pos and neg frames in the container by rt and mz extreme points.
     filtered = {}
+    logger.debug("Atlas_df head 2:")
+    logger.debug(display(atlas_df.head()))
     for level in ['ms1', 'ms2']:
         for polarity in ['positive', 'negative']:
             mode = f'{level}_{polarity[:3]}'
@@ -498,6 +501,7 @@ def get_data_for_atlas_and_lcmsrun(atlas_df, df_container, extra_time, extra_mz)
         return atlas_df.apply(
             lambda x: get_data_for_mzrt(x, pos_df, neg_df, extra_time, use_mz, extra_mz), axis=1
         )
+    logger.debug(f"Running get_feature_data with filtered: {filtered}")
     ms1_features = get_feature_data(atlas_df, filtered['ms1_pos'], filtered['ms1_neg'])
     if ms1_features.shape[1] == 0:
         return None, None, None
