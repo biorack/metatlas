@@ -14,6 +14,7 @@ def test_annotation_gui01(metatlas_dataset, hits, mocker, instructions):
     agui.set_peak_flag("remove")
     agui.data.set_rt(0, "rt_min", 2.1245)
     agui.data.set_rt(0, "rt_max", 2.4439)
+    agui.flush_current_changes()
     assert metatlas_dataset.rts[0].rt_min == 2.1245
     assert metatlas_dataset.rts[0].rt_max == 2.4439
     assert metatlas_dataset.data[0][0]["identification"].ms1_notes == "remove"
