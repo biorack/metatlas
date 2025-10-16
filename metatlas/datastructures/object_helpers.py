@@ -393,8 +393,8 @@ class Workspace(object):
     def retrieve(self, object_type, **kwargs):
         """Retrieve an object from the database."""
         object_type = object_type.lower()
-        logger.debug("Retrieving %s object type", object_type)
-        logger.debug("Running retrieve with kwargs: %s", kwargs)
+        #logger.debug("Retrieving %s object type", object_type)
+        #logger.debug("Running retrieve with kwargs: %s", kwargs)
         klass = self.subclass_lut.get(object_type, None)
         items = []
         db = self.get_connection()

@@ -280,6 +280,7 @@ class MetatlasDataset(HasTraits):
     def _get_all_data(self) -> SampleSet:
         """Populate self._all_data from database and h5 files."""
         start_time = datetime.datetime.now()
+        logger.debug(f"Getting _all_data for atlas {self.atlas.name} with {self.atlas_df.shape[0]} compounds...")
         files = [
             (h5_file, group, self.atlas_df, self.atlas, self.extra_time, self.extra_mz)
             for group in self.ids.all_groups
@@ -287,7 +288,8 @@ class MetatlasDataset(HasTraits):
         ]
         if len(files) == 0:
             logger.warning("No matching h5 files were found!")
-        logger.info("Reading MSMS data from h5 files...")
+        logger.info(f"Reading MSMS data from {len(files)} h5 files...")
+        logger.debug(f"Using atlas with {files[0][2].shape[0]} compounds...")
         samples = parallel.parallel_process(
             ma_data.get_data_for_atlas_df_and_file, files, self.max_cpus, unit="sample"
         )
