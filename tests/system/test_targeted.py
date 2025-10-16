@@ -61,7 +61,7 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                                    "agui.set_peak_flag(\\"remove\\")\\n", \
                                    "agui.compound_idx = 5\\n", \
                                    "agui.data.set_rt(5, \\"rt_min\\", 13.319)\\n", \
-                                   "agui.data.set_rt(5, \\"rt_max\\", 13.520)\\n", \
+                                   "agui.data.set_rt(5, \\"rt_max\\", 13.520)\\n" \
                                   ]' /src/notebooks/reference/Targeted.ipynb > /out/Remove.ipynb &&  \
                     papermill -k papermill \
                         -p source_atlas_name HILICz150_ANT20190824_PRD_EMA_Unlab_POS_20201106_505892_root0 \
