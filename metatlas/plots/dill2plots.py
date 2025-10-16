@@ -2,6 +2,7 @@ import itertools
 import logging
 import os
 import io
+import time
 import os.path
 import warnings
 import threading
@@ -303,6 +304,7 @@ class adjust_rt_for_selected_compound(object):
             msms_flags: list of strings that define radio buttons for MSMS plot
                         None or '' gets a default set of buttons
             adjustable_rt_peak: Boolean - is the RT peak slider movable?
+            display_suggested_rt_bounds: Boolean - show suggested RT bounds
         OUTPUTS:
             Writes RT min/max/peak changes to database
             Writes changes to the 'Flag' radio buttons to database
@@ -326,7 +328,16 @@ class adjust_rt_for_selected_compound(object):
         self.msms_flags = msms_flags
         self.adjustable_rt_peak = adjustable_rt_peak
         self.display_suggested_rt_bounds = display_suggested_rt_bounds
+        self.auto_save_interval = 10
+        atexit.register(self.flush_current_changes)
 
+        # Initialize change buffering system
+        self._pending_changes = {}  # {compound_idx: {'rt': {}, 'notes': {}}}
+        self._current_compound_changes = {'rt': {}, 'notes': {}}
+        self._is_auto_saving = False  # Prevent user input during auto-save
+        self._auto_save_timer = None
+        self._last_activity_time = time.time()
+        
         # set up suggested min and max values
         self._suggested_bounds = None
         self._suggestion_lines = []
@@ -365,8 +376,171 @@ class adjust_rt_for_selected_compound(object):
         self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
         self.id_note.observe(self.on_id_note_change, names='value')
         self.set_plot_data()
+        
+        # Start auto-save timer
+        self._start_auto_save_timer()
+        
         # Turn On interactive plot
         plt.ion()
+
+    def _start_auto_save_timer(self):
+        """Start the auto-save timer if interval > 0"""
+        if self.auto_save_interval > 0:
+            self._auto_save_timer = threading.Timer(self.auto_save_interval, self._auto_save_callback)
+            self._auto_save_timer.daemon = True
+            self._auto_save_timer.start()
+
+    def _auto_save_callback(self):
+        """Auto-save callback - only saves during inactivity"""
+        try:
+            # Check if enough time has passed since last activity
+            time_since_activity = time.time() - self._last_activity_time
+            
+            if time_since_activity >= self.auto_save_interval:
+                # No recent activity - safe to auto-save
+                if self._has_pending_changes() and not self._is_auto_saving:
+                    self._is_auto_saving = True
+                    logger.debug("Auto-save triggered after %d seconds of inactivity", time_since_activity)
+                    self.flush_current_changes()
+                    self._is_auto_saving = False
+            
+        except Exception as e:
+            logger.error("Auto-save failed: %s", str(e))
+            self._is_auto_saving = False
+        finally:
+            # Restart timer for next auto-save
+            if hasattr(self, 'auto_save_interval') and self.auto_save_interval > 0:
+                self._start_auto_save_timer()
+
+    def _has_pending_changes(self) -> bool:
+        """Check if there are any pending changes to save"""
+        return bool(self._current_compound_changes['rt'] or self._current_compound_changes['notes'] or self._pending_changes)
+
+    def _record_activity(self):
+        """Record user activity to prevent auto-save during active use"""
+        if not self._is_auto_saving:  # Don't update activity during auto-save
+            self._last_activity_time = time.time()
+
+    def _buffer_rt_change(self, which: str, val: float):
+        """Buffer an RT change without immediately writing to database"""
+        if self._is_auto_saving:
+            logger.warning("RT change blocked during auto-save")
+            return
+            
+        self._record_activity()
+        self._current_compound_changes['rt'][which] = val
+        logger.debug("Buffered RT change: %s = %.4f for compound %d", which, val, self.compound_idx)
+
+    def _buffer_note_change(self, note_type: str, value: str):
+        """Buffer a note change without immediately writing to database"""
+        if self._is_auto_saving:
+            logger.warning("Note change blocked during auto-save")
+            return
+            
+        self._record_activity()
+        self._current_compound_changes['notes'][note_type] = value
+        logger.debug("Buffered note change: %s = '%s' for compound %d", note_type, value, self.compound_idx)
+
+    def flush_current_changes(self):
+        """Write all buffered changes for current compound to database with rollback"""
+        if not self.enable_edit:
+            return
+            
+        changes = self._current_compound_changes
+        if not changes['rt'] and not changes['notes']:
+            return  # No changes to flush
+            
+        logger.debug("Flushing changes for compound %d: RT changes=%s, note changes=%s", 
+                    self.compound_idx, list(changes['rt'].keys()), list(changes['notes'].keys()))
+        
+        # Store original values for rollback
+        original_rt_values = {}
+        original_note_values = {}
+        
+        try:
+            # Backup original values
+            for which in changes['rt'].keys():
+                original_rt_values[which] = getattr(self.data.rts[self.compound_idx], which)
+                
+            for note_type in changes['notes'].keys():
+                original_note_values[note_type] = getattr(self.current_id, note_type, '')
+            
+            # Apply RT changes
+            applied_rt_changes = []
+            for which, val in changes['rt'].items():
+                try:
+                    self.data.set_rt(self.compound_idx, which, val)
+                    applied_rt_changes.append(which)
+                except Exception as e:
+                    logger.error("Failed to apply RT change %s=%s: %s", which, val, str(e))
+                    # Rollback any RT changes applied so far
+                    self._rollback_rt_changes(applied_rt_changes, original_rt_values)
+                    raise
+                
+            # Apply note changes  
+            applied_note_changes = []
+            for note_type, value in changes['notes'].items():
+                try:
+                    self.data.set_note(self.compound_idx, note_type, value)
+                    applied_note_changes.append(note_type)
+                except Exception as e:
+                    logger.error("Failed to apply note change %s='%s': %s", note_type, value, str(e))
+                    # Rollback RT changes and any note changes applied so far
+                    self._rollback_rt_changes(list(changes['rt'].keys()), original_rt_values)
+                    self._rollback_note_changes(applied_note_changes, original_note_values)
+                    raise
+                
+            # Success - clear current changes and reset buffer size
+            self._current_compound_changes = {'rt': {}, 'notes': {}}
+            self._buffer_size = len(self._pending_changes)
+            logger.debug("Successfully flushed all changes for compound %d", self.compound_idx)
+            
+        except Exception as e:
+            logger.error("Flush failed for compound %d, changes rolled back: %s", self.compound_idx, str(e))
+            # Changes have already been rolled back in the except blocks above
+            # Keep the buffered changes so user can try again
+            raise RuntimeError(f"Failed to save changes for compound {self.compound_idx}: {str(e)}")
+
+    def _rollback_rt_changes(self, applied_changes: List[str], original_values: Dict[str, float]):
+        """Rollback RT changes that were successfully applied"""
+        for which in applied_changes:
+            try:
+                self.data.set_rt(self.compound_idx, which, original_values[which])
+                logger.debug("Rolled back RT change: %s = %s", which, original_values[which])
+            except Exception as rollback_error:
+                logger.error("Failed to rollback RT change %s: %s", which, str(rollback_error))
+
+    def _rollback_note_changes(self, applied_changes: List[str], original_values: Dict[str, str]):
+        """Rollback note changes that were successfully applied"""
+        for note_type in applied_changes:
+            try:
+                self.data.set_note(self.compound_idx, note_type, original_values[note_type])
+                logger.debug("Rolled back note change: %s = '%s'", note_type, original_values[note_type])
+            except Exception as rollback_error:
+                logger.error("Failed to rollback note change %s: %s", note_type, str(rollback_error))
+
+    def _switch_to_compound(self, new_compound_idx: int):
+        """Handle switching to a new compound with change management"""
+        if new_compound_idx == self.compound_idx:
+            return
+            
+        logger.debug("Switching from compound %d to compound %d", self.compound_idx, new_compound_idx)
+        
+        # Store current changes in pending changes if we have any
+        if self._current_compound_changes['rt'] or self._current_compound_changes['notes']:
+            self._pending_changes[self.compound_idx] = deepcopy(self._current_compound_changes)
+            
+        # Flush changes
+        self.flush_current_changes()
+            
+        # Update compound index and reset current changes
+        self.compound_idx = new_compound_idx
+        self._current_compound_changes = {'rt': {}, 'notes': {}}
+        
+        # Load any existing pending changes for the new compound
+        if new_compound_idx in self._pending_changes:
+            self._current_compound_changes = deepcopy(self._pending_changes[new_compound_idx])
+            del self._pending_changes[new_compound_idx]
 
     def suggest_rt_bounds(self):
         """Calculate suggested RT bounds using peak detection on the EIC data"""
@@ -547,20 +721,20 @@ class adjust_rt_for_selected_compound(object):
                     self._suggested_bounds['rt_peak'],
                     self._suggested_bounds['confidence'])
         
-        # Apply the suggestions with immediate database updates (like ASDF keys)
-        # RT min
-        self.data.set_rt(self.compound_idx, 'rt_min', self._suggested_bounds['rt_min'])
+        # Buffer the changes instead of immediately applying to database
+        self._buffer_rt_change('rt_min', self._suggested_bounds['rt_min'])
+        self._buffer_rt_change('rt_max', self._suggested_bounds['rt_max'])
+        if self.adjustable_rt_peak:
+            self._buffer_rt_change('rt_peak', self._suggested_bounds['rt_peak'])
+        
+        # Update sliders and lines immediately for visual feedback
         self.rt_min_slider.set_val(self._suggested_bounds['rt_min'])
         self.min_line.set_xdata((self._suggested_bounds['rt_min'], self._suggested_bounds['rt_min']))
         
-        # RT max
-        self.data.set_rt(self.compound_idx, 'rt_max', self._suggested_bounds['rt_max'])
         self.rt_max_slider.set_val(self._suggested_bounds['rt_max'])
         self.max_line.set_xdata((self._suggested_bounds['rt_max'], self._suggested_bounds['rt_max']))
         
-        # RT peak (if adjustable)
         if self.adjustable_rt_peak:
-            self.data.set_rt(self.compound_idx, 'rt_peak', self._suggested_bounds['rt_peak'])
             self.rt_peak_slider.set_val(self._suggested_bounds['rt_peak'])
             self.peak_line.set_xdata((self._suggested_bounds['rt_peak'], self._suggested_bounds['rt_peak']))
         
@@ -627,7 +801,10 @@ class adjust_rt_for_selected_compound(object):
 
     def notes(self):
         self.copy_button_area.clear_output()
-        self.id_note.value = self.current_id.identification_notes or ''
+        # Get current note value from buffer if available, otherwise from data
+        current_note = (self._current_compound_changes['notes'].get('identification_notes') or 
+                       self.current_id.identification_notes or '')
+        self.id_note.value = current_note
         inchi_key = self.current_inchi_key
         if inchi_key is None:
             return
@@ -641,9 +818,15 @@ class adjust_rt_for_selected_compound(object):
             make_copy_to_clipboard_button(clipboard_text, 'Copy Index')
 
     def on_id_note_change(self, change):
+        if self._is_auto_saving:
+            logger.warning("Note change blocked during auto-save")
+            return
+            
         if not self.in_switch_event:
+            self._record_activity()
             logger.debug('ID_NOTE change handler got value: %s', change['new'])
-            self.data.set_note(self.compound_idx, "identification_notes", change["new"])
+            # Buffer the note change instead of immediately writing to database
+            self._buffer_note_change("identification_notes", change["new"])
 
     def eic_plot(self):
         logger.debug('Starting eic_plot')
@@ -668,8 +851,14 @@ class adjust_rt_for_selected_compound(object):
         logger.debug('Finished eic_plot')
 
     def flag_radio_buttons(self):
-        if self.current_id.ms1_notes in self.peak_flags:
-            peak_flag_index = self.peak_flags.index(self.current_id.ms1_notes)
+        # Use buffered values if available, otherwise use database values
+        current_ms1_notes = (self._current_compound_changes['notes'].get('ms1_notes') or 
+                            self.current_id.ms1_notes)
+        current_ms2_notes = (self._current_compound_changes['notes'].get('ms2_notes') or 
+                            self.current_id.ms2_notes)
+        
+        if current_ms1_notes in self.peak_flags:
+            peak_flag_index = self.peak_flags.index(current_ms1_notes)
         else:
             peak_flag_index = 0
         radius = 0.02 * self.gui_scale_factor
@@ -679,8 +868,8 @@ class adjust_rt_for_selected_compound(object):
                                                          radius,
                                                          active_idx=peak_flag_index)
         self.peak_flag_radio.active = self.enable_edit
-        if self.current_id.ms2_notes in self.msms_flags:
-            msms_flag_index = self.msms_flags.index(self.current_id.ms2_notes)
+        if current_ms2_notes in self.msms_flags:
+            msms_flag_index = self.msms_flags.index(current_ms2_notes)
         else:
             msms_flag_index = 0
         logger.debug('Setting msms flag radio button with index %d', msms_flag_index)
@@ -702,14 +891,20 @@ class adjust_rt_for_selected_compound(object):
         # put vlines on plot before creating sliders, as adding the vlines may increase plot
         # width, as the vline could occur outside of the data points
         rt = self.data.rts[self.compound_idx]
-        self.min_line = self.ax.axvline(rt.rt_min, color=self.min_max_color, linewidth=4.0)
-        self.max_line = self.ax.axvline(rt.rt_max, color=self.min_max_color, linewidth=4.0)
-        self.peak_line = self.ax.axvline(rt.rt_peak, color=self.peak_color, linewidth=4.0)
-        self.rt_min_slider = self.rt_slider(self.rt_min_ax, 'RT min', rt.rt_min,
+        
+        # Use buffered values if available, otherwise use database values
+        rt_min_val = self._current_compound_changes['rt'].get('rt_min', rt.rt_min)
+        rt_max_val = self._current_compound_changes['rt'].get('rt_max', rt.rt_max)  
+        rt_peak_val = self._current_compound_changes['rt'].get('rt_peak', rt.rt_peak)
+        
+        self.min_line = self.ax.axvline(rt_min_val, color=self.min_max_color, linewidth=4.0)
+        self.max_line = self.ax.axvline(rt_max_val, color=self.min_max_color, linewidth=4.0)
+        self.peak_line = self.ax.axvline(rt_peak_val, color=self.peak_color, linewidth=4.0)
+        self.rt_min_slider = self.rt_slider(self.rt_min_ax, 'RT min', rt_min_val,
                                             self.min_max_color, self.update_rt_min)
-        self.rt_max_slider = self.rt_slider(self.rt_max_ax, 'RT max', rt.rt_max,
+        self.rt_max_slider = self.rt_slider(self.rt_max_ax, 'RT max', rt_max_val,
                                             self.min_max_color, self.update_rt_max)
-        self.rt_peak_slider = self.rt_slider(self.rt_peak_ax, 'RT peak', rt.rt_peak,
+        self.rt_peak_slider = self.rt_slider(self.rt_peak_ax, 'RT peak', rt_peak_val,
                                              self.peak_color, self.update_rt_peak)
         self.rt_peak_slider.active = self.adjustable_rt_peak and self.enable_edit
         self.rt_min_slider.active = self.enable_edit
@@ -766,7 +961,6 @@ class adjust_rt_for_selected_compound(object):
                                  picker=True, pickradius=5, color=color, label=label)
 
     def configure_flags(self):
-        
         if self.msms_radio_buttons is None or self.msms_radio_buttons == 'new':
             default_peak = ['keep','remove','keep, unresolvable isomers','keep, poor peak shape']
                         
@@ -810,13 +1004,25 @@ class adjust_rt_for_selected_compound(object):
             return '%d, %s' % (self.compound_idx, compound_name)
         return '%d, %s\n%s' % (self.compound_idx, compound_name, adduct)
 
+    def get_current_rt_value(self, which: str) -> float:
+        """Always get RT value from buffer if available, else database"""
+        return (self._current_compound_changes['rt'].get(which) or 
+                getattr(self.data.rts[self.compound_idx], which))
+
+    def get_current_note_value(self, note_type: str) -> str:
+        """Always get note value from buffer if available, else database"""
+        return (self._current_compound_changes['notes'].get(note_type) or
+                getattr(self.current_id, note_type, ''))
+
     def filter_hits(self):
         inchi_key = extract(self.current_id, ['compound', -1, 'inchi_key'], None)
         hits_mz_tolerance = self.current_id.mz_references[-1].mz_tolerance*1e-6
         mz_theoretical = self.current_id.mz_references[0].mz
         my_scan_rt = self.msms_hits.index.get_level_values('msms_scan')
-        filtered = self.msms_hits[(my_scan_rt >= float(self.data.rts[self.compound_idx].rt_min)) &
-                                  (my_scan_rt <= float(self.data.rts[self.compound_idx].rt_max)) &
+        rt_min = self.get_current_rt_value('rt_min') 
+        rt_max = self.get_current_rt_value('rt_max')
+        filtered = self.msms_hits[(my_scan_rt >= float(rt_min)) &
+                                  (my_scan_rt <= float(rt_max)) &
                                   within_tolerance(self.msms_hits['measured_precursor_mz'],
                                                    mz_theoretical, hits_mz_tolerance)]
 
@@ -976,10 +1182,11 @@ class adjust_rt_for_selected_compound(object):
 
     def set_flag(self, name, value):
         logger.debug('Setting flag "%s" to "%s".', name, value)
-        self.data.set_note(self.compound_idx, name, value)
+        self._buffer_note_change(name, value)
 
     def set_peak_flag(self, label):
-        old_label = ma_data.extract(self.current_id, ["ms1_notes"])
+        # Use consistent buffered values instead of direct database read
+        old_label = self.get_current_note_value('ms1_notes')
         self.set_flag('ms1_notes', label)
         if not self.enable_similar_compounds:
             return
@@ -1038,6 +1245,12 @@ class adjust_rt_for_selected_compound(object):
 
     @log_errors(output_context=LOGGING_WIDGET)
     def press(self, event):
+        if self._is_auto_saving:
+            logger.warning("Input blocked during auto-save")
+            return
+            
+        self._record_activity()
+
         ### Navigation
         if event.key in ['right', ';', ' ']:
             total_compounds = len(self.data[0])
@@ -1045,27 +1258,32 @@ class adjust_rt_for_selected_compound(object):
     
             if self.compound_idx + 1 < len(self.data[0]):   
                 self.in_switch_event = True
-                self.compound_idx += 1
+                new_idx = self.compound_idx + 1
                 logger.debug("Increasing compound_idx to %d (inchi_key:%s adduct:%s).",
-                            self.compound_idx,
-                            self.current_inchi_key,
-                            self.current_adduct
+                            new_idx,
+                            extract(self.data[0][new_idx], ['identification', 'compound', 0, 'inchi_key'], None),
+                            extract(self.data[0][new_idx], ['identification', 'mz_references', 0, 'adduct'], None)
                             )
+                self._switch_to_compound(new_idx)
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
                 if self.display_suggested_rt_bounds:
                     self.show_suggested_bounds()
                 self.in_switch_event = False
+            else:
+                logger.debug("At last compound - flushing current changes")
+                self.flush_current_changes()
         elif event.key in ['left', 'j']:
             if self.compound_idx > 0:                  
                 self.in_switch_event = True
-                self.compound_idx -= 1
+                new_idx = self.compound_idx - 1
                 logger.debug("Decreasing compound_idx to %d (inchi_key:%s adduct:%s).",
-                            self.compound_idx,
-                            self.current_inchi_key,
-                            self.current_adduct
+                            new_idx,
+                            extract(self.data[0][new_idx], ['identification', 'compound', 0, 'inchi_key'], None),
+                            extract(self.data[0][new_idx], ['identification', 'mz_references', 0, 'adduct'], None)
                             )
+                self._switch_to_compound(new_idx)
                 self.hit_ctr = 0
                 self.match_idx = None
                 self.update_plots()
@@ -1130,15 +1348,18 @@ class adjust_rt_for_selected_compound(object):
         elif event.key == 'escape':
             logger.debug("Clearing suggested bounds display.")
             self.clear_suggested_bounds()
+        elif event.key == 'b':  # Add manual flush shortcut
+            logger.info("Manual flush requested via b")
+            self.flush_current_changes()
         ### RT adjustment
         elif event.key == 'a':  # Move RT min left (widen - decrease rt_min)
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
                 return
-            current_rt_min = self.data.rts[self.compound_idx].rt_min
+            current_rt_min = self._current_compound_changes['rt'].get('rt_min', self.data.rts[self.compound_idx].rt_min)
             new_rt_min = max(0, current_rt_min - 0.025)
             logger.debug("Moving RT min left from %.3f to %.3f", current_rt_min, new_rt_min)
-            self.data.set_rt(self.compound_idx, 'rt_min', new_rt_min)
+            self._buffer_rt_change('rt_min', new_rt_min)
             self.rt_min_slider.set_val(new_rt_min)
             self.min_line.set_xdata((new_rt_min, new_rt_min))
             self.fig.canvas.draw_idle()
@@ -1146,11 +1367,11 @@ class adjust_rt_for_selected_compound(object):
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
                 return
-            current_rt_min = self.data.rts[self.compound_idx].rt_min
-            current_rt_max = self.data.rts[self.compound_idx].rt_max
+            current_rt_min = self._current_compound_changes['rt'].get('rt_min', self.data.rts[self.compound_idx].rt_min)
+            current_rt_max = self._current_compound_changes['rt'].get('rt_max', self.data.rts[self.compound_idx].rt_max)
             new_rt_min = min(current_rt_max - 0.025, current_rt_min + 0.025)
             logger.debug("Moving RT min right from %.3f to %.3f", current_rt_min, new_rt_min)
-            self.data.set_rt(self.compound_idx, 'rt_min', new_rt_min)
+            self._buffer_rt_change('rt_min', new_rt_min)
             self.rt_min_slider.set_val(new_rt_min)
             self.min_line.set_xdata((new_rt_min, new_rt_min))
             self.fig.canvas.draw_idle()
@@ -1158,11 +1379,11 @@ class adjust_rt_for_selected_compound(object):
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
                 return
-            current_rt_min = self.data.rts[self.compound_idx].rt_min
-            current_rt_max = self.data.rts[self.compound_idx].rt_max
+            current_rt_min = self._current_compound_changes['rt'].get('rt_min', self.data.rts[self.compound_idx].rt_min)
+            current_rt_max = self._current_compound_changes['rt'].get('rt_max', self.data.rts[self.compound_idx].rt_max)
             new_rt_max = max(current_rt_min + 0.025, current_rt_max - 0.025)
             logger.debug("Moving RT max left from %.3f to %.3f", current_rt_max, new_rt_max)
-            self.data.set_rt(self.compound_idx, 'rt_max', new_rt_max)
+            self._buffer_rt_change('rt_max', new_rt_max)
             self.rt_max_slider.set_val(new_rt_max)
             self.max_line.set_xdata((new_rt_max, new_rt_max))
             self.fig.canvas.draw_idle()
@@ -1170,10 +1391,10 @@ class adjust_rt_for_selected_compound(object):
             if not self.enable_edit:
                 self.warn_if_not_atlas_owner()
                 return
-            current_rt_max = self.data.rts[self.compound_idx].rt_max
+            current_rt_max = self._current_compound_changes['rt'].get('rt_max', self.data.rts[self.compound_idx].rt_max)
             new_rt_max = min(current_rt_max + 0.025, 22)
             logger.debug("Moving RT max right from %.3f to %.3f", current_rt_max, new_rt_max)
-            self.data.set_rt(self.compound_idx, 'rt_max', new_rt_max)
+            self._buffer_rt_change('rt_max', new_rt_max)
             self.rt_max_slider.set_val(new_rt_max)
             self.max_line.set_xdata((new_rt_max, new_rt_max))
             self.fig.canvas.draw_idle()
@@ -1182,11 +1403,16 @@ class adjust_rt_for_selected_compound(object):
         """Sets RT min and max to match similar compound referenced by match_idx"""
         source = self.similar_compounds[self.match_idx]['rt']
         logger.debug("Matching RT bounds to index %s with min %d, max %d.",
-                     self.match_idx, source.rt_min, source.rt_max)
-        self.update_rt('rt_min', source.rt_min)
+                    self.match_idx, source.rt_min, source.rt_max)
+        # Use buffered update methods
+        self._buffer_rt_change('rt_min', source.rt_min)
+        self._buffer_rt_change('rt_max', source.rt_max)
         self.rt_min_slider.set_val(source.rt_min)
-        self.update_rt('rt_max', source.rt_max)
         self.rt_max_slider.set_val(source.rt_max)
+        # Update visual lines
+        self.min_line.set_xdata((source.rt_min, source.rt_min))
+        self.max_line.set_xdata((source.rt_max, source.rt_max))
+        self.fig.canvas.draw_idle()
 
     def update_y_scale(self, val):
         if self.slider_y_min < 0:
@@ -1204,58 +1430,34 @@ class adjust_rt_for_selected_compound(object):
             self.ax.set_title(text % user)
             logger.warning(text, user)
 
-#     def update_rt(self,val):
-#         self.my_rt.rt_min = self.rt_min_slider.val
-#         self.my_rt.rt_max = self.rt_max_slider.val
-#         self.my_rt.rt_peak = self.rt_peak_slider.val
-
-#         self.rt_min_slider.valinit = self.my_rt.rt_min
-#         self.rt_max_slider.valinit = self.my_rt.rt_max
-#         self.rt_peak_slider.valinit = self.my_rt.rt_peak
-
-#         metob.store(self.my_rt)
-#         self.min_line.set_xdata((self.my_rt.rt_min,self.my_rt.rt_min))
-#         self.max_line.set_xdata((self.my_rt.rt_max,self.my_rt.rt_max))
-#         self.peak_line.set_xdata((self.my_rt.rt_peak,self.my_rt.rt_peak))
-#         self.fig.canvas.draw_idle()
-
-    # def update_rt(self, which, val):
-    #     """
-    #     inputs:
-    #         which: 'rt_min', 'rt_max', or 'rt_peak'
-    #         val: new RT value
-    #     """
-    #     logger.debug("Updating %s to %0.4f", which, val)
-    #     slider = {'rt_min': self.rt_min_slider, 'rt_peak': self.rt_peak_slider,
-    #               'rt_max': self.rt_max_slider}
-    #     line = {'rt_min': self.min_line, 'rt_peak': self.peak_line, 'rt_max': self.max_line}
-    #     self.data.set_rt(self.compound_idx, which, val)
-    #     slider[which].valinit = val
-    #     line[which].set_xdata((val, val))
-    #     if which != 'rt_peak':
-    #         self.msms_zoom_factor = 1
-    #         self.filter_hits()
-    #         self.similar_compounds = self.get_similar_compounds()
-    #         self.highlight_similar_compounds()
-    #         self.msms_plot()
-    #     self.fig.canvas.draw_idle()
-
     def update_rt(self, which, val):
         """
         inputs:
             which: 'rt_min', 'rt_max', or 'rt_peak'
             val: new RT value
         """
+        if self._is_auto_saving:
+            logger.warning("RT update blocked during auto-save")
+            return
+            
+        self._record_activity()
         logger.debug("Updating %s to %0.4f", which, val)
+        
+        # Buffer the change instead of immediately writing to database
+        self._buffer_rt_change(which, val)
+        
+        # Update UI elements immediately for visual feedback
         slider = {'rt_min': self.rt_min_slider, 'rt_peak': self.rt_peak_slider,
                   'rt_max': self.rt_max_slider}
         line = {'rt_min': self.min_line, 'rt_peak': self.peak_line, 'rt_max': self.max_line}
-        self.data.set_rt(self.compound_idx, which, val)
+        
         slider[which].valinit = val
         line[which].set_xdata((val, val))
+        
         if which != 'rt_peak':
             self.msms_zoom_factor = 1
             self.filter_hits()
+            # Use updated similar compounds that account for buffered RT values
             self.similar_compounds = self.get_similar_compounds()
             self.highlight_similar_compounds()
             self.msms_plot()
@@ -1270,13 +1472,31 @@ class adjust_rt_for_selected_compound(object):
     def update_rt_peak(self, val):
         self.update_rt('rt_peak', val)
 
+    def get_pending_changes_summary(self):
+        """Return a summary of all pending changes"""
+        summary = {}
+        
+        if self._current_compound_changes['rt'] or self._current_compound_changes['notes']:
+            summary[self.compound_idx] = {
+                'rt_changes': list(self._current_compound_changes['rt'].keys()),
+                'note_changes': list(self._current_compound_changes['notes'].keys())
+            }
+            
+        for compound_idx, changes in self._pending_changes.items():
+            summary[compound_idx] = {
+                'rt_changes': list(changes.get('rt', {}).keys()),
+                'note_changes': list(changes.get('notes', {}).keys())
+            }
+            
+        return summary
+
     def get_similar_compounds(self, use_labels=True):
         """
         inputs:
             use_labels: if True use compound labels in output instead of compound names
         returns:
             list of dicts containing information on compounds with similar mz values or mono
-                 isotopic MW when compared to self.compound_idx
+                isotopic MW when compared to self.compound_idx
             each dict contains:
                 index: position in self.data[0]
                 label: compound name or label string
@@ -1286,7 +1506,7 @@ class adjust_rt_for_selected_compound(object):
         if not self.enable_similar_compounds:
             return []
         cid = self.current_id
-        if len(cid.compound) == 0 or is_remove(ma_data.extract(cid, ["ms1_notes"])):
+        if len(cid.compound) == 0 or is_remove(self.get_current_note_value('ms1_notes')):
             return []
         out = []
         cid_mz_ref = cid.mz_references[0].mz
@@ -1300,6 +1520,19 @@ class adjust_rt_for_selected_compound(object):
         else:
             logger.warning("Compound %d does not have inchi key.", self.compound_idx)
             cid_inchikey_prefix = None
+        
+        # Get current compound's RT values from buffer if available
+        current_rt_min = self.get_current_rt_value('rt_min')
+        current_rt_max = self.get_current_rt_value('rt_max')
+        current_rt_peak = self.get_current_rt_value('rt_peak')
+        
+        # Create a temporary RT object for current compound with buffered values
+        current_rt = type('RT', (), {
+            'rt_min': current_rt_min,
+            'rt_max': current_rt_max, 
+            'rt_peak': current_rt_peak
+        })()
+        
         for compound_iter_idx, _ in enumerate(self.data[0]):
             cpd_iter_id = self.data[0][compound_iter_idx]['identification']
             if len(cpd_iter_id.compound) == 0 or is_remove(ma_data.extract(cpd_iter_id, ["ms1_notes"])):
@@ -1317,11 +1550,16 @@ class adjust_rt_for_selected_compound(object):
                 out.append({'index': compound_iter_idx,
                             'label': cpd_iter_id.name if use_labels else cpd_iter_id.compound[0].name,
                             'rt': self.data.rts[compound_iter_idx],
-                            'overlaps': rt_range_overlaps(self.data.rts[self.compound_idx],
-                                                          self.data.rts[compound_iter_idx])})
+                            'overlaps': rt_range_overlaps(current_rt,  # Use buffered RT values
+                                                        self.data.rts[compound_iter_idx])})
                 logger.debug("Adding similar compound with index %d and min %d, max %d.",
-                             out[-1]["index"], out[-1]["rt"].rt_min, out[-1]["rt"].rt_max)
+                            out[-1]["index"], out[-1]["rt"].rt_min, out[-1]["rt"].rt_max)
         return out
+
+    def __del__(self):
+        """Clean up auto-save timer when object is destroyed"""
+        if hasattr(self, '_auto_save_timer') and self._auto_save_timer:
+            self._auto_save_timer.cancel()
 
     @property
     def current_id(self):
@@ -1339,7 +1577,6 @@ class adjust_rt_for_selected_compound(object):
     def disable():
         """Stops the GUI from being updated and interfering with the generation of output figures"""
         plt.close(GUI_FIG_LABEL)
-
 
 class adjust_mz_for_selected_compound(object):
     def __init__(self,
@@ -1957,18 +2194,6 @@ def normalize_peaks_by_internal_standard(metatlas_dataset,atlas,include_lcmsruns
                             metatlas_dataset[i][j]['data']['ms1_summary'][fieldname] = d['data']['ms1_summary'][fieldname] / norm_val * median_val
 
     return metatlas_dataset
-
-#plot msms and annotate
-#compound name
-#formula
-#adduct
-#theoretical m/z
-#histogram of retention times
-#scatter plot of retention time with peak area
-#retention time
-#print all chromatograms
-#structure
-
 
 def filter_runs(data, include_lcmsruns=None, include_groups=None, exclude_lcmsruns=None, exclude_groups=None):
     """filter runs from the metatlas dataset"""
@@ -4441,7 +4666,6 @@ def plot_compound_info_table(ax, compound_info):
     if compound_info.compound:
         table_data = [
             ['Name', compound_info.compound[0].name or 'N/A'],
-            ['Formula', compound_info.compound[0].formula or 'N/A'],
             ['Monoisotopic Mass', f"{compound_info.compound[0].mono_isotopic_molecular_weight:.4f} g/mol" if compound_info.compound[0].mono_isotopic_molecular_weight else 'N/A'],
             ['Formula', compound_info.compound[0].formula or 'N/A'],
             ['Theoretical m/z', f"{compound_info.mz_references[0].mz:.4f}" if compound_info.mz_references else 'N/A'],
@@ -4451,7 +4675,7 @@ def plot_compound_info_table(ax, compound_info):
             ['PubChem CID', str(compound_info.compound[0].pubchem_compound_id) if compound_info.compound[0].pubchem_compound_id else 'N/A']
         ]
     else:
-        table_data = [['Property', 'Value']] * 9
+        table_data = [['Property', 'Value']] * 8
 
     # Set column widths as a fraction of the table width
     col_widths = [0.22, 0.4]  # Reduced widths (25% reduction)
@@ -4469,7 +4693,7 @@ def plot_compound_info_table(ax, compound_info):
     table.scale(1.0, 1.0)
 
     cellDict = table.get_celld()
-    for i in range(9):
+    for i in range(8):
         # First column (property names)
         cellDict[(i, 0)].set_text_props(weight='bold')
         cellDict[(i, 0)].set_facecolor('white')
