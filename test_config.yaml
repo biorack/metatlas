@@ -83,6 +83,7 @@ workflows:
               always: ["QC"]
               gui: ["InjBl", "Blank", "blank"]
               chromatograms: ["InjBl", "Blank", "blank"]
+              mirror_plots: ["InjBl", "Blank", "blank"]
               data_sheets: ["InjBl", "Blank", "blank"]
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             filter_removed: True
@@ -125,6 +126,7 @@ workflows:
               always: ["QC"]
               gui: ["InjBl", "Blank", "blank"]
               chromatograms: ["InjBl", "Blank", "blank"]
+              mirror_plots: ["InjBl", "Blank", "blank"]
             groups_controlled_vocab: ["QC", "InjBl", "ISTD"]
             num_points: 3
             peak_height: 1e6
