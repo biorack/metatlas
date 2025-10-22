@@ -159,7 +159,7 @@ def write_identification_figure(metatlas_dataset, analysis_parameters, overwrite
     """Save identification figure. Will not overwrite existing file unless overwrite is True"""
     ids = metatlas_dataset.ids
     logger.info("Exporting indentification figures to %s", ids.output_dir)
-    ids.set_output_state(analysis_parameters, "chromatograms")
+    ids.set_output_state(analysis_parameters, "mirror_plots")
     dp.make_identification_figure_v3(
         input_dataset=metatlas_dataset,
         msms_hits=metatlas_dataset.hits,

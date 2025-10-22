@@ -31,6 +31,7 @@ class OutputLists(BaseModel):
     qc_outputs: List[str] = []
     gui: List[str] = []
     ids_spreadsheet: List[str] = []
+    mirror_plots: List[str] = []
     chromatograms: List[str] = []
     data_sheets: List[str] = []
     box_plots: List[str] = []
