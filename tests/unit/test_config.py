@@ -84,12 +84,12 @@ def test_output_list_json01():
     "always": [],
     "box_plots": [],
     "chromatograms": [],
-    "mirror_plots": [],
     "data_sheets": [],
     "gui": [
         "zoop"
     ],
     "ids_spreadsheet": [],
+    "mirror_plots": [],
     "qc_outputs": [],
     "rt_alignment": [
         "foo",
