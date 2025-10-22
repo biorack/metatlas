@@ -89,6 +89,7 @@ def test_output_list_json01():
         "zoop"
     ],
     "ids_spreadsheet": [],
+    "mirror_plots": [],
     "qc_outputs": [],
     "rt_alignment": [
         "foo",

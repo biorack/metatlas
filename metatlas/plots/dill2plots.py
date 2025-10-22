@@ -4140,6 +4140,16 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
                                   short_names_df=pd.DataFrame(), polarity='', overwrite=True):
     assert output_loc
     assert input_fname or input_dataset
+
+    if input_dataset and not include_lcmsruns and hasattr(input_dataset, "ids"):
+        include_lcmsruns = input_dataset.ids.include_lcmsruns or []
+    if input_dataset and not exclude_lcmsruns and hasattr(input_dataset, "ids"):
+        exclude_lcmsruns = input_dataset.ids.exclude_lcmsruns or []
+    if input_dataset and not include_groups and hasattr(input_dataset, "ids"):
+        include_groups = input_dataset.ids.include_groups or []
+    if input_dataset and not exclude_groups and hasattr(input_dataset, "ids"):
+        exclude_groups = input_dataset.ids.exclude_groups or []
+
     prefix = '' if polarity == '' else f"{polarity}_"
     output_loc = output_loc / f"{prefix}msms_mirror_plots"
     logger.info("Exporting indentification figures to %s", output_loc)
