@@ -1492,7 +1492,7 @@ def submit_fbmn_jobs(
 
                 if skip_mirror_raw_data is False:
                     logging.info(tab_print("Ensuring raw mzML data are at GNPS2 before submitting FBMN job...", 2))
-                    mirror = mzm.mirror_raw_data(
+                    mirror = mirror_raw_data(
                         project=base_project_name,
                         polarity=polarity,
                         gnps2_project_name=effective_project_name,
