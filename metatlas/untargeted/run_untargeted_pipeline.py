@@ -28,13 +28,13 @@ def main():
 
     ##### Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list
     new_projects = mzm.update_new_untargeted_tasks(
-        background_designator=background_designator,
+        background_designator=args.background_designator,
         validate_names=args.validate_names,
         skip_sync=step_bools[0],
         output_dir=args.output_dir,
         raw_data_dir=args.raw_data_dir,
         direct_input=args.direct_input,
-        custom_mzmine_batch_params=custom_mzmine_batch_params,
+        custom_mzmine_batch_params=args.custom_mzmine_batch_params,
         raw_data_subdir=args.raw_data_subdir,
         skip_blank_filter=args.skip_blank_filter,
         fps_files_only=args.fps_files_only,
@@ -43,7 +43,7 @@ def main():
 
     ##### Step 2/7: Checking and updating status of MZmine jobs in LIMS
     mzm.update_mzmine_status_in_untargeted_tasks(
-        background_designator=background_designator,
+        background_designator=args.background_designator,
         skip_mzmine_status=step_bools[1],
         direct_input=args.direct_input,
         background_ratio=args.background_ratio,
