@@ -65,4 +65,4 @@ short samplename	NEG_ExCtrl_C_Rg80to1200-CE102040-soil-S1	NEG_Neg-D30_C_Rg80to12
                    """
     utils.exec_docker(image, command, tmp_path, {})
     utils.assert_files_match(expected)
-    assert utils.num_files_in(tmp_path) == 48
+    assert utils.num_files_in(tmp_path) == 49
