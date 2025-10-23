@@ -109,6 +109,28 @@ def main():
         project_tag=args.project_tag
     )
 
+    ##### Auxilliary functions: Mirror raw data to GNPS2 (if requested)
+    if args.hard_raw_data_mirror or args.soft_raw_data_mirror:
+        for project in args.direct_input:
+            if args.hard_raw_data_mirror:
+                logging.info(f'Hard mirroring raw data to GNPS2 for project {project}...')
+                result = mzm.mirror_raw_data(
+                    project=project,
+                    raw_data_dir=args.raw_data_dir,
+                    raw_data_subdir=args.raw_data_subdir,
+                    mode="hard"
+                )
+            elif args.soft_raw_data_mirror:
+                logging.info(f'Soft mirroring raw data to GNPS2 for project {project}...')
+                result = mzm.mirror_raw_data(
+                    project=project,
+                    raw_data_dir=args.raw_data_dir,
+                    raw_data_subdir=args.raw_data_subdir,
+                    mode="soft"
+                )
+            if result == "Failed":
+                logging.error(f'Failed to mirror project {project}')
+
     ##### End the script
     end_message = mzm.end_script(script="run_untargeted_pipeline.py")
     logging.info(end_message)
@@ -160,11 +182,22 @@ def add_arguments(parser):
     parser.add_argument('--log_level', type=str, default='INFO', help='Logger level. One of [DEBUG, INFO, WARNING, ERROR, or CRITICAL]')
     parser.add_argument('--log_format', type=str, default='%(asctime)s - %(levelname)s - %(message)s', help='Logger format')
     parser.add_argument('--log_to_stdout', action='store_true', help='Log to stdout instead of a file')
+    parser.add_argument('--hard_raw_data_mirror', action='store_true', help='Manual mirror all raw data to GNPS2 (requires --direct_input). Overwrites existing files.')
+    parser.add_argument('--soft_raw_data_mirror', action='store_true', help='Manual mirror file differences (sync) between NERSC and GNPS2 (requires --direct_input).')
 
 def check_args(args):
     ##### Check if the input arguments are valid
     if args.fps_files_only and args.custom_mzmine_batch_params is None:
         logging.error('FPS files only flag requires custom mzmine batch parameters list (e.g., POS-, NEG- prefixes). Please check flags.')
+        sys.exit(1)
+    if args.hard_raw_data_mirror and args.direct_input is None:
+        logging.error('Hard raw data mirror requires --direct_input flag. Please specify projects to mirror.')
+        sys.exit(1)
+    if args.soft_raw_data_mirror and args.direct_input is None:
+        logging.error('Soft raw data mirror requires --direct_input flag. Please specify projects to mirror.')
+        sys.exit(1)
+    if args.hard_raw_data_mirror and args.soft_raw_data_mirror:
+        logging.error('Cannot use both --hard_raw_data_mirror and --soft_raw_data_mirror flags together.')
         sys.exit(1)
     if args.direct_input:
         args.direct_input = args.direct_input.split(',')
