@@ -86,4 +86,4 @@ short samplename	POS_Cone-S1_1_Rg70to1050-CE102040-QlobataAkingi-S1	POS_Cone-S2_
                    """
     utils.exec_docker(image, command, tmp_path, {})
     utils.assert_files_match(expected)
-    assert utils.num_files_in(tmp_path) == 66
+    assert utils.num_files_in(tmp_path) == 67
