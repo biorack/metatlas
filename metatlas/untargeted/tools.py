@@ -235,12 +235,6 @@ def zip_and_upload_untargeted_results(
                     logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(effective_project_name), 1))
                     continue
                     
-                # Log with both base and effective names for clarity
-                if project_tag is not None:
-                    logging.info(tab_print("Working on project %s (base: %s, tag: %s):"%(effective_project_name, base_project_name, project_tag), 1))
-                else:
-                    logging.info(tab_print("Working on project %s:"%(effective_project_name), 1))
-                    
                 # Create variables for possible polarity directories and files using effective project names
                 neg_directory = os.path.join(output_dir, '%s_%s'%(effective_project_name, 'negative'))
                 pos_directory = os.path.join(output_dir, '%s_%s'%(effective_project_name, 'positive'))
@@ -1071,28 +1065,32 @@ def mirror_mzmine_results_to_gnps2(
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
         return "Failed"
 
-def mirror_raw_data_to_gnps2(
+def mirror_raw_data(
     project: str,
-    username: str,
-    raw_data_dir: str,
-    overwrite_existing_dir: bool = False,
-    polarity: Optional[str] = None,
+    username: str = "bpbowen",
+    raw_data_dir: str = "/global/cfs/cdirs/metatlas/raw_data",
     raw_data_subdir: Optional[str] = None,
-    use_polarity_subdir: Optional[bool] = False,
-    gnps2_project_name: Optional[str] = None  # Add this parameter for GNPS2 directory naming
-) -> None:
+    gnps2_project_name: Optional[str] = None,
+    polarity: Optional[str] = None,
+    mode: str = "pipeline"
+) -> str:
     """
-    Mirrors raw data (mzML files) to GNPS2.
-
-    This function loads a password from a file and uses it to mirror
-    raw data (mzML files) to GNPS2 for a given project and polarity.
-
+    Unified function to mirror raw data (mzML files) to GNPS2.
+    
     Parameters:
     - project: The name of the project (base name for finding local raw data).
-    - username: The username for GNPS2. Usually is 'bpbowen'.
+    - username: The username for GNPS2. Default is 'bpbowen'.
     - raw_data_dir: The directory containing the raw data.
-    - raw_data_subdir : The subdirectory within the raw data directory. Default is None.
+    - raw_data_subdir: The subdirectory within the raw data directory. Default is None.
     - gnps2_project_name: The project name to use for GNPS2 directory structure (effective name). If None, uses project.
+    - polarity: The polarity for polarity-specific operations.
+    - mode: Mirror mode - "pipeline", "hard", or "soft"
+        - "pipeline": Simple upload for new projects (creates dir, uploads all files)
+        - "hard": Force upload all files, overwriting everything 
+        - "soft": Sync mode - only upload new/modified files
+    
+    Returns:
+    - "Passed" or "Failed"
     """
     # Load password from file
     password = None
@@ -1103,11 +1101,11 @@ def mirror_raw_data_to_gnps2(
                     password = line.strip().split('=')[1].replace('"', '')
                     break
     except FileNotFoundError:
-        logging.error("Password file not found. Exiting.")
+        logging.error("Password file not found.")
         return "Failed"
 
     if not password:
-        logging.error("Password is required to mirror data to GNPS2. Exiting.")
+        logging.error("Password is required to mirror data to GNPS2.")
         return "Failed"
     
     # Use base project name for finding local raw data
@@ -1115,7 +1113,13 @@ def mirror_raw_data_to_gnps2(
     # Use effective project name for GNPS2 directory structure
     gnps2_project_name = gnps2_project_name or project
     
-    logging.info(tab_print(f"Mirroring raw data (mzML files) for {local_project_name} to GNPS2 as {gnps2_project_name}...", 2))
+    mode_descriptions = {
+        "pipeline": "Pipeline mirroring",
+        "hard": "Hard mirroring (force overwrite all)",
+        "soft": "Soft mirroring (sync only new/modified)"
+    }
+    
+    logging.info(tab_print(f"{mode_descriptions.get(mode, 'Unknown mode')} raw data for {local_project_name} to GNPS2 as {gnps2_project_name}...", 2))
 
     # Suppress all paramiko logs
     paramiko_logger = logging.getLogger("paramiko")
@@ -1123,119 +1127,157 @@ def mirror_raw_data_to_gnps2(
     paramiko_logger.addHandler(logging.NullHandler())
     paramiko_logger.propagate = False
 
-    # Use base project name for local file discovery
-    if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
-        _, validate_department, _ = vfn.field_exists(PurePath(local_project_name), field_num=1)
-        try:
-            if validate_department is None:
-                subdir = 'jgi' # Assume a raw data location if project name is not parseable
-            else:
-                subdir = validate_department.lower()
-            if subdir == 'eb':
-                subdir = 'egsb'
-            check_project_raw_dir = os.path.join(raw_data_dir,subdir,local_project_name)
-            if os.path.exists(check_project_raw_dir):
-                local_directory = check_project_raw_dir
-            else:
-                possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood", "bpb"]
-                for subdir in possible_subdirs:
-                    check_project_raw_dir = os.path.join(raw_data_dir, subdir, local_project_name)
-                    if os.path.exists(check_project_raw_dir):
-                        local_directory = check_project_raw_dir
-                        break
-                else:
-                    logging.error(f"Raw data directory for {local_project_name} could not be found after trying several possible alternatives. Not mirroring to GNPS2.")
-                    return "Failed"
-        except Exception as e:
-            logging.error(tab_print(f"Error when trying to locate mzML files on disk: {e}", 2))
-            return "Failed"
-    else:
-        local_directory = os.path.join(raw_data_dir,raw_data_subdir,local_project_name)
-        if not os.path.exists(local_directory):
-            logging.error(tab_print(f"Raw data directory for {local_project_name} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not mirroring to GNPS2.", 2))
-            return "Failed"
-
-    local_directory = Path(local_directory)
-    remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter
-    # Use effective project name for GNPS2 directory structure
-    remote_directory = f"/raw_data/{remote_subdir}/{gnps2_project_name}"
-    if use_polarity_subdir is True:
-        if polarity is None:
-            logging.error(tab_print("Polarity is required when use_polarity_subdir is True. Exiting.", 2))
-            return "Failed"
-        else:
-            polarity_directory = f"{remote_directory}/{polarity}"
-    remote_host = "sftp.gnps2.org"
-    remote_port = 443
-    remote_user = username
-
+    # Find local raw data directory
+    local_directory = _find_raw_data_directory(local_project_name, raw_data_dir, raw_data_subdir)
+    if not local_directory:
+        logging.error(f"Raw data directory for {local_project_name} not found.")
+        return "Failed"
+    
+    # Get GNPS2 connection
+    transport, sftp, error = _get_gnps2_connection(username)
+    if error:
+        return "Failed"
+    
     try:
-        transport = paramiko.Transport((remote_host, remote_port))
-        transport.connect(username=remote_user, password=password)
-        sftp = paramiko.SFTPClient.from_transport(transport)
-    except paramiko.SSHException as e:
-        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
-        wait_time = 30
-        logging.info(tab_print("Waiting %s seconds and attempting to connect again..."%(wait_time), 5))
-        time.sleep(wait_time)
-        try:
-            transport = paramiko.Transport((remote_host, remote_port))
-            transport.connect(username=remote_user, password=password)
-            sftp = paramiko.SFTPClient.from_transport(transport)
-        except paramiko.SSHException as e:
-            logging.error(tab_print(f"Failed to connect to GNPS2 again. Skipping mirror with error: {e}", 4))
-            return "Failed"
-
-    try:
-        sftp.mkdir(remote_directory)
-    except Exception as e:
-        if "mkdir file exists" in str(e).lower():
-            if overwrite_existing_dir is False:
-                logging.info(tab_print(f"Found existing directory {remote_directory} at GNPS2 and overwrite_existing_dir is False. Exiting.", 3))
-                return "Failed"
-            elif overwrite_existing_dir is True:
-                logging.info(tab_print(f"Found existing directory {remote_directory} at GNPS2 and overwrite_existing_dir is True. Continuing.", 3))
-        else:
-            logging.warning(tab_print(f"Notice! Did not create {remote_directory} at GNPS2 for reason: {e}", 3))
-            return "Failed"
+        local_path = Path(local_directory)
+        remote_subdir = local_path.parent.name
+        remote_directory = f"/raw_data/{remote_subdir}/{gnps2_project_name}"
         
-    if use_polarity_subdir is True and polarity is not None:
-        polarity_short = f"_{polarity[:3].upper()}_"
-        try:
-            sftp.mkdir(polarity_directory)
-        except Exception as e:
-            if "mkdir file exists" in str(e).lower():
-                if overwrite_existing_dir is False:
-                    logging.info(tab_print(f"Found existing directory {polarity_directory} at GNPS2 and overwrite_existing_dir is False. Exiting.", 3))
-                    return "Failed"
-            else:
-                logging.warning(tab_print(f"Notice! Did not create {polarity_directory} at GNPS2 for reason: {e}", 3))
-                return "Failed"
-    try:
-        for file_path in local_directory.rglob('*'):
-            if use_polarity_subdir is True:
-                polarity_short = f"_{polarity[:3].upper()}_"
-                if file_path.is_file() and file_path.suffix == '.mzML' and polarity_short in file_path.name:
-                    #logging.info("Uploading %s to GNPS2..." % file_path.name)
-                    local_path = str(file_path)
-                    remote_path = f"{polarity_directory}/{file_path.name}"
-                    sftp.put(local_path, remote_path)
-                    logging.info(tab_print(f"Uploaded {file_path.name} to {remote_path} at GNPS2...", 3))
-            if use_polarity_subdir is False:
-                if file_path.is_file() and file_path.suffix == '.mzML' in file_path.name:
-                    #logging.info("Uploading %s to GNPS2..." % file_path.name)
-                    local_path = str(file_path)
-                    remote_path = f"{remote_directory}/{file_path.name}"
-                    sftp.put(local_path, remote_path)
-                    logging.info(tab_print(f"Uploaded {file_path.name} to {remote_path} at GNPS2...", 3))     
-
+        # Handle directory creation based on mode
+        if mode == "hard":
+            # For hard mode, always try to create directory (don't fail if exists)
+            try:
+                sftp.mkdir(remote_directory)
+            except Exception:
+                pass  # Directory might exist, continue anyway
+        else:
+            # For pipeline and soft modes, create directory if it doesn't exist
+            try:
+                sftp.mkdir(remote_directory)
+            except Exception as e:
+                if "mkdir file exists" not in str(e).lower():
+                    logging.warning(tab_print(f"Could not create directory {remote_directory}: {e}", 3))
+                    if mode == "pipeline":
+                        return "Failed"  # Pipeline mode is stricter about directory creation
+        
+        upload_count = 0
+        skip_count = 0
+        
+        # Process files
+        for file_path in local_path.rglob('*.mzML'):
+            if file_path.is_file():
+                remote_path = f"{remote_directory}/{file_path.name}"
+                
+                # Mode-specific file handling
+                if mode == "soft":
+                    # Soft mode: check if file needs updating
+                    try:
+                        remote_stat = sftp.stat(remote_path)
+                        local_stat = file_path.stat()
+                        
+                        if (remote_stat.st_size == local_stat.st_size and 
+                            remote_stat.st_mtime >= local_stat.st_mtime):
+                            skip_count += 1
+                            continue
+                    except FileNotFoundError:
+                        pass  # File doesn't exist remotely, upload it
+                
+                # Upload file (for all modes that reach this point)
+                sftp.put(str(file_path), remote_path)
+                upload_count += 1
+                
+                # Mode-specific logging
+                if mode == "hard":
+                    logging.info(tab_print(f"Force uploaded {file_path.name}", 3))
+                elif mode == "soft":
+                    logging.info(tab_print(f"Synced {file_path.name}", 3))
+                else:  # pipeline
+                    logging.info(tab_print(f"Uploaded {file_path.name}", 3))
+        
         sftp.close()
         transport.close()
-        logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {local_project_name} -> {gnps2_project_name}...", 2))
+        
+        # Mode-specific completion logging
+        if mode == "soft" and skip_count > 0:
+            logging.info(tab_print(f"Sync complete: {upload_count} uploaded, {skip_count} skipped", 2))
+        elif mode == "hard":
+            logging.info(tab_print(f"Hard mirror complete: {upload_count} files uploaded (forced)", 2))
+        else:  # pipeline
+            logging.info(tab_print(f"Pipeline mirror complete: {upload_count} files uploaded", 2))
+            
+        logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {local_project_name} -> {gnps2_project_name}", 2))
         return "Passed"
+        
     except Exception as e:
         logging.error(f"Failed to mirror raw data for {local_project_name} to GNPS2: {e}")
         return "Failed"
+
+def _get_gnps2_connection(username: str) -> tuple:
+    """Helper function to establish GNPS2 connection"""
+    # Load password from file
+    password = None
+    try:
+        with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_bpbowen.txt', 'r') as f:
+            for line in f:
+                if line.startswith('MYVARIABLE='):
+                    password = line.strip().split('=')[1].replace('"', '')
+                    break
+    except FileNotFoundError:
+        logging.error("Password file not found.")
+        return None, None, "Password file not found"
+
+    if not password:
+        logging.error("Password is required to connect to GNPS2.")
+        return None, None, "Password required"
+    
+    # Suppress paramiko logs
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.CRITICAL)
+    paramiko_logger.addHandler(logging.NullHandler())
+    paramiko_logger.propagate = False
+
+    remote_host = "sftp.gnps2.org"
+    remote_port = 443
+    
+    try:
+        transport = paramiko.Transport((remote_host, remote_port))
+        transport.connect(username=username, password=password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+        return transport, sftp, None
+    except paramiko.SSHException as e:
+        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
+        time.sleep(30)
+        try:
+            transport = paramiko.Transport((remote_host, remote_port))
+            transport.connect(username=username, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+            return transport, sftp, None
+        except paramiko.SSHException as e:
+            logging.error(tab_print(f"Failed to connect to GNPS2 again: {e}", 4))
+            return None, None, str(e)
+
+def _find_raw_data_directory(project: str, raw_data_dir: str, raw_data_subdir: Optional[str] = None) -> str:
+    """Helper function to find raw data directory"""
+    if raw_data_subdir is None:
+        _, validate_department, _ = vfn.field_exists(PurePath(project), field_num=1)
+        subdir = validate_department.lower() if validate_department else 'jgi'
+        if subdir == 'eb':
+            subdir = 'egsb'
+        
+        check_project_raw_dir = os.path.join(raw_data_dir, subdir, project)
+        if os.path.exists(check_project_raw_dir):
+            return check_project_raw_dir
+        
+        # Try other possible subdirs
+        possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood", "bpb"]
+        for subdir in possible_subdirs:
+            check_project_raw_dir = os.path.join(raw_data_dir, subdir, project)
+            if os.path.exists(check_project_raw_dir):
+                return check_project_raw_dir
+        return None
+    else:
+        local_directory = os.path.join(raw_data_dir, raw_data_subdir, project)
+        return local_directory if os.path.exists(local_directory) else None
 
 # def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
     
@@ -1450,18 +1492,16 @@ def submit_fbmn_jobs(
 
                 if skip_mirror_raw_data is False:
                     logging.info(tab_print("Ensuring raw mzML data are at GNPS2 before submitting FBMN job...", 2))
-                    # Use base project name for raw data mirroring (original raw files) but effective name for GNPS2 directory
-                    mirror = mirror_raw_data_to_gnps2(
-                        project=base_project_name,                    # Base name for finding local raw data
+                    mirror = mzm.mirror_raw_data(
+                        project=base_project_name,
                         polarity=polarity,
-                        username="bpbowen",
+                        gnps2_project_name=effective_project_name,
                         raw_data_dir=raw_data_dir,
                         raw_data_subdir=raw_data_subdir,
-                        use_polarity_subdir=False,
-                        gnps2_project_name=effective_project_name    # Effective name for GNPS2 directory structure
+                        mode="pipeline"
                     )
                     if mirror == "Failed":
-                        logging.info(tab_print("Notice! Proceeding with FBMN submission for %s mode even though raw data mirror failed"%(polarity), 3))
+                        logging.info(tab_print("Notice! Proceeding with FBMN submission even though raw data mirror failed", 3))
                 else:
                     logging.info(tab_print("Skipping raw data mirroring to GNPS2 for %s mode..."%(polarity), 2))
 
