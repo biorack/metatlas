@@ -9,4 +9,4 @@ def test_generate_standard_outputs01(metatlas_dataset, hits, mocker, workflow, a
     mocker.patch("metatlas.plots.dill2plots.get_msms_hits", return_value=hits)
     generate_standard_outputs(metatlas_dataset, workflow, analysis)
     assert len(list(metatlas_dataset.ids.output_dir.glob("*"))) == 7
-    assert len(list(metatlas_dataset.ids.output_dir.glob("*/*"))) == 19
+    assert len(list(metatlas_dataset.ids.output_dir.glob("*/*"))) == 20

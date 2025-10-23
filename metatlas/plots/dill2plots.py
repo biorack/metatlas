@@ -4164,7 +4164,6 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
     match_dtypes = {'label': str,
                     'file name': str,
                     'Matching M/Zs above 1E-3*max': str,
-                    #'All matching M/Zs': str
                     }
 
     match_out_df = pd.DataFrame(columns=match_dtypes).astype(match_dtypes)
@@ -4173,6 +4172,9 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
     for compound_idx, _ in enumerate(compound_names):
         file_idxs, scores, msv_sample_list, msv_ref_list, rt_list = [], [], [], [], []
         inchi_key = extract(data, [0, compound_idx, "identification", "compound", 0, "inchi_key"], "")
+        
+        # Count ALL files with database matches for this compound
+        total_files_with_matches = 0
         
         #  Find 3 best file and reference pairs by score
         try:
@@ -4186,13 +4188,19 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
                                                 mz_ref.mz,
                                                 mz_ref.mz_tolerance*1e-6
                                             )
-                                          ].drop_duplicates('file_name').head(3)
+                                          ]
             comp_msms_hits = comp_msms_hits[comp_msms_hits['file_name'].isin(file_names)]
-            file_idxs = [file_names.index(f) for f in comp_msms_hits['file_name']]
-            scores = comp_msms_hits['score'].values.tolist()
-            msv_sample_list = comp_msms_hits['msv_query_aligned'].values.tolist()
-            msv_ref_list = comp_msms_hits['msv_ref_aligned'].values.tolist()
-            rt_list = comp_msms_hits['msms_scan'].values.tolist()
+            
+            # Count total unique files with matches
+            total_files_with_matches = len(comp_msms_hits['file_name'].unique())
+            
+            # Get top 3 for plotting
+            comp_msms_hits_top3 = comp_msms_hits.drop_duplicates('file_name').head(3)
+            file_idxs = [file_names.index(f) for f in comp_msms_hits_top3['file_name']]
+            scores = comp_msms_hits_top3['score'].values.tolist()
+            msv_sample_list = comp_msms_hits_top3['msv_query_aligned'].values.tolist()
+            msv_ref_list = comp_msms_hits_top3['msv_ref_aligned'].values.tolist()
+            rt_list = comp_msms_hits_top3['msms_scan'].values.tolist()
         except (IndexError, TypeError):
             file_idx = None
             max_intensity = 0
@@ -4210,7 +4218,7 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
             msv_ref_list = [np.array([0, np.nan]).T]
             scores = [np.nan]
 
-        # Create figure with original layout: 3 rows x 4 columns
+        # Create figure with 3 rows x 4 columns (removed legend row)
         fig = plt.figure(figsize=(25, 15))
         
         # Define grid layout: 3 rows x 4 columns
@@ -4230,7 +4238,7 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
 
             if i < len(scores) and file_idxs and file_idxs[0] is not None:
                 # Use the same function for all plots to make them identical
-                plot_msms_comparison(i, scores[i], ax_msms, msv_sample_list[i], msv_ref_list[i])
+                plot_mirror_plots_row_1(i, scores[i], ax_msms, msv_sample_list[i], msv_ref_list[i])
 
                 ax_msms.text(
                     0.5, 1.06, f"MSMS Score: {scores[i]:.3f}",
@@ -4277,25 +4285,23 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
         # Row 1, Column 4: Molecular structure
         if file_idxs and file_idxs[0] is not None:
             ax_structure = fig.add_subplot(gs[0, 3])
-            plot_structure(ax_structure, data[file_idxs[0]][compound_idx]['identification'].compound, 500)
+            plot_structure_row_1(ax_structure, data[file_idxs[0]][compound_idx]['identification'].compound, 500)
         else:
             ax_structure = fig.add_subplot(gs[0, 3])
-            plot_structure(ax_structure, data[0][compound_idx]['identification'].compound, 500)
+            plot_structure_row_1(ax_structure, data[0][compound_idx]['identification'].compound, 500)
 
         # Row 2: EICs and Table across 4 columns
         
         # Column 1: Linear EIC
         ax_eic_linear = fig.add_subplot(gs[1, 0])
-        plot_eic(ax_eic_linear, data, compound_idx, log_scale=False)
-        #ax_eic_linear.set_title('', fontsize=15, weight='bold')
+        plot_eics_row_2(ax_eic_linear, data, compound_idx, log_scale=False)
         ax_eic_linear.tick_params(labelsize=15)
         ax_eic_linear.set_xlabel('Retention Time (min)', fontsize=15, weight='bold')
         ax_eic_linear.set_ylabel('Intensity', fontsize=15, weight='bold')
 
         # Column 2: Log EIC
         ax_eic_log = fig.add_subplot(gs[1, 1])
-        plot_eic(ax_eic_log, data, compound_idx, log_scale=True)
-        #ax_eic_log.set_title('', fontsize=15, weight='bold')
+        plot_eics_row_2(ax_eic_log, data, compound_idx, log_scale=True)
         ax_eic_log.tick_params(labelsize=15)
         ax_eic_log.set_xlabel('Retention Time (min)', fontsize=15, weight='bold')
         ax_eic_log.set_ylabel('Intensity (log)', fontsize=15, weight='bold')
@@ -4303,25 +4309,21 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
         # Columns 3-4: Compound info table (spanning 2 columns)
         if file_idxs and file_idxs[0] is not None:
             ax_info = fig.add_subplot(gs[1, 2:4])
-            plot_compound_info_table(ax_info, data[file_idxs[0]][compound_idx]['identification'])
+            plot_compound_info_table_row_2(ax_info, data[file_idxs[0]][compound_idx]['identification'])
         else:
             ax_info = fig.add_subplot(gs[1, 2:4])
-            plot_compound_info_table(ax_info, data[0][compound_idx]['identification'])
+            plot_compound_info_table_row_2(ax_info, data[0][compound_idx]['identification'])
 
-        # Row 3: Metadata text information (columns 0-2) + Figure Notes box (column 3)
-        ax_metadata = fig.add_subplot(gs[2, 0:2])
-        match_out_df = plot_metadata_info(match_out_df, ax_metadata, data, file_idxs, compound_idx, scores, rt_list, 
+        # Row 3: Metadata text information (spans all columns)
+        ax_metadata = fig.add_subplot(gs[2, 0:4])
+        match_out_df = plot_hit_info_row_3(match_out_df, ax_metadata, data, file_idxs, compound_idx, scores, rt_list, 
                                   short_names_df, compound_names, msv_sample_list, msv_ref_list, 
-                                  intensity_sorted_matches)
-
-        # Row 3, Column 4: Figure Notes box
-        ax_info_box = fig.add_subplot(gs[2, 3])
-        plot_info_box(ax_info_box)
+                                  intensity_sorted_matches, total_files_with_matches)
 
         plt.suptitle(f'{compound_names[compound_idx]}\n', fontsize=22, weight='bold', y=0.96)
 
-        # Add horizontal lines to separate sections
-        for y in [0.6, 0.35]:
+        # Add horizontal lines to separate sections (adjusted for 3-row layout)
+        for y in [0.60, 0.345]:
             fig.add_artist(plt.Line2D([0.08, 0.9], [y, y], 
                                      transform=fig.transFigure, 
                                      color='black', linewidth=1, clip_on=False))
@@ -4334,45 +4336,114 @@ def make_identification_figure_v3(input_fname: Optional[Path] = None, input_data
     
     match_path = output_loc / "MatchingMZs.tab"
     write_utils.export_dataframe(match_out_df, match_path, 'matching MZs', overwrite, sep='\t', float_format="%.12e")
-
-def plot_info_box(ax):
-    """Create a single information box with figure notes"""
-    ax.axis('off')
     
-    info_text = [
-        r"$\bf{Definitions:}$",
-        "  - MSMS Score: Calculated using the",
-        "     CosineHungarian method in Matchms",
-        "     (https://doi.org/10.1186/s13321-024-00878-1)",
-        "  - Fragment matches: fragments",
-        "     with >0.1% of maximum intensity",
-        "",
-        r"$\bf{MSMS\ Plots:}$",
-        "  - Grayscale lines: matching fragments",
-        "  - Red lines: non-matching fragments",
-        "  - Scale: ref intensities multiplied by this value",
-        "",
-        r"$\bf{EIC\ Plots:}$",
-        "  - Dotted line: theoretical RT peak",
-        "  - Solid lines: analyst-selected RT min/max",
-        "  - Green AUC: data used for peak height and",
-        "    peak area quantification",
-    ]
-    
-    # Create single text box positioned at the top with consistent positioning
-    ax.text(-0.05, 1.0, '\n'.join(info_text), 
-            transform=ax.transAxes, 
-            fontsize=12,
-            verticalalignment='top',
-            horizontalalignment='left',
-            bbox=dict(boxstyle='round,pad=0.5', 
-                     facecolor='lightgray', 
-                     alpha=0.85,
-                     edgecolor='black',
-                     linewidth=1))
+    # Create the figure interpretation guide
+    guide_path = output_loc / "Figure_Interpretation_Guide.txt"
+    write_utils.check_existing_file(guide_path, overwrite)
+    create_figure_interpretation_guide(guide_path)
 
-def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, rt_list, short_names_df, 
-                               compound_names, msv_sample_list, msv_ref_list, intensity_sorted_matches):
+def create_figure_interpretation_guide(file_path: Path):
+    """Create a comprehensive text file explaining how to interpret the identification figures"""
+    
+    guide_content = """IDENTIFICATION FIGURE INTERPRETATION GUIDE
+==========================================
+
+This guide explains how to interpret the identification figures generated for each compound.
+
+FIGURE LAYOUT
+=============
+Each summary figure contains 3 rows:
+- Row 1: MSMS mirror plots (3 plots) + molecular structure
+- Row 2: EIC plots (linear and log) + compound information table  
+- Row 3: Match metadata and statistics
+
+ROW 1: MSMS MIRROR PLOTS
+========================
+
+Best/2nd Best/3rd Best MSMS Match:
+- Shows comparison between experimental (sample) and reference spectra on top and bottom, respectively
+- Grayscale lines: matching fragments between sample and reference
+- Red lines: non-matching fragments (present in sample or reference but not both)
+- Scale value: factor by which reference database intensities were multiplied for cleaner display
+- MSMS Score: Calculated using CosineHungarian method in Matchms
+  (https://doi.org/10.1186/s13321-024-00878-1)
+- Higher scores indicate better spectral similarity (0.0 = no match, 1.0 = perfect match)
+
+Molecular Structure:
+- Chemical structure of the compound based on InChI
+- Compound name displayed above structure
+
+ROW 2: EIC PLOTS AND COMPOUND INFO
+==================================
+
+Linear EIC Plot:
+- Extracted Ion Chromatogram with linear y-axis
+- Black lines: individual sample chromatograms
+- Gray vertical line: RT min boundary (analyst-determined)
+- Black vertical line: RT max boundary (analyst-determined)
+- Dashed line: theoretical RT peak (from database)
+- Cyan shaded area: integration region used for peak height/area quantification
+
+Log EIC Plot:
+- Same as linear EIC but with logarithmic y-axis
+- Useful for visualizing low-intensity peaks
+
+Compound Information Table:
+- Name: Compound name from database
+- Monoisotopic Mass: Exact mass in g/mol
+- Formula: Molecular formula
+- Theoretical m/z: Expected mass-to-charge ratio
+- Adduct: Ion form detected (e.g., [M+H]+, [M-H]-)
+- Polarity: Positive or negative ionization mode
+- InChI Key: Unique chemical identifier
+- PubChem CID: PubChem database compound ID
+
+ROW 3: MATCH METADATA
+=====================
+
+Best Match Table (corresponds to 1st MSMS mirror plot in row 1):
+- Mass Accuracy: Comparison of theoretical vs measured m/z
+- RT Accuracy: Comparison of theoretical vs measured retention time
+- Fragment Matches: List of matching fragment m/z values above 0.1% of maximum intensity
+
+Additional Matches:
+- 2nd best: Sample file with second highest scoring MSMS match
+- 3rd best: Sample file with third highest scoring MSMS match
+- Total files with database matches: Total number of sample files containing MSMS matches for this compound
+
+FILE NAMING CONVENTIONS
+=======================
+- Asterisk (*) after filename indicates control samples (InjBL or ExCtrl)
+- Filenames are sorted by MSMS score (highest first)
+
+QUALITY ASSESSMENT
+==================
+Good identifications typically have:
+- High MSMS scores (>0.7)
+- Low mass error (<5 ppm)
+- Small RT deviation (<0.5 min)
+- Multiple matching fragments
+- Consistent results across multiple files and polarities
+
+TROUBLESHOOTING
+===============
+"No MSMS Data": No fragmentation spectra available for comparison, typically meaning no MSMS was acquired
+"N/A" values: Information not relevant or could not be calculated
+Empty plots: Compound not detected in any samples above thresholds
+
+For questions about specific compounds or unusual results, consult the original data files
+and consider manual inspection of the chromatograms and spectra.
+
+Generated by Metatlas identification figure pipeline
+"""
+
+    with open(file_path, 'w') as f:
+        f.write(guide_content)
+    
+    logger.info("Created figure interpretation guide at %s", file_path)
+
+def plot_hit_info_row_3(match_out_df, ax, data, file_idxs, compound_idx, scores, rt_list, short_names_df, 
+                               compound_names, msv_sample_list, msv_ref_list, intensity_sorted_matches, total_files_with_matches):
     """Enhanced metadata information with fragment matching details"""
     ax.axis('off')
     
@@ -4452,14 +4523,14 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
         main_table_height = 0.4
         table = ax.table(
             cellText=table_data,
-            bbox=[0.0, 0.5, 1.0, main_table_height],
+            bbox=[0.0, 0.5, 0.75, main_table_height],
             loc='center',
             cellLoc='left',
             colWidths=[0.25, 0.25, 0.25, 0.25]
         )
 
         table.auto_set_font_size(False)
-        table.set_fontsize(12)
+        table.set_fontsize(14)
         table.scale(1.0, 1.0)
 
         # Style the main table
@@ -4493,14 +4564,14 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
 
         fragment_table = ax.table(
             cellText=fragment_table_data,
-            bbox=[0.0, 0.5 - row_height, 1.0, row_height],
+            bbox=[0.0, 0.5 - row_height, 0.75, row_height],
             loc='center',
             cellLoc='left',
             colWidths=[0.25, 0.75]
         )
 
         fragment_table.auto_set_font_size(False)
-        fragment_table.set_fontsize(10)
+        fragment_table.set_fontsize(14)
         fragment_table.scale(1.0, 1.0)
 
         # Style the fragment table
@@ -4522,7 +4593,7 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
         # Add title
         ax.text(0.0, 0.95, f'{filename_with_star}', 
                 transform=ax.transAxes, 
-                fontsize=12, weight='bold',
+                fontsize=13, weight='bold',
                 verticalalignment='bottom', 
                 horizontalalignment='left')
 
@@ -4542,12 +4613,13 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
         else:
             info_text.append("  3rd best: N/A")
 
-        info_text.append(f"  Total files with database matches: {len(file_idxs)}")
+        # Use the total_files_with_matches parameter instead of len(file_idxs)
+        info_text.append(f"  Total files with database matches: {total_files_with_matches}")
         
         full_text = '\n'.join(info_text)
         ax.text(0.0, 0.33, full_text, 
                 transform=ax.transAxes, 
-                fontsize=12.5,
+                fontsize=13,
                 verticalalignment='top', 
                 horizontalalignment='left')
     else:
@@ -4564,7 +4636,7 @@ def plot_metadata_info(match_out_df, ax, data, file_idxs, compound_idx, scores, 
 
     return match_out_df
 
-def plot_eic(ax, data, compound_idx, log_scale=False):
+def plot_eics_row_2(ax, data, compound_idx, log_scale=False):
     """
     Plot EIC for all files for a given compound index.
     If log_scale is True, plot with log y-axis and filter out zero/negative values.
@@ -4610,9 +4682,10 @@ def plot_eic(ax, data, compound_idx, log_scale=False):
             y_max_padded = y_max * 2.0
             ax.set_ylim(y_min_padded, y_max_padded)
 
-    # Increased tick label sizes
+    # tick labels
     ax.xaxis.set_tick_params(labelsize=14)
     ax.yaxis.set_tick_params(labelsize=14)
+    ax.yaxis.get_offset_text().set_fontsize(13)
     ax.tick_params(axis='y', labelsize=14)
     if not log_scale:
         ax.get_yaxis().get_major_formatter().set_useOffset(True)
@@ -4630,7 +4703,7 @@ def plot_eic(ax, data, compound_idx, log_scale=False):
             textcoords='data',
             ha='right',
             va='top',
-            fontsize=12,
+            fontsize=13,
             color='gray',
             weight='bold',
             rotation=90,
@@ -4645,7 +4718,7 @@ def plot_eic(ax, data, compound_idx, log_scale=False):
             textcoords='data',
             ha='left',
             va='top',
-            fontsize=12,
+            fontsize=13,
             color='black',
             weight='bold',
             rotation=270,
@@ -4669,7 +4742,7 @@ def plot_eic(ax, data, compound_idx, log_scale=False):
     for spine in ax.spines.values():
         spine.set_linewidth(1.5)
 
-def plot_compound_info_table(ax, compound_info):
+def plot_compound_info_table_row_2(ax, compound_info):
     """Simple black and white 2-column, 7-row compound information table"""
     ax.axis('off')
     
@@ -4688,7 +4761,7 @@ def plot_compound_info_table(ax, compound_info):
         table_data = [['Property', 'Value']] * 8
 
     # Set column widths as a fraction of the table width
-    col_widths = [0.22, 0.4]  # Reduced widths (25% reduction)
+    col_widths = [0.22, 0.4]
 
     table = ax.table(
         cellText=table_data,
@@ -4718,7 +4791,7 @@ def plot_compound_info_table(ax, compound_info):
         cellDict[(i, 1)].set_linewidth(1.5)
         cellDict[(i, 1)].PAD = 0.02
 
-def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
+def plot_mirror_plots_row_1(i, score, ax, msv_sample, msv_ref):
     """Standard MSMS comparison plot for smaller subplots"""
     matplotlib.rcParams['toolbar'] = 'None'
     matplotlib.rcParams['keymap.pan'] = [] 
@@ -4749,6 +4822,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
 
     # Force scientific notation for y-axis
     ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+    ax.yaxis.get_offset_text().set_fontsize(13)
 
     labels = [1.001e9]
 
@@ -4764,7 +4838,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
                         textcoords='offset points',
                         rotation=90,
                         horizontalalignment='left', verticalalignment='center',
-                        size=10.5)
+                        size=13)
             labels.append(msv_sample_unaligned[0][m])
 
     if msv_ref_unaligned[0].size > 0:
@@ -4850,7 +4924,7 @@ def plot_msms_comparison(i, score, ax, msv_sample, msv_ref):
 #         ax.text(0.5, 0.5, "No MSMS data\navailable", transform=ax.transAxes, 
 #                 fontsize=12, horizontalalignment='center', verticalalignment='center')
 
-def plot_structure(ax, compound, dimensions):
+def plot_structure_row_1(ax, compound, dimensions):
     if compound:
         inchi = compound[0].inchi
         myMol = Chem.MolFromInchi(inchi.encode('utf-8'))
