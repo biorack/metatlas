@@ -149,6 +149,18 @@ def write_fbmn_tasks_to_file(
     else:
         logging.warning(tab_print("Warning! GNPS2 FBMN task ID not found. File gnps2-fbmn-task.txt not written.", 3))
 
+def get_effective_project_name(base_project_name: str, project_tag: Optional[str] = None) -> str:
+    """Get the project name used for outputs and database entries"""
+    if project_tag:
+        return f"{base_project_name}_{project_tag}"
+    return base_project_name
+
+def get_base_project_name(effective_project_name: str, project_tag: Optional[str] = None) -> str:
+    """Get the original project name for raw data lookup"""
+    if project_tag and effective_project_name.endswith(f"_{project_tag}"):
+        return effective_project_name[:-len(f"_{project_tag}")]
+    return effective_project_name
+
 def zip_and_upload_untargeted_results(
     download_folder: str,
     output_dir: str,
@@ -160,7 +172,8 @@ def zip_and_upload_untargeted_results(
     overwrite_zip: bool,
     overwrite_drive: bool,
     direct_input: Optional[str] = None,
-    min_features_admissible: int = 0
+    min_features_admissible: int = 0,
+    project_tag: Optional[str] = None
 ) -> None:
     """    
     Specify the download folder (where the zip files will be saved) and
@@ -184,8 +197,15 @@ def zip_and_upload_untargeted_results(
     logging.info("Step 7/7: Zipping up and (optionally) uploading output folders to gdrive...")
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
+    
     if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
+        # Convert direct input to effective names for database lookup
+        if project_tag is not None:
+            effective_input = [get_effective_project_name(proj, project_tag) for proj in direct_input]
+        else:
+            effective_input = direct_input
+        df = df[df['parent_dir'].isin(effective_input)]
+        
     status_list = ['07 complete']
     if direct_input is None:
         df = subset_df_by_status(df,'fbmn',status_list)
@@ -200,23 +220,35 @@ def zip_and_upload_untargeted_results(
         zip_count = 0
         upload_count = 0
         for i,row in df.iterrows():
-            project_name = row['parent_dir']
-            output_zip_archive = os.path.join(download_folder,'%s.zip'%project_name)
-            polarity_list = check_for_polarities(output_dir,project_name)
+            effective_project_name = row['parent_dir']  # This is already the effective name from database
+            base_project_name = get_base_project_name(effective_project_name, project_tag)  # Get base name for logging clarity
+            
+            # Use effective project name for output zip archive naming
+            output_zip_archive = os.path.join(download_folder,'%s.zip'%effective_project_name)
+            polarity_list = check_for_polarities(output_dir, effective_project_name)  # Use effective name for directory check
+            
             if overwrite_zip==False and os.path.exists(output_zip_archive):
-                #logging.warning(tab_print("Warning! Zip archive for %s exists. Set overwrite_zip to True if you want to replace. Skipping zip and upload..."%(project_name), 1))
+                #logging.warning(tab_print("Warning! Zip archive for %s exists. Set overwrite_zip to True if you want to replace. Skipping zip and upload..."%(effective_project_name), 1))
                 continue
             if overwrite_zip==True or not os.path.exists(output_zip_archive):
                 if polarity_list is None:
-                    logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
+                    logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(effective_project_name), 1))
                     continue
-                # Create variables for possible polarity directories and files
-                neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
-                pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
-                neg_mzmine_file = os.path.join(neg_directory, '%s_negative_peak-height.csv'%project_name)
-                pos_mzmine_file = os.path.join(pos_directory, '%s_positive_peak-height.csv'%project_name)
-                neg_fbmn_file = os.path.join(neg_directory, '%s_negative_gnps2-fbmn-library-results.tsv'%project_name)
-                pos_fbmn_file = os.path.join(pos_directory, '%s_positive_gnps2-fbmn-library-results.tsv'%project_name)
+                    
+                # Log with both base and effective names for clarity
+                if project_tag is not None:
+                    logging.info(tab_print("Working on project %s (base: %s, tag: %s):"%(effective_project_name, base_project_name, project_tag), 1))
+                else:
+                    logging.info(tab_print("Working on project %s:"%(effective_project_name), 1))
+                    
+                # Create variables for possible polarity directories and files using effective project names
+                neg_directory = os.path.join(output_dir, '%s_%s'%(effective_project_name, 'negative'))
+                pos_directory = os.path.join(output_dir, '%s_%s'%(effective_project_name, 'positive'))
+                neg_mzmine_file = os.path.join(neg_directory, '%s_negative_peak-height.csv'%effective_project_name)
+                pos_mzmine_file = os.path.join(pos_directory, '%s_positive_peak-height.csv'%effective_project_name)
+                neg_fbmn_file = os.path.join(neg_directory, '%s_negative_gnps2-fbmn-library-results.tsv'%effective_project_name)
+                pos_fbmn_file = os.path.join(pos_directory, '%s_positive_gnps2-fbmn-library-results.tsv'%effective_project_name)
+                
                 if 'negative' in polarity_list and 'positive' in polarity_list:
                     # Check that mzmine and fbmn "marker" files exist, they've probably finished sucessfully (double-check since status need to all be 'complete' above)
                     if os.path.exists(neg_mzmine_file) and os.path.exists(pos_mzmine_file) and os.path.exists(neg_fbmn_file) and os.path.exists(pos_fbmn_file):
@@ -228,11 +260,11 @@ def zip_and_upload_untargeted_results(
                         neg_feature_counts = check_peak_height_table(neg_mzmine_file)
                         pos_feature_counts = check_peak_height_table(pos_mzmine_file)
                         if (neg_feature_counts + pos_feature_counts) > min_features_admissible:
-                            neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
-                            pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
-                            # Get rid of the mzmine job id files
-                            neg_mzmine_job_id_filename = os.path.join(neg_directory,'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
-                            pos_mzmine_job_id_filename = os.path.join(pos_directory,'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
+                            neg_directory = os.path.join(output_dir, '%s_%s'%(effective_project_name, 'negative'))
+                            pos_directory = os.path.join(output_dir, '%s_%s'%(effective_project_name, 'positive'))
+                            # Get rid of the mzmine job id files using effective project names
+                            neg_mzmine_job_id_filename = os.path.join(neg_directory,'%s_%s_mzmine-job-id.txt'%(effective_project_name, 'negative'))
+                            pos_mzmine_job_id_filename = os.path.join(pos_directory,'%s_%s_mzmine-job-id.txt'%(effective_project_name, 'positive'))
                             if os.path.exists(neg_mzmine_job_id_filename):
                                 os.remove(neg_mzmine_job_id_filename)
                             if os.path.exists(pos_mzmine_job_id_filename):
@@ -247,7 +279,7 @@ def zip_and_upload_untargeted_results(
                                 if upload_success:
                                     upload_count += 1
                         else:
-                            logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
+                            logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(effective_project_name,min_features_admissible,polarity_list), 1))
                             continue
                 elif not 'negative' in polarity_list and 'positive' in polarity_list:
                     if os.path.exists(pos_mzmine_file) and os.path.exists(pos_fbmn_file):
@@ -257,9 +289,9 @@ def zip_and_upload_untargeted_results(
                             logging.info(tab_print("Note: Could not change group ownership of %s."%(pos_directory), 1))
                         pos_feature_counts = check_peak_height_table(pos_mzmine_file)
                         if pos_feature_counts > min_features_admissible:
-                            pos_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'positive'))
-                            # Get rid of the mzmine job id files
-                            pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(project_name, 'positive'))
+                            pos_directory = os.path.join(output_dir, '%s_%s'%(effective_project_name, 'positive'))
+                            # Get rid of the mzmine job id files using effective project names
+                            pos_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(effective_project_name, 'positive'),'%s_%s_mzmine-job-id.txt'%(effective_project_name, 'positive'))
                             if os.path.exists(pos_mzmine_job_id_filename):
                                 os.remove(pos_mzmine_job_id_filename)
 
@@ -272,7 +304,7 @@ def zip_and_upload_untargeted_results(
                                 if upload_success:
                                     upload_count += 1
                         else:
-                            logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
+                            logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(effective_project_name,min_features_admissible,polarity_list), 1))
                             continue
                 elif 'negative' in polarity_list and not 'positive' in polarity_list:
                     if os.path.exists(neg_mzmine_file) and os.path.exists(neg_fbmn_file):
@@ -282,9 +314,9 @@ def zip_and_upload_untargeted_results(
                             logging.info(tab_print("Note: Could not change group ownership of %s."%(neg_directory), 1))
                         neg_feature_counts = check_peak_height_table(neg_mzmine_file)
                         if neg_feature_counts > min_features_admissible:
-                            neg_directory = os.path.join(output_dir, '%s_%s'%(project_name, 'negative'))
-                            # Get rid of the mzmine job id files
-                            neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(project_name, 'negative'))
+                            neg_directory = os.path.join(output_dir, '%s_%s'%(effective_project_name, 'negative'))
+                            # Get rid of the mzmine job id files using effective project names
+                            neg_mzmine_job_id_filename = os.path.join(output_dir,'%s_%s'%(effective_project_name, 'negative'),'%s_%s_mzmine-job-id.txt'%(effective_project_name, 'negative'))
                             if os.path.exists(neg_mzmine_job_id_filename):
                                 os.remove(neg_mzmine_job_id_filename)
 
@@ -297,7 +329,7 @@ def zip_and_upload_untargeted_results(
                                 if upload_success:
                                     upload_count += 1
                         else:
-                            logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(project_name,min_features_admissible,polarity_list), 1))
+                            logging.warning(tab_print("Warning! Project %s has less than %s features in the %s peak height table(s). Skipping zip and upload..."%(effective_project_name,min_features_admissible,polarity_list), 1))
                             continue
         
         if zip_count == 0:
@@ -364,29 +396,42 @@ def rename_untargeted_files_in_archive(
         logging.warning(tab_print("Warning! No output zip archive provided for renaming untargeted results files, but rename function is set to True.", 1))
         return
 
-    project_name = os.path.splitext(os.path.basename(output_zip_archive))[0]
+    # The project name in the zip file will be the effective project name
+    effective_project_name = os.path.splitext(os.path.basename(output_zip_archive))[0]
+    
+    # For renaming purposes, we need to work with the base project name (without tag)
+    # Try to extract the base project name by removing common tag patterns
+    base_project_name = effective_project_name
+    
+    # If the project name has a tag, try to remove it for standard naming validation
+    # This is a heuristic approach - you might need to adjust based on your tag patterns
+    common_tag_patterns = ['_lenient', '_strict', '_custom', '_test']  # Add your expected tags here
+    for pattern in common_tag_patterns:
+        if effective_project_name.endswith(pattern):
+            base_project_name = effective_project_name[:-len(pattern)]
+            break
 
-    if len(project_name.split('_')) >= 9:
-        date = project_name.split('_')[0]
-        department = project_name.split('_')[1]
-        submitter = project_name.split('_')[2]
-        pid = project_name.split('_')[3]
-        chromatography = project_name.split('_')[7]
+    if len(base_project_name.split('_')) >= 9:
+        date = base_project_name.split('_')[0]
+        department = base_project_name.split('_')[1]
+        submitter = base_project_name.split('_')[2]
+        pid = base_project_name.split('_')[3]
+        chromatography = base_project_name.split('_')[7]
     else:
-        logging.info(tab_print("Note! Project name %s has fewer than expected fields. Skipping renaming files before zip..."%(project_name), 1))
+        logging.info(tab_print("Note! Project name %s has fewer than expected fields. Skipping renaming files before zip..."%(effective_project_name), 1))
         return
 
     # Check if project name follows the standard naming convention
     if not any(substring.lower() in chromatography.lower() for substring in ['C18', 'LIPID', 'HILIC']) or \
        not date.isdigit() or len(date) != 8:
-            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming files before zip..."%(project_name), 1))
+            logging.warning(tab_print("Warning! Project name %s does not follow the standard naming convention. Skipping renaming files before zip..."%(effective_project_name), 1))
             logging.warning(tab_print("Here is what could be extracted: Date: %s, Department: %s, Submitter: %s, PID: %s, Chromatography: %s"%(date, department, submitter, pid, chromatography), 2))
             return
     else:
         new_project_name = f"{date}_{department}_{submitter}_{pid}_{chromatography}"
 
     # Unzip the archive and rename all files
-    temp_dir = f"/tmp/{project_name}"
+    temp_dir = f"/tmp/{effective_project_name}"
     os.makedirs(temp_dir, exist_ok=True)
     try:
         with zipfile.ZipFile(output_zip_archive, 'r') as zip_ref:
@@ -394,8 +439,9 @@ def rename_untargeted_files_in_archive(
 
         for root, _, files in os.walk(temp_dir):
             for file in files:
-                if project_name in file:
-                    new_file_name = file.replace(project_name, new_project_name)
+                # Replace the effective project name with the new abbreviated name
+                if effective_project_name in file:
+                    new_file_name = file.replace(effective_project_name, new_project_name)
                     os.rename(os.path.join(root, file), os.path.join(root, new_file_name))
 
         new_zip_path = output_zip_archive + ".new"
@@ -538,7 +584,8 @@ def submit_quickstart_fbmn(
 
 def get_untargeted_status(
     direct_input: str = None,
-    print_recent: str = None
+    print_recent: str = None,
+    project_tag: Optional[str] = None
 ) -> None:
     """
     Print the status of a user-defined list of projects
@@ -548,8 +595,15 @@ def get_untargeted_status(
     tab_print("Getting full table from LIMS...", 1)
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
+    
     if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
+        # Convert direct input to effective names for database lookup
+        if project_tag is not None:
+            effective_input = [get_effective_project_name(proj, project_tag) for proj in direct_input]
+        else:
+            effective_input = direct_input
+        df = df[df['parent_dir'].isin(effective_input)]
+        
     if df.empty:
         tab_print("Could not find untargeted tasks to report! Check that the input argument is a single comma-separated list", 1)
         return
@@ -565,8 +619,8 @@ def get_untargeted_status(
             tab_print("Warning! Could not get list of projects from Google Drive. Skipping status report...", 1)
             return
         for i,row in df.iterrows():
-            project_name = row['parent_dir']
-            archive = project_name + ".zip"
+            effective_project_name = row['parent_dir']  # This is the effective name from database
+            archive = effective_project_name + ".zip"  # Use effective name for archive lookup
             if archive in all_gdrive_projects_df[3].values:
                 row['gdrive_status'] = '08 uploaded'
                 day = all_gdrive_projects_df[all_gdrive_projects_df[3] == archive][1].values[0]
@@ -622,7 +676,8 @@ def download_fbmn_results(
     output_dir: str,
     overwrite_fbmn: bool,
     skip_fbmn_download: bool,
-    direct_input: Optional[str] = None
+    direct_input: Optional[str] = None,
+    project_tag: Optional[str] = None
 ) -> None:
     """
     finds complete fbmn tasks (which also have complete mzmine status)
@@ -641,37 +696,56 @@ def download_fbmn_results(
     tasktype='fbmn'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
+    
     if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
+        # Convert direct input to effective names for database lookup
+        if project_tag is not None:
+            effective_input = [get_effective_project_name(proj, project_tag) for proj in direct_input]
+        else:
+            effective_input = direct_input
+        df = df[df['parent_dir'].isin(effective_input)]
         df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before downloading fbmn
+        
     status_list = ['07 complete','09 error']
     if direct_input is None:
         df = subset_df_by_status(df,tasktype,status_list)
         df = subset_df_by_status(df,'mzmine',['07 complete']) # Also want to check that mzmine is complete before downloading fbmn
     if df.empty:
         logging.info(tab_print("No completed FBMN data to download!", 1))
+        return
     if not df.empty:
         count = 0
         for i,row in df.iterrows():
-            project_name = row['parent_dir']
-            polarity_list = check_for_polarities(output_dir,project_name)
+            effective_project_name = row['parent_dir']  # This is already the effective name from database
+            base_project_name = get_base_project_name(effective_project_name, project_tag)  # Get base name for logging clarity
+            
+            polarity_list = check_for_polarities(output_dir, effective_project_name)  # Use effective name for output dir check
             if polarity_list is None:
-                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 1))
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(effective_project_name), 1))
                 continue
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
-                pathname = os.path.join(output_dir,'%s_%s'%(project_name,polarity))
-                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
+                pathname = os.path.join(output_dir,'%s_%s'%(effective_project_name,polarity))  # Use effective name for output paths
+                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(effective_project_name,polarity))  # Use effective name for task file
+                
                 if os.path.isfile(fbmn_filename)==True:
                     with open(fbmn_filename,'r') as fid:
                         taskid = fid.read().split('=')[1].strip()
-                    graphml_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-network.graphml'%(project_name,polarity))
-                    results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(project_name,polarity))
-                    gnps2_link_filename = os.path.join(pathname,'%s_%s_gnps2-page-link.txt'%(project_name,polarity))
+                    
+                    # Use effective project names for all output file paths
+                    graphml_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-network.graphml'%(effective_project_name,polarity))
+                    results_table_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-library-results.tsv'%(effective_project_name,polarity))
+                    gnps2_link_filename = os.path.join(pathname,'%s_%s_gnps2-page-link.txt'%(effective_project_name,polarity))
+                    
                     if overwrite_fbmn==False and os.path.exists(graphml_filename) and os.path.exists(results_table_filename) and os.path.exists(gnps2_link_filename):
                         continue # Skip finished projects unless overwrite is forced
+                    
                     # Bail out conditions
-                    logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
+                    if project_tag is not None:
+                        logging.info(tab_print("Working on %s mode for project %s (base: %s, tag: %s):"%(polarity, effective_project_name, base_project_name, project_tag), 1))
+                    else:
+                        logging.info(tab_print("Working on %s mode for project %s:"%(polarity, effective_project_name), 1))
+                        
                     if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                         logging.info(tab_print("Bailed out because FBMN status for %s mode is '12 not relevant'. Skipping download."%(polarity), 2))
                         continue
@@ -686,10 +760,12 @@ def download_fbmn_results(
                         continue
 
                     logging.info(tab_print("Downloading %s mode FBMN results with task ID %s"%(polarity,taskid), 2))
+                    
                     if overwrite_fbmn == True or not os.path.exists(gnps2_link_filename):
                         with open(gnps2_link_filename,'w') as fid:
                             fid.write(f"https://gnps2.org/status?task={taskid}\n")
                             logging.info(tab_print("Wrote GNPS2 link", 3))
+                            
                     if overwrite_fbmn == True or not os.path.exists(graphml_filename):
                         graphml_download = download_from_url("https://gnps2.org/result?task=%s&viewname=graphml&resultdisplay_type=task"%(taskid), graphml_filename)
                         if graphml_download:
@@ -697,6 +773,7 @@ def download_fbmn_results(
                             count += 1
                         else:
                             logging.critical(tab_print("Error: Failed to download graphml file", 3))
+                            
                     if overwrite_fbmn == True or not os.path.exists(results_table_filename):
                         results_table_download = download_from_url("https://gnps2.org/resultfile?task=%s&file=nf_output/library/merged_results_with_gnps.tsv"%(taskid), results_table_filename)
                         if results_table_download:
@@ -704,6 +781,7 @@ def download_fbmn_results(
                             count += 1
                         else:
                             logging.critical(tab_print("Error: Failed to download results table", 3))
+                            
                     try:
                         recursive_chown(pathname, 'metatlas')
                     except:
@@ -1000,7 +1078,8 @@ def mirror_raw_data_to_gnps2(
     overwrite_existing_dir: bool = False,
     polarity: Optional[str] = None,
     raw_data_subdir: Optional[str] = None,
-    use_polarity_subdir: Optional[bool] = False
+    use_polarity_subdir: Optional[bool] = False,
+    gnps2_project_name: Optional[str] = None  # Add this parameter for GNPS2 directory naming
 ) -> None:
     """
     Mirrors raw data (mzML files) to GNPS2.
@@ -1009,11 +1088,11 @@ def mirror_raw_data_to_gnps2(
     raw data (mzML files) to GNPS2 for a given project and polarity.
 
     Parameters:
-    - project: The name of the project.
-    - polarity: The polarity of the data (e.g., 'positive' or 'negative').
+    - project: The name of the project (base name for finding local raw data).
     - username: The username for GNPS2. Usually is 'bpbowen'.
     - raw_data_dir: The directory containing the raw data.
     - raw_data_subdir : The subdirectory within the raw data directory. Default is None.
+    - gnps2_project_name: The project name to use for GNPS2 directory structure (effective name). If None, uses project.
     """
     # Load password from file
     password = None
@@ -1031,7 +1110,12 @@ def mirror_raw_data_to_gnps2(
         logging.error("Password is required to mirror data to GNPS2. Exiting.")
         return "Failed"
     
-    logging.info(tab_print(f"Mirroring raw data (mzML files) for {project} to GNPS2...", 2))
+    # Use base project name for finding local raw data
+    local_project_name = project
+    # Use effective project name for GNPS2 directory structure
+    gnps2_project_name = gnps2_project_name or project
+    
+    logging.info(tab_print(f"Mirroring raw data (mzML files) for {local_project_name} to GNPS2 as {gnps2_project_name}...", 2))
 
     # Suppress all paramiko logs
     paramiko_logger = logging.getLogger("paramiko")
@@ -1039,8 +1123,9 @@ def mirror_raw_data_to_gnps2(
     paramiko_logger.addHandler(logging.NullHandler())
     paramiko_logger.propagate = False
 
+    # Use base project name for local file discovery
     if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
-        _, validate_department, _ = vfn.field_exists(PurePath(project), field_num=1)
+        _, validate_department, _ = vfn.field_exists(PurePath(local_project_name), field_num=1)
         try:
             if validate_department is None:
                 subdir = 'jgi' # Assume a raw data location if project name is not parseable
@@ -1048,31 +1133,32 @@ def mirror_raw_data_to_gnps2(
                 subdir = validate_department.lower()
             if subdir == 'eb':
                 subdir = 'egsb'
-            check_project_raw_dir = os.path.join(raw_data_dir,subdir,project)
+            check_project_raw_dir = os.path.join(raw_data_dir,subdir,local_project_name)
             if os.path.exists(check_project_raw_dir):
                 local_directory = check_project_raw_dir
             else:
                 possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood", "bpb"]
                 for subdir in possible_subdirs:
-                    check_project_raw_dir = os.path.join(raw_data_dir, subdir, project)
+                    check_project_raw_dir = os.path.join(raw_data_dir, subdir, local_project_name)
                     if os.path.exists(check_project_raw_dir):
                         local_directory = check_project_raw_dir
                         break
                 else:
-                    logging.error(f"Raw data directory for {project} could not be found after trying several possible alternatives. Not mirroring to GNPS2.")
+                    logging.error(f"Raw data directory for {local_project_name} could not be found after trying several possible alternatives. Not mirroring to GNPS2.")
                     return "Failed"
         except Exception as e:
             logging.error(tab_print(f"Error when trying to locate mzML files on disk: {e}", 2))
             return "Failed"
     else:
-        local_directory = os.path.join(raw_data_dir,raw_data_subdir,project)
+        local_directory = os.path.join(raw_data_dir,raw_data_subdir,local_project_name)
         if not os.path.exists(local_directory):
-            logging.error(tab_print(f"Raw data directory for {project} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not mirroring to GNPS2.", 2))
+            logging.error(tab_print(f"Raw data directory for {local_project_name} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not mirroring to GNPS2.", 2))
             return "Failed"
 
     local_directory = Path(local_directory)
-    remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter instead of inferring from the project name directly
-    remote_directory = f"/raw_data/{remote_subdir}/{project}"
+    remote_subdir = local_directory.parent.name # Use the same subdir as on perlmutter
+    # Use effective project name for GNPS2 directory structure
+    remote_directory = f"/raw_data/{remote_subdir}/{gnps2_project_name}"
     if use_polarity_subdir is True:
         if polarity is None:
             logging.error(tab_print("Polarity is required when use_polarity_subdir is True. Exiting.", 2))
@@ -1145,10 +1231,10 @@ def mirror_raw_data_to_gnps2(
 
         sftp.close()
         transport.close()
-        logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {project}...", 2))
+        logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {local_project_name} -> {gnps2_project_name}...", 2))
         return "Passed"
     except Exception as e:
-        logging.error(f"Failed to mirror raw data for {project} to GNPS2: {e}")
+        logging.error(f"Failed to mirror raw data for {local_project_name} to GNPS2: {e}")
         return "Failed"
 
 # def DEPRACATED_check_for_mzmine_files_at_gnps2(project: str, polarity: str, username="bpbowen"):
@@ -1249,7 +1335,8 @@ def submit_fbmn_jobs(
     skip_mirror_mzmine_results: bool,
     direct_input: Optional[str] = None,
     raw_data_dir: Optional[str] = None,
-    raw_data_subdir: Optional[str] = None
+    raw_data_subdir: Optional[str] = None,
+    project_tag: Optional[str] = None
 ) -> None:
     """
     finds waiting or errored fbmn tasks (which also have complete mzmine status)
@@ -1266,8 +1353,15 @@ def submit_fbmn_jobs(
     tasktype = 'fbmn'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
+    
     if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
+        # Convert direct input to effective names for database lookup
+        if project_tag is not None:
+            effective_input = [get_effective_project_name(proj, project_tag) for proj in direct_input]
+        else:
+            effective_input = direct_input
+        df = df[df['parent_dir'].isin(effective_input)]
+        
     status_list = ['13 waiting','09 error']
     if direct_input is None:
         df = subset_df_by_status(df,tasktype,status_list)
@@ -1283,20 +1377,28 @@ def submit_fbmn_jobs(
         #logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2:"%(df.shape[0],status_list), 1))
         index_list = []
         for i,row in df.iterrows():
-            project_name = row['parent_dir']
-            polarity_list = check_for_polarities(row['output_dir'],project_name)
+            effective_project_name = row['parent_dir']  # This is already the effective name from database
+            base_project_name = get_base_project_name(effective_project_name, project_tag)  # Get base name for raw data operations
+            
+            polarity_list = check_for_polarities(row['output_dir'], effective_project_name)  # Use effective name for output dir check
             if polarity_list is None:
-                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(effective_project_name), 2))
                 continue
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
-                pathname = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity))
-                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(project_name,polarity))
+                pathname = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name,polarity))  # Use effective name for output paths
+                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(effective_project_name,polarity))  # Use effective name for task file
                 
                 # Bail out conditions
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete' and row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete' and overwrite_fbmn is False:
                     continue
-                logging.info(tab_print("Working on %s mode for project %s:"%(polarity,project_name), 1))
+                    
+                # Log with both base and effective names for clarity
+                if project_tag is not None:
+                    logging.info(tab_print("Working on %s mode for project %s (base: %s, tag: %s):"%(polarity, effective_project_name, base_project_name, project_tag), 1))
+                else:
+                    logging.info(tab_print("Working on %s mode for project %s:"%(polarity, effective_project_name), 1))
+                    
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '09 error':
                     if row['num_%s_files'%polarity_short] == 0:
                         logging.info(tab_print("Notice! No raw data files for %s mode. Setting status to '12 not relevant'"%(polarity), 2))
@@ -1319,8 +1421,9 @@ def submit_fbmn_jobs(
                     logging.info(tab_print("Bailed out because FBMN task file already exists for %s mode and overwrite is False"%(polarity), 2))
                     continue
 
+                # Determine GNPS2 subdirectory using base project name
                 if raw_data_subdir is None:
-                    _, validate_department, _ = vfn.field_exists(PurePath(project_name), field_num=1)
+                    _, validate_department, _ = vfn.field_exists(PurePath(base_project_name), field_num=1)
                     try:
                         if validate_department is None:
                             gnps2_subdir = 'jgi' # Assume raw data location if project name is not paresable
@@ -1329,7 +1432,7 @@ def submit_fbmn_jobs(
                         if gnps2_subdir == 'eb':
                             gnps2_subdir = 'egsb'
                     except:
-                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(project_name), 2))
+                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(base_project_name), 2))
                         gnps2_subdir = "other"
                 else:
                     gnps2_subdir = raw_data_subdir
@@ -1337,35 +1440,52 @@ def submit_fbmn_jobs(
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 if skip_mirror_mzmine_results is False:
                     logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
-                    mirror = mirror_mzmine_results_to_gnps2(project=project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
+                    # Use effective project name for MZmine results mirroring (output files)
+                    mirror = mirror_mzmine_results_to_gnps2(project=effective_project_name,polarity=polarity,output_dir=output_dir,username="bpbowen")
                     if mirror == "Failed":
                         logging.warning(tab_print("Skipping FBMN submission for %s mode because of MZmine results upload failure"%(polarity), 3))
                         continue
                 else:
                     logging.info(tab_print("Skipping MZmine results mirroring to GNPS2...", 2))
+
                 if skip_mirror_raw_data is False:
                     logging.info(tab_print("Ensuring raw mzML data are at GNPS2 before submitting FBMN job...", 2))
-                    mirror = mirror_raw_data_to_gnps2(project=project_name,polarity=polarity,username="bpbowen",raw_data_dir=raw_data_dir,raw_data_subdir=raw_data_subdir,use_polarity_subdir=False)
+                    # Use base project name for raw data mirroring (original raw files) but effective name for GNPS2 directory
+                    mirror = mirror_raw_data_to_gnps2(
+                        project=base_project_name,                    # Base name for finding local raw data
+                        polarity=polarity,
+                        username="bpbowen",
+                        raw_data_dir=raw_data_dir,
+                        raw_data_subdir=raw_data_subdir,
+                        use_polarity_subdir=False,
+                        gnps2_project_name=effective_project_name    # Effective name for GNPS2 directory structure
+                    )
                     if mirror == "Failed":
                         logging.info(tab_print("Notice! Proceeding with FBMN submission for %s mode even though raw data mirror failed"%(polarity), 3))
                 else:
                     logging.info(tab_print("Skipping raw data mirroring to GNPS2 for %s mode..."%(polarity), 2))
 
-                description = '%s_%s'%(project_name,polarity)
-                spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}.mgf'
-                quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_quant.csv'
-                metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{project_name}_{polarity}/{project_name}_{polarity}_metadata.tab'
-                raw_data = f'USERUPLOAD/bpbowen/raw_data/{gnps2_subdir}/{project_name}'
-                mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
+                # Set up FBMN parameters using effective project name for GNPS2 file paths
+                description = '%s_%s'%(effective_project_name,polarity)  # Use effective name for job description
+                spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}.mgf'
+                quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}_quant.csv'
+                metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}_metadata.tab'
+                raw_data = f'USERUPLOAD/bpbowen/raw_data/{gnps2_subdir}/{effective_project_name}'
+                
+                # Check MGF file using effective project name path
+                mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name,polarity),'%s_%s.mgf'%(effective_project_name,polarity))
                 mgf_lines = count_mgf_lines(mgf_filename)
                 if mgf_lines == 0:
                     logging.info(tab_print("Note! MGF file in %s mode has no MSMS data. Updating FBMN status to '12 not relevant'"%(polarity), 2))
                     df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
                     index_list.append(i)
                     continue
+                    
                 params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
                 job_id = submit_quickstart_fbmn(params, "bpbowen")
-                task_list = {'experiment':project_name,'polarity':polarity,'response':job_id}
+                
+                # Use effective project name for task list and file writing
+                task_list = {'experiment':effective_project_name,'polarity':polarity,'response':job_id}
                 logging.info(tab_print("Submitted FBMN job for %s mode and set LIMS status to ['04 running']."%(polarity), 2))
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
                 write_fbmn_tasks_to_file(task_list,output_dir)
@@ -1402,7 +1522,8 @@ def submit_mzmine_jobs(
     skip_mzmine_submit: bool,
     overwrite_mzmine: bool,
     new_projects: Optional[List[str]] = None,
-    direct_input: Optional[str] = None
+    direct_input: Optional[str] = None,
+    project_tag: Optional[str] = None
 ) -> None:
     """
     finds initiated mzmine tasks
@@ -1419,8 +1540,14 @@ def submit_mzmine_jobs(
     tasktype = 'mzmine'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
+    
     if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
+        # Convert direct input to effective names for database lookup
+        if project_tag is not None:
+            effective_input = [get_effective_project_name(proj, project_tag) for proj in direct_input]
+        else:
+            effective_input = direct_input
+        df = df[df['parent_dir'].isin(effective_input)]
     else:
         if new_projects is not None and not new_projects.empty: # this means step 1 returned a dataframe of new projects to run
             df = df[df['parent_dir'].isin(new_projects['parent_dir'])]
@@ -1440,23 +1567,25 @@ def submit_mzmine_jobs(
         index_list = []
         logging.info(tab_print("Total of %s new MZmine job(s) with status %s to submit"%(df.shape[0],status_list), 1))
         for i,row in df.iterrows():
-            project_name = row['parent_dir']
-            polarity_list = check_for_polarities(row['output_dir'],project_name)
+            effective_project_name = row['parent_dir']  # This is already the effective name from database
+            base_project_name = get_base_project_name(effective_project_name, project_tag)  # Get base name for logging
+            
+            polarity_list = check_for_polarities(row['output_dir'], effective_project_name)  # Use effective name for output dir check
             if polarity_list is None:
-                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(effective_project_name), 2))
                 continue
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
-                parent_dir = '%s_%s'%(project_name,polarity)
-                pathname = os.path.join(row['output_dir'],parent_dir)
+                parent_dir = '%s_%s'%(effective_project_name, polarity)  # Use effective name for directory structure
+                pathname = os.path.join(row['output_dir'], parent_dir)
                 submission_script_filename = os.path.join(pathname,'%s_mzmine.sh'%(parent_dir))
-                mzmine_peak_height_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s_peak-height.csv'%(project_name,polarity))
-                mzmine_mgf_file = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity),'%s_%s.mgf'%(project_name,polarity))
+                mzmine_peak_height_file = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name, polarity),'%s_%s_peak-height.csv'%(effective_project_name, polarity))
+                mzmine_mgf_file = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name, polarity),'%s_%s.mgf'%(effective_project_name, polarity))
                 
                 if row['%s_%s_status'%('mzmine',polarity_short)] == '07 complete' and overwrite_mzmine is False:
                     continue
                 if os.path.exists(mzmine_peak_height_file) and os.path.exists(mzmine_mgf_file) and overwrite_mzmine is False:
-                    logging.info(tab_print("Note: Overwrite is False and MZmine files for %s in %s mode already exist. Skipping submission..."%(project_name,polarity), 2))
+                    logging.info(tab_print("Note: Overwrite is False and MZmine files for %s in %s mode already exist. Skipping submission..."%(effective_project_name,polarity), 2))
                     continue
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant':
                     continue # skip the completed polarity if the other polarity is initiated or errored and needs to be (re)submitted
@@ -1467,7 +1596,7 @@ def submit_mzmine_jobs(
                         df.loc[i,'%s_%s_status'%("fbmn",polarity_short)] = '12 not relevant'
                         continue
                     else:
-                        logging.info(tab_print("Note: MZmine task for %s in %s mode has error status but has raw files. Attempting to resubmit with longer runtime."%(project_name,polarity), 2))
+                        logging.info(tab_print("Note: MZmine task for %s in %s mode has error status but has raw files. Attempting to resubmit with longer runtime."%(effective_project_name,polarity), 2))
                         batch_submission_file = os.path.join(pathname,'%s_mzmine-sbatch.sbatch'%(parent_dir))
                         if os.path.isfile(batch_submission_file):
                             with open(batch_submission_file, 'r') as file:
@@ -1478,7 +1607,11 @@ def submit_mzmine_jobs(
 
                 if os.path.isfile(submission_script_filename)==True:
                     with open(submission_script_filename,'r') as fid:
-                        logging.info(tab_print("Submitting %s mode mzmine job for project %s"%(polarity, project_name), 2))
+                        # Log with both base and effective names for clarity
+                        if project_tag is not None:
+                            logging.info(tab_print("Submitting %s mode mzmine job for project %s (base: %s, tag: %s)"%(polarity, effective_project_name, base_project_name, project_tag), 2))
+                        else:
+                            logging.info(tab_print("Submitting %s mode mzmine job for project %s"%(polarity, effective_project_name), 2))
                         cmd = fid.read()
                         sbatch_output = subprocess.run(cmd, shell=True, executable='/bin/bash', stdout=subprocess.PIPE)
                         sbatch_output_str = sbatch_output.stdout.decode('utf-8').replace('\n', '')
@@ -1547,7 +1680,8 @@ def update_mzmine_status_in_untargeted_tasks(
     nonpolar_solvent_front: float = 0.5,
     polar_solvent_front: float = 0.8,
     nonpolar_solvent_end: float = 10,
-    polar_solvent_end: float = 17.5
+    polar_solvent_end: float = 17.5,
+    project_tag: Optional[str] = None
 ) -> None:
     """    
     finds initiated or running mzmine tasks
@@ -1564,8 +1698,15 @@ def update_mzmine_status_in_untargeted_tasks(
     tasktype = 'mzmine'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
+    
     if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
+        # Convert direct input to effective names for database lookup
+        if project_tag is not None:
+            effective_input = [get_effective_project_name(proj, project_tag) for proj in direct_input]
+        else:
+            effective_input = direct_input
+        df = df[df['parent_dir'].isin(effective_input)]
+        
     status_list = ['01 initiation','04 running','09 error']
     if direct_input is None:
         df = subset_df_by_status(df,tasktype,status_list)
@@ -1575,21 +1716,24 @@ def update_mzmine_status_in_untargeted_tasks(
         #logging.info(tab_print("Total of %s project(s) with MZmine status %s to attempt to update"%(df.shape[0],status_list), 1))
         index_list = []
         for i,row in df.iterrows():
-            project_name = row['parent_dir']
-            polarity_list = check_for_polarities(row['output_dir'],project_name)
+            effective_project_name = row['parent_dir']  # This is already the effective name from database
+            base_project_name = get_base_project_name(effective_project_name, project_tag)  # Get base name for logging clarity
+            
+            polarity_list = check_for_polarities(row['output_dir'], effective_project_name)  # Use effective name for directory check
             if polarity_list is None:
-                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(project_name), 2))
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(effective_project_name), 2))
                 continue
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
-                pathname = os.path.join(row['output_dir'],'%s_%s'%(project_name,polarity))
-                parent_dir = '%s_%s'%(project_name,polarity)
+                # Use effective project name for all file paths
+                pathname = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name,polarity))
+                parent_dir = '%s_%s'%(effective_project_name,polarity)
                 job_id_filename = os.path.join(pathname,'%s_mzmine-job-id.txt'%(parent_dir))
-                old_peakheight_filename = os.path.join(pathname,'%s_%s_MSMS_quant.csv'%(project_name,polarity))
-                peakheight_filename = os.path.join(pathname,'%s_%s_peak-height.csv'%(project_name,polarity))
-                mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(project_name,polarity))
-                metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(project_name,polarity))
-                mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(project_name,polarity))
+                old_peakheight_filename = os.path.join(pathname,'%s_%s_MSMS_quant.csv'%(effective_project_name,polarity))
+                peakheight_filename = os.path.join(pathname,'%s_%s_peak-height.csv'%(effective_project_name,polarity))
+                mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(effective_project_name,polarity))
+                metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(effective_project_name,polarity))
+                mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(effective_project_name,polarity))
 
                 if direct_input is None:
                     if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
@@ -1598,7 +1742,12 @@ def update_mzmine_status_in_untargeted_tasks(
                 if os.path.isfile(mgf_filename) and os.path.isfile(metadata_filename) and \
                      os.path.isfile(mzmine_output_filename) and (os.path.isfile(peakheight_filename) or os.path.isfile(old_peakheight_filename)):
                     # MZmine is finished and status should be updated
-                    logging.info(tab_print("Working on %s in %s mode"%(project_name,polarity), 2))
+                    # Log with both base and effective names for clarity
+                    if project_tag is not None:
+                        logging.info(tab_print("Working on %s in %s mode (base: %s, tag: %s)"%(effective_project_name, polarity, base_project_name, project_tag), 2))
+                    else:
+                        logging.info(tab_print("Working on %s in %s mode"%(effective_project_name, polarity), 2))
+                        
                     logging.info(tab_print("All MZmine output files found in %s directory, continuing..."%(polarity), 3))
                     logging.info(tab_print("Calculating feature and background counts and updating LIMS table", 3))
                     feature_count, exctrl_count, msms_count = calculate_counts_for_lims_table(peakheight_filename,mgf_filename,background_designator=background_designator)
@@ -1610,8 +1759,9 @@ def update_mzmine_status_in_untargeted_tasks(
 
                     if feature_count > 0:
                         logging.info(tab_print("Filtering peak height file to remove features below background...", 4))
+                        # Use effective project name for filtered file creation
                         create_filtered_peakheight_file(peakheight_filename=peakheight_filename,background_designator=background_designator,output_dir=pathname, \
-                                                        project_name=project_name,polarity=polarity,background_ratio=background_ratio,zero_value=zero_value, \
+                                                        project_name=effective_project_name,polarity=polarity,background_ratio=background_ratio,zero_value=zero_value, \
                                                         nonpolar_solvent_front=nonpolar_solvent_front,polar_solvent_front=polar_solvent_front,
                                                         nonpolar_solvent_end=nonpolar_solvent_end,polar_solvent_end=polar_solvent_end)
                     else:
@@ -1630,7 +1780,7 @@ def update_mzmine_status_in_untargeted_tasks(
                                 sqs_cmd = 'squeue --job %s | wc -l'%job_id
                                 sqs_output = subprocess.run(sqs_cmd, shell=True, capture_output=True, text=True)
                                 if int(sqs_output.stdout.strip()) != 2: # job is not running
-                                    logging.critical(tab_print("Warning! MZmine status for %s mode of %s is ['04 running'] but no job is running at NERSC. Changing to ['09 error']."%(polarity, project_name), 1))
+                                    logging.critical(tab_print("Warning! MZmine status for %s mode of %s is ['04 running'] but no job is running at NERSC. Changing to ['09 error']."%(polarity, effective_project_name), 1))
                                     df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'    
                                     index_list.append(i)
         if len(index_list) > 0:
@@ -1842,7 +1992,8 @@ def calculate_counts_for_lims_table(
 
 def update_fbmn_status_in_untargeted_tasks(
     skip_fbmn_status: bool,
-    direct_input: Optional[str] = None
+    direct_input: Optional[str] = None,
+    project_tag: Optional[str] = None
 ) -> None:
     """    
     finds running or waiting fbmn tasks
@@ -1859,8 +2010,15 @@ def update_fbmn_status_in_untargeted_tasks(
     tasktype='fbmn'
     df = get_table_from_lims('untargeted_tasks')
     df = filter_common_bad_project_names(df)
+    
     if direct_input is not None:
-        df = df[df['parent_dir'].isin(direct_input)]
+        # Convert direct input to effective names for database lookup
+        if project_tag is not None:
+            effective_input = [get_effective_project_name(proj, project_tag) for proj in direct_input]
+        else:
+            effective_input = direct_input
+        df = df[df['parent_dir'].isin(effective_input)]
+        
     status_list = ['04 running','13 waiting','09 error']
     if direct_input is None:
         df = subset_df_by_status(df,tasktype,status_list)
@@ -1870,16 +2028,22 @@ def update_fbmn_status_in_untargeted_tasks(
         index_list = []
         #logging.info(tab_print("Total of %s project(s) with FBMN status %s to attempt to update"%(df.shape[0],status_list), 1))
         for i,row in df.iterrows():
-            polarity_list = check_for_polarities(row['output_dir'],row['parent_dir'])
+            effective_project_name = row['parent_dir']  # This is already the effective name from database
+            base_project_name = get_base_project_name(effective_project_name, project_tag)  # Get base name for logging clarity
+            
+            polarity_list = check_for_polarities(row['output_dir'], effective_project_name)  # Use effective name for directory check
             if polarity_list is None:
-                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(row['parent_dir']), 1))
+                logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(effective_project_name), 1))
                 continue
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
                 if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
                     continue ## This helps when one polarity is complete but the other is not
-                pathname = os.path.join(row['output_dir'],'%s_%s'%(row['parent_dir'],polarity))
-                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(row['parent_dir'],polarity))
+                    
+                # Use effective project name for all file paths
+                pathname = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name,polarity))
+                fbmn_filename = os.path.join(pathname,'%s_%s_gnps2-fbmn-task.txt'%(effective_project_name,polarity))
+                
                 if os.path.isfile(fbmn_filename)==True:
                     with open(fbmn_filename,'r') as fid:
                         my_text = fid.read().strip()
@@ -1888,18 +2052,30 @@ def update_fbmn_status_in_untargeted_tasks(
                     index_list.append(i)
                     if status=='DONE':
                         if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '07 complete':
-                            logging.info(tab_print("Updating FBMN job status for %s in %s mode to complete"%(row['parent_dir'],polarity), 1))
+                            # Log with both base and effective names for clarity
+                            if project_tag is not None:
+                                logging.info(tab_print("Updating FBMN job status for %s in %s mode to complete (base: %s, tag: %s)"%(effective_project_name, polarity, base_project_name, project_tag), 1))
+                            else:
+                                logging.info(tab_print("Updating FBMN job status for %s in %s mode to complete"%(effective_project_name, polarity), 1))
                             df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '07 complete'
                     elif status=='FAILED':
                         if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '09 error':
-                            logging.info(tab_print("Updating FBMN job status for %s in %s mode to error"%(row['parent_dir'],polarity), 1))
+                            # Log with both base and effective names for clarity
+                            if project_tag is not None:
+                                logging.info(tab_print("Updating FBMN job status for %s in %s mode to error (base: %s, tag: %s)"%(effective_project_name, polarity, base_project_name, project_tag), 1))
+                            else:
+                                logging.info(tab_print("Updating FBMN job status for %s in %s mode to error"%(effective_project_name, polarity), 1))
                             df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'
                     elif status in ['RUNNING','QUEUED']:
                         if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '04 running':
-                            logging.info(tab_print("Updating FBMN job status for %s in %s mode to running"%(row['parent_dir'],polarity), 1))
+                            # Log with both base and effective names for clarity
+                            if project_tag is not None:
+                                logging.info(tab_print("Updating FBMN job status for %s in %s mode to running (base: %s, tag: %s)"%(effective_project_name, polarity, base_project_name, project_tag), 1))
+                            else:
+                                logging.info(tab_print("Updating FBMN job status for %s in %s mode to running"%(effective_project_name, polarity), 1))
                             df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
                     elif status =='N/A':
-                        logging.critical(tab_print("Warning! Could not get status from GNPS2 for %s in %s mode"%(row['parent_dir'],polarity), 1))
+                        logging.critical(tab_print("Warning! Could not get status from GNPS2 for %s in %s mode"%(effective_project_name, polarity), 1))
                     else:
                         if df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] != '13 waiting':
                             df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '13 waiting'
@@ -2010,20 +2186,22 @@ def write_metadata_per_new_project(
     raw_data_dir: str,
     raw_data_subdir: Optional[str] = None,
     skip_blank_filter: Optional[bool] = False,
-    fps_files_only: Optional[bool] = False
+    fps_files_only: Optional[bool] = False,
+    project_tag: Optional[str] = None
 ) -> List:
     """
     Takes a LIMS table (usually raw data from lcmsruns_plus) and creates
     mzmine metadata for writing a new untargeted_tasks directory
     """
     new_project_list = []
-    # Iterate through each unique parent_dir
-    for parent_dir in df['parent_dir'].unique():
+    # Iterate through each unique parent_dir (these are BASE project names from LIMS)
+    for base_parent_dir in df['parent_dir'].unique():
         # Filter the DataFrame for the current parent_dir
-        df_filtered = df[df['parent_dir'] == parent_dir]
+        df_filtered = df[df['parent_dir'] == base_parent_dir]
 
+        # Use base project name for raw data discovery
         if raw_data_subdir is None: # This means we'll have to try to infer the locations of the mzML files from the project name
-            _, validate_department, _ = vfn.field_exists(PurePath(parent_dir), field_num=1)
+            _, validate_department, _ = vfn.field_exists(PurePath(base_parent_dir), field_num=1)
             try:
                 if validate_department is None:
                     subdir = 'jgi' # Assume raw data location if project name is not parseable
@@ -2031,34 +2209,35 @@ def write_metadata_per_new_project(
                     subdir = validate_department.lower()
                 if subdir == 'eb':
                     subdir = 'egsb'
-                check_project_raw_dir = os.path.join(raw_data_dir,subdir,parent_dir)
+                check_project_raw_dir = os.path.join(raw_data_dir,subdir,base_parent_dir)
                 if os.path.exists(check_project_raw_dir):
                     full_mzml_path = check_project_raw_dir
                 else:
                     possible_subdirs = ["jgi", "egsb", "akuftin", "agolini", "kblouie", "lzhan", "smkosina", "jsjordan", "mtvu", "tharwood", "bpb"]
                     for subdir in possible_subdirs:
-                        check_project_raw_dir = os.path.join(raw_data_dir, subdir, parent_dir)
+                        check_project_raw_dir = os.path.join(raw_data_dir, subdir, base_parent_dir)
                         if os.path.exists(check_project_raw_dir):
                             full_mzml_path = check_project_raw_dir
                             break
                     else:
-                        logging.error(f"Raw data directory for {parent_dir} could not be found after trying several possible alternatives. Not creating metadata.")
+                        logging.error(f"Raw data directory for {base_parent_dir} could not be found after trying several possible alternatives. Not creating metadata.")
                         continue
             except Exception as e:
                 logging.error(tab_print(f"Error when trying to locate mzML files on disk: {e}", 2))
                 continue
         else:
-            full_mzml_path = os.path.join(raw_data_dir,raw_data_subdir,parent_dir)
+            full_mzml_path = os.path.join(raw_data_dir,raw_data_subdir,base_parent_dir)
             if not os.path.exists(full_mzml_path):
-                logging.error(tab_print(f"Raw data directory for {parent_dir} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
+                logging.error(tab_print(f"Raw data directory for {base_parent_dir} could not be found at user-supplied location of {raw_data_dir}/{raw_data_subdir}. Not creating metadata.", 2))
                 continue
         
-        # Initialize info dict
-        project_dict = {'parent_dir': parent_dir}
+        # Initialize info dict with BASE project name (this is what gets returned and used for database lookup)
+        # But all the file paths and metadata will reference the effective name
+        project_dict = {'parent_dir': base_parent_dir}  # Keep base name for consistency with existing code
         project_dict['positive'] = {}
         project_dict['negative'] = {}
 
-        # Determine which polarities need metadata
+        # Determine which polarities need metadata (using base project name for raw data filtering)
         try:
             positive_file_subset = metadata_file_filter(df_filtered, polarity="POS", skip_blank_filter=skip_blank_filter, fps_files_only=fps_files_only, nonstandard_filename=False)
         except IndexError:
@@ -2070,11 +2249,11 @@ def write_metadata_per_new_project(
                 file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in positive_file_list]
                 try:
                     if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
-                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(base_parent_dir), 2))
                         continue
                     project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in positive_file_list]
                     if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
-                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(base_parent_dir), 2))
                         continue
                 except:
                     logging.warning(tab_print("mzML file name validation failed", 2))
@@ -2092,11 +2271,11 @@ def write_metadata_per_new_project(
                 file_name_validation = [vfn.validate_file_name(PurePath(file),minimal=True,print_logger=False) for file in negative_file_list]
                 try:
                     if all(file_name_valid == True for file_name_valid in file_name_validation) is False:
-                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        logging.warning(tab_print("Warning! Project %s has one or more mzML files that do not have valid format. Not adding project to untargeted tasks..."%(base_parent_dir), 2))
                         continue
                     project_name_validation = [vfn.parent_dir_num_fields(PurePath(file)) for file in negative_file_list]
                     if all(len(project_name_valid) == 0 for project_name_valid in project_name_validation) is False: # Prints empty list if project name valid
-                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(parent_dir), 2))
+                        logging.warning(tab_print("Warning! Parent dir %s does not have valid format. Not adding project to untargeted tasks..."%(base_parent_dir), 2))
                         continue
                 except:
                     logging.warning(tab_print("mzML file name validation failed", 2))
@@ -2107,18 +2286,18 @@ def write_metadata_per_new_project(
         # Counts and mzml list
         if positive_file_count > 0 and negative_file_count > 0:
             project_dict['polarities'] = ['positive', 'negative']
-            logging.info(tab_print("Project %s has both polarities with %s positive and %s negative files"%(parent_dir,positive_file_count,negative_file_count), 2))
+            logging.info(tab_print("Project %s has both polarities with %s positive and %s negative files"%(base_parent_dir,positive_file_count,negative_file_count), 2))
             project_dict['negative']['file_count'] = negative_file_count
             project_dict['positive']['file_count'] = positive_file_count
             project_dict['negative']['file_list'] = negative_file_list
             project_dict['positive']['file_list'] = positive_file_list
         elif positive_file_count > 0:
-            logging.info(tab_print("Project %s has positive mode only with %s files"%(parent_dir,positive_file_count), 2))
+            logging.info(tab_print("Project %s has positive mode only with %s files"%(base_parent_dir,positive_file_count), 2))
             project_dict['polarities'] = ['positive']
             project_dict['positive']['file_count'] = positive_file_count
             project_dict['positive']['file_list'] = positive_file_list
         elif negative_file_count > 0:
-            logging.info(tab_print("Project %s has negative mode only with %s files"%(parent_dir,negative_file_count), 2))
+            logging.info(tab_print("Project %s has negative mode only with %s files"%(base_parent_dir,negative_file_count), 2))
             project_dict['polarities'] = ['negative']        
             project_dict['negative']['file_count'] = negative_file_count
             project_dict['negative']['file_list'] = negative_file_list
@@ -2127,7 +2306,7 @@ def write_metadata_per_new_project(
             continue
 
         for polarity in project_dict['polarities']:
-            # Create metadata dataframe
+            # Create metadata dataframe (using base project name data but will be saved with effective name)
             polarity_short = polarity[:3].upper()
             metadata_df = df_filtered[['basename', 'sample_group']].copy()
             metadata_df['basename'] = metadata_df['basename'].fillna('')
@@ -2158,23 +2337,15 @@ def update_new_untargeted_tasks(
     custom_mzmine_batch_params: Optional[str] = None,
     raw_data_subdir: Optional[str] = None,
     skip_blank_filter: Optional[bool] = False,
-    fps_files_only: Optional[bool] = False
+    fps_files_only: Optional[bool] = False,
+    project_tag: Optional[str] = None
 ) -> None:
-    """
-    This script is called by run_mzmine.py before the untargeted pipeline kicks off
-
-    given all directories that are in the table for potential untargeted tasks
-    and all the directories in the raw data folders
-    return all the directories in the raw data folders
-    that are not in the untargeted tasks
     
-    The strip command is because there is one folder that ends in a 
-    space and labkey doesn't allow this
-    """
     if skip_sync:
         logging.info('Skipping Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
         return
     logging.info('Step 1/7: Syncing LIMS and NERSC to identify new projects with raw data that are not yet in the untargeted task list...')    
+    
     # Get lcmsrun table and subset
     df = get_table_from_lims('lcmsrun_plus')
     if direct_input is not None:
@@ -2182,6 +2353,7 @@ def update_new_untargeted_tasks(
         if df.empty:
             logging.info(tab_print("Projects in direct input (%s) are not in LIMS lcmsruns table"%(direct_input), 1))
             return
+    
     df = df[pd.notna(df['mzml_file'])]
     df['basename'] = df['mzml_file'].apply(os.path.basename)
     df.sort_values('timeepoch',ascending=False,inplace=True)
@@ -2194,21 +2366,23 @@ def update_new_untargeted_tasks(
     
     logging.info(tab_print("Comparing LIMS untargeted tasks with raw files on disk...", 1))
 
-    #Check that files in lcmsruns table have been sitting around for at least 3 hours (note time zones may vary)
+    # Check that files in lcmsruns table have been sitting around for at least 3 hours
     time_old = df.groupby('parent_dir')['timeepoch'].max() < (time.time()-3*60*60)
     time_new = df.groupby('parent_dir')['timeepoch'].max() >= (time.time()-3*60*60)
     time_old_folders = time_old[time_old==True].index.tolist()
     time_new_folders = time_new[time_new==True].index.tolist()
-    #Check that files have "M2" in the name
+    
+    # Check that files have "M2" in the name
     dirs_with_m2_files = df.groupby('parent_dir')['basename'].apply(lambda x: any(('MS2' in filename or 'MSMS' in filename) and '_MS1_' not in filename for filename in x))
     dirs_with_m2_files = dirs_with_m2_files[dirs_with_m2_files].index.tolist()
+    
     # Print parent_dirs with files less than 3 hours old
     if time_new_folders:
         logging.info(tab_print("Note: There are data directories with files less than 3 hours old! Skipping these for now:", 2))
         for folder in time_new_folders:
             logging.info(tab_print(folder, 3))
 
-    # Get all folders in raw data table
+    # Get all folders in raw data table (base project names)
     if fps_files_only:
         all_folders = df.loc[df['polarity'].isin(['FPS']),'parent_dir'].unique()
         all_folders = [a.strip() for a in all_folders]
@@ -2216,7 +2390,7 @@ def update_new_untargeted_tasks(
         all_folders = df.loc[df['polarity'].isin(['POS','NEG']),'parent_dir'].unique()
         all_folders = [a.strip() for a in all_folders]
 
-    # Get all folders in untargeted tasks table
+    # Get all folders in untargeted tasks table (these could be effective names)
     if df_untargeted.shape[0]>0:
         folders_in_tasks = df_untargeted['parent_dir']
         folders_in_tasks = [a.strip() for a in folders_in_tasks]
@@ -2225,17 +2399,36 @@ def update_new_untargeted_tasks(
 
     # Find difference between lcmsrun table and untargeted table to find projects to initiate
     logging.info(tab_print("Finding new projects to initate...", 1))
-    new_folders = np.setdiff1d(all_folders,folders_in_tasks)
+    
+    if project_tag is not None:
+        # Convert base project names to effective names for comparison with database
+        effective_folders = [get_effective_project_name(folder, project_tag) for folder in all_folders]
+        new_effective_folders = np.setdiff1d(effective_folders, folders_in_tasks)
+        # Convert back to base names for raw data processing
+        new_folders = [get_base_project_name(folder, project_tag) for folder in new_effective_folders]
+        
+        if new_effective_folders:
+            logging.info(tab_print(f"Creating tagged project entries: {new_effective_folders}", 2))
+    else:
+        new_folders = np.setdiff1d(all_folders, folders_in_tasks)
+    
     new_folders = list(set(new_folders) & set(time_old_folders) & set(dirs_with_m2_files))
     if len(new_folders) == 0:
         logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
         return None
     
-    # Check for polarities by looking for positive and negative mzml files
+    # Check for polarities by looking for positive and negative mzml files using BASE names
     df_new = df[df['parent_dir'].isin(new_folders)]
     logging.info(tab_print("Checking for polarities in new projects and validating mzml file names...", 1))
-    new_project_info_list = write_metadata_per_new_project(df=df_new,background_designator=background_designator,raw_data_dir=raw_data_dir, fps_files_only=fps_files_only, \
-                                                           skip_blank_filter=skip_blank_filter, raw_data_subdir=raw_data_subdir, validate_names=validate_names)
+    new_project_info_list = write_metadata_per_new_project(
+        df=df_new,
+        background_designator=background_designator,
+        raw_data_dir=raw_data_dir, 
+        fps_files_only=fps_files_only,
+        skip_blank_filter=skip_blank_filter, 
+        raw_data_subdir=raw_data_subdir, 
+        validate_names=validate_names
+    )
     new_project_info_list_subset = [d for d in new_project_info_list if d.get('polarities') is not None]
 
     # Check for nountargeted.txt file in new projects dirs and skip them
@@ -2246,27 +2439,41 @@ def update_new_untargeted_tasks(
     if not new_project_info_list_subset:
         logging.info(tab_print("No new projects to add to untargeted tasks!", 2))
         return None
-    logging.info(tab_print("New projects to add to untargeted tasks:", 2))
-    print_new_projects = "\n".join(["\t"*7 + d['parent_dir'] for d in new_project_info_list_subset])
-    logging.info(tab_print("\n" + print_new_projects, 0))
+    
+    # Log the effective project names that will be created
+    if project_tag is not None:
+        effective_project_names = [get_effective_project_name(d['parent_dir'], project_tag) for d in new_project_info_list_subset]
+        logging.info(tab_print("New tagged projects to add to untargeted tasks:", 2))
+        print_new_projects = "\n".join(["\t"*7 + name for name in effective_project_names])
+        logging.info(tab_print("\n" + print_new_projects, 0))
+    else:
+        logging.info(tab_print("New projects to add to untargeted tasks:", 2))
+        print_new_projects = "\n".join(["\t"*7 + d['parent_dir'] for d in new_project_info_list_subset])
+        logging.info(tab_print("\n" + print_new_projects, 0))
 
     # Create metadata for new projects with relevant polarities
     if len(new_project_info_list_subset)>0:
         lims_untargeted_list = []
         for new_project_dict in new_project_info_list_subset:
-            project_name = new_project_dict['parent_dir']
+            base_project_name = new_project_dict['parent_dir']  # This is the base name for raw data
+            effective_project_name = get_effective_project_name(base_project_name, project_tag)  # This goes in database
             polarity_list = new_project_dict['polarities']
-            logging.info(tab_print("Working on %s..."%(project_name), 1))
+            
+            logging.info(tab_print("Working on %s (effective name: %s)..."%(base_project_name, effective_project_name), 1))
 
-            # Write some basic info to LIMS
-            lims_untargeted_table_updater = {'parent_dir': project_name}
+            # Write some basic info to LIMS using EFFECTIVE project name
+            lims_untargeted_table_updater = {'parent_dir': effective_project_name}  # Use effective name for database
             lims_untargeted_table_updater['conforming_filenames'] = True
             lims_untargeted_table_updater['file_conversion_complete'] = True
             lims_untargeted_table_updater['output_dir'] = output_dir
-            _, validate_machine_name, _ = vfn.field_exists(PurePath(project_name), field_num=6)
+            
+            # Use BASE project name for machine name validation (raw data naming)
+            _, validate_machine_name, _ = vfn.field_exists(PurePath(base_project_name), field_num=6)
             logging.info(tab_print("Inferred machine name: %s"%(validate_machine_name), 2))
-            if custom_mzmine_batch_params is None: # When there is not a custom input
-                if validate_machine_name is None:  # Assume more lenient parameters if machine name is not going to be validated
+            
+            # Set MZmine parameters (same logic as before)
+            if custom_mzmine_batch_params is None:
+                if validate_machine_name is None:
                     logging.warning(tab_print("Warning! Could not validate machine name. Using lenient (IQX) MZmine parameters...", 2))
                     mzmine_running_parameters = mzine_batch_params_file_iqx
                     mzmine_parameter = 5
@@ -2276,7 +2483,7 @@ def update_new_untargeted_tasks(
                 elif any(substring in validate_machine_name.lower() for substring in ("exp", "exploris", "qe")):
                     mzmine_running_parameters = mzine_batch_params_file
                     mzmine_parameter = 2
-                else:  # Assume more lenient parameters if machine name cannot be validated
+                else:
                     mzmine_running_parameters = mzine_batch_params_file_iqx
                     mzmine_parameter = 5
                 logging.info(tab_print("Using MZmine parameters: %s"%(os.path.basename(mzmine_running_parameters)), 2))
@@ -2289,20 +2496,22 @@ def update_new_untargeted_tasks(
                 lims_untargeted_table_updater['mzmine_parameter_sheet'] = mzmine_running_parameters
                 lims_untargeted_table_updater['mzmine_parameter_row'] = mzmine_parameter
 
-            for polarity in ['positive','negative']: # Don't initiate mzmine jobs on polarities that don't have sample mzmls
+            for polarity in ['positive','negative']:
                 polarity_short = polarity[:3]
-                parent_dir = '%s_%s'%(project_name,polarity)
-                basepath = os.path.join(output_dir,parent_dir)
+                # Use EFFECTIVE project name for output directories and file paths
+                parent_dir = '%s_%s'%(effective_project_name, polarity)
+                basepath = os.path.join(output_dir, parent_dir)
                 metadata_header = f"{polarity_short}_metadata_file"
                 mzmine_status_header = f"mzmine_{polarity_short}_status"
                 fbmn_status_header = f"fbmn_{polarity_short}_status"
                 file_count_header = f"num_{polarity_short}_files"
-                lims_untargeted_table_updater[mzmine_status_header] = '09 error' # Set default to error to indicate not passing required steps
+                lims_untargeted_table_updater[mzmine_status_header] = '09 error'
                 lims_untargeted_table_updater[fbmn_status_header] = '09 error'
-                if polarity not in polarity_list: # Write blank columns to LIMS and skip writing directory/files to disk
+                
+                if polarity not in polarity_list:
                     lims_untargeted_table_updater[metadata_header] = ""
                     lims_untargeted_table_updater[file_count_header] = 0
-                else: # Write directory/files to disk for present polarity and fill in LIMS columns
+                else:
                     logging.info(tab_print("Writing MZmine submission input files...",2))
                     if os.path.exists(basepath):
                         logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 3))
@@ -2314,27 +2523,29 @@ def update_new_untargeted_tasks(
                     except:
                         logging.info(tab_print("Note: Could not change group ownership of %s"%(basepath), 2))
 
+                    # Write metadata using effective project name for filenames
                     logging.info(tab_print("%s metadata file (*_metadata.tab)"%(polarity), 3))
                     metadata_df = new_project_dict[polarity]['metadata_df']
                     metadata_filename = os.path.join(basepath,'%s_metadata.tab'%(parent_dir))
                     metadata_df.to_csv(metadata_filename, sep='\t', index=False)
                     
+                    # Write MZmine parameters using effective project name for paths
                     if custom_mzmine_batch_params is None:
                         logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
-                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        params_filename = build_untargeted_filename(output_dir, effective_project_name, polarity, 'batch-params-mzmine')
                         with open(mzmine_running_parameters,'r') as fid:
                             orig_params = fid.read()
-                        new_param_path = os.path.join(basepath,parent_dir)
-                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        new_param_path = os.path.join(basepath, parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs', new_param_path)
                         with open(params_filename,'w') as fid:
                             fid.write('%s'%custom_params)
                     elif custom_mzmine_batch_params is not None and len(custom_mzmine_batch_params) == 1:
                         logging.info(tab_print("%s MZmine parameter file (*_batch-params.xml)"%(polarity), 3))
-                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        params_filename = build_untargeted_filename(output_dir, effective_project_name, polarity, 'batch-params-mzmine')
                         with open(mzmine_running_parameters,'r') as fid:
                             orig_params = fid.read()
-                        new_param_path = os.path.join(basepath,parent_dir)
-                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        new_param_path = os.path.join(basepath, parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs', new_param_path)
                         with open(params_filename,'w') as fid:
                             fid.write('%s'%custom_params)                        
                     else:
@@ -2343,14 +2554,15 @@ def update_new_untargeted_tasks(
                             if polarity_short.upper()+"-" in custom_param:
                                 mzmine_running_parameters = custom_param
                                 break
-                        params_filename = build_untargeted_filename(output_dir,project_name,polarity,'batch-params-mzmine')
+                        params_filename = build_untargeted_filename(output_dir, effective_project_name, polarity, 'batch-params-mzmine')
                         with open(mzmine_running_parameters,'r') as fid:
                             orig_params = fid.read()
-                        new_param_path = os.path.join(basepath,parent_dir)
-                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs',new_param_path)
+                        new_param_path = os.path.join(basepath, parent_dir)
+                        custom_params = orig_params.replace('/Users/bpb/Downloads/mzmine_outputs', new_param_path)
                         with open(params_filename,'w') as fid:
                             fid.write('%s'%custom_params)
 
+                    # Write filelist using base project name file paths (raw data)
                     logging.info(tab_print("%s mzML path list file (*_filelist.txt)"%(polarity), 3))
                     file_list = new_project_dict[polarity]['file_list']
                     filelist_filename = os.path.join(basepath,'%s_filelist.txt'%(parent_dir))
@@ -2358,8 +2570,9 @@ def update_new_untargeted_tasks(
                         for mzml in file_list:
                             fid.write('%s\n'%mzml)
 
+                    # Write sbatch files using effective project name for output paths
                     logging.info(tab_print("%s sbatch submission script and runner files (*.sh, *.sbatch)"%(polarity), 3))
-                    write_mzmine_sbatch_and_runner(basepath,params_filename,parent_dir,filelist_filename)
+                    write_mzmine_sbatch_and_runner(basepath, params_filename, parent_dir, filelist_filename)
 
                     lims_untargeted_table_updater[metadata_header] = metadata_filename
                     lims_untargeted_table_updater[file_count_header] = new_project_dict[polarity]['file_count']
