@@ -95,17 +95,17 @@ def main():
 
     ##### Step 7/7: Zipping up and (optionally) uploading output folders to gdrive
     mzm.zip_and_upload_untargeted_results(
-        download_folder=args.download_folder,
+        download_folder=args.download_dir,
         output_dir=args.output_dir,
-        doc_name=args.doc_name,
-        add_documentation=args.add_documentation,
+        doc_name=args.gnps2_doc_name,
+        add_documentation=args.add_gnps2_documentation,
         skip_zip_upload=step_bools[6],
         abridged_filenames=args.abridged_filenames,
-        upload=args.upload,
+        upload=args.gdrive_upload,
         overwrite_zip=args.overwrite_zip,
         overwrite_drive=args.overwrite_drive,
         direct_input=args.direct_input,
-        min_features_admissible=args.min_features_admissible,
+        min_features_admissible=args.min_features,
         project_tag=args.project_tag
     )
 
