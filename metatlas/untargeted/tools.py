@@ -1270,6 +1270,50 @@ def mirror_raw_data(
         logging.error(f"Failed to mirror raw data for {local_project_name} to GNPS2: {e}")
         return "Failed"
 
+def _get_gnps2_connection(username: str) -> tuple:
+    """Helper function to establish GNPS2 connection"""
+    # Load password from file
+    password = None
+    try:
+        with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_bpbowen.txt', 'r') as f:
+            for line in f:
+                if line.startswith('MYVARIABLE='):
+                    password = line.strip().split('=')[1].replace('"', '')
+                    break
+    except FileNotFoundError:
+        logging.error("Password file not found.")
+        return None, None, "Password file not found"
+
+    if not password:
+        logging.error("Password is required to connect to GNPS2.")
+        return None, None, "Password required"
+    
+    # Suppress paramiko logs
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.CRITICAL)
+    paramiko_logger.addHandler(logging.NullHandler())
+    paramiko_logger.propagate = False
+
+    remote_host = "sftp.gnps2.org"
+    remote_port = 443
+    
+    try:
+        transport = paramiko.Transport((remote_host, remote_port))
+        transport.connect(username=username, password=password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+        return transport, sftp, None
+    except paramiko.SSHException as e:
+        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
+        time.sleep(30)
+        try:
+            transport = paramiko.Transport((remote_host, remote_port))
+            transport.connect(username=username, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+            return transport, sftp, None
+        except paramiko.SSHException as e:
+            logging.error(tab_print(f"Failed to connect to GNPS2 again: {e}", 4))
+            return None, None, str(e)
+
 def _find_raw_data_directory(project: str, raw_data_dir: str, raw_data_subdir: Optional[str] = None) -> str:
     """Helper function to find raw data directory"""
     if raw_data_subdir is None:
