@@ -1158,12 +1158,18 @@ def mirror_raw_data(
                 ssh_client = transport.open_session()
                 copy_command = f"cp -r {base_remote_directory} {remote_directory}"
                 ssh_client.exec_command(copy_command)
+                
+                # Wait for the command to complete and check exit status
+                exit_status = ssh_client.recv_exit_status()
                 ssh_client.close()
                 
-                logging.info(tab_print(f"Successfully copied {local_project_name} to {gnps2_project_name} at GNPS2", 2))
-                sftp.close()
-                transport.close()
-                return "Passed"
+                if exit_status == 0:
+                    logging.info(tab_print(f"Successfully copied {local_project_name} to {gnps2_project_name} at GNPS2", 2))
+                    sftp.close()
+                    transport.close()
+                    return "Passed"
+                else:
+                    logging.warning(tab_print(f"Copy command failed with exit status {exit_status}. Proceeding with normal upload.", 3))
                 
             except FileNotFoundError:
                 # Base project doesn't exist, proceed with normal upload
