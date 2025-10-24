@@ -1085,7 +1085,7 @@ def mirror_raw_data(
     - gnps2_project_name: The project name to use for GNPS2 directory structure (effective name). If None, uses project.
     - polarity: The polarity for polarity-specific operations.
     - mode: Mirror mode - "pipeline", "hard", or "soft"
-        - "pipeline": Simple upload for new projects (creates dir, uploads all files)
+        - "pipeline": Simple upload for new projects, soft sync if target exists
         - "hard": Force upload all files, overwriting everything 
         - "soft": Sync mode - only upload new/modified files
     
@@ -1127,38 +1127,87 @@ def mirror_raw_data(
     paramiko_logger.addHandler(logging.NullHandler())
     paramiko_logger.propagate = False
 
-    # Find local raw data directory
-    local_directory = _find_raw_data_directory(local_project_name, raw_data_dir, raw_data_subdir)
-    if not local_directory:
-        logging.error(f"Raw data directory for {local_project_name} not found.")
-        return "Failed"
-    
     # Get GNPS2 connection
     transport, sftp, error = _get_gnps2_connection(username)
     if error:
         return "Failed"
     
     try:
+        # Find local raw data directory to determine remote subdir
+        local_directory = _find_raw_data_directory(local_project_name, raw_data_dir, raw_data_subdir)
+        if not local_directory:
+            logging.error(f"Raw data directory for {local_project_name} not found.")
+            return "Failed"
+        
         local_path = Path(local_directory)
         remote_subdir = local_path.parent.name
         remote_directory = f"/raw_data/{remote_subdir}/{gnps2_project_name}"
         
-        # Handle directory creation based on mode
-        if mode == "hard":
+        # Check if we're dealing with a tagged project (different effective vs base names)
+        if gnps2_project_name != local_project_name:
+            # This is a tagged project - check if base project already exists at GNPS2
+            base_remote_directory = f"/raw_data/{remote_subdir}/{local_project_name}"
+            
+            try:
+                # Check if base project directory exists
+                sftp.listdir(base_remote_directory)
+                logging.info(tab_print(f"Base project {local_project_name} exists at GNPS2. Copying to {gnps2_project_name} instead of uploading.", 3))
+                
+                # Copy the existing directory to the new name
+                # Note: SFTP doesn't have a direct copy command, so we need to use shell commands
+                ssh_client = transport.open_session()
+                copy_command = f"cp -r {base_remote_directory} {remote_directory}"
+                ssh_client.exec_command(copy_command)
+                ssh_client.close()
+                
+                logging.info(tab_print(f"Successfully copied {local_project_name} to {gnps2_project_name} at GNPS2", 2))
+                sftp.close()
+                transport.close()
+                return "Passed"
+                
+            except FileNotFoundError:
+                # Base project doesn't exist, proceed with normal upload
+                logging.info(tab_print(f"Base project {local_project_name} not found at GNPS2. Proceeding with normal upload.", 3))
+            except Exception as e:
+                logging.warning(tab_print(f"Could not copy existing directory: {e}. Proceeding with normal upload.", 3))
+        
+        # Check if target directory exists for pipeline mode behavior
+        target_directory_exists = False
+        if mode == "pipeline":
+            try:
+                sftp.listdir(remote_directory)
+                target_directory_exists = True
+                logging.info(tab_print(f"Target directory {remote_directory} exists. Switching to soft sync mode.", 3))
+                # Switch to soft mode behavior for pipeline when directory exists
+                effective_mode = "soft"
+            except FileNotFoundError:
+                # Directory doesn't exist, proceed with normal pipeline behavior
+                effective_mode = "pipeline"
+        else:
+            effective_mode = mode
+        
+        # Handle directory creation based on effective mode
+        if effective_mode == "hard":
             # For hard mode, always try to create directory (don't fail if exists)
             try:
                 sftp.mkdir(remote_directory)
             except Exception:
                 pass  # Directory might exist, continue anyway
-        else:
-            # For pipeline and soft modes, create directory if it doesn't exist
+        elif effective_mode == "pipeline":
+            # For pipeline mode (when directory doesn't exist), create directory
             try:
                 sftp.mkdir(remote_directory)
             except Exception as e:
                 if "mkdir file exists" not in str(e).lower():
                     logging.warning(tab_print(f"Could not create directory {remote_directory}: {e}", 3))
-                    if mode == "pipeline":
-                        return "Failed"  # Pipeline mode is stricter about directory creation
+                    return "Failed"  # Pipeline mode is stricter about directory creation
+        else:  # soft mode
+            # For soft mode, create directory if it doesn't exist
+            try:
+                sftp.mkdir(remote_directory)
+            except Exception as e:
+                if "mkdir file exists" not in str(e).lower():
+                    logging.warning(tab_print(f"Could not create directory {remote_directory}: {e}", 3))
         
         upload_count = 0
         skip_count = 0
@@ -1169,7 +1218,7 @@ def mirror_raw_data(
                 remote_path = f"{remote_directory}/{file_path.name}"
                 
                 # Mode-specific file handling
-                if mode == "soft":
+                if effective_mode == "soft":
                     # Soft mode: check if file needs updating
                     try:
                         remote_stat = sftp.stat(remote_path)
@@ -1181,15 +1230,21 @@ def mirror_raw_data(
                             continue
                     except FileNotFoundError:
                         pass  # File doesn't exist remotely, upload it
+                elif effective_mode == "hard":
+                    # Hard mode: upload everything (no checks)
+                    pass
+                else:  # pipeline mode (when directory doesn't exist)
+                    # Pipeline mode: upload everything (no checks)
+                    pass
                 
                 # Upload file (for all modes that reach this point)
                 sftp.put(str(file_path), remote_path)
                 upload_count += 1
                 
                 # Mode-specific logging
-                if mode == "hard":
+                if effective_mode == "hard":
                     logging.info(tab_print(f"Force uploaded {file_path.name}", 3))
-                elif mode == "soft":
+                elif effective_mode == "soft":
                     logging.info(tab_print(f"Synced {file_path.name}", 3))
                 else:  # pipeline
                     logging.info(tab_print(f"Uploaded {file_path.name}", 3))
@@ -1198,11 +1253,14 @@ def mirror_raw_data(
         transport.close()
         
         # Mode-specific completion logging
-        if mode == "soft" and skip_count > 0:
-            logging.info(tab_print(f"Sync complete: {upload_count} uploaded, {skip_count} skipped", 2))
-        elif mode == "hard":
+        if effective_mode == "soft" and skip_count > 0:
+            if mode == "pipeline":
+                logging.info(tab_print(f"Pipeline sync complete: {upload_count} uploaded, {skip_count} skipped", 2))
+            else:
+                logging.info(tab_print(f"Soft sync complete: {upload_count} uploaded, {skip_count} skipped", 2))
+        elif effective_mode == "hard":
             logging.info(tab_print(f"Hard mirror complete: {upload_count} files uploaded (forced)", 2))
-        else:  # pipeline
+        else:  # pipeline mode (new directory)
             logging.info(tab_print(f"Pipeline mirror complete: {upload_count} files uploaded", 2))
             
         logging.info(tab_print(f"Completed raw data mirror to GNPS2 for {local_project_name} -> {gnps2_project_name}", 2))
@@ -1211,50 +1269,6 @@ def mirror_raw_data(
     except Exception as e:
         logging.error(f"Failed to mirror raw data for {local_project_name} to GNPS2: {e}")
         return "Failed"
-
-def _get_gnps2_connection(username: str) -> tuple:
-    """Helper function to establish GNPS2 connection"""
-    # Load password from file
-    password = None
-    try:
-        with open('/global/cfs/cdirs/metatlas/gnps2/gnps2_bpbowen.txt', 'r') as f:
-            for line in f:
-                if line.startswith('MYVARIABLE='):
-                    password = line.strip().split('=')[1].replace('"', '')
-                    break
-    except FileNotFoundError:
-        logging.error("Password file not found.")
-        return None, None, "Password file not found"
-
-    if not password:
-        logging.error("Password is required to connect to GNPS2.")
-        return None, None, "Password required"
-    
-    # Suppress paramiko logs
-    paramiko_logger = logging.getLogger("paramiko")
-    paramiko_logger.setLevel(logging.CRITICAL)
-    paramiko_logger.addHandler(logging.NullHandler())
-    paramiko_logger.propagate = False
-
-    remote_host = "sftp.gnps2.org"
-    remote_port = 443
-    
-    try:
-        transport = paramiko.Transport((remote_host, remote_port))
-        transport.connect(username=username, password=password)
-        sftp = paramiko.SFTPClient.from_transport(transport)
-        return transport, sftp, None
-    except paramiko.SSHException as e:
-        logging.info(tab_print(f"Failed to connect to GNPS2: {e}", 4))
-        time.sleep(30)
-        try:
-            transport = paramiko.Transport((remote_host, remote_port))
-            transport.connect(username=username, password=password)
-            sftp = paramiko.SFTPClient.from_transport(transport)
-            return transport, sftp, None
-        except paramiko.SSHException as e:
-            logging.error(tab_print(f"Failed to connect to GNPS2 again: {e}", 4))
-            return None, None, str(e)
 
 def _find_raw_data_directory(project: str, raw_data_dir: str, raw_data_subdir: Optional[str] = None) -> str:
     """Helper function to find raw data directory"""
