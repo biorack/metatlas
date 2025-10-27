@@ -230,8 +230,8 @@ class Workspace(object):
         else:
             # Confirm that session initiation set the correct lock wait time
             lock_wait_time = db.query("SHOW SESSION VARIABLES LIKE '%INNODB_LOCK_WAIT_TIMEOUT%';")
-            for row in lock_wait_time:
-                logger.debug("Database lock wait time from engine kwargs: %s", row)
+            #for row in lock_wait_time:
+                #logger.debug("Database lock wait time from engine kwargs: %s", row)
 
             # Directly set the lock wait time in case session init didn't work
             #db.query("SET SESSION innodb_lock_wait_timeout=10000;")
@@ -245,39 +245,39 @@ class Workspace(object):
 
         try:
             for (table_name, updates) in self._link_updates.items():
-                logger.debug("Linking updates for object %s in table %s", updates, table_name)
+                #logger.debug("Linking updates for object %s in table %s", updates, table_name)
                 if table_name not in db:
-                    logger.debug("Table %s not in database", table_name)
+                    #logger.debug("Table %s not in database", table_name)
                     continue
                 for (uid, prev_uid) in updates:
-                    logger.debug('QUERY: update `%s` set source_id = "%s" where source_id = "%s"' %
-                             (table_name, prev_uid, uid))
+                    #logger.debug('QUERY: update `%s` set source_id = "%s" where source_id = "%s"' %
+                             #(table_name, prev_uid, uid))
                     db.query('update `%s` set source_id = "%s" where source_id = "%s"' %
                              (table_name, prev_uid, uid))
-                    logger.debug("Update query completed")
+                    #logger.debug("Update query completed")
             for (table_name, updates) in self._updates.items():
-                logger.debug("Updating object %s in table %s", updates, table_name)
+                #logger.debug("Updating object %s in table %s", updates, table_name)
                 if '_' not in table_name and table_name not in db:
                     db.create_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 for (uid, prev_uid) in updates:
-                    logger.debug('QUERY: update `%s` set unique_id = "%s" where unique_id = "%s"' %
-                             (table_name, prev_uid, uid))
+                    #logger.debug('QUERY: update `%s` set unique_id = "%s" where unique_id = "%s"' %
+                             #(table_name, prev_uid, uid))
                     db.query('update `%s` set unique_id = "%s" where unique_id = "%s"' %
                              (table_name, prev_uid, uid))
-                    logger.debug("Update query completed")
+                    #logger.debug("Update query completed")
             for (table_name, inserts) in self._inserts.items():
-                logger.debug("Inserting object %s in table %s", inserts, table_name)
+                #logger.debug("Inserting object %s in table %s", inserts, table_name)
                 if '_' not in table_name and table_name not in db:
-                    logger.debug("Table not in database, creating table %s", table_name)
+                    #logger.debug("Table not in database, creating table %s", table_name)
                     db.create_table(table_name, primary_id='unique_id', primary_type=db.types.string(32))
                     if 'sqlite' not in self.path:
                         self.fix_table(table_name)
                 db[table_name].insert_many(inserts)
-                logger.debug("Insert query completed")
+                #logger.debug("Insert query completed")
                 #logger.debug('inserting %s', inserts)
-            logger.debug("Committing changes to database")
+            #logger.debug("Committing changes to database")
             db.commit()
             logger.debug('Exiting Workspace.save_objects')
         except Exception as err:
@@ -324,26 +324,26 @@ class Workspace(object):
             if tname.startswith('_'):
                 continue
             if isinstance(trait, List):
-                logger.debug("Getting saved data for List trait")
+                #logger.debug("Getting saved data for List trait")
                 # handle a list of objects by using a Link table
                 # create the link table if necessary
                 table_name = '_'.join([name, tname])
-                logger.debug("Table name: %s", table_name)
+                #logger.debug("Table name: %s", table_name)
                 if changed and prev_uid:
-                    logger.debug("Adding link updates")
+                    #logger.debug("Adding link updates")
                     self._link_updates[table_name].append((obj.unique_id,
                                                            obj.prev_uid))
                 else:
                     logger.debug("Skipping link updates")
                 value = getattr(obj, tname)
-                logger.debug("List type value to store: %s", value)
+                #logger.debug("List type value to store: %s", value)
                 # do not store this entry in our own table
                 if not value:
                     continue
                 # create an entry in the table for each item
                 # store the item in its own table
                 for subvalue in value:
-                    logger.debug("Adding saved List data for subvalue to Workspace.self")
+                    #logger.debug("Adding saved List data for subvalue to Workspace.self")
                     self._get_save_data(subvalue, override)
                     link = dict(source_id=obj.unique_id,
                                 head_id=obj.head_id,
@@ -352,9 +352,9 @@ class Workspace(object):
                     if changed:
                         self._inserts[table_name].append(link)
             elif isinstance(trait, MetInstance):
-                logger.debug("Getting saved data for MetInstance trait")
+                #logger.debug("Getting saved data for MetInstance trait")
                 value = getattr(obj, tname)
-                logger.debug("MetInstance type value to store: %s", value)
+                #logger.debug("MetInstance type value to store: %s", value)
                 # handle a sub-object
                 # if it is not assigned, use and empty unique_id
                 if value is None:
@@ -362,12 +362,12 @@ class Workspace(object):
                 # otherwise, store the uid and allow the object to store
                 # itself
                 else:
-                    logger.debug("Getting saved data")
+                    #logger.debug("Getting saved data")
                     state[tname] = value.unique_id
-                    logger.debug("Adding saved MetInstance data for subvalue to Workspace.self")
+                    #logger.debug("Adding saved MetInstance data for subvalue to Workspace.self")
                     self._get_save_data(value, override)
             elif changed:
-                logger.debug("Storing raw value of changed data")
+                #logger.debug("Storing raw value of changed data")
                 value = getattr(obj, tname)
                 # store the raw value in this table
                 state[tname] = value
