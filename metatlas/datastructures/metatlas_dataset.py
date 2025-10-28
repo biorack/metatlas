@@ -240,21 +240,50 @@ class MetatlasDataset(HasTraits):
         """
         atlases = metob.retrieve("Atlas", name=self.ids.atlas, username=self.ids.username)
         if len(atlases) == 1:
+            existing = atlases[0]
             logger.warning(
                 (
-                    "Destination atlas, %s, already exists, so not copying source atlas, "
+                    "Destination atlas, %s (%s), already exists, so not copying source atlas, "
                     "%s, to destination. Not overwriting."
                 ),
                 self.ids.atlas,
+                existing.unique_id,
                 self.ids.source_atlas,
             )
-            temp_atlas = atlases[0]
+            # Display the first 5 lines of the existing atlas dataframe
+            try:
+                existing_df = ma_data.make_atlas_df(existing)
+                logger.warning("Existing atlas dataframe (preview):\n")
+                print(existing_df.drop(columns=["synonyms"], errors="ignore").head().to_string())
+            except Exception as err:  # pylint: disable=broad-except
+                logger.exception("Failed to generate atlas dataframe preview: %s", err)
+            temp_atlas = existing
         elif len(atlases) > 1:
             try:
+                # Build a table of useful details for each matching atlas
+                rows = []
+                for a in atlases:
+                    rows.append(
+                    {
+                        "name": getattr(a, "name", None),
+                        "unique_id": getattr(a, "unique_id", None),
+                        "owner": getattr(a, "username", getattr(a, "owner", None)),
+                        "num_compound_ids": len(getattr(a, "compound_identifications", [])),
+                        "description": getattr(a, "description", None),
+                        "created": getattr(a, "created_at", getattr(a, "created_on", None)),
+                    }
+                    )
+                atlas_details_df = pd.DataFrame(rows)
+                logger.error(
+                    "Multiple atlases found for name=%s and user=%s. Details:\n%s",
+                    self.ids.atlas,
+                    self.ids.username,
+                    atlas_details_df.to_string(index=False),
+                )
                 raise ValueError(
                     (
-                        f"{len(atlases)} atlases with name {self.ids.atlas} "
-                        f"and owned by {self.ids.username} already exist."
+                    f"{len(atlases)} atlases with name {self.ids.atlas} "
+                    f"and owned by {self.ids.username} already exist. See log for details."
                     )
                 )
             except ValueError as err:
