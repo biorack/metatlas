@@ -254,7 +254,7 @@ class MetatlasDataset(HasTraits):
             try:
                 existing_df = ma_data.make_atlas_df(existing)
                 logger.warning("Existing atlas dataframe (preview):\n")
-                display(existing_df.drop(columns=["synonyms"], errors="ignore").head())
+                print(existing_df.drop(columns=["synonyms"], errors="ignore").head().to_string())
             except Exception as err:  # pylint: disable=broad-except
                 logger.exception("Failed to generate atlas dataframe preview: %s", err)
             temp_atlas = existing
