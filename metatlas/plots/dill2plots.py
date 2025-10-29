@@ -2908,7 +2908,7 @@ def plot_msms_comparison2(i, mz_header, rt, cpd_header, ref_id, filename, score,
             if np.min(np.abs(msv_sample_unaligned[0][m] - labels)) > 0.1 and msv_sample_unaligned[1][m] > 0.02 * np.max(msv_sample_unaligned[1]):
                 ax.annotate('%5.4f' % msv_sample_unaligned[0][m],
                             xy=(msv_sample_unaligned[0][m], msv_sample_unaligned[1][m]),
-                            size=6)
+                            size=10)
                 labels.append(msv_sample_unaligned[0][m])
     if msv_ref_unaligned[0].size > 0:
         ref_scale = -1 * np.max(msv_sample_unaligned[1]) / np.max(msv_ref_unaligned[1])
