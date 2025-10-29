@@ -7,13 +7,16 @@ import os.path
 import warnings
 import threading
 import atexit
+import fcntl
+import random
 # os.environ['R_LIBS_USER'] = '/project/projectdirs/metatlas/r_pkgs/'
 # curr_ld_lib_path = ''
 
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence, Sized, Union, Dict
+from typing import Callable, List, Optional, Sequence, Sized, Union, Dict, Any
 from enum import Enum
+from contextlib import contextmanager
 
 from metatlas.datastructures import metatlas_objects as metob
 from metatlas.tools.logging import log_errors
@@ -256,6 +259,141 @@ class LayoutPosition(Enum):
     ID_NOTE = 1
     INFO = 2
 
+class DatabaseLockManager:
+    """Manages file-based locking for database operations with retry logic."""
+    
+    def __init__(self, lock_dir: Optional[Path] = None, max_wait_time: float = 30.0):
+        self.lock_dir = lock_dir or Path("/tmp/metatlas_locks")
+        self.lock_dir.mkdir(parents=True, exist_ok=True)
+        self.max_wait_time = max_wait_time
+        self._active_locks: Dict[str, Any] = {}
+    
+    def _get_lock_file(self, atlas_id: str, compound_idx: int = None) -> Path:
+        """Generate lock file path for atlas or specific compound."""
+        if compound_idx is not None:
+            return self.lock_dir / f"atlas_{atlas_id}_compound_{compound_idx}.lock"
+        return self.lock_dir / f"atlas_{atlas_id}.lock"
+    
+    @contextmanager
+    def atlas_lock(self, atlas_id: str, timeout: float = None):
+        """Context manager for atlas-wide locking."""
+        timeout = timeout or self.max_wait_time
+        lock_file = self._get_lock_file(atlas_id)
+        
+        try:
+            with self._acquire_lock(lock_file, timeout, f"atlas_{atlas_id}") as lock_handle:
+                yield lock_handle
+        finally:
+            pass  # cleanup handled by _acquire_lock context manager
+    
+    @contextmanager
+    def compound_lock(self, atlas_id: str, compound_idx: int, timeout: float = None):
+        """Context manager for compound-specific locking."""
+        timeout = timeout or self.max_wait_time
+        lock_file = self._get_lock_file(atlas_id, compound_idx)
+        
+        try:
+            with self._acquire_lock(lock_file, timeout, f"atlas_{atlas_id}_compound_{compound_idx}") as lock_handle:
+                yield lock_handle
+        finally:
+            pass  # cleanup handled by _acquire_lock context manager
+    
+    @contextmanager
+    def _acquire_lock(self, lock_file: Path, timeout: float, lock_key: str):
+        """Internal method to acquire file lock with timeout and retry logic."""
+        start_time = time.time()
+        lock_handle = None
+        
+        while time.time() - start_time < timeout:
+            try:
+                # Try to acquire lock
+                lock_handle = open(lock_file, 'w')
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                
+                # Write lock info
+                lock_info = {
+                    'user': getpass.getuser(),
+                    'pid': os.getpid(),
+                    'timestamp': time.time(),
+                    'lock_key': lock_key
+                }
+                lock_handle.write(json.dumps(lock_info))
+                lock_handle.flush()
+                
+                # Store active lock
+                self._active_locks[lock_key] = lock_handle
+                logger.debug("Acquired lock: %s", lock_key)
+                
+                try:
+                    yield lock_handle
+                finally:
+                    # Release lock
+                    self._release_lock(lock_key, lock_handle, lock_file)
+                return
+                
+            except (OSError, IOError) as e:
+                if lock_handle:
+                    lock_handle.close()
+                    lock_handle = None
+                
+                # Add jitter to prevent thundering herd
+                jitter = random.uniform(0.1, 0.5)
+                time.sleep(jitter)
+                
+                logger.debug("Lock acquisition failed for %s, retrying... (%s)", lock_key, str(e))
+        
+        raise TimeoutError(f"Could not acquire lock for {lock_key} within {timeout} seconds")
+    
+    def _release_lock(self, lock_key: str, lock_handle, lock_file: Path):
+        """Release a specific lock."""
+        try:
+            if lock_handle and not lock_handle.closed:
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+                lock_handle.close()
+            
+            # Remove lock file
+            if lock_file.exists():
+                lock_file.unlink()
+            
+            # Remove from active locks
+            self._active_locks.pop(lock_key, None)
+            logger.debug("Released lock: %s", lock_key)
+            
+        except Exception as e:
+            logger.warning("Error releasing lock %s: %s", lock_key, str(e))
+    
+    def cleanup_stale_locks(self, max_age_hours: float = 2.0):
+        """Clean up old lock files that may be stale."""
+        current_time = time.time()
+        max_age_seconds = max_age_hours * 3600
+        
+        for lock_file in self.lock_dir.glob("*.lock"):
+            try:
+                stat = lock_file.stat()
+                if current_time - stat.st_mtime > max_age_seconds:
+                    # Try to read lock info to check if process is still running
+                    try:
+                        with open(lock_file, 'r') as f:
+                            lock_info = json.loads(f.read())
+                        
+                        # Check if process is still running (Unix/Linux only)
+                        try:
+                            os.kill(lock_info.get('pid', 0), 0)
+                            # Process exists, don't remove
+                            continue
+                        except OSError:
+                            # Process doesn't exist, safe to remove
+                            pass
+                    except (json.JSONDecodeError, KeyError):
+                        # Invalid lock file, safe to remove
+                        pass
+                    
+                    lock_file.unlink()
+                    logger.info("Cleaned up stale lock file: %s", lock_file)
+                    
+            except Exception as e:
+                logger.warning("Error cleaning up lock file %s: %s", lock_file, str(e))
+
 class adjust_rt_for_selected_compound(object):
     def __init__(self,
                 data,
@@ -338,6 +476,13 @@ class adjust_rt_for_selected_compound(object):
         self._auto_save_timer = None
         self._last_activity_time = time.time()
         
+        # Initialize database locking system
+        self._lock_manager = DatabaseLockManager()
+        self._atlas_id = str(self.data.atlas.unique_id)
+        
+        # Clean up any stale locks on startup
+        self._lock_manager.cleanup_stale_locks()
+        
         # set up suggested min and max values
         self._suggested_bounds = None
         self._suggestion_lines = []
@@ -382,6 +527,21 @@ class adjust_rt_for_selected_compound(object):
         
         # Turn On interactive plot
         plt.ion()
+
+    def __del__(self):
+        """Clean up auto-save timer and any held locks when object is destroyed"""
+        if hasattr(self, '_auto_save_timer') and self._auto_save_timer:
+            self._auto_save_timer.cancel()
+        
+        # Clean up any active locks
+        if hasattr(self, '_lock_manager'):
+            for lock_key in list(self._lock_manager._active_locks.keys()):
+                try:
+                    lock_handle = self._lock_manager._active_locks[lock_key]
+                    lock_file = self._lock_manager.lock_dir / f"{lock_key}.lock"
+                    self._lock_manager._release_lock(lock_key, lock_handle, lock_file)
+                except Exception as e:
+                    logger.warning("Error cleaning up lock %s during destruction: %s", lock_key, str(e))
 
     def _start_auto_save_timer(self):
         """Start the auto-save timer if interval > 0"""
@@ -442,7 +602,7 @@ class adjust_rt_for_selected_compound(object):
         logger.debug("Buffered note change: %s = '%s' for compound %d", note_type, value, self.compound_idx)
 
     def flush_current_changes(self):
-        """Write all buffered changes for current compound to database with rollback"""
+        """Write all buffered changes for current compound to database with proper locking."""
         if not self.enable_edit:
             return
             
@@ -453,6 +613,40 @@ class adjust_rt_for_selected_compound(object):
         logger.debug("Flushing changes for compound %d: RT changes=%s, note changes=%s", 
                     self.compound_idx, list(changes['rt'].keys()), list(changes['notes'].keys()))
         
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                # Use compound-specific lock for granular concurrency
+                with self._lock_manager.compound_lock(self._atlas_id, self.compound_idx, timeout=15.0):
+                    self._flush_changes_to_database(changes)
+                    # Success - clear current changes
+                    self._current_compound_changes = {'rt': {}, 'notes': {}}
+                    logger.debug("Successfully flushed all changes for compound %d", self.compound_idx)
+                    return
+                    
+            except TimeoutError:
+                retry_count += 1
+                logger.warning("Lock timeout for compound %d, attempt %d of %d", 
+                             self.compound_idx, retry_count, max_retries)
+                if retry_count < max_retries:
+                    # Exponential backoff with jitter
+                    wait_time = (2 ** retry_count) + random.uniform(0, 1)
+                    time.sleep(wait_time)
+                
+            except Exception as e:
+                logger.error("Database operation failed for compound %d: %s", self.compound_idx, str(e))
+                # For non-timeout errors, don't retry immediately
+                break
+        
+        # If we get here, all retries failed
+        logger.error("Failed to flush changes for compound %d after %d attempts", 
+                    self.compound_idx, max_retries)
+        raise RuntimeError(f"Failed to save changes for compound {self.compound_idx} after {max_retries} attempts")
+
+    def _flush_changes_to_database(self, changes: Dict[str, Dict]):
+        """Internal method to perform actual database writes (called within lock context)."""
         # Store original values for rollback
         original_rt_values = {}
         original_note_values = {}
@@ -490,16 +684,9 @@ class adjust_rt_for_selected_compound(object):
                     self._rollback_note_changes(applied_note_changes, original_note_values)
                     raise
                 
-            # Success - clear current changes and reset buffer size
-            self._current_compound_changes = {'rt': {}, 'notes': {}}
-            self._buffer_size = len(self._pending_changes)
-            logger.debug("Successfully flushed all changes for compound %d", self.compound_idx)
-            
         except Exception as e:
             logger.error("Flush failed for compound %d, changes rolled back: %s", self.compound_idx, str(e))
-            # Changes have already been rolled back in the except blocks above
-            # Keep the buffered changes so user can try again
-            raise RuntimeError(f"Failed to save changes for compound {self.compound_idx}: {str(e)}")
+            raise
 
     def _rollback_rt_changes(self, applied_changes: List[str], original_values: Dict[str, float]):
         """Rollback RT changes that were successfully applied"""
@@ -520,7 +707,7 @@ class adjust_rt_for_selected_compound(object):
                 logger.error("Failed to rollback note change %s: %s", note_type, str(rollback_error))
 
     def _switch_to_compound(self, new_compound_idx: int):
-        """Handle switching to a new compound with change management"""
+        """Handle switching to a new compound with change management and locking."""
         if new_compound_idx == self.compound_idx:
             return
             
@@ -530,8 +717,13 @@ class adjust_rt_for_selected_compound(object):
         if self._current_compound_changes['rt'] or self._current_compound_changes['notes']:
             self._pending_changes[self.compound_idx] = deepcopy(self._current_compound_changes)
             
-        # Flush changes
-        self.flush_current_changes()
+        # Flush changes with proper locking
+        try:
+            self.flush_current_changes()
+        except Exception as e:
+            logger.error("Failed to flush changes when switching compounds: %s", str(e))
+            # Continue with compound switch even if flush failed
+            # The changes are still in pending_changes and can be retried later
             
         # Update compound index and reset current changes
         self.compound_idx = new_compound_idx
@@ -541,6 +733,48 @@ class adjust_rt_for_selected_compound(object):
         if new_compound_idx in self._pending_changes:
             self._current_compound_changes = deepcopy(self._pending_changes[new_compound_idx])
             del self._pending_changes[new_compound_idx]
+
+    def force_unlock_compound(self, compound_idx: int = None):
+        """Emergency method to forcibly remove locks for a compound (use with caution)."""
+        if compound_idx is None:
+            compound_idx = self.compound_idx
+            
+        lock_file = self._lock_manager._get_lock_file(self._atlas_id, compound_idx)
+        try:
+            if lock_file.exists():
+                lock_file.unlink()
+                logger.warning("Forcibly removed lock file for compound %d: %s", compound_idx, lock_file)
+        except Exception as e:
+            logger.error("Failed to remove lock file %s: %s", lock_file, str(e))
+
+    def get_lock_status(self) -> Dict[str, Any]:
+        """Get information about current locks for debugging."""
+        status = {
+            'atlas_id': self._atlas_id,
+            'current_compound': self.compound_idx,
+            'active_locks': list(self._lock_manager._active_locks.keys()),
+            'lock_dir': str(self._lock_manager.lock_dir),
+            'existing_lock_files': []
+        }
+        
+        try:
+            for lock_file in self._lock_manager.lock_dir.glob("*.lock"):
+                try:
+                    with open(lock_file, 'r') as f:
+                        lock_info = json.loads(f.read())
+                    status['existing_lock_files'].append({
+                        'file': str(lock_file),
+                        'info': lock_info
+                    })
+                except Exception:
+                    status['existing_lock_files'].append({
+                        'file': str(lock_file),
+                        'info': 'Could not read lock info'
+                    })
+        except Exception as e:
+            status['lock_dir_error'] = str(e)
+            
+        return status
 
     def suggest_rt_bounds(self):
         """Calculate suggested RT bounds using peak detection on the EIC data"""
@@ -1555,11 +1789,6 @@ class adjust_rt_for_selected_compound(object):
                 logger.debug("Adding similar compound with index %d and min %d, max %d.",
                             out[-1]["index"], out[-1]["rt"].rt_min, out[-1]["rt"].rt_max)
         return out
-
-    def __del__(self):
-        """Clean up auto-save timer when object is destroyed"""
-        if hasattr(self, '_auto_save_timer') and self._auto_save_timer:
-            self._auto_save_timer.cancel()
 
     @property
     def current_id(self):
