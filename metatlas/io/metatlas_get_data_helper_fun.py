@@ -175,7 +175,7 @@ def compare_EIC_to_BPC_for_file(metatlas_dataset,file_index,yscale = 'linear'):
 
 def get_data_for_atlas_df_and_file(input_tuple):
     my_file, group, atlas_df, atlas = input_tuple[:4]
-    logger.debug(print(atlas_df.to_string()))
+    #logger.debug(print(atlas_df.to_string()))
     extra_time = input_tuple[4] if len(input_tuple) >= 5 else 0.5
     extra_mz = input_tuple[5] if len(input_tuple) == 6 else 0.0
     if atlas.compound_identifications == []:
