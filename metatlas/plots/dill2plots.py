@@ -259,6 +259,8 @@ class LayoutPosition(Enum):
     ID_NOTE = 1
     INFO = 2
 
+ATLAS_CREATION_LOCK = threading.Lock()
+
 class DatabaseLockManager:
     """Manages file-based locking for database operations with retry logic."""
     
@@ -3786,12 +3788,55 @@ def _get_dataframe(filename_or_df=None, filetype=None, sheetname=None):
 
 
 def get_compounds(row):
-    # currently, all copies of the molecule are returned.  The 0 is the most recent one.
-    results = (None if pd.isnull(row.inchi_key) else
-               metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*'))
-    compound = results[0] if results else metob.Compound()
-    compound.name = row.label if isinstance(row.label, str) and len(row.label) > 0 else 'no label'
-    return [compound]
+    """
+    Retrieve compounds with retry logic and database locking to prevent read collisions.
+    """
+    max_retries = 3
+    retry_count = 0
+    
+    if pd.isnull(row.inchi_key):
+        compound = metob.Compound()
+        compound.name = row.label if isinstance(row.label, str) and len(row.label) > 0 else 'no label'
+        return [compound]
+    
+    # Use global lock to serialize database reads during atlas creation
+    with ATLAS_CREATION_LOCK:
+        while retry_count < max_retries:
+            try:
+                results = metob.retrieve('Compounds', inchi_key=row.inchi_key, username='*')
+                compound = results[0] if results else metob.Compound()
+                compound.name = row.label if isinstance(row.label, str) and len(row.label) > 0 else 'no label'
+                
+                # Verify we got actual data, not an empty compound
+                if results and hasattr(compound, 'inchi_key') and compound.inchi_key:
+                    logger.debug("Successfully retrieved compound for inchi_key: %s", row.inchi_key)
+                    return [compound]
+                elif not results:
+                    logger.warning("No compound found for inchi_key: %s", row.inchi_key)
+                    return [compound]  # Return empty compound for non-existent keys
+                else:
+                    # Got a result but it's incomplete - this indicates a read collision
+                    logger.warning("Incomplete compound data for inchi_key: %s, retrying...", row.inchi_key)
+                    raise Exception("Incomplete compound data retrieved")
+                    
+            except Exception as e:
+                retry_count += 1
+                logger.warning("Database read failed for inchi_key %s, attempt %d of %d: %s", 
+                             row.inchi_key, retry_count, max_retries, str(e))
+                if retry_count < max_retries:
+                    # Add jitter to prevent thundering herd
+                    time.sleep(random.uniform(0.1, 0.5))
+                else:
+                    logger.error("Failed to retrieve compound after %d attempts for inchi_key: %s", 
+                               max_retries, row.inchi_key)
+                    compound = metob.Compound()
+                    compound.name = row.label if isinstance(row.label, str) and len(row.label) > 0 else 'no label'
+                    return [compound]
+        
+        # Should never reach here, but just in case
+        compound = metob.Compound()
+        compound.name = row.label if isinstance(row.label, str) and len(row.label) > 0 else 'no label'
+        return [compound]
 
 
 def get_compound_identification(row, polarity, mz_tolerance):
