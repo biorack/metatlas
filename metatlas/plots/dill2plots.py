@@ -418,7 +418,8 @@ class adjust_rt_for_selected_compound(object):
                 peak_flags=None,
                 msms_flags=None,
                 adjustable_rt_peak=False,
-                display_suggested_rt_bounds: bool = True
+                display_suggested_rt_bounds: bool = True,
+                similar_compounds_highlighting: bool = True
                 ) -> None:
         """
         INPUTS:
@@ -497,7 +498,7 @@ class adjust_rt_for_selected_compound(object):
         self.hit_ctr = 0
         self.msms_zoom_factor = 1
         self.match_idx = None
-        self.enable_similar_compounds = True
+        self.enable_similar_compounds = similar_compounds_highlighting
         self.similar_compounds = []
         self.in_switch_event = True
         self.instruction_set = InstructionSet(INSTRUCTIONS_PATH)
@@ -1018,8 +1019,8 @@ class adjust_rt_for_selected_compound(object):
 
     def set_plot_data(self):
         logger.debug('Starting replot')
-        self.enable_similar_compounds = True
-        self.similar_compounds = self.get_similar_compounds()
+        if self.enable_similar_compounds:
+            self.similar_compounds = self.get_similar_compounds()
         self._suggested_bounds = None
         if hasattr(self, '_suggestion_lines'):
             self._suggestion_lines = []
@@ -1079,7 +1080,8 @@ class adjust_rt_for_selected_compound(object):
         self.lin_log_radio = self.create_radio_buttons(self.lin_log_ax, ('linear', 'log'),
                                                     self.set_lin_log, 0.07, active_idx=idx)
         self.rt_bounds()
-        self.highlight_similar_compounds()
+        if self.enable_similar_compounds:
+            self.highlight_similar_compounds()
         if self.display_suggested_rt_bounds:
             self.show_suggested_bounds()
         logger.debug('Finished eic_plot')
@@ -1429,7 +1431,8 @@ class adjust_rt_for_selected_compound(object):
         if (not was_remove) and now_remove:
             self.unhighlight_similar_compounds()
         if was_remove and (not now_remove):
-            self.highlight_similar_compounds()
+            if self.enable_similar_compounds:
+                self.highlight_similar_compounds()
 
     def set_msms_flag(self, label):
         self.set_flag('ms2_notes', label)
@@ -1558,10 +1561,11 @@ class adjust_rt_for_selected_compound(object):
             self.msms_plot()
         elif event.key == 'v':
             self.enable_similar_compounds = not self.enable_similar_compounds
-            self.similar_compounds = self.get_similar_compounds()
             if self.enable_similar_compounds:
+                self.similar_compounds = self.get_similar_compounds()
                 self.highlight_similar_compounds()
             else:
+                self.similar_compounds = self.get_similar_compounds()
                 self.unhighlight_similar_compounds()
             self.msms_plot()
         elif event.key == 'm':
@@ -1692,8 +1696,9 @@ class adjust_rt_for_selected_compound(object):
             self.msms_zoom_factor = 1
             self.filter_hits()
             # Use updated similar compounds that account for buffered RT values
-            self.similar_compounds = self.get_similar_compounds()
-            self.highlight_similar_compounds()
+            if self.enable_similar_compounds:
+                self.similar_compounds = self.get_similar_compounds()
+                self.highlight_similar_compounds()
             self.msms_plot()
         self.fig.canvas.draw_idle()
 
