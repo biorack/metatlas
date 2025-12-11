@@ -27,6 +27,7 @@ from metatlas.plots.tic import save_sample_tic_pdf
 
 logger = logging.getLogger(__name__)
 
+Max = namedtuple("Max", ["file_idx", "pre_intensity_idx", "pre_intensity", "precursor_mz"])
 
 def write_atlas_to_csv(metatlas_dataset, overwrite=False):
     """Save atlas as csv file. Will not overwrite existing file unless overwrite is True"""
@@ -216,10 +217,6 @@ def write_metrics_and_boxplots(metatlas_dataset, analysis_parameters, overwrite=
                     logy=logy,
                 )
 
-
-Max = namedtuple("Max", ["file_idx", "pre_intensity_idx", "pre_intensity", "precursor_mz"])
-
-
 def write_msms_fragment_ions(
     data, intensity_fractions=[0.00001, 0.01], min_mz=0, max_mz_offset=5, scale_intensity=1e5, overwrite=False
 ):
@@ -233,8 +230,10 @@ def write_msms_fragment_ions(
     """
     fragment_ion_outputs = {intensity_fractions[0]: {}, intensity_fractions[1]: {}}
     for compound_idx, _ in enumerate(data[0]):
-        max_vars = get_max_precursor_intensity(data, compound_idx)
-        if max_vars.file_idx is not None:
+        max_vars_list = get_max_precursor_intensity(data, compound_idx)
+        
+        # Process each of the top N precursors for this compound
+        for rank, max_vars in enumerate(max_vars_list, start=1):
             spectra_string_dict = get_spectra_strings(
                 data,
                 max_vars.file_idx,
@@ -246,37 +245,32 @@ def write_msms_fragment_ions(
                 scale_intensity,
             )
             for key, spectra_dict in spectra_string_dict.items():
-                fragment_ion_outputs[key][compound_idx] = spectra_dict
+                # Create unique key combining compound_idx and rank
+                output_key = f"{compound_idx}_rank{rank}"
+                # Add rank information to the spectra_dict
+                spectra_dict["rank"] = rank
+                fragment_ion_outputs[key][output_key] = spectra_dict
 
     for key, output_dict in fragment_ion_outputs.items():
         output_df = pd.DataFrame.from_dict(output_dict, orient='index')
+        # Sort by compound_idx and rank for better readability
+        if not output_df.empty:
+            output_df = output_df.sort_values(by=['compound_idx', 'rank'])
         output_path = data.ids.output_dir / f"spectra_{key}pct_{int(min_mz)}cut.csv"
         export_dataframe_die_on_diff(output_df, output_path, f"MSMS fragment ions, {key}pct cutoff", overwrite=overwrite, float_format="%.8e", header=True)
 
     return
-    #return full_out_df
 
-    # Write two dataframes with different mz significant figures
-    # if "mz4" in out_df.columns:
-    #     out_df_mz2 = out_df.drop(columns=["mz4"])
-    #     out_df_mz2 = out_df_mz2.rename(columns={"mz2": "mz"})
-    #     path = data.ids.output_dir / f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut_mz2.csv"
-    #     export_dataframe_die_on_diff(out_df_mz2, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
-    # if "mz2" in out_df.columns:
-    #     out_df_mz4 = out_df.drop(columns=["mz2"])
-    #     out_df_mz4 = out_df_mz4.rename(columns={"mz4": "mz"})
-    #     path = data.ids.output_dir / f"spectra_{intensity_fraction:.2f}pct_{int(min_mz)}cut_mz4.csv"
-    #     export_dataframe_die_on_diff(out_df_mz4, path, "MSMS fragment ions", overwrite=overwrite, float_format="%.8e")
-
-def get_max_precursor_intensity(data, compound_idx):
+def get_max_precursor_intensity(data, compound_idx, top_n=3):
     """
     inputs:
         data: metatlas_dataset
         compound_idx: index of compound to search over
-    returns Max object with file index of highest precursor intensity, associated intensity value, and mz
+        top_n: number of top precursor intensities to return (default: 3)
+    returns list of Max objects sorted by intensity (highest first), containing file index, 
+            precursor intensity index, intensity value, and mz for top N hits
     """
-    max_pre_intensity = max_precursor_mz = 0
-    max_file_idx = max_pre_intensity_idx = None
+    precursor_list = []
     for file_idx, sample in enumerate(data):
         try:
             msms = sample[compound_idx]["data"]["msms"]["data"]
@@ -287,14 +281,16 @@ def get_max_precursor_intensity(data, compound_idx):
             precursor_mz = msms["precursor_MZ"][pre_intensity_idx]
             rts = msms["rt"][pre_intensity_idx]
             rt_ref = sample[compound_idx]["identification"].rt_references[-1]
-            if pre_intensity > max_pre_intensity and rt_ref.rt_min < rts < rt_ref.rt_max:
-                max_file_idx = file_idx
-                max_pre_intensity_idx = pre_intensity_idx
-                max_pre_intensity = pre_intensity
-                max_precursor_mz = precursor_mz
+            if rt_ref.rt_min < rts < rt_ref.rt_max:
+                precursor_list.append(
+                    Max(file_idx, pre_intensity_idx, pre_intensity, precursor_mz)
+                )
         except (AttributeError, IndexError, KeyError):
             pass
-    return Max(max_file_idx, max_pre_intensity_idx, max_pre_intensity, max_precursor_mz)
+    
+    # Sort by intensity (descending) and return top N
+    precursor_list.sort(key=lambda x: x.pre_intensity, reverse=True)
+    return precursor_list[:top_n]
 
 
 def get_spectra_strings(
