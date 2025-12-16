@@ -2615,6 +2615,8 @@ def update_new_untargeted_tasks(
                 if polarity not in polarity_list:
                     lims_untargeted_table_updater[metadata_header] = ""
                     lims_untargeted_table_updater[file_count_header] = 0
+                    lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
+                    lims_untargeted_table_updater[fbmn_status_header] = '12 not relevant'
                 else:
                     logging.info(tab_print("Writing MZmine submission input files...",2))
                     if os.path.exists(basepath):
@@ -2685,6 +2687,7 @@ def update_new_untargeted_tasks(
 
                     if lims_untargeted_table_updater[file_count_header] is None or lims_untargeted_table_updater[file_count_header] == "NaN":
                         lims_untargeted_table_updater[file_count_header] = 0
+                        lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
                     if lims_untargeted_table_updater[mzmine_status_header] == "NaN":
                         lims_untargeted_table_updater[mzmine_status_header] = '12 not relevant'
                     if lims_untargeted_table_updater[fbmn_status_header] == "NaN":
