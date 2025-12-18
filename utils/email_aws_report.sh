@@ -38,10 +38,23 @@ FROM_ADDR="bkieft@lbl.gov"
 epoch_from_log_line() {
     # $1 = line
     local trimmed_line="${1#"${1%%[![:space:]]*}"}"
-    # shellcheck disable=SC2001
-    local timestamp=$(echo "$trimmed_line" | sed -E 's/^([A-Za-z]{3}) ([0-9]{1,2}) ([0-9]{2}:[0-9]{2}:[0-9]{2}).*/\1 \2 \3/')
-    # Use GNU date – it understands the three‑letter month.
-    date -d "$timestamp" +%s
+    
+    # Extract the LAST valid timestamp pattern (handles repeated timestamps)
+    local timestamp
+    timestamp=$(echo "$trimmed_line" | grep -oE '[A-Za-z]{3} [0-9]{1,2} [0-9]{2}:[0-9]{2}:[0-9]{2}' | tail -n 1)
+    
+    # If no valid timestamp found, return empty
+    if [[ -z $timestamp ]]; then
+        return 1
+    fi
+    
+    # Try to convert to epoch, return empty on failure
+    local epoch
+    if ! epoch=$(date -d "$timestamp" +%s 2>/dev/null); then
+        return 1
+    fi
+    
+    echo "$epoch"
 }
 
 # ---------------------- compute cutoff epoch -------------------------
@@ -56,7 +69,11 @@ while IFS= read -r line; do
     # Skip empty lines
     [[ -z $line ]] && continue
 
-    line_epoch=$(epoch_from_log_line "$line") || continue
+    # Try to extract epoch from line
+    if ! line_epoch=$(epoch_from_log_line "$line"); then
+        printf "Failed to parse date from line: %s\n" "$line"
+        continue
+    fi
 
     if (( line_epoch < CUTOFF_EPOCH )); then
         continue
@@ -67,7 +84,7 @@ while IFS= read -r line; do
     elif [[ $line == *"error:"* ]]; then
         error_lines+=("$line")
     fi
-done < <(tail -n 20000 "$LOGFILE" | grep "\.raw")
+done < <(tail -n 20000 "$LOGFILE" | grep -E "\.raw|error")
 
 # ----------------------- build the report ----------------------------
 NUM_UPLOADS=${#upload_lines[@]}
