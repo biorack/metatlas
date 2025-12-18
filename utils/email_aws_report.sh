@@ -37,8 +37,9 @@ FROM_ADDR="bkieft@lbl.gov"
 # ----------------------------------------------------------------------
 epoch_from_log_line() {
     # $1 = line
+    local trimmed_line="${1#"${1%%[![:space:]]*}"}"
     # shellcheck disable=SC2001
-    local timestamp=$(echo "$1" | sed -E 's/^([A-Za-z]{3}) ([0-9]{1,2}) ([0-9]{2}:[0-9]{2}:[0-9]{2}).*/\1 \2 \3/')
+    local timestamp=$(echo "$trimmed_line" | sed -E 's/^([A-Za-z]{3}) ([0-9]{1,2}) ([0-9]{2}:[0-9]{2}:[0-9]{2}).*/\1 \2 \3/')
     # Use GNU date – it understands the three‑letter month.
     date -d "$timestamp" +%s
 }
@@ -66,7 +67,7 @@ while IFS= read -r line; do
     elif [[ $line == *"error:"* ]]; then
         error_lines+=("$line")
     fi
-done < <(tail -n 20000 "$LOGFILE")
+done < <(tail -n 20000 "$LOGFILE" | grep "\.raw")
 
 # ----------------------- build the report ----------------------------
 NUM_UPLOADS=${#upload_lines[@]}
