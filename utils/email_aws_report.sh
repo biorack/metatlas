@@ -66,7 +66,7 @@ while IFS= read -r line; do
     elif [[ $line == *"error:"* ]]; then
         error_lines+=("$line")
     fi
-done < "$LOGFILE"
+done < <(tail -n 20000 "$LOGFILE")
 
 # ----------------------- build the report ----------------------------
 NUM_UPLOADS=${#upload_lines[@]}
@@ -93,5 +93,5 @@ printf "%s\n" "$report_body" |
     mailx -s "$subject" -R "$FROM_ADDR" $addresses
 
 # --------------------------- final log -------------------------------
-printf "INFO: %s report for %s (last %s days) – %s uploaded, %s errors – emailed to %s\n" \
-    "$DATASET" "$(date '+%Y-%m-%d')" "$DAYS_BACK" "$NUM_UPLOADS" "$NUM_ERRORS" "$addresses" | ts
+# printf "INFO: %s report for %s (last %s days) – %s uploaded, %s errors – emailed to %s\n" \
+#     "$DATASET" "$(date '+%Y-%m-%d')" "$DAYS_BACK" "$NUM_UPLOADS" "$NUM_ERRORS" "$addresses" | ts
