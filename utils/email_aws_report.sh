@@ -102,8 +102,8 @@ report_body=$(
 # -------------------------- email handling --------------------------
 subject="${DATASET} sync report: ${NUM_UPLOADS} uploaded, ${NUM_ERRORS} errors"
 
-# Load recipient list (space‑separated, one per line)
-addresses=$(tr '\n' ' ' < "$ADDRESS_FILE")
+# Load recipient list (space‑separated, one per line), skip commented lines
+addresses=$(grep -v '^[[:space:]]*#' "$ADDRESS_FILE" | grep -v '^[[:space:]]*$' | tr '\n' ' ')
 
 # Send the e‑mail.  Using `mailx -s "$subject" -R "$FROM_ADDR" $addresses`
 printf '%s\n' "$report_body" |
