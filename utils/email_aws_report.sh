@@ -110,5 +110,5 @@ printf '%s\n' "$report_body" |
     mailx -s "$subject" -R "$FROM_ADDR" $addresses
 
 # --------------------------- final log -------------------------------
-# printf "INFO: %s report for %s (last %s days) – %s uploaded, %s errors – emailed to %s\n" \
-#     "$DATASET" "$(date '+%Y-%m-%d')" "$DAYS_BACK" "$NUM_UPLOADS" "$NUM_ERRORS" "$addresses" | ts
+printf "INFO: %s report for %s (last %s days) - %s uploaded, %s errors - emailed to %s\n" \
+    "$DATASET" "$(date '+%Y-%m-%d')" "$DAYS_BACK" "$NUM_UPLOADS" "$NUM_ERRORS" "$addresses" | ts
