@@ -94,7 +94,6 @@ NUM_TOTAL=$(( NUM_UPLOADS + NUM_ERRORS ))
 summary_line="uploaded=$NUM_UPLOADS errored=$NUM_ERRORS total=$NUM_TOTAL"
 report_body=$(
     printf "AWS S3 sync report for %s (last %s days)\n" "$DATASET" "$DAYS_BACK"
-    printf "-----------------------------------------------------\n"
     printf "Uploads   : %s\n" "$NUM_UPLOADS"
     printf "Errors    : %s\n" "$NUM_ERRORS"
     printf "Total syncs examined : %s\n\n" "$NUM_TOTAL"
@@ -107,7 +106,7 @@ subject="${DATASET} sync report: ${NUM_UPLOADS} uploaded, ${NUM_ERRORS} errors"
 addresses=$(tr '\n' ' ' < "$ADDRESS_FILE")
 
 # Send the e‑mail.  Using `mailx -s "$subject" -R "$FROM_ADDR" $addresses`
-printf "%s\n" "$report_body" |
+printf '%s\n' "$report_body" |
     mailx -s "$subject" -R "$FROM_ADDR" $addresses
 
 # --------------------------- final log -------------------------------
