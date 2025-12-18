@@ -49,8 +49,8 @@ NOW_EPOCH=$(date +%s)
 CUTOFF_EPOCH=$(( NOW_EPOCH - DAYS_BACK*86400 ))
 
 # --------------------------- scan log --------------------------------
-declare -a upload_lines
-declare -a error_lines
+declare -a upload_lines=()
+declare -a error_lines=()
 
 while IFS= read -r line; do
     # Skip empty lines
