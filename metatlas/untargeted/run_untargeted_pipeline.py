@@ -38,7 +38,8 @@ def main():
         raw_data_subdir=args.raw_data_subdir,
         skip_blank_filter=args.skip_blank_filter,
         fps_files_only=args.fps_files_only,
-        project_tag=args.project_tag
+        project_tag=args.project_tag,
+        force_reprocess=args.force_reprocess
     )
 
     ##### Step 2/7: Checking and updating status of MZmine jobs in LIMS
@@ -145,6 +146,7 @@ def add_arguments(parser):
     parser.add_argument('--raw_data_dir', type=str, default='/global/cfs/cdirs/metatlas/raw_data', help='Path to the raw data directory')
     parser.add_argument('--raw_data_subdir', type=str, default=None, help='Name of the raw_data subdirectory (e.g., jgi, egsb) to use for tasks that require raw data files. If not given, will try to infer from the second field of the project name.')
     parser.add_argument('--overwrite_fbmn', action='store_true', help='Overwrite existing fbmn results files that are already in the output directory')
+    parser.add_argument('--force_reprocess', action='store_true', help='Force reprocessing of projects in --direct_input regardless of their current status in LIMS. Will recreate directories and metadata files.')
     ## Step 1 only
     parser.add_argument('--validate_names', action='store_true', help='Validate filenames and project names')
     parser.add_argument('--custom_mzmine_batch_params', type=str, default=None, help='Full path to custom mzmine batch parameters xml. If using FPS only mode, supply a csv list of pos and neg parameter files')

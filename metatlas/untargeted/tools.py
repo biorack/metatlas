@@ -2442,7 +2442,8 @@ def update_new_untargeted_tasks(
     raw_data_subdir: Optional[str] = None,
     skip_blank_filter: Optional[bool] = False,
     fps_files_only: Optional[bool] = False,
-    project_tag: Optional[str] = None
+    project_tag: Optional[str] = None,
+    force_reprocess: Optional[bool] = False
 ) -> None:
     
     if skip_sync:
@@ -2507,14 +2508,26 @@ def update_new_untargeted_tasks(
     if project_tag is not None:
         # Convert base project names to effective names for comparison with database
         effective_folders = [get_effective_project_name(folder, project_tag) for folder in all_folders]
-        new_effective_folders = np.setdiff1d(effective_folders, folders_in_tasks)
+        
+        if force_reprocess and direct_input is not None:
+            # For force reprocess, use the direct_input projects (already converted to effective names above)
+            new_effective_folders = effective_folders
+            logging.info(tab_print(f"Force reprocessing {len(new_effective_folders)} projects regardless of LIMS status", 2))
+        else:
+            new_effective_folders = np.setdiff1d(effective_folders, folders_in_tasks)
+        
         # Convert back to base names for raw data processing
         new_folders = [get_base_project_name(folder, project_tag) for folder in new_effective_folders]
         
         if new_effective_folders:
             logging.info(tab_print(f"Creating tagged project entries: {new_effective_folders}", 2))
     else:
-        new_folders = np.setdiff1d(all_folders, folders_in_tasks)
+        if force_reprocess and direct_input is not None:
+            # For force reprocess, use all folders from direct_input
+            new_folders = all_folders
+            logging.info(tab_print(f"Force reprocessing {len(new_folders)} projects regardless of LIMS status", 2))
+        else:
+            new_folders = np.setdiff1d(all_folders, folders_in_tasks)
     
     new_folders = list(set(new_folders) & set(time_old_folders) & set(dirs_with_m2_files))
     if len(new_folders) == 0:
@@ -2559,8 +2572,8 @@ def update_new_untargeted_tasks(
     if len(new_project_info_list_subset)>0:
         lims_untargeted_list = []
         for new_project_dict in new_project_info_list_subset:
-            base_project_name = new_project_dict['parent_dir']  # This is the base name for raw data
-            effective_project_name = get_effective_project_name(base_project_name, project_tag)  # This goes in database
+            base_project_name = new_project_dict['parent_dir']
+            effective_project_name = get_effective_project_name(base_project_name, project_tag)
             polarity_list = new_project_dict['polarities']
             
             logging.info(tab_print("Working on %s (effective name: %s)..."%(base_project_name, effective_project_name), 1))
@@ -2602,7 +2615,6 @@ def update_new_untargeted_tasks(
 
             for polarity in ['positive','negative']:
                 polarity_short = polarity[:3]
-                # Use EFFECTIVE project name for output directories and file paths
                 parent_dir = '%s_%s'%(effective_project_name, polarity)
                 basepath = os.path.join(output_dir, parent_dir)
                 metadata_header = f"{polarity_short}_metadata_file"
@@ -2620,8 +2632,13 @@ def update_new_untargeted_tasks(
                 else:
                     logging.info(tab_print("Writing MZmine submission input files...",2))
                     if os.path.exists(basepath):
-                        logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 3))
-                        continue
+                        if force_reprocess:
+                            logging.info(tab_print("Force reprocess enabled: Removing existing directory %s..."%(basepath), 3))
+                            shutil.rmtree(basepath)
+                            os.mkdir(basepath)
+                        else:
+                            logging.warning(tab_print("Warning! Directory %s already exists. Not writing new metadata or MZmine submission files..."%(basepath), 3))
+                            continue
                     else:
                         os.mkdir(basepath)
                     try:
