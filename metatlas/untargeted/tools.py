@@ -1838,6 +1838,7 @@ def update_mzmine_status_in_untargeted_tasks(
                 mgf_filename = os.path.join(pathname,'%s_%s.mgf'%(effective_project_name,polarity))
                 metadata_filename = os.path.join(pathname,'%s_%s_metadata.tab'%(effective_project_name,polarity))
                 mzmine_output_filename = os.path.join(pathname,'%s_%s-mzmine.out'%(effective_project_name,polarity))
+                mzmine_error_file = os.path.join(pathname,'%s_%s-mzmine.err'%(effective_project_name,polarity))
 
                 if direct_input is None:
                     if row['%s_%s_status'%(tasktype,polarity_short)] == '12 not relevant' or row['%s_%s_status'%(tasktype,polarity_short)] == '07 complete':
@@ -1876,17 +1877,26 @@ def update_mzmine_status_in_untargeted_tasks(
                     except:
                         logging.info(tab_print("Note: Could not change group ownership of %s"%(pathname), 2))
 
-                else:
-                    if row['%s_%s_status'%(tasktype,polarity_short)] == '04 running': # verify that it's actually still running, else change to error
-                        if os.path.isfile(job_id_filename):
-                            with open(job_id_filename,'r') as fid:
-                                job_id = fid.read().strip().split('=')[-1]
-                                sqs_cmd = 'squeue --job %s | wc -l'%job_id
-                                sqs_output = subprocess.run(sqs_cmd, shell=True, capture_output=True, text=True)
-                                if int(sqs_output.stdout.strip()) != 2: # job is not running
-                                    logging.critical(tab_print("Warning! MZmine status for %s mode of %s is ['04 running'] but no job is running at NERSC. Changing to ['09 error']."%(polarity, effective_project_name), 1))
-                                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'    
+                else: # If there are no results files, check error log to see if job crashed
+                    if os.path.isfile(mzmine_error_file):
+                        with open(mzmine_error_file,'r') as fid:
+                            lines = fid.readlines()
+                            if len(lines) > 0:
+                                last_line = lines[-1]
+                                if 'error' in last_line.lower() or 'cancelled' in last_line.lower() or 'kill' in last_line.lower():
+                                    logging.critical(tab_print("Warning! MZmine error file indicates a crash for %s mode. Setting status to ['09 error']."%(polarity), 2))
+                                    df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'
                                     index_list.append(i)
+                    # if row['%s_%s_status'%(tasktype,polarity_short)] == '04 running': # verify that it's actually still running, else change to error
+                    #     if os.path.isfile(job_id_filename):
+                    #         with open(job_id_filename,'r') as fid:
+                    #             job_id = fid.read().strip().split('=')[-1]
+                    #             sqs_cmd = 'squeue --job %s | wc -l'%job_id
+                    #             sqs_output = subprocess.run(sqs_cmd, shell=True, capture_output=True, text=True)
+                    #             if int(sqs_output.stdout.strip()) != 2: # job is not running
+                    #                 logging.critical(tab_print("Warning! MZmine status for %s mode of %s is ['04 running'] but no job is running at NERSC. Changing to ['09 error']."%(polarity, effective_project_name), 1))
+                    #                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '09 error'    
+                    #                 index_list.append(i)
         if len(index_list) > 0:
             logging.info(tab_print("Updating statuses in LIMS table for %s projects..."%(len(index_list)), 1))
             index_list = list(set(index_list))
