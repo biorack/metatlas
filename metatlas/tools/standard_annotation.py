@@ -153,7 +153,6 @@ def get_file_polarity(lcmsrun_path: str) -> str:
     Returns:
         str: Polarity extracted from the file name.
     """
-    print(f"Extracting polarity from LCMS run file: {lcmsrun_path}")
     lcmsrun_basename = os.path.basename(lcmsrun_path)
     lcmsrun_polarity = lcmsrun_basename.split('_')[9]
     return lcmsrun_polarity
