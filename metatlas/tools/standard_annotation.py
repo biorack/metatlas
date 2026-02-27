@@ -140,7 +140,7 @@ def is_matching_group(lcmsrun_path: str, group: str) -> bool:
     """
     lcmsrun_basename = os.path.basename(lcmsrun_path)
     lcmsrun_group = lcmsrun_basename.split('_')[12]
-    return lcmsrun_group == group
+    return lcmsrun_group.lower() == group.lower()
 
 
 def get_file_polarity(lcmsrun_path: str) -> str:
@@ -153,6 +153,7 @@ def get_file_polarity(lcmsrun_path: str) -> str:
     Returns:
         str: Polarity extracted from the file name.
     """
+    print(f"Extracting polarity from LCMS run file: {lcmsrun_path}")
     lcmsrun_basename = os.path.basename(lcmsrun_path)
     lcmsrun_polarity = lcmsrun_basename.split('_')[9]
     return lcmsrun_polarity
@@ -225,6 +226,7 @@ def build_adduct_annotated_table(
                 print(f"Error: Cannot get exact mass for row with missing SMILES and InChI (compound_name: {row.get('compound_name', 'unknown')})")
                 return np.nan
         standard_lcmsruns_table['exact_mass'] = standard_lcmsruns_table.apply(get_exact_mass, axis=1)
+    standard_lcmsruns_table.to_csv("/pscratch/sd/b/bkieft/standards_annotation/standards_runs/poulin/debug_exact_mass_calculation.csv", index=False)
     standard_lcmsruns_table['polarity'] = standard_lcmsruns_table.apply(lambda row: get_file_polarity(row.standard_lcmsrun), axis=1)
     standard_lcmsruns_table['all_adducts'] = standard_lcmsruns_table[['exact_mass', 'polarity']].apply(lambda row: calc_all_adducts(row.exact_mass, row.polarity, include_adducts), axis=1)
     standard_lcmsruns_table = standard_lcmsruns_table.explode('all_adducts').reset_index(drop=True).rename(columns={'all_adducts': 'adduct_data'})
