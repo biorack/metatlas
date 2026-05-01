@@ -1201,7 +1201,8 @@ def search_for_matches_in_metatlas_db(
 def search_for_matches_in_msms_refs(
     all_molecules: pd.DataFrame, 
     msms_refs: pd.DataFrame, 
-    check_by_flat: bool = True
+    check_by_flat: bool = True,
+    standalone: bool = False
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Search for matches of molecules in MS/MS reference data using their InChI keys and metadata.
@@ -1210,12 +1211,18 @@ def search_for_matches_in_msms_refs(
         all_molecules (pd.DataFrame): DataFrame containing molecule information with columns such as 'name', 'adduct', 'inchi', and 'inchi_key'.
         msms_refs (pd.DataFrame): DataFrame containing MS/MS reference data.
         check_by_flat (bool, optional): Whether to perform a secondary search using a "flat" InChI key. Defaults to True.
+        standalone (bool, optional): If True, skip MSMS refs matching and treat all molecules as new entries.
+            Use when the output MSMS refs file will be standalone (not appended to existing data). Defaults to False.
 
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame]: 
             - A DataFrame summarizing matches found in the MS/MS references.
             - A DataFrame summarizing compounds not found in the references.
     """
+    if standalone:
+        print("\nStandalone MSMS refs mode: skipping refs match search, all compounds treated as new entries.")
+        return pd.DataFrame(), all_molecules.reset_index(drop=True)
+
     matches_dict: Dict[str, List[Union[str, List[str]]]] = {}
     nonmatches_dict: Dict[str, pd.Series] = {}
 
@@ -1270,18 +1277,20 @@ def search_for_matches_in_msms_refs(
             ]
 
     # Convert matches dictionary to DataFrame
-    matches_df = pd.DataFrame(
-        [(key, value[0], value[1], value[2], value[3]) for key, value in matches_dict.items()],
-        columns=['query_name', 'query_adduct', 'query_matching_criterion', 'query_to_refs', 'msms_match']
-    )
-    nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
-    nonmatches_df.drop_duplicates(inplace=True)
-
-    # if not matches_df.empty:
-    #     print("\nSummary of compounds+adducts already in MSMS refs:\n")
-    #     display(matches_df)
-    if not nonmatches_df.empty:
+    if matches_dict:
+        matches_df = pd.DataFrame(
+            [(key, value[0], value[1], value[2], value[3]) for key, value in matches_dict.items()],
+            columns=['query_name', 'query_adduct', 'query_matching_criterion', 'query_to_refs', 'msms_match']
+        )
+    else:
+        matches_df = pd.DataFrame()
+    if nonmatches_dict:
+        nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
+        nonmatches_df.drop_duplicates(inplace=True)
         print(f"\n{nonmatches_df.shape[0]} compounds+adducts are not yet in MSMS refs. Check notin_msms_refs to view.\n")
+    else:
+        print("\nAll compounds+adducts are already in MSMS refs.\n")
+        nonmatches_df = pd.DataFrame()
 
     return matches_df, nonmatches_df
 
