@@ -1288,7 +1288,8 @@ def search_for_matches_in_msms_refs(
 def search_for_matches_in_atlases(
     query_entries: pd.DataFrame, 
     ema_atlases_dfs: Dict[str, Dict[str, Union[str, pd.DataFrame]]], 
-    cutoff: float = 0.8
+    cutoff: float = 0.8,
+    standalone: bool = False
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Search for matches of query entries in existing atlases using exact and fuzzy matching.
@@ -1298,12 +1299,18 @@ def search_for_matches_in_atlases(
         ema_atlases_dfs (Dict[str, Dict[str, Union[str, pd.DataFrame]]]): Nested dictionary with chromatography and polarity keys, 
             containing atlas DataFrames.
         cutoff (float, optional): Similarity cutoff for fuzzy matching. Defaults to 0.8.
+        standalone (bool, optional): If True, skip atlas matching and treat all query entries as new compounds.
+            Use when the output atlas will be standalone (not appended to existing data). Defaults to False.
 
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame]: 
             - A DataFrame summarizing matches found in the atlases.
             - A DataFrame summarizing compounds not found in the atlases.
     """
+    if standalone:
+        print("\nStandalone atlas mode: skipping atlas match search, all compounds treated as new entries.")
+        return pd.DataFrame(), query_entries.reset_index(drop=True)
+
     matches_dict: Dict[str, List[Union[str, List[str]]]] = {}
     nonmatches_dict: Dict[str, pd.Series] = {}
 
