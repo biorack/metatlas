@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 170" width="100%" height="100%">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@800&amp;display=swap');
+      
+      .logo-text-light { 
+        font-family: 'Orbitron', sans-serif; 
+        font-size: 36px; 
+        font-weight: 800; 
+        fill: #ffffff; 
+      }
+      .logo-subtext-light { 
+        font-family: 'Orbitron', sans-serif; 
+        font-size: 18px; 
+        font-weight: 800;
+        fill: #94a3b8; 
+        letter-spacing: 2px; 
+      }
+    </style>
+  </defs>
+
+    <g transform="translate(0, 0)">
+      <rect x="15" y="15" width="340" height="150" rx="12" fill="#1e293b" stroke="#334155" stroke-width="4"/>
+      <g transform="translate(-15, -60)">
+        <!-- Expanded flat baseline -->
+        <line x1="60" y1="172" x2="340" y2="172" stroke="#475569" stroke-width="4" stroke-linecap="round"/>
+        
+        <!-- Outer A (Amber) shifted to x=260 center to make room for text -->
+        <path d="M 60,162 
+		L 205,162 
+		C 220,162 220,100 237,100 
+		C 255,100 257,160 270,162 
+		L 340,162" fill="none" stroke="#fbbf24" stroke-width="5" stroke-linecap="round"/>
+        
+		
+        <!-- Inner M + A (Green) expanded baselines -->
+        <path d="M 60,155 
+		L 70,155 
+		C 80,155 85,100 95,100 
+		C 102,100 105,130 108,130 
+		C 112,130 112,100 120,100 
+		C 130,100 135,155 145,155 
+		L 215,155 
+		C 223,155 223,125 238,125
+		C 254,125 254,155 260,155
+		L 340,155" fill="none" stroke="#10b981" stroke-width="5" stroke-linecap="round"/>
+        
+        <!-- Inline Text bridging the curves -->
+        <text x="163" y="153" text-anchor="middle" class="logo-text-light">et</text>
+        <text x="265" y="153" text-anchor="start" class="logo-text-light">tlas</text>
+      </g>
+      <!-- Subtext moved below the whole assembly -->
+      <text x="185" y="140" text-anchor="middle" class="logo-subtext-light">LC-MS DATA ANALYSIS</text>
+    </g>
+
+</svg>
