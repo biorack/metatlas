@@ -4038,11 +4038,16 @@ def make_atlas_from_table(filename, atlas_name, store=False, mz_tolerance=None, 
         atlas_df['polarity'] = polarity
 
     # Clean up the dataframe before deposit
+    logger.info(f"Cleaning up input table for atlas creation. Starting with {len(atlas_df)} rows.")
     _clean_dataframe(atlas_df, required_columns=[])  # only remove fully empty
-    initial_row_count = len(atlas_df)
+    logger.info(f"{len(atlas_df)} rows remaining after removing fully empty rows.")
+
+    logger.info(f"Removing rows with missing required columns: {', '.join(required_columns)}. Starting with {len(atlas_df)} rows and columns: {', '.join(atlas_df.columns)}.")
     _clean_dataframe(atlas_df, required_columns)
+    logger.info(f"{len(atlas_df)} rows remaining after enforcing required columns.")
 
     # Enforce column types
+    logger.info(f"Enforcing column types for required columns. Starting types:\n{atlas_df.dtypes}")
     enforce_types = {
         'polarity': str,
         'mz_tolerance': int,
@@ -4054,16 +4059,25 @@ def make_atlas_from_table(filename, atlas_name, store=False, mz_tolerance=None, 
     for col, dtype in enforce_types.items():
         if col in atlas_df.columns:
             atlas_df[col] = atlas_df[col].astype(dtype)
+    logger.info(f"Column types after enforcement:\n{atlas_df.dtypes}")
 
     # Add missing columns with default values
+    logger.info("Adding missing columns with default values if necessary.")
     _add_columns(
         atlas_df,
         column_names=['label', 'inchi_key', 'adduct'],
         default_values=[np.NaN, np.NaN, np.NaN]
     )
+
+    logger.info("Checking compound names and filenames in input table against database.")
     check_compound_names(atlas_df)
+
+    logger.info("Checking that files in input table exist in database.")
     check_filenames(atlas_df, 'file_msms')
+
+    logger.info("Creating atlas from input table.")
     atlas = get_atlas(atlas_name, atlas_df, polarity, mz_tolerance)
+
     rows_removed = initial_row_count - len(atlas_df)
     if rows_removed > 0:
         raise ValueError(
