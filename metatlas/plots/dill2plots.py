@@ -3994,7 +3994,8 @@ def make_atlas_from_table(filename, atlas_name, store=False, mz_tolerance=None, 
     
     """
     filetype = "csv" if filename.endswith(".csv") else "tab"
-    required_columns = ['polarity', 'mz_tolerance', 'rt_min', 'rt_peak', 'rt_max', 'mz']
+    #required_columns = ['polarity', 'mz_tolerance', 'rt_min', 'rt_peak', 'rt_max', 'mz']
+    required_columns = ['rt_min', 'rt_peak', 'rt_max', 'mz']
     logger.debug('Generating atlas named %s from %s source.', atlas_name, filetype)
     atlas_df = _get_dataframe(filename, filetype)
 
@@ -4038,6 +4039,7 @@ def make_atlas_from_table(filename, atlas_name, store=False, mz_tolerance=None, 
         atlas_df['polarity'] = polarity
 
     # Clean up the dataframe before deposit
+    initial_row_count = len(atlas_df)
     logger.info(f"Cleaning up input table for atlas creation. Starting with {len(atlas_df)} rows.")
     _clean_dataframe(atlas_df, required_columns=[])  # only remove fully empty
     logger.info(f"{len(atlas_df)} rows remaining after removing fully empty rows.")
