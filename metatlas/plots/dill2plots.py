@@ -4052,7 +4052,7 @@ def make_atlas_from_table(filename, atlas_name, store=False, mz_tolerance=None, 
     logger.info(f"Enforcing column types for required columns. Starting types:\n{atlas_df.dtypes}")
     enforce_types = {
         'polarity': str,
-        'mz_tolerance': int,
+        'mz_tolerance': float,
         'rt_min': float,
         'rt_peak': float,
         'rt_max': float,
