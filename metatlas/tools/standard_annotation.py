@@ -763,30 +763,37 @@ def create_compound_atlas(
     extra_time: float = 0.0
 ) -> pd.DataFrame:
     """
-    Create a compound atlas DataFrame with metadata for each compound.
-
-    Args:
-        group (pd.DataFrame): DataFrame containing compound information.
-        ppm_tolerance (float): Tolerance for mass-to-charge ratio (ppm).
-        rt_min (float): Minimum retention time.
-        rt_max (float): Maximum retention time.
-        polarity (str): Polarity of the LCMS run (e.g., 'POS' or 'NEG').
-        extra_time (float, optional): Additional time to extend retention time range. Defaults to 0.0.
-
-    Returns:
-        pd.DataFrame: DataFrame representing the compound atlas.
+    Build an atlas DataFrame that matches the *new* unified atlas format.
+    Any stray ‘label’ column that may have arrived from the input CSV is ignored.
     """
-    atlas = group.rename(columns={'precursor_mz': 'mz'})
-    atlas['label'] = group.apply(lambda row: f"{row.compound_name}_{row.adduct}", axis=1)
-    atlas['polarity'] = polarity
+
+    group = group.drop(columns='label', errors='ignore')
+
+    atlas = group.copy()
+
+    atlas['label'] = atlas.apply(
+        lambda row: f"{row.compound_name}_{row.adduct}", axis=1
+    )
+
+    for col in ['identification_notes', 'classes', 'pathways',
+                'source', 'rt_space', 'tags']:
+        if col not in atlas.columns:
+            atlas[col] = np.nan
+
+    atlas['polarity']      = polarity
     atlas['ppm_tolerance'] = ppm_tolerance
-    atlas['extra_time'] = extra_time
-    atlas_cols = ['label', 'mz', 'rt_min', 'rt_max', 'rt_peak', 'smiles', 'adduct', 'ppm_tolerance', 'polarity', 'extra_time']
-    
-    atlas['rt_min'] = rt_min
-    atlas['rt_max'] = rt_max
-    atlas['rt_peak'] = rt_max / 2  # Dummy value
-    
+    atlas['extra_time']    = extra_time
+
+    atlas_cols = [
+        'label', 'compound_name', 'inchi_key', 'adduct', 'mz',
+        'rt_peak', 'rt_min', 'rt_max', 'mz_tolerance',
+        'polarity', 'identification_notes', 'classes',
+        'pathways', 'source', 'rt_space', 'tags'
+    ]
+    missing = [c for c in atlas_cols if c not in atlas.columns]
+    if missing:
+        raise KeyError(f"Missing required atlas columns: {missing}")
+
     return atlas[atlas_cols]
 
 def collect_eics_and_ms2(group: pd.DataFrame, ppm_tolerance: float) -> Tuple[Dict[str, pd.DataFrame], Dict[str, pd.DataFrame], pd.DataFrame]:
@@ -1295,26 +1302,16 @@ def search_for_matches_in_msms_refs(
     return matches_df, nonmatches_df
 
 def search_for_matches_in_atlases(
-    query_entries: pd.DataFrame, 
-    ema_atlases_dfs: Dict[str, Dict[str, Union[str, pd.DataFrame]]], 
+    query_entries: pd.DataFrame,
+    ema_atlases_dfs: Dict[str, Dict[str, Union[str, pd.DataFrame]]],
     cutoff: float = 0.8,
     standalone: bool = False
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Search for matches of query entries in existing atlases using exact and fuzzy matching.
-
-    Args:
-        query_entries (pd.DataFrame): DataFrame containing query entries with columns such as 'label', 'inchi', 'inchi_key', and 'adduct'.
-        ema_atlases_dfs (Dict[str, Dict[str, Union[str, pd.DataFrame]]]): Nested dictionary with chromatography and polarity keys, 
-            containing atlas DataFrames.
-        cutoff (float, optional): Similarity cutoff for fuzzy matching. Defaults to 0.8.
-        standalone (bool, optional): If True, skip atlas matching and treat all query entries as new compounds.
-            Use when the output atlas will be standalone (not appended to existing data). Defaults to False.
-
-    Returns:
-        Tuple[pd.DataFrame, pd.DataFrame]: 
-            - A DataFrame summarizing matches found in the atlases.
-            - A DataFrame summarizing compounds not found in the atlases.
+    Search a **unified‑format** atlas (same columns for C18 and HILICZ).
+    The function now works with the single set of columns listed at the top
+    of the file.  It no longer tries to treat the two chromatographies
+    differently.
     """
     if standalone:
         print("\nStandalone atlas mode: skipping atlas match search, all compounds treated as new entries.")
@@ -1325,88 +1322,118 @@ def search_for_matches_in_atlases(
 
     for chrom, polarities in ema_atlases_dfs.items():
         for polarity, atlas_data in polarities.items():
-            if isinstance(atlas_data, pd.DataFrame):  # Ensure we are working with a DataFrame
-                atlas_data['label'] = atlas_data['label'].astype(str)
-                if 'compound_name' in atlas_data.columns:
-                    atlas_data['compound_name'] = atlas_data['compound_name'].astype(str)
 
-                relevant_query_entries = query_entries[(query_entries['polarity'] == polarity) & (query_entries['chromatography'] == chrom)]
-                if relevant_query_entries.empty:
-                    print(f"No compounds need to be searched against the {chrom} {polarity} atlas. Skipping.")
-                    continue
-                
-                for _, query_row in tqdm(relevant_query_entries.iterrows(), total=relevant_query_entries.shape[0], desc=f" Searching in {chrom} {polarity} atlas", unit=" compound"):
-                    query_label = str(query_row['label'])
-                    query_compound_name = str(query_row['compound_name'])
-                    query_inchikey = str(query_row['inchi_key'])
-                    query_inchi = str(query_row['inchi'])
-                    query_adduct = str(query_row['adduct'])
-                    query_polarity = str(query_row['polarity'])
-                    query_chromatography = str(query_row['chromatography'])
-                    query_unique_id = f"{query_label};;{query_adduct};;{query_polarity};;{query_chromatography}"
+            if not isinstance(atlas_data, pd.DataFrame):
+                continue
 
-                    # Check for exact matches in inchi
-                    if "inchi" in atlas_data.columns and query_inchi != "":
-                        matching_rows = atlas_data[(atlas_data['inchi'] == query_inchi) & (atlas_data['adduct'] == query_adduct)]
-                        if not matching_rows.empty:            
-                            source_atlases = matching_rows['source_atlas'].tolist()
-                            atlas_entry = matching_rows['inchi'].tolist()
-                            matches_dict[query_unique_id] = [query_inchi, atlas_entry, source_atlases]
-                            continue
+            for col in ['label', 'compound_name', 'inchi', 'inchi_key',
+                        'adduct']:
+                if col not in atlas_data.columns:
+                    atlas_data[col] = ''
 
-                    # Check for exact matches in inchi_key
-                    if "inchi_key" in atlas_data.columns and query_inchikey != "":
-                        matching_rows = atlas_data[(atlas_data['inchi_key'] == query_inchikey) & (atlas_data['adduct'] == query_adduct)]
-                        if not matching_rows.empty:
-                            source_atlases = matching_rows['source_atlas'].tolist()
-                            atlas_entry = matching_rows['inchi_key'].tolist()
-                            matches_dict[query_unique_id] = [query_inchikey, atlas_entry, source_atlases]
-                            continue
+            relevant_query = query_entries[
+                (query_entries['polarity'] == polarity) &
+                (query_entries['chromatography'] == chrom)
+            ]
 
-                    # Check for fuzzy matches in compound_name
-                    if 'compound_name' in atlas_data.columns:
-                        compound_name_matches = get_close_matches(query_compound_name, atlas_data['compound_name'].tolist(), n=1, cutoff=cutoff)
-                        if compound_name_matches:
-                            matching_rows = atlas_data[(atlas_data['compound_name'] == compound_name_matches[0]) & (atlas_data['adduct'] == query_adduct)]
-                            if not matching_rows.empty:
-                                source_atlases = matching_rows['source_atlas'].tolist()
-                                atlas_entry = matching_rows['compound_name'].tolist()
-                                matches_dict[query_unique_id] = [compound_name_matches[0], atlas_entry, source_atlases]
-                                continue
+            if relevant_query.empty:
+                continue   # nothing to search for in this atlas
 
-                    # Check for fuzzy matches in label
-                    label_matches = get_close_matches(query_label, atlas_data['label'].tolist(), n=1, cutoff=cutoff)
-                    if label_matches:
-                        matching_rows = atlas_data[(atlas_data['label'] == label_matches[0]) & (atlas_data['adduct'] == query_adduct)]
-                        if not matching_rows.empty:
-                            source_atlases = matching_rows['source_atlas'].tolist()
-                            atlas_entry = matching_rows['label'].tolist()
-                            matches_dict[query_unique_id] = [label_matches[0], atlas_entry, source_atlases]
-                            continue
+            for _, query_row in tqdm(
+                relevant_query.iterrows(),
+                total=relevant_query.shape[0],
+                desc=f" Searching in {chrom} {polarity} atlas",
+                unit=" compound"
+            ):
+                q_label   = str(query_row['label'])
+                q_cmpname = str(query_row['compound_name'])
+                q_inchi   = str(query_row['inchi'])
+                q_inchikey= str(query_row['inchi_key'])
+                q_adduct  = str(query_row['adduct'])
 
-                    ## Fingerprint similarity?
+                query_unique_id = f"{q_label};;{q_adduct};;{polarity};;{chrom}"
 
-                    # If no match is found, add to nonmatches_dict
-                    nonmatches_dict[query_unique_id] = query_row
+                if q_inchi and q_inchi != "":
+                    exact = atlas_data[
+                        (atlas_data['inchi'] == q_inchi) &
+                        (atlas_data['adduct'] == q_adduct)
+                    ]
+                    if not exact.empty:
+                        matches_dict[query_unique_id] = [
+                            q_inchi, exact['inchi'].tolist(),
+                            exact['source_atlas'].tolist()
+                        ]
+                        continue   # go to next query row
 
-    # Convert matches dictionary to DataFrame
-    if len(matches_dict) != 0:
+                if q_inchikey and q_inchikey != "":
+                    exact = atlas_data[
+                        (atlas_data['inchi_key'] == q_inchikey) &
+                        (atlas_data['adduct'] == q_adduct)
+                    ]
+                    if not exact.empty:
+                        matches_dict[query_unique_id] = [
+                            q_inchikey, exact['inchi_key'].tolist(),
+                            exact['source_atlas'].tolist()
+                        ]
+                        continue
+
+                name_matches = get_close_matches(
+                    q_cmpname,
+                    atlas_data['compound_name'].tolist(),
+                    n=1,
+                    cutoff=cutoff
+                )
+                if name_matches:
+                    match_rows = atlas_data[
+                        (atlas_data['compound_name'] == name_matches[0]) &
+                        (atlas_data['adduct'] == q_adduct)
+                    ]
+                    if not match_rows.empty:
+                        matches_dict[query_unique_id] = [
+                            name_matches[0],
+                            match_rows['compound_name'].tolist(),
+                            match_rows['source_atlas'].tolist()
+                        ]
+                        continue
+
+                label_matches = get_close_matches(
+                    q_label,
+                    atlas_data['label'].tolist(),
+                    n=1,
+                    cutoff=cutoff
+                )
+                if label_matches:
+                    match_rows = atlas_data[
+                        (atlas_data['label'] == label_matches[0]) &
+                        (atlas_data['adduct'] == q_adduct)
+                    ]
+                    if not match_rows.empty:
+                        matches_dict[query_unique_id] = [
+                            label_matches[0],
+                            match_rows['label'].tolist(),
+                            match_rows['source_atlas'].tolist()
+                        ]
+                        continue
+
+                nonmatches_dict[query_unique_id] = query_row
+
+    if matches_dict:
         matches_df = pd.DataFrame(
-            [(key, value[0], value[1], value[2]) for key, value in matches_dict.items()],
+            [(k, v[0], v[1], v[2]) for k, v in matches_dict.items()],
             columns=['query_unique_id', 'query_to_atlas', 'atlas_matches', 'atlas_source']
         )
         print("\nSummary of compounds+adducts already in the atlases:\n")
         display(matches_df)
     else:
-        print("\nNone of the compounds+adducts searched were found in the atlases.")
         matches_df = pd.DataFrame()
-    if len(nonmatches_dict) != 0:
+        print("\nNone of the compounds+adducts searched were found in the atlases.")
+
+    if nonmatches_dict:
         nonmatches_df = pd.concat(nonmatches_dict.values(), axis=1).T.reset_index(drop=True)
-        print(f"\nThere are {len(nonmatches_df)} compounds+adducts are not yet in any atlases. View with 'nonmatches_to_atlases'.\n")
-        #display(nonmatches_df)
+        print(f"\nThere are {len(nonmatches_df)} compounds+adducts not yet in any atlases.\n")
     else:
-        print("\nAll compounds+adducts are already in the atlases.\n")
         nonmatches_df = pd.DataFrame()
+        print("\nAll compounds+adducts are already in the atlases.\n")
 
     return matches_df, nonmatches_df
 
@@ -1969,45 +1996,50 @@ def format_for_msms_refs(
 
 def convert_rt_peaks_to_atlas_format(rt_peaks: pd.DataFrame) -> pd.DataFrame:
     """
-    Converts a DataFrame of retention time (RT) peaks into a format compatible with the MetAtlas atlas convention.
-
-    Args:
-        rt_peaks (pd.DataFrame): A DataFrame containing RT peak data with columns such as 'label', 'rt_peak', 
-                                 'smiles', 'mz_theoretical', 'monoisotopic_mass', 'polarity', and 'chromatography'.
-
-    Returns:
-        pd.DataFrame: A formatted DataFrame with enriched metadata and columns renamed/dropped to match 
-                      the MetAtlas atlas convention. The output is sorted by chromatography and polarity.
+    Convert RT‑peak results into the *new* unified atlas layout.
+    All columns that are NOT part of the official schema are either
+    dropped or mapped to a placeholder (NaN).  The function also
+    guarantees that the columns appear in the exact order required
+    by MetAtlas.
     """
-    rt_peaks_unformatted = rt_peaks.copy()
-    rt_peaks_unformatted = rt_peaks_unformatted[rt_peaks_unformatted['adduct'] != "Ambiguous"]
-    rt_peaks_unformatted['compound_name'] = rt_peaks_unformatted['label']
 
-    # Enrich for atlas-related metadata
-    rt_peaks_unformatted['rt_min'] = rt_peaks_unformatted['rt_peak'] - 0.5
-    rt_peaks_unformatted['rt_max'] = rt_peaks_unformatted['rt_peak'] + 0.5
-    rt_peaks_unformatted['mz_tolerance'] = 5
-    rt_peaks_unformatted['mz_tolerance_units'] = "ppm"
-    rt_peaks_unformatted['inchi'] = rt_peaks_unformatted['smiles'].apply(lambda row: AllChem.MolToInchi(AllChem.MolFromSmiles(row)))
-    rt_peaks_unformatted['inchi_key'] = rt_peaks_unformatted['inchi'].apply(inchi_to_inchikey)
-    rt_peaks_unformatted['in_metatlas'] = "True"
+    rt_peaks = rt_peaks.copy()
+    rt_peaks = rt_peaks[rt_peaks['adduct'] != "Ambiguous"]
 
-    # Rename and drop columns to match MetAtlas atlas convention
-    rt_peaks_unformatted.rename(columns={'mz_theoretical': 'mz', 'monoisotopic_mass': 'mono_isotopic_molecular_weight'}, inplace=True)
-    rt_peaks_unformatted['polarity'] = rt_peaks_unformatted['polarity'].apply(lambda pol: 'positive' if pol == 'POS' else 'negative')
-    rt_peaks_unformatted.drop(columns=['intensity', 'mz_observed', 'ppm_error'], inplace=True)
+    rt_peaks['compound_name'] = rt_peaks['label']
 
-    # Export chromatographic and polarity-specific atlases
-    pos_annotations = rt_peaks_unformatted[rt_peaks_unformatted['polarity'] == 'positive']
-    neg_annotations = rt_peaks_unformatted[rt_peaks_unformatted['polarity'] == 'negative']
-    c18_pos_annotations = pos_annotations[pos_annotations['chromatography'] == 'C18'].sort_values('rt_peak')
-    c18_neg_annotations = neg_annotations[neg_annotations['chromatography'] == 'C18'].sort_values('rt_peak')
-    hilic_pos_annotations = pos_annotations[pos_annotations['chromatography'] == 'HILICZ'].sort_values('rt_peak')
-    hilic_neg_annotations = neg_annotations[neg_annotations['chromatography'] == 'HILICZ'].sort_values('rt_peak')
+    if 'inchi_key' not in rt_peaks.columns:
+        rt_peaks['inchi_key'] = np.nan
 
-    rt_peaks_formatted = pd.concat([c18_pos_annotations, c18_neg_annotations, hilic_pos_annotations, hilic_neg_annotations], ignore_index=True)
-    
-    return rt_peaks_formatted
+    for col in ['identification_notes', 'classes', 'pathways',
+                'source', 'rt_space', 'tags']:
+        if col not in rt_peaks.columns:
+            rt_peaks[col] = np.nan
+
+    rt_peaks = rt_peaks.rename(columns={
+        'mz_theoretical'          : 'mz',
+        'monoisotopic_mass'      : 'mono_isotopic_molecular_weight',
+        'rt_min'                 : 'rt_min',
+        'rt_max'                 : 'rt_max',
+        'rt_peak'                : 'rt_peak'
+    })
+
+    rt_peaks['polarity'] = rt_peaks['polarity'].apply(
+        lambda p: 'positive' if p == 'POS' else ('negative' if p == 'NEG' else p)
+    )
+
+    atlas_cols = [
+        'label', 'compound_name', 'inchi_key', 'adduct', 'mz',
+        'rt_peak', 'rt_min', 'rt_max', 'mz_tolerance',
+        'polarity', 'identification_notes', 'classes',
+        'pathways', 'source', 'rt_space', 'tags'
+    ]
+
+    for col in atlas_cols:
+        if col not in rt_peaks.columns:
+            rt_peaks[col] = np.nan
+
+    return rt_peaks[atlas_cols]
 
 def get_ema_atlas_data(ema_atlases_path: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, Union[str, pd.DataFrame]]]:
     """
@@ -2437,151 +2469,87 @@ def update_and_save_ema_atlases(
     current_time: str,
 ) -> Tuple[Dict[str, Dict[str, Optional[str]]], Dict[str, Dict[str, Optional[str]]]]:
     """
-    Update and save EMA atlases by merging new compounds and splitting them back into their original files.
-
-    Args:
-        nonmatches_to_atlases_rt_corrected (pd.DataFrame): DataFrame containing new compounds to be added to the atlases.
-            Must include columns such as 'chromatography', 'polarity', 'inchi_key', and 'rt_peak'.
-        ema_atlases (Dict[str, Dict[str, Union[str, pd.DataFrame]]]): Nested dictionary with chromatography and polarity keys,
-            containing atlas DataFrames or file paths.
-        config (Dict[str, Any]): Configuration dictionary containing metadata for the reference standard project.
-            Includes keys like 'standards_output_path', 'standalone_ema_atlas', and 'msms_refs_metadata'.
-        current_time (str): Timestamp to append to the updated atlas filenames.
-
-    Returns:
-        Tuple[Dict[str, Dict[str, Optional[str]]], Dict[str, Dict[str, Optional[str]]]]:
-            - A dictionary of new atlas IDs for each chromatography and polarity.
-            - A dictionary of new atlas names or file paths for each chromatography and polarity.
+    Merge new compounds (already in the *unified* atlas format) into the existing EMA
+    atlases and write the updated atlases to disk / DB.
     """
-    new_atlas_ids = {}
-    new_atlas_names = {}
-    for chrom, polarities in ema_atlases.items():
-        new_atlas_ids[chrom] = {}
-        new_atlas_names[chrom] = {}
-        for polarity, atlas_data in polarities.items():
-            new_atlas_ids[chrom][polarity] = ""
-            new_atlas_names[chrom][polarity] = ""
-            atlas_name = atlas_data['source_atlas'].iloc[0]
 
-            # Filter nonmatches_to_atlases_rt_corrected to match the current chrom and polarity
-            compounds_to_add_to_atlas = nonmatches_to_atlases_rt_corrected[
+    required_cols = [
+        'label', 'compound_name', 'inchi_key', 'adduct', 'mz',
+        'rt_peak', 'rt_min', 'rt_max', 'mz_tolerance',
+        'polarity', 'identification_notes', 'classes',
+        'pathways', 'source', 'rt_space', 'tags'
+    ]
+    for col in required_cols:
+        if col not in nonmatches_to_atlases_rt_corrected.columns:
+            nonmatches_to_atlases_rt_corrected[col] = np.nan
+
+    for chrom, polarities in ema_atlases.items():
+        for polarity, atlas_data in polarities.items():
+
+            to_add = nonmatches_to_atlases_rt_corrected[
                 (nonmatches_to_atlases_rt_corrected['chromatography'] == chrom) &
                 (nonmatches_to_atlases_rt_corrected['polarity'] == polarity)
-            ]
+            ].copy()
 
-            # Check if there are any compounds to add
-            if compounds_to_add_to_atlas.empty:
-                print(f"No compounds to add to the {chrom} {polarity} atlas. Skipping.")
+            if to_add.empty:
+                print(f"No new compounds for {chrom} {polarity}. Skipping.")
                 continue
 
-            # Add some columns to atlases depending on chrom (they have different formats) to get as much info as possible
-            if chrom == "HILICZ":
-                compounds_to_add_to_atlas = compounds_to_add_to_atlas.copy()
-                compounds_to_add_to_atlas.rename(columns={'polarity': 'detected_polarity'}, inplace=True)
-                compounds_to_add_to_atlas['identification_notes'] = ""
-                compounds_to_add_to_atlas['ms1_notes'] = ""
-                compounds_to_add_to_atlas['ms2_notes'] = ""
-                compounds_to_add_to_atlas['rt_units'] = "min"
-                synonyms_dict = get_pubchem_synonyms_from_inchi_keys(compounds_to_add_to_atlas['inchi_key'].tolist())
-                compounds_to_add_to_atlas['synonyms'] = compounds_to_add_to_atlas['inchi_key'].map(synonyms_dict)
-                pubchem_id_dict = get_pubchem_cids_from_inchi_keys(compounds_to_add_to_atlas['inchi_key'].tolist())
-                compounds_to_add_to_atlas['pubchem_compound_id'] = compounds_to_add_to_atlas['inchi_key'].map(pubchem_id_dict)
-                compounds_to_add_to_atlas['file_name'] = compounds_to_add_to_atlas['standard_lcmsrun']
-                compounds_to_add_to_atlas['file_type'] = "lcms_file"
-                compounds_to_add_to_atlas['source_atlas'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
-            if chrom == "C18":
-                compounds_to_add_to_atlas = compounds_to_add_to_atlas.copy()
-                compounds_to_add_to_atlas['file_name'] = compounds_to_add_to_atlas['standard_lcmsrun']
-                compounds_to_add_to_atlas['file_type'] = "lcms_file"
-                compounds_to_add_to_atlas['library'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
-                compounds_to_add_to_atlas['code'] = compounds_to_add_to_atlas['library'].str.upper() + compounds_to_add_to_atlas.index.astype(str)
-                compounds_to_add_to_atlas['name'] = compounds_to_add_to_atlas['compound_name']
-                compounds_to_add_to_atlas['identification_notes'] = ""
-                compounds_to_add_to_atlas['ms1_notes'] = ""
-                compounds_to_add_to_atlas['ms2_notes'] = ""                
-                compounds_to_add_to_atlas['source_atlas'] = config['msms_refs']['msms_refs_metadata']['msms_refs_prefix']
-            for col in [
-                'file_name', 'file_type', 'identification_notes',
-                'ms1_notes', 'ms2_notes', 'compound_classes', 'compound_pathways'
-            ]:
-                if col not in atlas_data.columns:
-                    atlas_data[col] = ""
+            to_add['file_name'] = to_add['standard_lcmsrun']
+            to_add['file_type'] = 'lcms_file'
 
-            # Format the columns of compounds to be added to match the atlas format so no columns are missing
-            missing_columns = atlas_data.columns.difference(compounds_to_add_to_atlas.columns)
-            for col in missing_columns:
-                compounds_to_add_to_atlas = compounds_to_add_to_atlas.copy()
-                compounds_to_add_to_atlas.loc[:, col] = np.nan
-            common_columns = compounds_to_add_to_atlas.columns.intersection(atlas_data.columns)
-            compounds_to_add_to_atlas_formatted = compounds_to_add_to_atlas[common_columns]
+            missing_in_to_add = set(atlas_data.columns) - set(to_add.columns)
+            for miss in missing_in_to_add:
+                to_add[miss] = np.nan
 
-            # Assign unique permanent_index to new rows
-            if 'permanent_index' in atlas_data.columns:
-                max_permanent_index = atlas_data['permanent_index'].max()
-                new_indices = range(max_permanent_index + 1, max_permanent_index + 1 + len(compounds_to_add_to_atlas_formatted))
-                compounds_to_add_to_atlas_formatted = compounds_to_add_to_atlas_formatted.copy()
-                compounds_to_add_to_atlas_formatted['permanent_index'] = [str(int(index)) for index in new_indices]
+            to_add = to_add[atlas_data.columns]
 
-            # Merge the compounds_to_add_to_atlas_formatted with the current atlas
-            column_order = atlas_data.columns
-            if config['atlases']['standalone_ema_atlas'] is True:
-                new_atlas_data = compounds_to_add_to_atlas_formatted
-            elif config['atlases']['standalone_ema_atlas'] is False:
-                new_atlas_data = pd.concat([atlas_data, compounds_to_add_to_atlas_formatted], ignore_index=False)
-            new_atlas_data.drop(columns=['source_atlas'], inplace=True)
-            new_atlas_data = new_atlas_data.reindex(columns=[col for col in column_order if col in new_atlas_data.columns])
-
-            # Sort the new atlas by rt_peak lowest to highest
-            new_atlas_data.sort_values(by=["rt_peak", "mz"], ascending=[True, False], inplace=True)
-
-            # Set up for printing/depositing
-            updated_atlas_dir = f"{config['project']['standards_output_path']}/updated_EMA_atlases"
-            if not os.path.exists(updated_atlas_dir):
-                os.makedirs(updated_atlas_dir)
-            standalone_tag = "_standalone" if config['atlases']['standalone_ema_atlas'] else ""
-            if atlas_name.endswith('.tsv'):
-                new_atlas_name = atlas_name.replace(".tsv", f"_{current_time}{standalone_tag}.tsv")
-            elif atlas_name.endswith('.csv'):
-                new_atlas_name = atlas_name.replace(".csv", f"_{current_time}{standalone_tag}.tsv")
-            else: # If atlas input from yaml is a metatlas UID
-                new_atlas_name = f"{atlas_name}_{current_time}{standalone_tag}.csv"
-            fname = f"{updated_atlas_dir}/{new_atlas_name}"
-            
-            # Save the new atlas to the original file
-            if fname.endswith('.tsv'):
-                new_atlas_data.to_csv(fname, sep='\t', index=False)
-            elif fname.endswith('.csv'):
-                new_atlas_data.to_csv(fname, index=False)
-            
-            # Print summary of the update
-            if config['atlases']['standalone_ema_atlas'] is True:
-                print(f"\nStandalone atlas (not appended to existing data) generated for {chrom} {polarity} EMA atlas.")
-                print(f"New atlas has {len(new_atlas_data)} compounds.")
-                print(f"Saved to: {fname}\n")
-            elif config['atlases']['standalone_ema_atlas'] is False:
-                print(f"\nCurrent {chrom} {polarity} EMA atlas: {atlas_name}")
-                print(f"{len(atlas_data)} current compounds updated with {len(compounds_to_add_to_atlas_formatted)} new compounds for a total of {len(new_atlas_data)} compounds.")
-                print(f"Updated {chrom} {polarity} EMA atlas saved to: {fname}\n")
-
-            # Deposit atlas directly to metatlas db and retrieve the new atlas ID
-            if config['atlases']['direct_deposit_new_emas']:
-                if fname.endswith('.tsv'): # Must convert to csv for atlas deposit
-                    input_atlas_file_name = fname.replace('.tsv', '.csv')
-                    new_atlas_data.to_csv(input_atlas_file_name, index=False)
-                else:
-                    input_atlas_file_name = fname
-                new_atlas_db_name = os.path.basename(input_atlas_file_name).replace(".csv","")
-                print("Depositing atlas to metatlas database Atlas table...")
-                atlas_deposited = make_atlas_from_spreadsheet(input_atlas_file_name, new_atlas_db_name, filetype="csv", polarity=polarity, store=True, mz_tolerance=config['project']['ppm_tolerance'])
-                atlas_df = make_atlas_df(atlas_deposited)
-                print(f"\tUpdated EMA atlas deposited to metatlas db with unique_id: {atlas_deposited.unique_id}")
-                print(f"\tUpdated EMA atlas deposited to metatlas db with name: {atlas_deposited.name}")
-                new_atlas_ids[chrom][polarity] = atlas_deposited.unique_id
-                new_atlas_names[chrom][polarity] = atlas_deposited.name
+            if config['atlases']['standalone_ema_atlas']:
+                new_atlas = to_add
             else:
-                new_atlas_ids[chrom][polarity] = ""
-                new_atlas_names[chrom][polarity] = fname
-    
+                new_atlas = pd.concat([atlas_data, to_add], ignore_index=True)
+
+            new_atlas.sort_values(['rt_peak', 'mz'], ascending=[True, False], inplace=True)
+
+            atlas_name = atlas_data['source_atlas'].iloc[0]
+            updated_atlas_dir = f"{config['project']['standards_output_path']}/updated_EMA_atlases"
+            os.makedirs(updated_atlas_dir, exist_ok=True)
+
+            tag = "_standalone" if config['atlases']['standalone_ema_atlas'] else ""
+            if atlas_name.endswith('.tsv'):
+                new_name = atlas_name.replace('.tsv', f"_{current_time}{tag}.tsv")
+            elif atlas_name.endswith('.csv'):
+                new_name = atlas_name.replace('.csv', f"_{current_time}{tag}.tsv")
+            else:
+                new_name = f"{atlas_name}_{current_time}{tag}.csv"
+
+            out_path = os.path.join(updated_atlas_dir, new_name)
+            new_atlas.to_csv(out_path, sep='\t' if new_name.endswith('.tsv') else ',', index=False)
+
+            if config['atlases']['direct_deposit_new_emas']:
+                # Convert to CSV if needed for DB upload
+                db_file = out_path.replace('.tsv', '.csv') if out_path.endswith('.tsv') else out_path
+                if db_file != out_path:
+                    new_atlas.to_csv(db_file, index=False)
+                else:
+                    db_file = out_path
+
+                db_name = os.path.basename(db_file).replace('.csv', '')
+                print("Depositing new EMA atlas to MetAtlas DB …")
+                deposited = make_atlas_from_spreadsheet(
+                    db_file, db_name,
+                    filetype="csv",
+                    polarity=polarity,
+                    store=True,
+                    mz_tolerance=config['project']['ppm_tolerance']
+                )
+                # Store the returned UID / name for downstream reporting
+                new_atlas_ids[chrom][polarity] = deposited.unique_id
+                new_atlas_names[chrom][polarity] = deposited.name
+            else:
+                new_atlas_ids[chrom][polarity]   = ""
+                new_atlas_names[chrom][polarity] = out_path
+
     return new_atlas_ids, new_atlas_names
 
 
