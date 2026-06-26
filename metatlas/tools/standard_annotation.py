@@ -1308,7 +1308,7 @@ def search_for_matches_in_atlases(
     standalone: bool = False
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Search a **unified‑format** atlas (same columns for C18 and HILICZ).
+    Search a **unified-format** atlas (same columns for C18 and HILICZ).
     The function now works with the single set of columns listed at the top
     of the file.  It no longer tries to treat the two chromatographies
     differently.
@@ -1996,13 +1996,14 @@ def format_for_msms_refs(
 
 def convert_rt_peaks_to_atlas_format(rt_peaks: pd.DataFrame) -> pd.DataFrame:
     """
-    Convert RT‑peak results into the *new* unified atlas layout.
+    Convert RT-peak results into the *new* unified atlas layout.
     All columns that are NOT part of the official schema are either
     dropped or mapped to a placeholder (NaN).  The function also
     guarantees that the columns appear in the exact order required
     by MetAtlas.
     """
 
+    logger.info("Converting RT-peak results to unified atlas format.")
     rt_peaks = rt_peaks.copy()
     rt_peaks = rt_peaks[rt_peaks['adduct'] != "Ambiguous"]
 
@@ -2011,19 +2012,10 @@ def convert_rt_peaks_to_atlas_format(rt_peaks: pd.DataFrame) -> pd.DataFrame:
     if 'inchi_key' not in rt_peaks.columns:
         rt_peaks['inchi_key'] = np.nan
 
-    for col in ['identification_notes', 'classes', 'pathways',
-                'source', 'rt_space', 'tags']:
-        if col not in rt_peaks.columns:
-            rt_peaks[col] = np.nan
-
     rt_peaks = rt_peaks.rename(columns={
-        'mz_theoretical'          : 'mz',
-        'monoisotopic_mass'      : 'mono_isotopic_molecular_weight',
-        'rt_min'                 : 'rt_min',
-        'rt_max'                 : 'rt_max',
-        'rt_peak'                : 'rt_peak'
+        'mz_theoretical' : 'mz',
+        'monoisotopic_mass' : 'mono_isotopic_molecular_weight',
     })
-
     rt_peaks['polarity'] = rt_peaks['polarity'].apply(
         lambda p: 'positive' if p == 'POS' else ('negative' if p == 'NEG' else p)
     )
@@ -2031,7 +2023,7 @@ def convert_rt_peaks_to_atlas_format(rt_peaks: pd.DataFrame) -> pd.DataFrame:
     atlas_cols = [
         'label', 'compound_name', 'inchi_key', 'adduct', 'mz',
         'rt_peak', 'rt_min', 'rt_max', 'mz_tolerance',
-        'polarity', 'identification_notes', 'classes',
+        'polarity', 'chromatography', 'identification_notes', 'classes',
         'pathways', 'source', 'rt_space', 'tags'
     ]
 
@@ -2039,7 +2031,8 @@ def convert_rt_peaks_to_atlas_format(rt_peaks: pd.DataFrame) -> pd.DataFrame:
         if col not in rt_peaks.columns:
             rt_peaks[col] = np.nan
 
-    return rt_peaks[atlas_cols]
+    #return rt_peaks[atlas_cols]
+    return rt_peaks
 
 def get_ema_atlas_data(ema_atlases_path: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, Union[str, pd.DataFrame]]]:
     """
@@ -2483,9 +2476,16 @@ def update_and_save_ema_atlases(
         if col not in nonmatches_to_atlases_rt_corrected.columns:
             nonmatches_to_atlases_rt_corrected[col] = np.nan
 
+    new_atlas_ids = {}
+    new_atlas_names = {}
     for chrom, polarities in ema_atlases.items():
+        new_atlas_ids[chrom] = {}
+        new_atlas_names[chrom] = {}
         for polarity, atlas_data in polarities.items():
-
+            new_atlas_ids[chrom][polarity] = ""
+            new_atlas_names[chrom][polarity] = ""
+            atlas_name = atlas_data['source_atlas'].iloc[0]
+            
             to_add = nonmatches_to_atlases_rt_corrected[
                 (nonmatches_to_atlases_rt_corrected['chromatography'] == chrom) &
                 (nonmatches_to_atlases_rt_corrected['polarity'] == polarity)
