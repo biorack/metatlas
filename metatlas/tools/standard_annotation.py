@@ -1346,20 +1346,22 @@ def search_for_matches_in_atlases(
                     query_unique_id = f"{query_label};;{query_adduct};;{query_polarity};;{query_chromatography}"
 
                     # Check for exact matches in inchi
-                    matching_rows = atlas_data[(atlas_data['inchi'] == query_inchi) & (atlas_data['adduct'] == query_adduct)]
-                    if not matching_rows.empty:            
-                        source_atlases = matching_rows['source_atlas'].tolist()
-                        atlas_entry = matching_rows['inchi'].tolist()
-                        matches_dict[query_unique_id] = [query_inchi, atlas_entry, source_atlases]
-                        continue
+                    if "inchi" in atlas_data.columns and query_inchi != "":
+                        matching_rows = atlas_data[(atlas_data['inchi'] == query_inchi) & (atlas_data['adduct'] == query_adduct)]
+                        if not matching_rows.empty:            
+                            source_atlases = matching_rows['source_atlas'].tolist()
+                            atlas_entry = matching_rows['inchi'].tolist()
+                            matches_dict[query_unique_id] = [query_inchi, atlas_entry, source_atlases]
+                            continue
 
                     # Check for exact matches in inchi_key
-                    matching_rows = atlas_data[(atlas_data['inchi_key'] == query_inchikey) & (atlas_data['adduct'] == query_adduct)]
-                    if not matching_rows.empty:
-                        source_atlases = matching_rows['source_atlas'].tolist()
-                        atlas_entry = matching_rows['inchi_key'].tolist()
-                        matches_dict[query_unique_id] = [query_inchi, atlas_entry, source_atlases]
-                        continue
+                    if "inchi_key" in atlas_data.columns and query_inchikey != "":
+                        matching_rows = atlas_data[(atlas_data['inchi_key'] == query_inchikey) & (atlas_data['adduct'] == query_adduct)]
+                        if not matching_rows.empty:
+                            source_atlases = matching_rows['source_atlas'].tolist()
+                            atlas_entry = matching_rows['inchi_key'].tolist()
+                            matches_dict[query_unique_id] = [query_inchikey, atlas_entry, source_atlases]
+                            continue
 
                     # Check for fuzzy matches in compound_name
                     if 'compound_name' in atlas_data.columns:
