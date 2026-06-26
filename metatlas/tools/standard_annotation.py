@@ -2003,7 +2003,7 @@ def convert_rt_peaks_to_atlas_format(rt_peaks: pd.DataFrame) -> pd.DataFrame:
     by MetAtlas.
     """
 
-    logger.info("Converting RT-peak results to unified atlas format.")
+    print("Converting RT-peak results to unified atlas format.")
     rt_peaks = rt_peaks.copy()
     rt_peaks = rt_peaks[rt_peaks['adduct'] != "Ambiguous"]
 
@@ -2485,7 +2485,7 @@ def update_and_save_ema_atlases(
             new_atlas_ids[chrom][polarity] = ""
             new_atlas_names[chrom][polarity] = ""
             atlas_name = atlas_data['source_atlas'].iloc[0]
-            
+
             to_add = nonmatches_to_atlases_rt_corrected[
                 (nonmatches_to_atlases_rt_corrected['chromatography'] == chrom) &
                 (nonmatches_to_atlases_rt_corrected['polarity'] == polarity)
