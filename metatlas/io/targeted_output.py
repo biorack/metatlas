@@ -224,14 +224,16 @@ def write_msms_fragment_ions(
     inputs:
         data: metatlas_datset
         intensity_fractions: intensity threshold as fraction of max_msms_intensity, list of (0-1]
-        min_mz: minimum threshold MSMS mz value
-        max_mz: maximum threshold MSMS mz value. Relative to precursor mz with highest intensity
+        min_mz: deprecated, no longer used for filtering (kept for backward compatibility)
+        max_mz_offset: deprecated, no longer used for filtering (kept for backward compatibility)
         scale_intensity: If not None, normalize output intensity to maximum of scale_intensity
     """
+    _ = min_mz, max_mz_offset  # deprecated args; intentionally unused
+
     fragment_ion_outputs = {intensity_fractions[0]: {}, intensity_fractions[1]: {}}
     for compound_idx, _ in enumerate(data[0]):
         max_vars_list = get_max_precursor_intensity(data, compound_idx)
-        
+
         # Process each of the top N precursors for this compound
         for rank, max_vars in enumerate(max_vars_list, start=1):
             spectra_string_dict = get_spectra_strings(
@@ -239,8 +241,6 @@ def write_msms_fragment_ions(
                 max_vars.file_idx,
                 compound_idx,
                 max_vars.pre_intensity,
-                min_mz,
-                max_mz_offset + max_vars.precursor_mz,
                 intensity_fractions,
                 scale_intensity,
             )
@@ -252,14 +252,140 @@ def write_msms_fragment_ions(
                 fragment_ion_outputs[key][output_key] = spectra_dict
 
     for key, output_dict in fragment_ion_outputs.items():
-        output_df = pd.DataFrame.from_dict(output_dict, orient='index')
+        output_df = pd.DataFrame.from_dict(output_dict, orient="index")
         # Sort by compound_idx and rank for better readability
         if not output_df.empty:
-            output_df = output_df.sort_values(by=['compound_idx', 'rank'])
+            output_df = output_df.sort_values(by=["compound_idx", "rank"])
         output_path = data.ids.output_dir / f"spectra_{key}pct_{int(min_mz)}cut.csv"
-        export_dataframe_die_on_diff(output_df, output_path, f"MSMS fragment ions, {key}pct cutoff", overwrite=overwrite, float_format="%.8e", header=True)
+        export_dataframe_die_on_diff(
+            output_df,
+            output_path,
+            f"MSMS fragment ions, {key}pct cutoff",
+            overwrite=overwrite,
+            float_format="%.8e",
+            header=True,
+        )
 
     return
+
+
+def get_spectra(data, max_pre_intensity, intensity_fractions, scale_intensity):
+    """
+    inputs:
+        data: metatlas_dataset[i][j]
+        max_pre_intensity: highest msms precursor intensity for this compound across all samples
+        intensity_fractions: intensity threshold as fraction of max_msms_intensity, list of (0-1]
+        scale_intensity: If not None, normalize output intensity to maximum of scale_intensity
+    returns a tuple containing a list of mz values and a list intensity values that make a spectra
+    returns None, None if no spectra meet the filtering thresholds
+    """
+    exported_fragments = {key: (None, None) for key in intensity_fractions}
+
+    if max_pre_intensity == 0:
+        return exported_fragments
+
+    msms = data["data"]["msms"]["data"]
+    if msms is None:
+        return exported_fragments
+
+    # Normalize supported shapes to numpy arrays.
+    try:
+        if isinstance(msms, list):
+            if len(msms) == 0:
+                return exported_fragments
+            if not isinstance(msms[0], dict):
+                return exported_fragments
+            precursor_intensity = np.asarray([x.get("precursor_intensity", np.nan) for x in msms], dtype=float)
+            msms_mz_all = np.asarray([x.get("mz", np.nan) for x in msms], dtype=float)
+            intensity_all = np.asarray([x.get("i", np.nan) for x in msms], dtype=float)
+        else:
+            precursor_intensity = np.asarray(msms["precursor_intensity"])
+            msms_mz_all = np.asarray(msms["mz"])
+            intensity_all = np.asarray(msms["i"])
+    except (TypeError, KeyError, IndexError, ValueError):
+        return exported_fragments
+
+    if precursor_intensity.size == 0:
+        return exported_fragments
+
+    idx = np.argwhere(precursor_intensity == max_pre_intensity).flatten()
+    if idx.size == 0:
+        return exported_fragments
+
+    msms_mz = msms_mz_all[idx]
+    intensity = intensity_all[idx]
+    if intensity.size == 0:
+        return exported_fragments
+
+    max_msms_intensity = np.nanmax(intensity)
+    if not np.isfinite(max_msms_intensity) or max_msms_intensity <= 0:
+        return exported_fragments
+
+    for key in exported_fragments.keys():
+        cutoff = key * max_msms_intensity
+        # Keep all fragments (including precursor); filter only by intensity threshold
+        conditions = intensity > cutoff
+        if any(conditions):
+            keep_idx = np.argwhere(conditions).flatten()
+            mz_keep = msms_mz[keep_idx]
+            intensity_keep = intensity[keep_idx]
+            sorted_indices = np.argsort(intensity_keep)[::-1]
+            msms_mz_keep = mz_keep[sorted_indices]
+            intensity_keep = intensity_keep[sorted_indices]
+            if scale_intensity is not None:
+                intensity_keep = (intensity_keep / max_msms_intensity * scale_intensity).astype(int)
+            exported_fragments[key] = (msms_mz_keep, intensity_keep)
+
+    return exported_fragments
+
+
+def get_spectra_strings(
+    data, sample_idx, compound_idx, max_pre_intensity, intensity_fractions, scale_intensity
+):
+    """
+    inputs:
+        data: metatlas_dataset[x][y]
+        sample_idx: first index into data
+        compound_idx: second into into data
+        max_pre_intensity: highest msms precursor intensity for this compound across all samples
+        intensity_fraction: intensity threshold as fraction of max_msms_intensity (0-1]
+        scale_intensity: If not None, normalize output intensity to maximum of scale_intensity
+    returns a dict containing compound name and string representations of the spectra
+    """
+    compound_data = data[sample_idx][compound_idx]
+    exported_fragment_dict = get_spectra(
+        compound_data, max_pre_intensity, intensity_fractions, scale_intensity
+    )
+    spectra_string_dict = {}
+    for key, (mz_list, intensity_list) in exported_fragment_dict.items():
+        # Handle no-spectrum case gracefully
+        if mz_list is None or intensity_list is None or len(mz_list) == 0:
+            mz_str_2 = "[]"
+            mz_str_4 = "[]"
+            intensity_str = "[]"
+            spectra_str = "[[], [], []]"
+        else:
+            mz_str_2 = str([f"{x:.2f}" for x in mz_list]).replace("'", "")
+            mz_str_4 = str([f"{x:.4f}" for x in mz_list]).replace("'", "")
+            intensity_str = str([int(x) for x in intensity_list]).replace("'", "")
+            spectra_str = str([mz_str_2, mz_str_4, intensity_str]).replace("'", "")
+
+        name = compound_data["identification"].name
+        run = Path(compound_data["lcmsrun"].hdf5_file).stem
+        mz_peak = compound_data["data"]["ms1_summary"]["mz_peak"]
+        rt_peak = compound_data["data"]["ms1_summary"]["rt_peak"]
+        spectra_string_dict[key] = {
+            "compound_idx": compound_idx,
+            "name": name,
+            "run": run,
+            "rt_peak": rt_peak,
+            "mz_peak": mz_peak,
+            "spectrum": spectra_str,
+            "mz2": mz_str_2,
+            "mz4": mz_str_4,
+            "intensity": intensity_str,
+        }
+    return spectra_string_dict
 
 def get_max_precursor_intensity(data, compound_idx, top_n=3):
     """
@@ -335,128 +461,6 @@ def get_max_precursor_intensity(data, compound_idx, top_n=3):
     # Sort by intensity (descending) and return top N
     precursor_list.sort(key=lambda x: x.pre_intensity, reverse=True)
     return precursor_list[:top_n]
-
-
-def get_spectra(data, max_pre_intensity, min_mz, max_mz, intensity_fractions, scale_intensity):
-    """
-    inputs:
-        data: metatlas_dataset[i][j]
-        max_pre_intensity: highest msms precursor intensity for this compound across all samples
-        min_mz: minimum threshold MSMS mz value
-        max_mz: maximum threshold MSMS mz value
-        intensity_fractions: intensity threshold as fraction of max_msms_intensity, list of (0-1]
-        scale_intensity: If not None, normalize output intensity to maximum of scale_intensity
-    returns a tuple containing a list of mz values and a list intensity values that make a spectra
-    returns None, None if no spectra meet the filtering thresholds
-    """
-    exported_fragments = {key: (None, None) for key in intensity_fractions}
-
-    if max_pre_intensity == 0:
-        return exported_fragments
-
-    msms = data["data"]["msms"]["data"]
-    if msms is None:
-        return exported_fragments
-
-    # Normalize supported shapes to numpy arrays.
-    try:
-        if isinstance(msms, list):
-            if len(msms) == 0:
-                return exported_fragments
-            if not isinstance(msms[0], dict):
-                return exported_fragments
-            precursor_intensity = np.asarray([x.get("precursor_intensity", np.nan) for x in msms], dtype=float)
-            msms_mz_all = np.asarray([x.get("mz", np.nan) for x in msms], dtype=float)
-            intensity_all = np.asarray([x.get("i", np.nan) for x in msms], dtype=float)
-        else:
-            precursor_intensity = np.asarray(msms["precursor_intensity"])
-            msms_mz_all = np.asarray(msms["mz"])
-            intensity_all = np.asarray(msms["i"])
-    except (TypeError, KeyError, IndexError, ValueError):
-        return exported_fragments
-
-    if precursor_intensity.size == 0:
-        return exported_fragments
-
-    idx = np.argwhere(precursor_intensity == max_pre_intensity).flatten()
-    if idx.size == 0:
-        return exported_fragments
-
-    msms_mz = msms_mz_all[idx]
-    intensity = intensity_all[idx]
-    if intensity.size == 0:
-        return exported_fragments
-
-    max_msms_intensity = np.nanmax(intensity)
-    if not np.isfinite(max_msms_intensity) or max_msms_intensity <= 0:
-        return exported_fragments
-
-    for key in exported_fragments.keys():
-        cutoff = key * max_msms_intensity
-        conditions = (intensity > cutoff) & (min_mz < msms_mz) & (msms_mz < max_mz)
-        if any(conditions):
-            keep_idx = np.argwhere(conditions).flatten()
-            mz_keep = msms_mz[keep_idx]
-            intensity_keep = intensity[keep_idx]
-            sorted_indices = np.argsort(intensity_keep)[::-1]
-            msms_mz_keep = mz_keep[sorted_indices]
-            intensity_keep = intensity_keep[sorted_indices]
-            if scale_intensity is not None:
-                intensity_keep = (intensity_keep / max_msms_intensity * scale_intensity).astype(int)
-            exported_fragments[key] = (msms_mz_keep, intensity_keep)
-
-    return exported_fragments
-
-
-def get_spectra_strings(
-    data, sample_idx, compound_idx, max_pre_intensity, min_mz, max_mz, intensity_fractions, scale_intensity
-):
-    """
-    inputs:
-        data: metatlas_dataset[x][y]
-        sample_idx: first index into data
-        compound_idx: second into into data
-        max_pre_intensity: highest msms precursor intensity for this compound across all samples
-        min_mz: minimum threshold MSMS mz value
-        max_mz: maximum threshold MSMS mz value
-        intensity_fraction: intensity threshold as fraction of max_msms_intensity (0-1]
-        scale_intensity: If not None, normalize output intensity to maximum of scale_intensity
-    returns a dict containing compound name and string representations of the spectra
-    """
-    compound_data = data[sample_idx][compound_idx]
-    exported_fragment_dict = get_spectra(
-        compound_data, max_pre_intensity, min_mz, max_mz, intensity_fractions, scale_intensity
-    )
-    spectra_string_dict = {}
-    for key, (mz_list, intensity_list) in exported_fragment_dict.items():
-        # Handle no-spectrum case gracefully
-        if mz_list is None or intensity_list is None or len(mz_list) == 0:
-            mz_str_2 = "[]"
-            mz_str_4 = "[]"
-            intensity_str = "[]"
-            spectra_str = "[[], [], []]"
-        else:
-            mz_str_2 = str([f"{x:.2f}" for x in mz_list]).replace("'", "")
-            mz_str_4 = str([f"{x:.4f}" for x in mz_list]).replace("'", "")
-            intensity_str = str([int(x) for x in intensity_list]).replace("'", "")
-            spectra_str = str([mz_str_2, mz_str_4, intensity_str]).replace("'", "")
-
-        name = compound_data["identification"].name
-        run = Path(compound_data["lcmsrun"].hdf5_file).stem
-        mz_peak = compound_data["data"]["ms1_summary"]["mz_peak"]
-        rt_peak = compound_data["data"]["ms1_summary"]["rt_peak"]
-        spectra_string_dict[key] = {
-            "compound_idx": compound_idx,
-            "name": name,
-            "run": run,
-            "rt_peak": rt_peak,
-            "mz_peak": mz_peak,
-            "spectrum": spectra_str,
-            "mz2": mz_str_2,
-            "mz4": mz_str_4,
-            "intensity": intensity_str,
-        }
-    return spectra_string_dict
 
 
 def generate_standard_outputs(
