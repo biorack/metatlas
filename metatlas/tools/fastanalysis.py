@@ -620,9 +620,13 @@ def make_scores_df(metatlas_dataset, msms_hits):
                                                                      row['msv_ref_aligned'])[0]
                 msv_sample_matches = msv_sample_matches[:, msv_sample_matches[1].argsort()[::-1]]
                 msv_sample_matches_by_intensity = msv_sample_matches[:, msv_sample_matches[1].argsort()]
-
-                max_relative_frag_intensity = msv_sample_matches_by_intensity[1,-2] / msv_sample_matches_by_intensity[1,-1]
-
+                if msv_sample_matches_by_intensity.shape[1] < 2:
+                    max_relative_frag_intensity = 0.0
+                    logger.debug("Only %d MS/MS match(es); using fallback max_relative_frag_intensity=0.0", msv_sample_matches_by_intensity.shape[1])
+                else:
+                    max_relative_frag_intensity = (
+                        msv_sample_matches_by_intensity[1, -2] / msv_sample_matches_by_intensity[1, -1]
+                    )
         try:
             max_intensity = np.nanmax(intensities)
         except ValueError:
