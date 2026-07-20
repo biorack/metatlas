@@ -780,12 +780,13 @@ def create_compound_atlas(
         if col not in atlas.columns:
             atlas[col] = np.nan
 
-    atlas['polarity']      = polarity
+    atlas['mz'] = atlas['precursor_mz']
+    atlas['polarity'] = polarity
     atlas['mz_tolerance'] = ppm_tolerance
-    atlas['extra_time']    = extra_time
-    atlas['rt_min']        = rt_min
-    atlas['rt_max']        = rt_max
-    atlas['rt_peak']       = (rt_min + rt_max) / 2
+    atlas['extra_time'] = extra_time
+    atlas['rt_min'] = rt_min
+    atlas['rt_max'] = rt_max
+    atlas['rt_peak'] = (rt_min + rt_max) / 2
 
     atlas_cols = [
         'label', 'compound_name', 'inchi_key', 'adduct', 'mz',
