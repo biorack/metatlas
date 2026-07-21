@@ -2000,43 +2000,45 @@ def format_for_msms_refs(
 
 def convert_rt_peaks_to_atlas_format(rt_peaks: pd.DataFrame) -> pd.DataFrame:
     """
-    Convert RT-peak results into the *new* unified atlas layout.
-    All columns that are NOT part of the official schema are either
-    dropped or mapped to a placeholder (NaN).  The function also
-    guarantees that the columns appear in the exact order required
-    by MetAtlas.
+    Convert RT-peak results into the unified atlas layout, retaining chromatography.
     """
-
     print("Converting RT-peak results to unified atlas format.")
-    rt_peaks = rt_peaks.copy()
-    rt_peaks = rt_peaks[rt_peaks['adduct'] != "Ambiguous"]
+    df = rt_peaks.copy()
 
-    rt_peaks['compound_name'] = rt_peaks['label']
+    # 1. Filter out ambiguous adducts
+    df = df[df['adduct'] != "Ambiguous"].copy()
 
-    if 'inchi_key' not in rt_peaks.columns:
-        rt_peaks['inchi_key'] = np.nan
-
-    rt_peaks = rt_peaks.rename(columns={
-        'mz_theoretical' : 'mz',
-        'monoisotopic_mass' : 'mono_isotopic_molecular_weight',
+    # 2. Direct mappings and renames
+    df['compound_name'] = df['label']
+    df = df.rename(columns={
+        'mz_theoretical': 'mz',
     })
-    rt_peaks['polarity'] = rt_peaks['polarity'].apply(
-        lambda p: 'positive' if p == 'POS' else ('negative' if p == 'NEG' else p)
-    )
+    df['source'] = df['standard_lcmsrun']
 
+    # 3. Polarity mapping
+    df['polarity'] = df['polarity'].map({'POS': 'positive', 'NEG': 'negative'})
+
+    # 4. Calculate RT windows (based on example output +/- 0.5)
+    df['rt_min'] = df['rt_peak'] - 0.5
+    df['rt_max'] = df['rt_peak'] + 0.5
+
+    # 5. Constants and placeholders
+    df['mz_tolerance'] = 5
+    df['rt_space'] = 'HF_Aug2019'
+    
+    placeholder_cols = ['identification_notes', 'classes', 'pathways', 'tags']
+    for col in placeholder_cols:
+        df[col] = np.nan
+
+    # 6. Define output schema order (including chromatography)
     atlas_cols = [
-        'label', 'compound_name', 'inchi_key', 'adduct', 'mz',
-        'rt_peak', 'rt_min', 'rt_max', 'mz_tolerance',
-        'polarity', 'chromatography', 'identification_notes', 'classes',
-        'pathways', 'source', 'rt_space', 'tags'
+        'label', 'compound_name', 'inchi_key', 'adduct', 'mz', 
+        'rt_peak', 'rt_min', 'rt_max', 'mz_tolerance', 'polarity', 
+        'identification_notes', 'classes', 'pathways', 
+        'source', 'rt_space', 'tags', 'standard_lcmsrun', 'chromatography'
     ]
 
-    for col in atlas_cols:
-        if col not in rt_peaks.columns:
-            rt_peaks[col] = np.nan
-
-    #return rt_peaks[atlas_cols]
-    return rt_peaks
+    return df[atlas_cols]
 
 def get_ema_atlas_data(ema_atlases_path: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, Union[str, pd.DataFrame]]]:
     """
