@@ -251,7 +251,9 @@ def update_lcmsrun_matrix(file_type):
     print((df.shape))
 
     if df.shape[0]>0:
-        update_table_in_lims(df,'lcmsrun',method='update')#,index_column='Key',columns=None,labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
+        # Remove duplicate Keys to prevent LabKey 400 Duplicate Key error
+        df = df.drop_duplicates(subset=['Key'])
+        update_table_in_lims(df,'lcmsrun',method='update')
     print('done updating')
 
 def get_lcmsrun_matrix():#labkey_server='metatlas-dev.nersc.gov',project_name='/LIMS'):
