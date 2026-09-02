@@ -103,27 +103,21 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> bool:
 
     pat = re.compile(r".+\/raw_data\/(?P<sub_dir>[^/]+)\/(?P<experiment>[^/]+)\/(?P<path>.+)")
     mzml_file_name = os.path.abspath(mzml_file_name)
-    # Strip .staged suffix so the DB stores the final (non-staged) paths,
-    # even though the file on disk is still named *.staged at this point.
-    staged_suffix = ".staged"
-    is_staged = mzml_file_name.endswith(staged_suffix)
-    mzml_file_final = mzml_file_name[: -len(staged_suffix)] if is_staged else mzml_file_name
-    file_name_match = pat.match(mzml_file_final)
+    file_name_match = pat.match(mzml_file_name)
     if file_name_match is None:
         logger.error("Invalid path name: %s", mzml_file_name)
         return False
     info = file_name_match.groupdict()
     try:
         hdf5_file = mzml_file_name.replace("mzML", "h5")
-        hdf5_file_final = mzml_file_final.replace("mzML", "h5")
         logger.info("Generating h5 file: %s", hdf5_file)
         mzml_to_hdf(mzml_file_name, hdf5_file, True)
         try:
-            runs = retrieve("lcmsrun", username="*", mzml_file=mzml_file_final)
+            runs = retrieve("lcmsrun", username="*", mzml_file=mzml_file_name)
         except Exception:
             runs = []
         if not runs:
-            username = _file_name_to_username(mzml_file_final, DEFAULT_USERNAME)
+            username = _file_name_to_username(mzml_file_name, DEFAULT_USERNAME)
             ctime = os.stat(mzml_file_name).st_ctime
             logger.info("LCMS run not in DB, inserting new entry.")
             run = LcmsRun(
@@ -133,8 +127,8 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> bool:
                 experiment=info["experiment"],
                 creation_time=ctime,
                 last_modified=ctime,
-                mzml_file=mzml_file_final,
-                hdf5_file=hdf5_file_final,
+                mzml_file=mzml_file_name,
+                hdf5_file=hdf5_file,
                 acquisition_time=get_acqtime_from_mzml(mzml_file_name),
             )
             store(run)
@@ -145,7 +139,7 @@ def mzml_to_h5_and_add_to_db(mzml_file_name: str) -> bool:
             dirname = os.path.dirname(mzml_file_name)
             logger.error("Cannot write to file within directory %s", dirname)
         else:
-            fail_path = mzml_file_final.replace("raw_data", "conversion_failures")
+            fail_path = mzml_file_name.replace("raw_data", "conversion_failures")
             logger.error("Moving mzml file to %s", fail_path)
             move_file(mzml_file_name, fail_path)
         try:
