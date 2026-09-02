@@ -45,7 +45,7 @@ fi
 # Filter for actual files (safety check) and run with lowest priority
 echo "$files_to_process" | while read -r file; do
     if [ -f "$file" ]; then
-        echo "$file"
+        printf '%s\0' "$file"
     fi
 done | \
-  parallel -j 4 --line-buffer --progress "nice -n 19 ionice -c 3 ${converter} '{}'" 2> >(tee -a "$log") | tee -a "$log"
+  parallel -j 4 --line-buffer --progress -0 "nice -n 19 ionice -c 3 ${converter} {q}" 2> >(tee -a "$log") | tee -a "$log"
