@@ -1,4 +1,22 @@
-{"argv": ["shifter", "--module=none", "--clearenv", "--entrypoint",
+{
+  "argv": [
+    "shifter",
+    "--module=none",
+    "--clearenv",
+    "--entrypoint",
     "--image=ghcr.io/biorack/metatlas/metatlas_shifter:latest",
-    "/usr/local/bin/python", "-m", "ipykernel_launcher", "-f", "{connection_file}"],
-    "display_name": "Metatlas Targeted", "language": "python", "metadata": {"debugger": true}}
+    "/usr/local/bin/python",
+    "-m",
+    "ipykernel_launcher",
+    "-f",
+    "{connection_file}"
+  ],
+  "display_name": "Metatlas Targeted",
+  "language": "python",
+  "metadata": { "debugger": true },
+  "env": {
+    "PYTHONPATH": "",
+    "PYTHONHOME": "",
+    "PYTHONNOUSERSITE": "1"
+  }
+}
