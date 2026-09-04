@@ -9,7 +9,7 @@ if [ "$#" -ne 1 ] || { [ "$1" != "jgi" ] && [ "$1" != "egsb" ]; }; then
 fi
 
 function finish {
-  module unload parallel
+  #module unload parallel
   # kill child processes as well
   pids="$(jobs -p)"
   if [ "$pids" != "" ]; then
