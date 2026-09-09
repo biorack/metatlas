@@ -1584,7 +1584,12 @@ def submit_fbmn_jobs(
                     df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '12 not relevant'
                     index_list.append(i)
                     continue
-                    
+
+                # Remove internal calibrant MS2 signal from MGF before uploading to GNPS2
+                logging.info(tab_print("Removing internal calibrant from MGF file before FBMN submission...", 2))
+                remove_contaminant_from_mgf(mgf_filename)
+
+                # Submit FBMN job to GNPS2 using effective project name for file paths
                 params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
                 job_id = submit_quickstart_fbmn(params, "bpbowen")
                 
