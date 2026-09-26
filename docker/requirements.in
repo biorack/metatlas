@@ -10,7 +10,7 @@ h5py
 humanize
 ipykernel
 #ipympl==0.9.3
-ipympl
+ipympl==0.10.0
 ipysheet
 #ipywidgets==8.1.1
 ipywidgets
