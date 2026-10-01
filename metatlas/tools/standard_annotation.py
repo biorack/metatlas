@@ -1351,23 +1351,10 @@ def search_for_matches_in_atlases(
             ):
                 q_label   = str(query_row['label'])
                 q_cmpname = str(query_row['compound_name'])
-                q_inchi   = str(query_row['inchi'])
                 q_inchikey= str(query_row['inchi_key'])
                 q_adduct  = str(query_row['adduct'])
 
                 query_unique_id = f"{q_label};;{q_adduct};;{polarity};;{chrom}"
-
-                if q_inchi and q_inchi != "":
-                    exact = atlas_data[
-                        (atlas_data['inchi'] == q_inchi) &
-                        (atlas_data['adduct'] == q_adduct)
-                    ]
-                    if not exact.empty:
-                        matches_dict[query_unique_id] = [
-                            q_inchi, exact['inchi'].tolist(),
-                            exact['source_atlas'].tolist()
-                        ]
-                        continue   # go to next query row
 
                 if q_inchikey and q_inchikey != "":
                     exact = atlas_data[
