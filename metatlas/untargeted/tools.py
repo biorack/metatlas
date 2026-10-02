@@ -1,3 +1,4 @@
+import re
 import sys
 sys.path.insert(0,'/global/common/software/m2650/labkey-api-python') # https://github.com/LabKey/labkey-api-python
 from labkey.api_wrapper import APIWrapper
@@ -134,7 +135,7 @@ def write_fbmn_tasks_to_file(
 ) -> None:
     """
     Takes a list of dictionaries from submit_fbmn_jobs
-    and writes the fbmn task id to a file in the 
+    and writes the fbmn task id to a file in the
     project directory at untarageted_tasks on perlmutter
     """
     experiment = task_list['experiment']
@@ -148,6 +149,26 @@ def write_fbmn_tasks_to_file(
             logging.info(tab_print("GNPS2 task file for %s mode written to %s"%(polarity,final_filename), 3))
     else:
         logging.warning(tab_print("Warning! GNPS2 FBMN task ID not found. File gnps2-fbmn-task.txt not written.", 3))
+
+def write_everything_bagel_task_to_file(
+    experiment: str,
+    polarity: str,
+    task_id: str,
+    output_dir: str
+) -> None:
+    """
+    Writes the Everything Bagel GNPS2 task ID to a flat file in the
+    per-polarity project directory at untargeted_tasks on perlmutter.
+    File is named: {experiment}_{polarity}_gnps2-eb-task.txt
+    """
+    filename = os.path.join(output_dir, '%s_%s'%(experiment, polarity), '%s_%s_gnps2-eb-task.txt'%(experiment, polarity))
+    if task_id:
+        with open(filename, 'w') as fid:
+            fid.write("%s_%s=%s\n"%(experiment, polarity, task_id))
+            final_filename = os.path.basename(filename)
+            logging.info(tab_print("GNPS2 Everything Bagel task file for %s mode written to %s"%(polarity, final_filename), 3))
+    else:
+        logging.warning(tab_print("Warning! GNPS2 Everything Bagel task ID not found. File gnps2-eb-task.txt not written.", 3))
 
 def get_effective_project_name(base_project_name: str, project_tag: Optional[str] = None) -> str:
     """Get the project name used for outputs and database entries"""
@@ -545,7 +566,7 @@ def upload_to_google_drive(
                 logging.critical(tab_print("Warning! Google Drive upload command failed with overwrite=%s with exception on %s"%(overwrite,upload_command), 3))
                 return False
 
-def submit_quickstart_fbmn(
+def submit_to_gnps2(
     params: str = "",
     username: str = ""
 ) -> dict:
@@ -574,7 +595,18 @@ def submit_quickstart_fbmn(
 
     # Submitting the job
     response = session.post(url, data=params)
-    return response.json()
+    try:
+        return response.json()
+    except Exception:
+        # GNPS2 sometimes returns an HTML status page instead of JSON (e.g. for Everything Bagel).
+        # Extract the task ID from the HTML using a regex.
+        match = re.search(r'["\'/]status\?task=([a-f0-9]{32})', response.text)
+        if match:
+            task_id = match.group(1)
+            logging.info(tab_print(f"Extracted task ID from GNPS2 HTML response: {task_id}", 2))
+            return {'task': task_id}
+        logging.warning(tab_print(f"Warning! GNPS2 submission response (status {response.status_code}) could not be parsed as JSON and no task ID found in HTML.", 2))
+        return {}
 
 def get_untargeted_status(
     direct_input: str = None,
@@ -917,26 +949,6 @@ def build_untargeted_filename(
     polarity: str,
     file_type: Optional[str] = None
 ) -> str:
-    """
-        file_spec = {'peak-area-mzmine':'peak-area.csv',
-                'mzmine-runner':'mzmine.sh',
-                'msms-mzmine':'_MSMS.mgf',
-                'peak-height-mzmine':'_peak-height.csv',
-                'gnps-uuid-fbmn':'_gnps-uuid.txt',
-                'fbmn-runner':'fbmn.sh',
-                'fbmn-sbatch':'fbmn-sbatch.sbatch',
-                'mzmine-outlog':'-mzmine.out',
-                'batch-params-mzmine':'_batch-params.xml',
-                'quant-fbmn':'quant.csv',
-                'gnps-fbmn-network':'_gnps-fbmn-network.graphml',
-                'mzmine-sbatch':'mzmine-sbatch.sbatch',
-                'mzmine-errlog':'-mzmine.err',
-                'metadata':'_metadata.tab',
-                'fbmn-errlog':'fbmn.err',
-                'fbmn-outlog':'fbmn.out',
-                'gnps-download':'_gnps-download.zip',
-                ''msms-mzmine3':'.mgf'}
-    """
     file_spec = {'peak-area-mzmine':'peak-area.csv',
                 'mzmine-runner':'_mzmine.sh',
                 'msms-mzmine':'_MSMS.mgf',
@@ -1052,7 +1064,6 @@ def mirror_mzmine_results_to_gnps2(
         local_directory = Path(local_directory)
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix in ('.mgf', '.csv', '.tab'):
-                #logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{remote_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
@@ -1064,6 +1075,7 @@ def mirror_mzmine_results_to_gnps2(
     except:
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
         return "Failed"
+
 
 def mirror_raw_data(
     project: str,
@@ -1480,7 +1492,6 @@ def submit_fbmn_jobs(
     #     logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
     #     return
     if not df.empty:
-        #logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2:"%(df.shape[0],status_list), 1))
         index_list = []
         for i,row in df.iterrows():
             effective_project_name = row['parent_dir']  # This is already the effective name from database
@@ -1490,6 +1501,25 @@ def submit_fbmn_jobs(
             if polarity_list is None:
                 logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(effective_project_name), 2))
                 continue
+
+            # Determine GNPS2 subdirectory using base project name
+            if raw_data_subdir is None:
+                _, validate_department, _ = vfn.field_exists(PurePath(base_project_name), field_num=1)
+                try:
+                    if validate_department is None:
+                        gnps2_subdir = 'jgi' # Assume raw data location if project name is not paresable
+                    else:
+                        gnps2_subdir = validate_department.lower()
+                    if gnps2_subdir == 'eb':
+                        gnps2_subdir = 'egsb'
+                except:
+                    logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(base_project_name), 2))
+                    gnps2_subdir = "other"
+            else:
+                gnps2_subdir = raw_data_subdir
+
+            raw_data = f'USERUPLOAD/bpbowen/raw_data/{gnps2_subdir}/{effective_project_name}'
+            
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
                 pathname = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name,polarity))  # Use effective name for output paths
@@ -1527,22 +1557,6 @@ def submit_fbmn_jobs(
                     logging.info(tab_print("Bailed out because FBMN task file already exists for %s mode and overwrite is False"%(polarity), 2))
                     continue
 
-                # Determine GNPS2 subdirectory using base project name
-                if raw_data_subdir is None:
-                    _, validate_department, _ = vfn.field_exists(PurePath(base_project_name), field_num=1)
-                    try:
-                        if validate_department is None:
-                            gnps2_subdir = 'jgi' # Assume raw data location if project name is not paresable
-                        else:
-                            gnps2_subdir = validate_department.lower()
-                        if gnps2_subdir == 'eb':
-                            gnps2_subdir = 'egsb'
-                    except:
-                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(base_project_name), 2))
-                        gnps2_subdir = "other"
-                else:
-                    gnps2_subdir = raw_data_subdir
-
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 if skip_mirror_mzmine_results is False:
                     logging.info(tab_print("Ensuring MZmine results are at GNPS2 before submitting FBMN job...", 2))
@@ -1570,11 +1584,10 @@ def submit_fbmn_jobs(
                     logging.info(tab_print("Skipping raw data mirroring to GNPS2 for %s mode..."%(polarity), 2))
 
                 # Set up FBMN parameters using effective project name for GNPS2 file paths
-                description = '%s_%s'%(effective_project_name,polarity)  # Use effective name for job description
+                fbmn_description = '%s_%s'%(effective_project_name,polarity)  # Use effective name for job description
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}.mgf'
                 quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}_quant.csv'
                 metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}_metadata.tab'
-                raw_data = f'USERUPLOAD/bpbowen/raw_data/{gnps2_subdir}/{effective_project_name}'
                 
                 # Check MGF file using effective project name path
                 mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name,polarity),'%s_%s.mgf'%(effective_project_name,polarity))
@@ -1590,15 +1603,27 @@ def submit_fbmn_jobs(
                 remove_contaminant_from_mgf(mgf_filename)
 
                 # Submit FBMN job to GNPS2 using effective project name for file paths
-                params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
-                job_id = submit_quickstart_fbmn(params, "bpbowen")
-                
+                fbmn_params = set_fbmn_parameters(fbmn_description, quant_file, spectra_file, metadata_file, raw_data)
+                fbmn_job_id = submit_to_gnps2(fbmn_params, "bpbowen")
+
                 # Use effective project name for task list and file writing
-                task_list = {'experiment':effective_project_name,'polarity':polarity,'response':job_id}
+                task_list = {'experiment':effective_project_name,'polarity':polarity,'response':fbmn_job_id}
                 logging.info(tab_print("Submitted FBMN job for %s mode and set LIMS status to ['04 running']."%(polarity), 2))
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
                 write_fbmn_tasks_to_file(task_list,output_dir)
                 index_list.append(i)
+
+                # Submit Everything Bagel job to GNPS2 for this polarity using the per-polarity metadata file
+                eb_description = f'{effective_project_name}_{polarity}_everything_bagel'
+                everything_bagel_params = set_everything_bagel_parameters(eb_description, raw_data, metadata_file)
+                everything_bagel_response = submit_to_gnps2(everything_bagel_params, "bpbowen")
+                everything_bagel_job_id = everything_bagel_response.get('task', None) if everything_bagel_response else None
+                if everything_bagel_job_id:
+                    logging.info(tab_print("Submitted Everything Bagel job for %s mode to GNPS2 with job ID: %s" % (polarity, everything_bagel_job_id), 2))
+                    write_everything_bagel_task_to_file(effective_project_name, polarity, everything_bagel_job_id, output_dir)
+                else:
+                    logging.warning(tab_print("Warning! Everything Bagel job for %s mode submitted but no task ID was returned. Full response: %s" % (polarity, everything_bagel_response), 2))
+
 
         if len(index_list) > 0:
             index_list = list(set(index_list))
@@ -1778,6 +1803,40 @@ def set_fbmn_parameters(
                 "fragment_tolerance": "0.01",
                 "precursor_filter": "yes",
                 "api": "no"}
+    return params
+
+def set_everything_bagel_parameters(
+    description: str,
+    raw_data: str,
+    combined_metadata_file: str
+) -> None:
+    """
+    Hard coded parameters and user-defined parameters are formatted by passing
+    the arguments for file location
+    """
+    params = {
+                "description": description,
+                "workflowname": 'everything_bagel_workflow',
+                "detection_preset": 'rare',
+                "experimentdescription": '',
+                "feature_finder_engine": 'v1',
+                "filter_precursor": '1',
+                "filter_window": '1',
+                "filtertostructures": '0',
+                "formula_prediction_method": 'buddy_fiddle',
+                "fragment_tolerance": '0.05',
+                "input_spectra": raw_data,
+                "input_spectral_library": 'LIBRARYLOCATION/LC/LIBRARY',
+                "library_min_matched_peaks": '6',
+                "library_min_similarity": '0.7',
+                "metadata_file": combined_metadata_file,
+                "mode": 'fbmn',
+                "noise_threshold_mode": 'standard',
+                "pm_tolerance": '0.05',
+                "run_peak_resolving_challenger": 'no',
+                "topk": '1',
+                #"workflow_version": 'SERVER:2026.08.27;WORKFLOW:2026.09.29',
+    }
     return params
 
 def update_mzmine_status_in_untargeted_tasks(
