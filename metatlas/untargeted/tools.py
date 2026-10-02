@@ -20,6 +20,7 @@ import logging
 import paramiko
 import zipfile
 import shutil
+import tempfile
 from typing import List, Dict, Union, Optional
 
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
@@ -545,7 +546,7 @@ def upload_to_google_drive(
                 logging.critical(tab_print("Warning! Google Drive upload command failed with overwrite=%s with exception on %s"%(overwrite,upload_command), 3))
                 return False
 
-def submit_quickstart_fbmn(
+def submit_to_gnps2(
     params: str = "",
     username: str = ""
 ) -> dict:
@@ -917,26 +918,6 @@ def build_untargeted_filename(
     polarity: str,
     file_type: Optional[str] = None
 ) -> str:
-    """
-        file_spec = {'peak-area-mzmine':'peak-area.csv',
-                'mzmine-runner':'mzmine.sh',
-                'msms-mzmine':'_MSMS.mgf',
-                'peak-height-mzmine':'_peak-height.csv',
-                'gnps-uuid-fbmn':'_gnps-uuid.txt',
-                'fbmn-runner':'fbmn.sh',
-                'fbmn-sbatch':'fbmn-sbatch.sbatch',
-                'mzmine-outlog':'-mzmine.out',
-                'batch-params-mzmine':'_batch-params.xml',
-                'quant-fbmn':'quant.csv',
-                'gnps-fbmn-network':'_gnps-fbmn-network.graphml',
-                'mzmine-sbatch':'mzmine-sbatch.sbatch',
-                'mzmine-errlog':'-mzmine.err',
-                'metadata':'_metadata.tab',
-                'fbmn-errlog':'fbmn.err',
-                'fbmn-outlog':'fbmn.out',
-                'gnps-download':'_gnps-download.zip',
-                ''msms-mzmine3':'.mgf'}
-    """
     file_spec = {'peak-area-mzmine':'peak-area.csv',
                 'mzmine-runner':'_mzmine.sh',
                 'msms-mzmine':'_MSMS.mgf',
@@ -1052,7 +1033,6 @@ def mirror_mzmine_results_to_gnps2(
         local_directory = Path(local_directory)
         for file_path in local_directory.rglob('*'):
             if file_path.is_file() and file_path.suffix in ('.mgf', '.csv', '.tab'):
-                #logging.info("Uploading %s to GNPS2..." % file_path.name)
                 local_path = str(file_path)
                 remote_path = f"{remote_directory}/{file_path.name}"
                 sftp.put(local_path, remote_path)
@@ -1064,6 +1044,97 @@ def mirror_mzmine_results_to_gnps2(
     except:
         logging.error(tab_print(f"Failed to mirror MZmine results for {project} to GNPS2", 3))
         return "Failed"
+
+
+def combine_and_upload_metadata_to_raw_data(
+    project: str,
+    polarity_list: List[str],
+    output_dir: str,
+    gnps2_subdir: str,
+    gnps2_project_name: Optional[str] = None,
+    username: str = "bpbowen"
+) -> str:
+    """
+    Combines per-polarity metadata.tab files for a project into a single metadata file
+    and uploads it to the GNPS2 raw_data directory for the project.
+
+    The combined file contains all rows from each polarity's metadata.tab, deduplicated
+    by filename, so that all sample metadata is co-located with the raw mzML files.
+
+    Parameters:
+    - project (str): The base project name (used for finding local metadata files).
+    - polarity_list (list): List of polarities present for this project (e.g. ['positive', 'negative']).
+    - output_dir (str): The local directory containing per-polarity output subdirectories.
+    - gnps2_subdir (str): The subdirectory under /raw_data/ on GNPS2 (e.g. 'jgi', 'egsb').
+    - gnps2_project_name (str, optional): The project name to use for the GNPS2 raw_data directory.
+        If None, uses project.
+    - username (str): The GNPS2 username. Default is 'bpbowen'.
+
+    Returns:
+    - "Passed" or "Failed"
+    """
+    gnps2_project_name = gnps2_project_name or project
+    remote_directory = f"/raw_data/{gnps2_subdir}/{gnps2_project_name}"
+    combined_metadata_filename = f"{gnps2_project_name}_full_metadata.tab"
+
+    # Collect and concatenate per-polarity metadata dataframes
+    metadata_dfs = []
+    for polarity in polarity_list:
+        polarity_dir = os.path.join(output_dir, f"{project}_{polarity}")
+        metadata_path = os.path.join(polarity_dir, f"{project}_{polarity}_metadata.tab")
+        if os.path.isfile(metadata_path):
+            try:
+                df = pd.read_csv(metadata_path, sep='\t')
+                metadata_dfs.append(df)
+                logging.info(tab_print(f"Read {polarity} metadata from {metadata_path}", 4))
+            except Exception as e:
+                logging.warning(tab_print(f"Warning! Could not read {polarity} metadata file {metadata_path}: {e}", 4))
+        else:
+            logging.warning(tab_print(f"Warning! {polarity} metadata file not found at {metadata_path}", 4))
+
+    if not metadata_dfs:
+        logging.error(tab_print(f"No metadata files found for {project}. Cannot create combined metadata.", 3))
+        return "Failed"
+
+    # Concatenate and deduplicate by filename
+    combined_df = pd.concat(metadata_dfs, ignore_index=True)
+    combined_df.drop_duplicates(subset=['filename'], keep='first', inplace=True)
+    logging.info(tab_print(f"Combined metadata has {len(combined_df)} rows from {len(metadata_dfs)} polarity file(s).", 3))
+
+    # Write combined metadata to a temp file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.tab', delete=False, prefix=f"{gnps2_project_name}_metadata_") as tmp:
+        combined_df.to_csv(tmp, sep='\t', index=False)
+        tmp_path = tmp.name
+
+    # Upload to GNPS2 raw_data directory
+    transport, sftp, error = _get_gnps2_connection(username)
+    if error:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+        return "Failed"
+
+    try:
+        remote_path = f"{remote_directory}/{combined_metadata_filename}"
+        sftp.put(tmp_path, remote_path)
+        logging.info(tab_print(f"Uploaded combined metadata file {combined_metadata_filename} to GNPS2 raw_data directory {remote_directory}", 3))
+        sftp.close()
+        transport.close()
+        return "Passed"
+    except Exception as e:
+        logging.error(tab_print(f"Failed to upload combined metadata to GNPS2 raw_data directory {remote_directory}: {e}", 3))
+        try:
+            sftp.close()
+            transport.close()
+        except Exception:
+            pass
+        return "Failed"
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
 
 def mirror_raw_data(
     project: str,
@@ -1570,7 +1641,7 @@ def submit_fbmn_jobs(
                     logging.info(tab_print("Skipping raw data mirroring to GNPS2 for %s mode..."%(polarity), 2))
 
                 # Set up FBMN parameters using effective project name for GNPS2 file paths
-                description = '%s_%s'%(effective_project_name,polarity)  # Use effective name for job description
+                fbmn_description = '%s_%s'%(effective_project_name,polarity)  # Use effective name for job description
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}.mgf'
                 quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}_quant.csv'
                 metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}_metadata.tab'
@@ -1590,15 +1661,36 @@ def submit_fbmn_jobs(
                 remove_contaminant_from_mgf(mgf_filename)
 
                 # Submit FBMN job to GNPS2 using effective project name for file paths
-                params = set_fbmn_parameters(description, quant_file, spectra_file, metadata_file, raw_data)
-                job_id = submit_quickstart_fbmn(params, "bpbowen")
-                
+                fbmn_params = set_fbmn_parameters(fbmn_description, quant_file, spectra_file, metadata_file, raw_data)
+                fbmn_job_id = submit_to_gnps2(fbmn_params, "bpbowen")
+
                 # Use effective project name for task list and file writing
-                task_list = {'experiment':effective_project_name,'polarity':polarity,'response':job_id}
+                task_list = {'experiment':effective_project_name,'polarity':polarity,'response':fbmn_job_id}
                 logging.info(tab_print("Submitted FBMN job for %s mode and set LIMS status to ['04 running']."%(polarity), 2))
                 df.loc[i,'%s_%s_status'%(tasktype,polarity_short)] = '04 running'
                 write_fbmn_tasks_to_file(task_list,output_dir)
                 index_list.append(i)
+
+            # Upload combined metadata (all polarities) to the raw_data directory for this project
+            if skip_mirror_raw_data is False:
+                logging.info(tab_print("Uploading combined metadata file (all polarities) to GNPS2 raw_data directory...", 2))
+                combine_and_upload_metadata_to_raw_data(
+                    project=effective_project_name,
+                    polarity_list=polarity_list,
+                    output_dir=output_dir,
+                    gnps2_subdir=gnps2_subdir,
+                    gnps2_project_name=effective_project_name,
+                    username="bpbowen"
+                )
+            else:
+                logging.info(tab_print("Skipping combined metadata upload to GNPS2 raw_data directory (raw data mirroring is disabled)...", 2))
+
+            # Submit Everything Bagel job to GNPS2 using effective project name for file paths
+            eb_description = effective_project_name + "_everything_bagel"
+            combined_metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_full_metadata.tab'
+            everything_bagel_params = set_everything_bagel_parameters(eb_description, raw_data, combined_metadata_file)
+            everything_bagel_job_id = submit_to_gnps2(everything_bagel_params, "bpbowen")
+            logging.info(tab_print("Submitted Everything Bagel job to GNPS2 with job ID: %s"%(everything_bagel_job_id), 2))
 
         if len(index_list) > 0:
             index_list = list(set(index_list))
@@ -1778,6 +1870,40 @@ def set_fbmn_parameters(
                 "fragment_tolerance": "0.01",
                 "precursor_filter": "yes",
                 "api": "no"}
+    return params
+
+def set_everything_bagel_parameters(
+    description: str,
+    raw_data: str,
+    combined_metadata_file: str
+) -> None:
+    """
+    Hard coded parameters and user-defined parameters are formatted by passing
+    the arguments for file location
+    """
+    params = {
+                "description": description,
+                "workflowname": 'everything_bagel_workflow',
+                "detection_preset": 'rare',
+                "experimentdescription": '',
+                "feature_finder_engine": 'v1',
+                "filter_precursor": '1',
+                "filter_window": '1',
+                "filtertostructures": '0',
+                "formula_prediction_method": 'BUDDY',
+                "fragment_tolerance": '0.05',
+                "input_raw_spectra": raw_data,
+                "input_spectral_library": 'LIBRARYLOCATION/LC/LIBRARY',
+                "library_min_matched_peaks": '5',
+                "library_min_similarity": '0.7',
+                "metadata_file": combined_metadata_file,
+                "mode": 'fbmn',
+                "noise_threshold_mode": 'standard',
+                "pm_tolerance": '0.05',
+                "run_peak_resolving_challenger": 'no',
+                "topk": '1',
+                #"workflow_version": 'SERVER:2026.08.27;WORKFLOW:2026.09.29',
+    }
     return params
 
 def update_mzmine_status_in_untargeted_tasks(
