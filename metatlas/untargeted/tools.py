@@ -575,7 +575,11 @@ def submit_to_gnps2(
 
     # Submitting the job
     response = session.post(url, data=params)
-    return response.json()
+    try:
+        return response.json()
+    except Exception as e:
+        logging.warning(tab_print(f"Warning! GNPS2 submission response could not be parsed as JSON (status {response.status_code}): {e}", 2))
+        return {}
 
 def get_untargeted_status(
     direct_input: str = None,
@@ -1117,6 +1121,17 @@ def combine_and_upload_metadata_to_raw_data(
 
     try:
         remote_path = f"{remote_directory}/{combined_metadata_filename}"
+
+        # Check if the combined metadata file already exists remotely; skip if so
+        try:
+            sftp.stat(remote_path)
+            logging.info(tab_print(f"Combined metadata file {combined_metadata_filename} already exists at GNPS2 raw_data directory. Skipping upload.", 3))
+            sftp.close()
+            transport.close()
+            return "Passed"
+        except FileNotFoundError:
+            pass  # File does not exist remotely, proceed with upload
+
         sftp.put(tmp_path, remote_path)
         logging.info(tab_print(f"Uploaded combined metadata file {combined_metadata_filename} to GNPS2 raw_data directory {remote_directory}", 3))
         sftp.close()
