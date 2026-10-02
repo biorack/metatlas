@@ -1566,7 +1566,6 @@ def submit_fbmn_jobs(
     #     logging.info(tab_print('There are too many new projects to be submitted (%s), please check if this is accurate. Exiting script.'%(df.shape[0]), 1))
     #     return
     if not df.empty:
-        #logging.info(tab_print("Total of %s projects(s) with FBMN status %s and MZmine status ['07 complete'] to submit to GNPS2:"%(df.shape[0],status_list), 1))
         index_list = []
         for i,row in df.iterrows():
             effective_project_name = row['parent_dir']  # This is already the effective name from database
@@ -1576,6 +1575,23 @@ def submit_fbmn_jobs(
             if polarity_list is None:
                 logging.warning(tab_print("Warning! Project %s does not have a negative or a positive polarity directory. Skipping..."%(effective_project_name), 2))
                 continue
+
+            # Determine GNPS2 subdirectory using base project name
+            if raw_data_subdir is None:
+                _, validate_department, _ = vfn.field_exists(PurePath(base_project_name), field_num=1)
+                try:
+                    if validate_department is None:
+                        gnps2_subdir = 'jgi' # Assume raw data location if project name is not paresable
+                    else:
+                        gnps2_subdir = validate_department.lower()
+                    if gnps2_subdir == 'eb':
+                        gnps2_subdir = 'egsb'
+                except:
+                    logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(base_project_name), 2))
+                    gnps2_subdir = "other"
+            else:
+                gnps2_subdir = raw_data_subdir
+
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
                 pathname = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name,polarity))  # Use effective name for output paths
@@ -1612,22 +1628,6 @@ def submit_fbmn_jobs(
                 if os.path.isfile(fbmn_filename)==True and overwrite_fbmn==False:
                     logging.info(tab_print("Bailed out because FBMN task file already exists for %s mode and overwrite is False"%(polarity), 2))
                     continue
-
-                # Determine GNPS2 subdirectory using base project name
-                if raw_data_subdir is None:
-                    _, validate_department, _ = vfn.field_exists(PurePath(base_project_name), field_num=1)
-                    try:
-                        if validate_department is None:
-                            gnps2_subdir = 'jgi' # Assume raw data location if project name is not paresable
-                        else:
-                            gnps2_subdir = validate_department.lower()
-                        if gnps2_subdir == 'eb':
-                            gnps2_subdir = 'egsb'
-                    except:
-                        logging.warning(tab_print("Warning! Could not infer department/raw data location for %s. Defaulting to 'other'. Use --raw_data_subdir to provide a custom subdirectory for the raw data."%(base_project_name), 2))
-                        gnps2_subdir = "other"
-                else:
-                    gnps2_subdir = raw_data_subdir
 
                 # Get mzmine results files and raw data to GNPS2 before starting FBMN job
                 if skip_mirror_mzmine_results is False:
