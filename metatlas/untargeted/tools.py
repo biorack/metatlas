@@ -1,3 +1,4 @@
+import re
 import sys
 sys.path.insert(0,'/global/common/software/m2650/labkey-api-python') # https://github.com/LabKey/labkey-api-python
 from labkey.api_wrapper import APIWrapper
@@ -577,9 +578,15 @@ def submit_to_gnps2(
     response = session.post(url, data=params)
     try:
         return response.json()
-    except Exception as e:
-        logging.warning(tab_print(f"Warning! GNPS2 submission response could not be parsed as JSON (status {response.status_code}): {e}", 2))
-        logging.warning(tab_print(f"Raw response text: {repr(response.text)}", 2))
+    except Exception:
+        # GNPS2 sometimes returns an HTML status page instead of JSON (e.g. for Everything Bagel).
+        # Extract the task ID from the HTML using a regex.
+        match = re.search(r'["\'/]status\?task=([a-f0-9]{32})', response.text)
+        if match:
+            task_id = match.group(1)
+            logging.info(tab_print(f"Extracted task ID from GNPS2 HTML response: {task_id}", 2))
+            return {'task': task_id}
+        logging.warning(tab_print(f"Warning! GNPS2 submission response (status {response.status_code}) could not be parsed as JSON and no task ID found in HTML.", 2))
         return {}
 
 def get_untargeted_status(
