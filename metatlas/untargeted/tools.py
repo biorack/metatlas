@@ -579,6 +579,7 @@ def submit_to_gnps2(
         return response.json()
     except Exception as e:
         logging.warning(tab_print(f"Warning! GNPS2 submission response could not be parsed as JSON (status {response.status_code}): {e}", 2))
+        logging.warning(tab_print(f"Raw response text: {repr(response.text)}", 2))
         return {}
 
 def get_untargeted_status(
@@ -1705,8 +1706,12 @@ def submit_fbmn_jobs(
             eb_description = effective_project_name + "_everything_bagel"
             combined_metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_full_metadata.tab'
             everything_bagel_params = set_everything_bagel_parameters(eb_description, raw_data, combined_metadata_file)
-            everything_bagel_job_id = submit_to_gnps2(everything_bagel_params, "bpbowen")
-            logging.info(tab_print("Submitted Everything Bagel job to GNPS2 with job ID: %s"%(everything_bagel_job_id), 2))
+            everything_bagel_response = submit_to_gnps2(everything_bagel_params, "bpbowen")
+            everything_bagel_job_id = everything_bagel_response.get('task', None) if everything_bagel_response else None
+            if everything_bagel_job_id:
+                logging.info(tab_print("Submitted Everything Bagel job to GNPS2 with job ID: %s" % everything_bagel_job_id, 2))
+            else:
+                logging.warning(tab_print("Warning! Everything Bagel job submitted but no task ID was returned. Full response: %s" % everything_bagel_response, 2))
 
         if len(index_list) > 0:
             index_list = list(set(index_list))
