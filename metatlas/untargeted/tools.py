@@ -1592,6 +1592,8 @@ def submit_fbmn_jobs(
             else:
                 gnps2_subdir = raw_data_subdir
 
+            raw_data = f'USERUPLOAD/bpbowen/raw_data/{gnps2_subdir}/{effective_project_name}'
+            
             for polarity in polarity_list:
                 polarity_short = polarity[:3]
                 pathname = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name,polarity))  # Use effective name for output paths
@@ -1660,7 +1662,6 @@ def submit_fbmn_jobs(
                 spectra_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}.mgf'
                 quant_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}_quant.csv'
                 metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_{polarity}/{effective_project_name}_{polarity}_metadata.tab'
-                raw_data = f'USERUPLOAD/bpbowen/raw_data/{gnps2_subdir}/{effective_project_name}'
                 
                 # Check MGF file using effective project name path
                 mgf_filename = os.path.join(row['output_dir'],'%s_%s'%(effective_project_name,polarity),'%s_%s.mgf'%(effective_project_name,polarity))
