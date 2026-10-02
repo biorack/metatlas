@@ -135,7 +135,7 @@ def write_fbmn_tasks_to_file(
 ) -> None:
     """
     Takes a list of dictionaries from submit_fbmn_jobs
-    and writes the fbmn task id to a file in the 
+    and writes the fbmn task id to a file in the
     project directory at untarageted_tasks on perlmutter
     """
     experiment = task_list['experiment']
@@ -149,6 +149,26 @@ def write_fbmn_tasks_to_file(
             logging.info(tab_print("GNPS2 task file for %s mode written to %s"%(polarity,final_filename), 3))
     else:
         logging.warning(tab_print("Warning! GNPS2 FBMN task ID not found. File gnps2-fbmn-task.txt not written.", 3))
+
+def write_everything_bagel_task_to_file(
+    experiment: str,
+    polarity: str,
+    task_id: str,
+    output_dir: str
+) -> None:
+    """
+    Writes the Everything Bagel GNPS2 task ID to a flat file in the
+    per-polarity project directory at untargeted_tasks on perlmutter.
+    File is named: {experiment}_{polarity}_gnps2-eb-task.txt
+    """
+    filename = os.path.join(output_dir, '%s_%s'%(experiment, polarity), '%s_%s_gnps2-eb-task.txt'%(experiment, polarity))
+    if task_id:
+        with open(filename, 'w') as fid:
+            fid.write("%s_%s=%s\n"%(experiment, polarity, task_id))
+            final_filename = os.path.basename(filename)
+            logging.info(tab_print("GNPS2 Everything Bagel task file for %s mode written to %s"%(polarity, final_filename), 3))
+    else:
+        logging.warning(tab_print("Warning! GNPS2 Everything Bagel task ID not found. File gnps2-eb-task.txt not written.", 3))
 
 def get_effective_project_name(base_project_name: str, project_tag: Optional[str] = None) -> str:
     """Get the project name used for outputs and database entries"""
@@ -1600,6 +1620,7 @@ def submit_fbmn_jobs(
                 everything_bagel_job_id = everything_bagel_response.get('task', None) if everything_bagel_response else None
                 if everything_bagel_job_id:
                     logging.info(tab_print("Submitted Everything Bagel job for %s mode to GNPS2 with job ID: %s" % (polarity, everything_bagel_job_id), 2))
+                    write_everything_bagel_task_to_file(effective_project_name, polarity, everything_bagel_job_id, output_dir)
                 else:
                     logging.warning(tab_print("Warning! Everything Bagel job for %s mode submitted but no task ID was returned. Full response: %s" % (polarity, everything_bagel_response), 2))
 
