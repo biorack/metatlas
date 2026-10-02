@@ -1087,7 +1087,7 @@ def combine_and_upload_metadata_to_raw_data(
     """
     gnps2_project_name = gnps2_project_name or project
     remote_directory = f"/raw_data/{gnps2_subdir}/{gnps2_project_name}"
-    combined_metadata_filename = f"{gnps2_project_name}_full_metadata.tab"
+    combined_metadata_filename = f"{gnps2_project_name}_metadata.tab"
 
     # Collect and concatenate per-polarity metadata dataframes
     metadata_dfs = []
@@ -1711,7 +1711,7 @@ def submit_fbmn_jobs(
 
             # Submit Everything Bagel job to GNPS2 using effective project name for file paths
             eb_description = effective_project_name + "_everything_bagel"
-            combined_metadata_file = f'USERUPLOAD/bpbowen/untargeted_tasks/{effective_project_name}_full_metadata.tab'
+            combined_metadata_file = f'USERUPLOAD/bpbowen/raw_data/{gnps2_subdir}/{effective_project_name}/{effective_project_name}_metadata.tab'
             everything_bagel_params = set_everything_bagel_parameters(eb_description, raw_data, combined_metadata_file)
             everything_bagel_response = submit_to_gnps2(everything_bagel_params, "bpbowen")
             everything_bagel_job_id = everything_bagel_response.get('task', None) if everything_bagel_response else None
@@ -1918,9 +1918,9 @@ def set_everything_bagel_parameters(
                 "filter_precursor": '1',
                 "filter_window": '1',
                 "filtertostructures": '0',
-                "formula_prediction_method": 'BUDDY',
+                "formula_prediction_method": 'buddy_fiddle',
                 "fragment_tolerance": '0.05',
-                "input_raw_spectra": raw_data,
+                "input_spectra": raw_data,
                 "input_spectral_library": 'LIBRARYLOCATION/LC/LIBRARY',
                 "library_min_matched_peaks": '5',
                 "library_min_similarity": '0.7',
