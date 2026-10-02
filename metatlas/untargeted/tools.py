@@ -21,7 +21,6 @@ import logging
 import paramiko
 import zipfile
 import shutil
-import tempfile
 from typing import List, Dict, Union, Optional
 
 key_file = '/global/cfs/cdirs/metatlas/labkey_user.txt'
@@ -1058,107 +1057,6 @@ def mirror_mzmine_results_to_gnps2(
         return "Failed"
 
 
-def combine_and_upload_metadata_to_raw_data(
-    project: str,
-    polarity_list: List[str],
-    output_dir: str,
-    gnps2_subdir: str,
-    gnps2_project_name: Optional[str] = None,
-    username: str = "bpbowen"
-) -> str:
-    """
-    Combines per-polarity metadata.tab files for a project into a single metadata file
-    and uploads it to the GNPS2 raw_data directory for the project.
-
-    The combined file contains all rows from each polarity's metadata.tab, deduplicated
-    by filename, so that all sample metadata is co-located with the raw mzML files.
-
-    Parameters:
-    - project (str): The base project name (used for finding local metadata files).
-    - polarity_list (list): List of polarities present for this project (e.g. ['positive', 'negative']).
-    - output_dir (str): The local directory containing per-polarity output subdirectories.
-    - gnps2_subdir (str): The subdirectory under /raw_data/ on GNPS2 (e.g. 'jgi', 'egsb').
-    - gnps2_project_name (str, optional): The project name to use for the GNPS2 raw_data directory.
-        If None, uses project.
-    - username (str): The GNPS2 username. Default is 'bpbowen'.
-
-    Returns:
-    - "Passed" or "Failed"
-    """
-    gnps2_project_name = gnps2_project_name or project
-    remote_directory = f"/raw_data/{gnps2_subdir}/{gnps2_project_name}"
-    combined_metadata_filename = f"{gnps2_project_name}_metadata.tab"
-
-    # Collect and concatenate per-polarity metadata dataframes
-    metadata_dfs = []
-    for polarity in polarity_list:
-        polarity_dir = os.path.join(output_dir, f"{project}_{polarity}")
-        metadata_path = os.path.join(polarity_dir, f"{project}_{polarity}_metadata.tab")
-        if os.path.isfile(metadata_path):
-            try:
-                df = pd.read_csv(metadata_path, sep='\t')
-                metadata_dfs.append(df)
-                logging.info(tab_print(f"Read {polarity} metadata from {metadata_path}", 4))
-            except Exception as e:
-                logging.warning(tab_print(f"Warning! Could not read {polarity} metadata file {metadata_path}: {e}", 4))
-        else:
-            logging.warning(tab_print(f"Warning! {polarity} metadata file not found at {metadata_path}", 4))
-
-    if not metadata_dfs:
-        logging.error(tab_print(f"No metadata files found for {project}. Cannot create combined metadata.", 3))
-        return "Failed"
-
-    # Concatenate and deduplicate by filename
-    combined_df = pd.concat(metadata_dfs, ignore_index=True)
-    combined_df.drop_duplicates(subset=['filename'], keep='first', inplace=True)
-    logging.info(tab_print(f"Combined metadata has {len(combined_df)} rows from {len(metadata_dfs)} polarity file(s).", 3))
-
-    # Write combined metadata to a temp file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.tab', delete=False, prefix=f"{gnps2_project_name}_metadata_") as tmp:
-        combined_df.to_csv(tmp, sep='\t', index=False)
-        tmp_path = tmp.name
-
-    # Upload to GNPS2 raw_data directory
-    transport, sftp, error = _get_gnps2_connection(username)
-    if error:
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
-        return "Failed"
-
-    try:
-        remote_path = f"{remote_directory}/{combined_metadata_filename}"
-
-        # Check if the combined metadata file already exists remotely; skip if so
-        try:
-            sftp.stat(remote_path)
-            logging.info(tab_print(f"Combined metadata file {combined_metadata_filename} already exists at GNPS2 raw_data directory. Skipping upload.", 3))
-            sftp.close()
-            transport.close()
-            return "Passed"
-        except FileNotFoundError:
-            pass  # File does not exist remotely, proceed with upload
-
-        sftp.put(tmp_path, remote_path)
-        logging.info(tab_print(f"Uploaded combined metadata file {combined_metadata_filename} to GNPS2 raw_data directory {remote_directory}", 3))
-        sftp.close()
-        transport.close()
-        return "Passed"
-    except Exception as e:
-        logging.error(tab_print(f"Failed to upload combined metadata to GNPS2 raw_data directory {remote_directory}: {e}", 3))
-        try:
-            sftp.close()
-            transport.close()
-        except Exception:
-            pass
-        return "Failed"
-    finally:
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
-
 def mirror_raw_data(
     project: str,
     username: str = "bpbowen",
@@ -1695,30 +1593,16 @@ def submit_fbmn_jobs(
                 write_fbmn_tasks_to_file(task_list,output_dir)
                 index_list.append(i)
 
-            # Upload combined metadata (all polarities) to the raw_data directory for this project
-            if skip_mirror_raw_data is False:
-                logging.info(tab_print("Uploading combined metadata file (all polarities) to GNPS2 raw_data directory...", 2))
-                combine_and_upload_metadata_to_raw_data(
-                    project=effective_project_name,
-                    polarity_list=polarity_list,
-                    output_dir=output_dir,
-                    gnps2_subdir=gnps2_subdir,
-                    gnps2_project_name=effective_project_name,
-                    username="bpbowen"
-                )
-            else:
-                logging.info(tab_print("Skipping combined metadata upload to GNPS2 raw_data directory (raw data mirroring is disabled)...", 2))
+                # Submit Everything Bagel job to GNPS2 for this polarity using the per-polarity metadata file
+                eb_description = f'{effective_project_name}_{polarity}_everything_bagel'
+                everything_bagel_params = set_everything_bagel_parameters(eb_description, raw_data, metadata_file)
+                everything_bagel_response = submit_to_gnps2(everything_bagel_params, "bpbowen")
+                everything_bagel_job_id = everything_bagel_response.get('task', None) if everything_bagel_response else None
+                if everything_bagel_job_id:
+                    logging.info(tab_print("Submitted Everything Bagel job for %s mode to GNPS2 with job ID: %s" % (polarity, everything_bagel_job_id), 2))
+                else:
+                    logging.warning(tab_print("Warning! Everything Bagel job for %s mode submitted but no task ID was returned. Full response: %s" % (polarity, everything_bagel_response), 2))
 
-            # Submit Everything Bagel job to GNPS2 using effective project name for file paths
-            eb_description = effective_project_name + "_everything_bagel"
-            combined_metadata_file = f'USERUPLOAD/bpbowen/raw_data/{gnps2_subdir}/{effective_project_name}/{effective_project_name}_metadata.tab'
-            everything_bagel_params = set_everything_bagel_parameters(eb_description, raw_data, combined_metadata_file)
-            everything_bagel_response = submit_to_gnps2(everything_bagel_params, "bpbowen")
-            everything_bagel_job_id = everything_bagel_response.get('task', None) if everything_bagel_response else None
-            if everything_bagel_job_id:
-                logging.info(tab_print("Submitted Everything Bagel job to GNPS2 with job ID: %s" % everything_bagel_job_id, 2))
-            else:
-                logging.warning(tab_print("Warning! Everything Bagel job submitted but no task ID was returned. Full response: %s" % everything_bagel_response, 2))
 
         if len(index_list) > 0:
             index_list = list(set(index_list))
@@ -1922,7 +1806,7 @@ def set_everything_bagel_parameters(
                 "fragment_tolerance": '0.05',
                 "input_spectra": raw_data,
                 "input_spectral_library": 'LIBRARYLOCATION/LC/LIBRARY',
-                "library_min_matched_peaks": '5',
+                "library_min_matched_peaks": '6',
                 "library_min_similarity": '0.7',
                 "metadata_file": combined_metadata_file,
                 "mode": 'fbmn',
