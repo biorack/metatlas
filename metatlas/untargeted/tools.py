@@ -1801,7 +1801,7 @@ def set_fbmn_parameters(
                 "normalization": "None",
                 "pm_tolerance": "0.01",
                 "fragment_tolerance": "0.01",
-                "precursor_filter": "yes",
+                "precursor_filter": "1",
                 "api": "no"}
     return params
 
