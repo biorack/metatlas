@@ -107,6 +107,11 @@ important checkpoints and features of each step are described below.
 3. Submit an FBMN task at GNPS2 and write the task ID to a file (`*_gnps2-fbmn-task.txt`) in the project/polarity `untargeted_tasks`
    directory at NERSC.
 4. Update the the LIMS `untargeted_tasks` table to `running` if the FBMN task was submitted successfully.
+5. Submit an Everything Bagel task using the polarity-specific metadata and a semicolon-separated list of the project's
+   local mzML files with the requested polarity or `FPS` in the polarity filename field. All selected files must also
+   exist in the GNPS2 raw-data directory, including when `--skip_mirror_raw_data` is used. EB submission is skipped
+   with a warning if files are missing, filenames cannot be classified, or the GNPS2 directory cannot be read. FBMN
+   submission is unaffected; EB has no independent retry in this pipeline.
 
 ### Step 6 (Cycle 3)
 

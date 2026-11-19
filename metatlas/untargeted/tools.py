@@ -15,6 +15,7 @@ import subprocess
 import math
 sys.path.insert(0,'/global/common/software/m2650/metatlas-repo/')
 import metatlas.tools.validate_filenames as vfn
+from metatlas.untargeted.gnps2_inputs import everything_bagel_input_spectra
 import subprocess
 import grp
 import logging
@@ -1613,9 +1614,33 @@ def submit_fbmn_jobs(
                 write_fbmn_tasks_to_file(task_list,output_dir)
                 index_list.append(i)
 
-                # Submit Everything Bagel job to GNPS2 for this polarity using the per-polarity metadata file
+                # Submit Everything Bagel with only uploaded files for this polarity and FPS.
+                if not raw_data_dir:
+                    logging.warning(tab_print("Skipping Everything Bagel: raw data directory is not configured", 2))
+                    continue
+                local_raw_data = _find_raw_data_directory(base_project_name, raw_data_dir, raw_data_subdir)
+                if not local_raw_data:
+                    logging.warning(tab_print(f"Skipping Everything Bagel: raw data directory not found for {base_project_name}", 2))
+                    continue
+                try:
+                    transport, sftp, error = _get_gnps2_connection("bpbowen")
+                except OSError as e:
+                    logging.warning(tab_print(f"Skipping Everything Bagel for {polarity}: {e}", 2))
+                    continue
+                if error:
+                    logging.warning(tab_print(f"Skipping Everything Bagel for {polarity}: {error}", 2))
+                    continue
+                try:
+                    eb_raw_data = everything_bagel_input_spectra(sftp, local_raw_data, raw_data, "bpbowen", polarity)
+                except (OSError, ValueError, paramiko.SSHException) as e:
+                    logging.warning(tab_print(f"Skipping Everything Bagel for {polarity}: {e}", 2))
+                    continue
+                finally:
+                    sftp.close()
+                    transport.close()
+
                 eb_description = f'{effective_project_name}_{polarity}_everything_bagel'
-                everything_bagel_params = set_everything_bagel_parameters(eb_description, raw_data, metadata_file)
+                everything_bagel_params = set_everything_bagel_parameters(eb_description, eb_raw_data, metadata_file)
                 everything_bagel_response = submit_to_gnps2(everything_bagel_params, "bpbowen")
                 everything_bagel_job_id = everything_bagel_response.get('task', None) if everything_bagel_response else None
                 if everything_bagel_job_id:
