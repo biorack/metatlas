@@ -1615,7 +1615,15 @@ def submit_fbmn_jobs(
 
                 # Submit Everything Bagel job to GNPS2 for this polarity using the per-polarity metadata file
                 eb_description = f'{effective_project_name}_{polarity}_everything_bagel'
-                everything_bagel_params = set_everything_bagel_parameters(eb_description, raw_data, metadata_file)
+                try:
+                    eb_files = build_eb_file_list(
+                        base_project_name, raw_data_dir, raw_data_subdir, raw_data, polarity
+                    )
+                except (OSError, ValueError) as e:
+                    logging.warning(tab_print(f"Skipping Everything Bagel for {polarity}: {e}", 2))
+                    continue
+
+                everything_bagel_params = set_everything_bagel_parameters(eb_description, eb_files, metadata_file)
                 everything_bagel_response = submit_to_gnps2(everything_bagel_params, "bpbowen")
                 everything_bagel_job_id = everything_bagel_response.get('task', None) if everything_bagel_response else None
                 if everything_bagel_job_id:
@@ -1804,6 +1812,36 @@ def set_fbmn_parameters(
                 "precursor_filter": "1",
                 "api": "no"}
     return params
+
+def build_eb_file_list(project, raw_data_dir, raw_data_subdir, raw_data, polarity):
+    """Build GNPS2 paths for project mzML files matching the requested polarity."""
+    if polarity not in ("positive", "negative"):
+        raise ValueError(f"Unsupported polarity: {polarity}")
+    if not raw_data_dir:
+        raise ValueError("Raw data directory is not configured")
+
+    local_dir = _find_raw_data_directory(project, raw_data_dir, raw_data_subdir)
+    if not local_dir:
+        raise ValueError(f"Raw data directory not found for {project}")
+
+    selected = set()
+    for path in Path(local_dir).rglob("*.mzML"):
+        if not path.is_file():
+            continue
+
+        fields = path.name.split("_")
+        if len(fields) <= 9 or fields[9] not in ("POS", "NEG", "FPS", "EI"):
+            raise ValueError(f"Cannot determine polarity of {path.name}")
+
+        if fields[9] == polarity[:3].upper():
+            if ";" in path.name or path.name in selected:
+                raise ValueError(f"Invalid or duplicate filename: {path.name}")
+            selected.add(path.name)
+
+    if not selected:
+        raise ValueError(f"No {polarity} mzML files found for {project}")
+
+    return ";".join(f"{raw_data}/{name}" for name in sorted(selected))
 
 def set_everything_bagel_parameters(
     description: str,
