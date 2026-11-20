@@ -1865,14 +1865,14 @@ def set_everything_bagel_parameters(
                 "fragment_tolerance": '0.05',
                 "input_spectra": raw_data,
                 "input_spectral_library": 'LIBRARYLOCATION/LC/LIBRARY',
-                "library_min_matched_peaks": '6',
+                "library_min_matched_peaks": '3',
                 "library_min_similarity": '0.7',
                 "metadata_file": combined_metadata_file,
                 "mode": 'fbmn',
                 "noise_threshold_mode": 'standard',
                 "pm_tolerance": '0.05',
                 "run_peak_resolving_challenger": 'no',
-                "topk": '1',
+                "topk": '20',
                 #"workflow_version": 'SERVER:2026.08.27;WORKFLOW:2026.09.29',
     }
     return params
